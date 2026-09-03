@@ -473,6 +473,25 @@ CODEX_CHAT_SYSTEM_PROMPT = """你是一位{market_role}投资分析 Agent，负�
 {language_section}
 """
 
+RUNTIME_CHAT_SYSTEM_PROMPT = """你是一位{market_role}投资分析 Agent。你运行在一个独立的 Agent Runtime 中，只能使用本轮实际提供给你的 Skill、Tool、MCP、数据源、会话与记忆。
+
+{market_guidelines}
+
+## 工作方式
+
+1. 先理解用户目标与股票范围，再自行规划最小且足够的研究步骤。
+2. 若运行时存在适用能力，优先获取行情、历史走势、基本面、公告或新闻等真实证据；只调用当前真实可用的能力，不得假定某个工具名必然存在。
+3. 下方网站 Skill 是分析方法与证据要求，不是必须逐字调用的工具协议。将它们应用到结论中，但不要等待不存在的 DSA 工具。
+4. 无法取得关键数据时，明确说明缺口、数据时点和结论限制；不得编造数字、来源、工具结果或交易执行状态。
+5. 工具失败后记录限制，并基于已有证据继续；不要无意义地重复调用同一失败能力。
+6. 风险优先，自由组织清晰、可读的回答，不需要输出 JSON。区分事实、计算、推断和观点，并给出可验证的下一步。
+7. 你可以提出研究或交易建议，但不得声称已经完成真实下单、审批或风控放行。
+
+{default_skill_policy_section}
+{skills_section}
+{language_section}
+"""
+
 
 def _build_language_section(report_language: str, *, chat_mode: bool = False) -> str:
     """Build output-language guidance for the agent prompt."""
@@ -523,6 +542,7 @@ class PreparedAgentChat:
     system_prompt: str
     history_messages: List[Dict[str, Any]]
     stock_scope: Optional[StockScope]
+    capability_manifest: Optional[Dict[str, Any]] = None
 
 
 def prepare_agent_chat(
@@ -538,6 +558,7 @@ def prepare_agent_chat(
     use_codex_prompt: bool,
     include_provider_trace: bool,
     strict_initial_stock_scope: bool = False,
+    use_runtime_prompt: bool = False,
 ) -> PreparedAgentChat:
     """Build the existing Chat prompt order without choosing an Agent backend."""
     scope_resolution = resolve_stock_scope(
@@ -555,7 +576,9 @@ def prepare_agent_chat(
         default_skill_policy_section = f"\n{default_skill_policy}\n"
     report_language = normalize_report_language((effective_context or {}).get("report_language", "zh"))
     stock_code = (effective_context or {}).get("stock_code", "")
-    if use_codex_prompt:
+    if use_runtime_prompt:
+        prompt_template = RUNTIME_CHAT_SYSTEM_PROMPT
+    elif use_codex_prompt:
         prompt_template = CODEX_CHAT_SYSTEM_PROMPT
     elif use_legacy_default_prompt:
         prompt_template = LEGACY_DEFAULT_CHAT_SYSTEM_PROMPT
@@ -589,6 +612,14 @@ def prepare_agent_chat(
             context_parts.append(f"股票代码: {effective_context['stock_code']}")
         if effective_context.get("stock_name"):
             context_parts.append(f"股票名称: {effective_context['stock_name']}")
+        if effective_context.get("data_snapshot_as_of"):
+            context_parts.append(f"数据快照时间: {effective_context['data_snapshot_as_of']}")
+        capability_manifest = effective_context.get("capability_manifest")
+        if isinstance(capability_manifest, dict):
+            context_parts.append(
+                "本次任务能力绑定（只表示获准使用，实际可用性以运行时工具发现为准）: "
+                + json.dumps(capability_manifest, ensure_ascii=False)
+            )
         if effective_context.get("previous_price"):
             context_parts.append(f"上次分析价格: {effective_context['previous_price']}")
         if effective_context.get("previous_change_pct"):
@@ -631,6 +662,11 @@ def prepare_agent_chat(
         system_prompt=system_prompt,
         history_messages=history_messages,
         stock_scope=scope_resolution.stock_scope,
+        capability_manifest=(
+            effective_context.get("capability_manifest")
+            if isinstance(effective_context.get("capability_manifest"), dict)
+            else None
+        ),
     )
 
 

@@ -51,7 +51,21 @@ class AgentChatSessionService:
                 selected_skill_ids_update=[],
             )
 
-        normalized = normalize_requested_skill_ids(config, requested_skill_ids)
+        # Preserve the established built-in Skill normalization contract while
+        # extending it with user-authored workspace Skills.
+        from src.services.workspace_service import WorkspaceService
+
+        builtin_ids = normalize_requested_skill_ids(config, requested_skill_ids)
+        custom_ids = {
+            item["id"]
+            for item in WorkspaceService(self.db).list_skills()
+            if item.get("enabled") and not item.get("builtIn")
+        }
+        normalized = []
+        for skill_id in requested_skill_ids:
+            cleaned = str(skill_id or "").strip()
+            if cleaned and (cleaned in builtin_ids or cleaned in custom_ids) and cleaned not in normalized:
+                normalized.append(cleaned)
         if not normalized:
             return ChatSkillSelection(
                 effective_skill_ids=(

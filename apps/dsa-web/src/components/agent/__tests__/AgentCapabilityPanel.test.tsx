@@ -1,0 +1,75 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import AgentCapabilityPanel from "../AgentCapabilityPanel";
+import { workspaceCatalogFixture } from "../../../testWorkspaceFixtures";
+
+const apiMocks = vi.hoisted(() => ({
+  getCapabilities: vi.fn(),
+}));
+
+vi.mock("../../../api/workspace", () => ({
+  workspaceApi: apiMocks,
+}));
+
+describe("AgentCapabilityPanel", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMocks.getCapabilities.mockResolvedValue(workspaceCatalogFixture);
+  });
+
+  it("shows registered capability categories and keeps MCP state honest", async () => {
+    const onToggleSkill = vi.fn();
+    const onToggleTool = vi.fn();
+    const onToggleExpert = vi.fn();
+    const onToggleExpertTeam = vi.fn();
+    render(
+      <MemoryRouter>
+        <AgentCapabilityPanel
+          skills={[{ id: "quality", name: "盈利质量", description: "检查现金流与利润" }]}
+          selectedSkillIds={[]}
+          onToggleSkill={onToggleSkill}
+          skillLimitReached={false}
+          selectedToolIds={[]}
+          onToggleTool={onToggleTool}
+          selectedDataSourceIds={[]}
+          onToggleDataSource={vi.fn()}
+          selectedMcpIds={[]}
+          onToggleMcp={vi.fn()}
+          selectedExpertIds={[]}
+          onToggleExpert={onToggleExpert}
+          selectedExpertTeamIds={[]}
+          onToggleExpertTeam={onToggleExpertTeam}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "本次会话能力" })).toBeInTheDocument();
+    const dataSection = await screen.findByRole("button", { name: /数据源/ });
+    fireEvent.click(dataSection);
+    expect(await screen.findByRole("button", { name: /行情数据/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^专家\d/ }));
+    expect(screen.getByRole("button", { name: /沃伦·巴菲特/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /基本面专家/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /沃伦·巴菲特/ }));
+    expect(onToggleExpert).toHaveBeenCalledWith(-1001);
+    fireEvent.click(screen.getByRole("button", { name: /专家团/ }));
+    expect(screen.getByRole("button", { name: /长期价值评审团/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /多空评审团/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /长期价值评审团/ }));
+    expect(onToggleExpertTeam).toHaveBeenCalledWith(-2001);
+    fireEvent.click(screen.getByRole("button", { name: /MCP/ }));
+    expect(screen.getByText(/还没有启用的 MCP 连接/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /内置工具/ }));
+    expect(screen.getAllByText("已接通").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /实时行情/ }));
+    expect(onToggleTool).toHaveBeenCalledWith("get_realtime_quote");
+
+    fireEvent.click(screen.getByRole("button", { name: /Skills/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^盈利质量/ }));
+    expect(onToggleSkill).toHaveBeenCalledWith("quality");
+    expect(screen.getByText(/工作区注册表/)).toBeInTheDocument();
+  });
+});

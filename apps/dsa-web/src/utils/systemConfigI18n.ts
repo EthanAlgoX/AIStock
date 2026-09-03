@@ -435,6 +435,7 @@ const fieldOptionLabelMap: Record<string, Record<string, string>> = {
   AGENT_BACKEND: {
     auto: '自动（推荐）',
     litellm: '默认模型配置',
+    external_runtime: '独立 Agent 引擎',
     codex_app_server: 'Codex 本地 Agent（实验）',
   },
   LOG_LEVEL: {
@@ -519,6 +520,7 @@ const fieldOptionLabelMapEn: Record<string, Record<string, string>> = {
   AGENT_BACKEND: {
     auto: 'Auto (recommended)',
     litellm: 'Default model settings',
+    external_runtime: 'Independent Agent Engine',
     codex_app_server: 'Codex local Agent (experimental)',
   },
   LOG_LEVEL: {

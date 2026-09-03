@@ -543,8 +543,17 @@ class StrategyDefinitionServiceTest(unittest.TestCase):
         defaults = self.service.list_data_sources()
         self.assertTrue({"system_market_data", "system_news", "system_fundamentals"}.issubset({item["sourceId"] for item in defaults}))
         provider_ids = {item["sourceId"] for item in defaults if item.get("selectionMode") == "provider"}
-        self.assertTrue({"kline:akshare", "kline:yfinance", "news:searxng", "fundamentals:akshare"}.issubset(provider_ids))
+        self.assertTrue({"kline:akshare", "kline:yfinance", "news:finance_rss", "news:searxng", "fundamentals:akshare"}.issubset(provider_ids))
         self.assertTrue(next(item for item in defaults if item["sourceId"] == "kline:akshare")["selectable"])
+        finance_rss = next(item for item in defaults if item["sourceId"] == "news:finance_rss")
+        self.assertTrue(finance_rss["selectable"])
+        self.assertEqual(finance_rss["providerName"], "FinanceRSS")
+        included_sources = finance_rss["includedSources"]
+        self.assertEqual(len(included_sources), 13)
+        self.assertEqual(len({item["id"] for item in included_sources}), 13)
+        self.assertTrue({"Reuters Business", "CNBC", "SEC", "Federal Reserve", "金十数据"}.issubset(
+            {item["name"] for item in included_sources}
+        ))
         self.assertEqual(next(item for item in defaults if item["sourceId"] == "system_market_data")["selectionMode"], "automatic")
         created = self.service.create_data_source({
             "name": "行业景气度", "description": "行业周期输入", "connectionKey": "industry_cycle_v1",

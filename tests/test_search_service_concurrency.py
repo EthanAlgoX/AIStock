@@ -32,6 +32,23 @@ def _hang_topic_news_process_worker(*_args):
     time.sleep(10)
 
 
+def _empty_topic_news_process_worker(conn, _constructor_kwargs, topic, _max_results, _focus_keywords):
+    """Return a deterministic empty response for subprocess serialization coverage."""
+    conn.send(
+        (
+            True,
+            SearchResponse(
+                query=topic,
+                results=[],
+                provider="None",
+                success=False,
+                error_message="no configured provider",
+            ),
+        )
+    )
+    conn.close()
+
+
 class _ThreadUnsafeCycle:
     def __init__(self, values):
         self._values = list(values)
@@ -398,17 +415,23 @@ class SearchServiceConcurrencyTestCase(unittest.TestCase):
         self.assertEqual(active_search_children, [])
 
     def test_bounded_topic_search_process_returns_serialized_dsa_response(self):
-        response = _call_topic_news_in_subprocess(
-            constructor_kwargs={
-                "searxng_public_instances_enabled": False,
-                "news_max_age_days": 3,
-                "news_strategy_profile": "short",
-            },
-            topic="影视传媒",
-            max_results=2,
-            focus_keywords=None,
-            timeout_seconds=5.0,
-        )
+        # The application now has a real keyless RSS default, so this transport
+        # test injects a deterministic worker rather than reaching the network.
+        with patch(
+            "src.search_service._search_topic_news_process_worker",
+            _empty_topic_news_process_worker,
+        ):
+            response = _call_topic_news_in_subprocess(
+                constructor_kwargs={
+                    "searxng_public_instances_enabled": False,
+                    "news_max_age_days": 3,
+                    "news_strategy_profile": "short",
+                },
+                topic="影视传媒",
+                max_results=2,
+                focus_keywords=None,
+                timeout_seconds=5.0,
+            )
 
         self.assertFalse(response.success)
         self.assertEqual(response.provider, "None")

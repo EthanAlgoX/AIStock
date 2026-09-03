@@ -3427,6 +3427,7 @@ def search_dsa_stock_news(stock_code: str, stock_name: str = "", max_results: in
     news_config = data_sources.get("news")
     connection = str(news_config.get("connection") or "system_news") if isinstance(news_config, dict) else "system_news"
     provider_name = {
+        "news:finance_rss": "FinanceRSS",
         "news:searxng": "SearXNG", "news:bocha": "Bocha", "news:tavily": "Tavily",
         "news:brave": "Brave", "news:serpapi": "SerpAPI", "news:minimax": "MiniMax",
         "news:anspire": "Anspire",
@@ -3449,6 +3450,7 @@ def search_dsa_stock_events(stock_code: str, stock_name: str = "", max_results: 
     news_config = data_sources.get("news")
     connection = str(news_config.get("connection") or "system_news") if isinstance(news_config, dict) else "system_news"
     provider_name = {
+        "news:finance_rss": "FinanceRSS",
         "news:searxng": "SearXNG", "news:bocha": "Bocha", "news:tavily": "Tavily",
         "news:brave": "Brave", "news:serpapi": "SerpAPI", "news:minimax": "MiniMax",
         "news:anspire": "Anspire",

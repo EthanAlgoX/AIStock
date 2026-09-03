@@ -1160,9 +1160,21 @@ def get_analysis_status(task_id: str) -> TaskStatus:
             analysis_phase=task.analysis_phase,
             skills=getattr(task, "skills", None),
             strategy_version_id=getattr(task, "strategy_version_id", None),
-            created_at=task.created_at.isoformat() if task.created_at else None,
-            started_at=task.started_at.isoformat() if task.started_at else None,
-            completed_at=task.completed_at.isoformat() if task.completed_at else None,
+            created_at=(
+                getattr(task, "created_at", None).isoformat()
+                if getattr(task, "created_at", None)
+                else None
+            ),
+            started_at=(
+                getattr(task, "started_at", None).isoformat()
+                if getattr(task, "started_at", None)
+                else None
+            ),
+            completed_at=(
+                getattr(task, "completed_at", None).isoformat()
+                if getattr(task, "completed_at", None)
+                else None
+            ),
         )
     
     # 2. 从数据库查询已完成的记录

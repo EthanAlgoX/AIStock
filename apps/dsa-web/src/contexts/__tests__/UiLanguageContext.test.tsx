@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
   UiLanguageProvider,
+  useUiLanguage,
 } from '../UiLanguageContext';
 import {
   getRuntimeInitialLanguage,
@@ -10,6 +11,11 @@ import {
   UI_LANGUAGE_STORAGE_KEY,
 } from '../../utils/uiLanguage';
 import { UiLanguageToggle } from '../../components/i18n/UiLanguageToggle';
+
+function LocalizedCopyProbe() {
+  const { localize } = useUiLanguage();
+  return <p>{localize('验证中心', 'Validation Center')}</p>;
+}
 
 function createStorage(value: string | null): Storage {
   const store = new Map<string, string>();
@@ -119,5 +125,21 @@ describe('UiLanguageContext', () => {
     expect(localStorage.getItem(UI_LANGUAGE_STORAGE_KEY)).toBe('en');
     expect(screen.getByRole('button', { name: 'Switch UI language' })).toBeInTheDocument();
     expect(screen.getByText('English')).toBeInTheDocument();
+  });
+
+  it('updates page-local product copy from the same global language state', () => {
+    localStorage.setItem(UI_LANGUAGE_STORAGE_KEY, 'zh');
+
+    render(
+      <UiLanguageProvider>
+        <UiLanguageToggle />
+        <LocalizedCopyProbe />
+      </UiLanguageProvider>,
+    );
+
+    expect(screen.getByText('验证中心')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '切换界面语言' }));
+    expect(screen.getByText('Validation Center')).toBeInTheDocument();
+    expect(screen.queryByText('验证中心')).not.toBeInTheDocument();
   });
 });

@@ -14,6 +14,30 @@ Issue #1707 的首版能力聚焦“合规资讯源采集、本地沉淀、可�
 - 拉取批处理采用 fail-open：单个源失败不会阻塞其他源或主分析链路。
 - 支持 retention 清理，避免资讯池无限增长。
 
+## 默认财经 RSS 路由
+
+策略数据中心内置 `news:finance_rss`，无需 API Key 即可使用。`system_news`
+保留用户已配置的 Anspire、Bocha、Tavily、Brave、SerpAPI、MiniMax
+或自建 SearXNG 优先级；未配置这些渠道时，财经 RSS 成为首个真实
+默认入口，并先于公共 SearXNG 兜底。
+RSS 请求失败或经股票相关性、发布时间过滤后没有有效结果时，会继续尝试后续
+provider，不把空 RSS 结果伪装成成功证据。
+
+该路由通过 Google News RSS 做按股票/题材的定向检索，并把查询范围限制在以下
+财经与监管发布方：Reuters Business、CNBC、MarketWatch、Yahoo Finance、
+Financial Times、Business Insider、Fox Business、GlobeNewswire、Business
+Wire、PR Newswire、SEC、Federal Reserve 和金十数据。系统只读取标题、RSS
+摘要、发布时间、发布方和原文链接；不抓取或保存付费正文。新闻仍会经过现有
+时间窗口、股票身份、低质量内容与重复项过滤，并在运行诊断中保存真实 provider。
+
+同一批来源也作为资讯池模板提供，其中 CNBC、Yahoo Finance、Financial Times、
+Reuters Business、Business Wire、GlobeNewswire、SEC 和 Federal Reserve 可以
+通过 `/api/v1/intelligence/sources/templates` 创建为可测试、可启停、可落库的来源。
+模板默认保持禁用；只有用户显式启用，或设置
+`NEWS_INTEL_AUTO_FETCH_ENABLED=true`，后台才会批量拉取并沉淀到
+`intelligence_items`。RSS 内容和链接仍受各发布方条款约束，使用时应保留来源
+署名和原文链接。
+
 ## 安全边界
 
 自定义 URL 会做基础校验：

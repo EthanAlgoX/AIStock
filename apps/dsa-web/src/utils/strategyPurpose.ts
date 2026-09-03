@@ -40,11 +40,33 @@ export const STRATEGY_PURPOSES: Array<{
   },
 ];
 
-export function purposeDefinition(purpose?: StrategyPurpose) {
-  return (
+export function purposeDefinition(purpose?: StrategyPurpose, language: "zh" | "en" = "zh") {
+  const definition = (
     STRATEGY_PURPOSES.find((item) => item.id === purpose) ||
     STRATEGY_PURPOSES[2]
   );
+  if (language === "zh") return definition;
+  const english = {
+    research_report: {
+      label: "Single-stock research report",
+      shortLabel: "Research report",
+      description: "Consolidates evidence for one stock into an explainable report without producing a trading action.",
+      destination: "Single-stock research",
+    },
+    candidate_screening: {
+      label: "Screening results",
+      shortLabel: "Screening strategy",
+      description: "Selects and ranks candidates from a market or defined universe without entering trade execution.",
+      destination: "Stock screening",
+    },
+    trading_decision: {
+      label: "Trading research decision",
+      shortLabel: "Trading strategy",
+      description: "Produces a backtestable research proposal; it still does not generate orders or trade automatically.",
+      destination: "Validation Center / Run Center",
+    },
+  }[definition.id];
+  return { ...definition, ...english };
 }
 
 export function inferWorkflowOutputContract(

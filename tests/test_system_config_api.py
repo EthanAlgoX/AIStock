@@ -39,6 +39,15 @@ class SystemConfigApiTestCase(unittest.TestCase):
     """System config API tests in isolation without loading the full app."""
 
     def setUp(self) -> None:
+        # Earlier tests may legitimately load the repository .env into the
+        # process. This suite owns a temporary ENV_FILE, so provider routing
+        # inherited from that unrelated file must not alter its assertions.
+        self._original_provider_env = {
+            key: os.environ.get(key)
+            for key in ("LLM_CHANNELS", "LLM_DEEPSEEK_MODELS")
+        }
+        for key in self._original_provider_env:
+            os.environ.pop(key, None)
         auth._auth_enabled = None
         auth._session_secret = None
         auth._password_hash_salt = None
@@ -83,6 +92,11 @@ class SystemConfigApiTestCase(unittest.TestCase):
             os.environ.pop("DATABASE_PATH", None)
         else:
             os.environ["DATABASE_PATH"] = self._orig_database_path
+        for key, value in self._original_provider_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
         self.temp_dir.cleanup()
 
     @staticmethod
@@ -171,7 +185,7 @@ class SystemConfigApiTestCase(unittest.TestCase):
         backend_schema = item_map["AGENT_BACKEND"]["schema"]
         self.assertEqual(
             backend_schema["validation"]["enum"],
-            ["auto", "litellm", "codex_app_server"],
+            ["auto", "litellm", "external_runtime", "codex_app_server"],
         )
         generation_schema = item_map["GENERATION_BACKEND"]["schema"]
         self.assertIn("claude_code_cli", generation_schema["validation"]["enum"])

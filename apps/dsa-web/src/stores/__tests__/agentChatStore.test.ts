@@ -39,7 +39,7 @@ function createStreamResponse(lines: string[]) {
 function accepted(
   requestId: string,
   sessionId = 'session-test',
-  backend: 'litellm' | 'codex_app_server' = 'litellm',
+  backend: 'litellm' | 'codex_app_server' | 'external_runtime' = 'litellm',
 ) {
   return `data: ${JSON.stringify({
     type: 'accepted',
@@ -70,7 +70,7 @@ beforeEach(() => {
     sessions: [],
     sessionsLoading: false,
     chatError: null,
-    currentRoute: '/chat',
+    currentRoute: '/overview',
     completionBadge: false,
     hasInitialLoad: true,
     abortController: null,
@@ -164,6 +164,54 @@ describe('agentChatStore.startStream', () => {
     streamController.close();
     await streamPromise;
     expect(useAgentChatStore.getState().terminalStatus).toBe('cancelled');
+  });
+
+  it('accepts an external runtime-owned backend with server cancellation', async () => {
+    vi.mocked(agentApi.chatStream).mockResolvedValue(createStreamResponse([
+      accepted('request-external_runtime', 'session-test', 'external_runtime'),
+      'data: {"type":"done","success":true,"content":"Agent answer","backend":"external_runtime"}',
+    ]));
+
+    let cancellationAvailableWhileRunning = false;
+    await useAgentChatStore.getState().startStream(
+      {
+        message: '分析 AAPL',
+        session_id: 'session-test',
+        request_id: 'request-external_runtime',
+      },
+      {
+        onAccepted: () => {
+          cancellationAvailableWhileRunning = useAgentChatStore.getState().serverCancellation;
+        },
+      },
+    );
+
+    const state = useAgentChatStore.getState();
+    expect(state.messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: 'Agent answer',
+      backend: 'external_runtime',
+    });
+    expect(cancellationAvailableWhileRunning).toBe(true);
+    expect(state.serverCancellation).toBe(false);
+    expect(state.chatError).toBeNull();
+    expect(state.completionBadge).toBe(false);
+  });
+
+  it('shows a completion badge when the Agent finishes outside the primary Agent page', async () => {
+    useAgentChatStore.setState({ currentRoute: '/market-intelligence' });
+    vi.mocked(agentApi.chatStream).mockResolvedValue(createStreamResponse([
+      accepted('request-background', 'session-test', 'external_runtime'),
+      'data: {"type":"done","success":true,"content":"Background answer","backend":"external_runtime"}',
+    ]));
+
+    await useAgentChatStore.getState().startStream({
+      message: '分析市场',
+      session_id: 'session-test',
+      request_id: 'request-background',
+    });
+
+    expect(useAgentChatStore.getState().completionBadge).toBe(true);
   });
 
   it('does not create a session or user message when stopped before accepted', async () => {

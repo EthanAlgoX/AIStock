@@ -2,7 +2,7 @@
 
 This document contains the complete configuration guide for the AI Stock Analysis System, intended for users who need advanced features or special deployment methods.
 
-> Quick start guide available in [README_EN.md](README_EN.md). This document covers advanced configuration.
+> The quick start guide is available in the root [README](../README.md). This document covers advanced configuration.
 
 ## Project Structure
 
@@ -214,7 +214,9 @@ Default schedule: Every weekday at **18:00 (Beijing Time)** automatic execution.
 | `GENERATION_BACKEND_MAX_OUTPUT_BYTES` | Total captured diagnostic stdout/stderr plus final-response size limit for one local CLI backend call; final responses duplicated to stdout by `--output-last-message` are not counted twice; range `1-33554432` | `1048576` | No |
 | `GENERATION_BACKEND_MAX_CONCURRENCY` | Global generation backend concurrency cap; range `1-16`, does not change LiteLLM Router or `MAX_WORKERS` behavior | `1` | No |
 | `LOCAL_CLI_BACKEND_MAX_CONCURRENCY` | Local CLI backend concurrency cap; range `1-4`, effective concurrency is the lower of this value and `GENERATION_BACKEND_MAX_CONCURRENCY` | `1` | No |
-| `AGENT_BACKEND` | Runtime for the existing ask-stock Chat: `auto` (recommended, preserves the default model), `litellm`, or `codex_app_server` (experimental, single-agent Chat only) | `auto` | No |
+| `AGENT_BACKEND` | Runtime for ask-stock Chat: `auto` (recommended), `litellm`, `external_runtime` (separate Agent runtime), or `codex_app_server` (experimental) | `auto` | No |
+| `AGENT_RUNTIME_API_BASE` | HTTP root exposed by the independent Agent service, for example `http://127.0.0.1:8900` | - | Required with Independent Agent Engine |
+| `AGENT_RUNTIME_API_KEY` | Optional Independent Agent Engine API Bearer token; required and matched on both sides for public binds | - | No |
 | `AGENT_GENERATION_BACKEND` | Agent Chat generation backend. Web settings only expose `auto|litellm`; hand-written local CLI backends return an unsupported tool-calling diagnostic | `auto` | No |
 | `AGENT_SKILL_CONCURRENCY` | Specialist-mode strategy worker concurrency cap, range `1-4`. Up to four strategies are selected; the default runs three concurrently and queues the fourth under the shared pipeline budget | `3` | No |
 | `LITELLM_MODEL` | Primary model, format `provider/model` (e.g. `gemini/gemini-3.1-pro-preview`), recommended | - | No |
@@ -247,6 +249,8 @@ Default schedule: Every weekday at **18:00 (Beijing Time)** automatic execution.
 > Generation backend status note: the Web settings quick check only reads config, drafts, and executable visibility; it does not send a real model request. JSON smoke test is a separate explicit action that sends one real request with a server-owned fixed JSON prompt/schema. `health_status` and `last_error_code/message` describe only the current status computation or smoke result, not persisted historical health.
 
 > `AGENT_BACKEND=codex_app_server` is an experimental option only for the existing ask-stock Chat. Install and sign in to Codex on the device running DSA, then open **Settings → Agent → Ask-stock method**, keep `AGENT_ARCH=single`, and set a positive overall timeout. Settings checks only whether the configuration, Codex command, and required protocol allow an attempt; it does not sign in, call a model, or read stock data. After saving, ask directly in Chat—the first question is the first real execution. Codex can currently read only saved analysis context and backtest summaries; use **Default model** for live quotes, news, market hotspots, technical-indicator recalculation, per-stock backtest details, or portfolio tools. After the user clicks Stop, the page shows **Stopping** and reports **Stopped** only after both the Codex turn and its current tool task have exited. It currently supports macOS, Linux, and a complete DSA backend running inside WSL; native Windows is not supported, while the Phase 2 `codex_cli` generation path remains unchanged. Codex Multi Agent and Codex Deep Research are not supported; existing LiteLLM Multi Agent, Deep Research, regular reports, and scheduled analysis stay unchanged. Codex is not an offline model, and services configured in Codex may process stock questions and redacted tool results. DSA does not read or store Codex credentials. Docker, remote servers, and Desktop must each expose Codex on the backend process PATH. See the [LLM Config Guide](LLM_CONFIG_GUIDE_EN.md#codex-local-agent-phase-6-experimental-prototype).
+
+> `AGENT_BACKEND=external_runtime` delegates Main Agent turns to an independent engine. Models, runtime Skills, Tools, MCP, and memory remain engine-owned; the website stores only its API address and optional Bearer token while retaining stock scope, visible sessions, and trading safety boundaries. See [Independent Main Agent Engine](agent-runtime-integration_EN.md).
 
 > *Note: Configure at least one of `ANSPIRE_API_KEYS`, `AIHUBMIX_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_API_BASE`, or `LLM_CHANNELS` / `LITELLM_CONFIG`. `ANSPIRE_API_KEYS` and `AIHUBMIX_KEY` are auto-adapted without an `OPENAI_BASE_URL`.
 

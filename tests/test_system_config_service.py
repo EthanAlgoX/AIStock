@@ -26,6 +26,14 @@ from src.services.system_config_service import ConfigConflictError, ConfigImport
 
 class SystemConfigServiceTestCase(unittest.TestCase):
     def setUp(self) -> None:
+        # Keep this temporary-file suite independent from repository .env
+        # values loaded into the shared pytest process by earlier tests.
+        self._original_provider_env = {
+            key: os.environ.get(key)
+            for key in ("LLM_CHANNELS", "LLM_DEEPSEEK_MODELS")
+        }
+        for key in self._original_provider_env:
+            os.environ.pop(key, None)
         self.temp_dir = tempfile.TemporaryDirectory()
         self.env_path = Path(self.temp_dir.name) / ".env"
         self.env_path.write_text(
@@ -49,6 +57,11 @@ class SystemConfigServiceTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         Config.reset_instance()
         os.environ.pop("ENV_FILE", None)
+        for key, value in self._original_provider_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
         self.temp_dir.cleanup()
 
     def _rewrite_env(self, *lines: str) -> None:
@@ -2528,6 +2541,20 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         )
         self.assertEqual(issue["key"], "AGENT_ARCH")
         self.assertEqual(issue["expected"], "single")
+
+    def test_validate_requires_external_runtime_base_and_single_agent_architecture(self) -> None:
+        validation = self.service.validate(
+            items=[
+                {"key": "AGENT_BACKEND", "value": "external_runtime"},
+                {"key": "AGENT_ARCH", "value": "multi"},
+                {"key": "AGENT_RUNTIME_API_BASE", "value": ""},
+            ]
+        )
+
+        self.assertFalse(validation["valid"])
+        issue_codes = {issue["code"] for issue in validation["issues"]}
+        self.assertIn("unsupported_agent_arch", issue_codes)
+        self.assertIn("missing_dependency", issue_codes)
 
     def test_validate_rejects_disabled_timeout_for_codex_only(self) -> None:
         codex = self.service.validate(

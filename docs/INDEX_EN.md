@@ -8,8 +8,8 @@ This is the entry point for project documentation. The README covers the project
 
 | I want to | Start with | Then read |
 | --- | --- | --- |
-| Understand what the project does | [README (EN)](README_EN.md) | [Full Guide (EN)](full-guide_EN.md) |
-| Run the project for the first time | [README (EN)](README_EN.md) | [Full Guide (EN)](full-guide_EN.md) |
+| Understand what the project does | [README (EN)](../README.md) | [Full Guide (EN)](full-guide_EN.md) |
+| Run the project for the first time | [README (EN)](../README.md) | [Full Guide (EN)](full-guide_EN.md) |
 | Configure model providers | [LLM Config Guide (EN)](LLM_CONFIG_GUIDE_EN.md) | [Provider Configuration Guide](llm-providers.md) <sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub> (Chinese-only) |
 | Configure notifications | [Notification Baseline](notifications.md) <sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub> (Chinese-only) | [Full Guide (EN)](full-guide_EN.md) |
 | Deploy to a server or cloud platform | [Deploy Guide (EN)](DEPLOY_EN.md) | [Cloud WebUI Deployment](deploy-webui-cloud.md) <sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub> (Chinese-only), [Zeabur Deployment](docker/zeabur-deployment.md) <sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub> (Chinese-only) |
@@ -22,7 +22,7 @@ This is the entry point for project documentation. The README covers the project
 
 | Document | Contents |
 | --- | --- |
-| [README (EN)](README_EN.md) | Project overview, key features, quick start, sample output |
+| [README (EN)](../README.md) | Project overview, key features, quick start, sample output |
 | [Full Guide (EN)](full-guide_EN.md) | Environment setup, run modes, configuration, deployment paths, and common issues |
 | [FAQ (EN)](FAQ_EN.md) | Common configuration, model, notification, deployment, and runtime issues |
 | [Data-source stability diagrams](data-source-stability.md) <sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub> (Chinese-only) | Existing-source routing, fallback chains, and recommended configuration profiles |

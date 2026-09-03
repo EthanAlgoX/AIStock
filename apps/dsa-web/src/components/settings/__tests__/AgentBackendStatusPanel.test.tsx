@@ -34,6 +34,15 @@ const litellmStatus: AgentBackendStatusResponse = {
   message: null,
 };
 
+const externalRuntimeStatus: AgentBackendStatusResponse = {
+  backend: 'external_runtime',
+  available: true,
+  experimental: false,
+  version: 'external_runtime-agent',
+  errorCode: null,
+  message: null,
+};
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((nextResolve) => {
@@ -86,6 +95,21 @@ describe('AgentBackendStatusPanel', () => {
     expect(await screen.findByText('Codex Agent')).toBeInTheDocument();
     expect(screen.getByText('实验功能')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /真实测试/ })).not.toBeInTheDocument();
+  });
+
+  it('shows independent Agent ownership boundaries and runtime metadata', async () => {
+    previewStatus.mockResolvedValueOnce(externalRuntimeStatus);
+    renderPanel({
+      items: [
+        { key: 'AGENT_BACKEND', value: 'external_runtime' },
+        { key: 'AGENT_RUNTIME_API_BASE', value: 'http://127.0.0.1:8900' },
+      ],
+      selectedBackend: 'external_runtime',
+    });
+
+    expect((await screen.findAllByText('独立 Agent 引擎')).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/网站 MCP 草稿和数据源目录目前不会自动同步/)).toBeInTheDocument();
+    expect(screen.getByText(/external_runtime-agent/)).toBeInTheDocument();
   });
 
   it('ignores a stale draft preview response', async () => {

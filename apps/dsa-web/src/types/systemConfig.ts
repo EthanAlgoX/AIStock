@@ -164,7 +164,7 @@ export interface TestGenerationBackendResponse {
 }
 
 export interface AgentBackendStatusResponse {
-  backend: 'litellm' | 'codex_app_server' | string;
+  backend: 'litellm' | 'external_runtime' | 'codex_app_server' | string;
   available: boolean;
   experimental: boolean;
   version?: string | null;

@@ -8,7 +8,10 @@ export const STRATEGY_MARKETS = [
 
 export type StrategyMarket = (typeof STRATEGY_MARKETS)[number]["value"];
 
-export function strategyMarketLabel(market: string) {
+export function strategyMarketLabel(market: string, language: "zh" | "en" = "zh") {
+  if (language === "en") {
+    return ({ cn: "China A-shares", hk: "Hong Kong", us: "US" } as Record<string, string>)[market.toLowerCase()] || market.toUpperCase();
+  }
   return (
     STRATEGY_MARKETS.find((item) => item.value === market.toLowerCase())
       ?.label || market.toUpperCase()
@@ -25,8 +28,8 @@ export function dataSourceSupportsMarket(
   );
 }
 
-export function dataSourceMarketSummary(source: StrategyDataSource) {
+export function dataSourceMarketSummary(source: StrategyDataSource, language: "zh" | "en" = "zh") {
   return source.markets?.length
-    ? source.markets.map(strategyMarketLabel).join(" / ")
-    : "历史来源 · 未限制市场";
+    ? source.markets.map((market) => strategyMarketLabel(market, language)).join(" / ")
+    : language === "en" ? "Legacy source · no market restriction" : "历史来源 · 未限制市场";
 }

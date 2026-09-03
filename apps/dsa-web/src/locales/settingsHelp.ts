@@ -825,10 +825,11 @@ const settingsHelpZhCN: SettingsHelpMap = {
   'settings.agent.AGENT_BACKEND': {
     title: '问股生成方式',
     showFieldKey: false,
-    summary: '选择问股 Chat 使用默认模型配置，还是调用运行 DSA 设备上的 Codex。',
-    usage: '通常保持“自动（推荐）”。自动模式不会启用实验性的 Codex；只有确认运行 DSA 的设备已安装并登录 Codex 后，才选择 Codex 本地 Agent。',
+    summary: '选择主 Agent 使用现有默认模型、独立 Agent 引擎，还是运行 DSA 设备上的 Codex。',
+    usage: '希望使用完整 ReAct、Skill、Tool、MCP、会话和记忆时选择独立 Agent 引擎，并配置其 API 地址；原有路径继续使用“自动（推荐）”。',
     valueNotes: [
       '“自动（推荐）”与“默认模型配置”都继续使用现有模型和 API 配置。',
+      '“独立 Agent 引擎”通过受控 OpenAI-compatible API 调用独立进程，不会在网站主进程内重复实现 Agent 循环。',
       '“Codex 本地 Agent（实验）”目前只支持单 Agent 问股，不支持 Codex Multi Agent 或 Codex Deep Research。',
       'Codex 本地 Agent 当前支持 macOS、Linux，以及完整运行于 WSL 的 DSA 后端；暂不支持原生 Windows 后端。',
       '本地 Agent 不等于离线模型；股票问题和工具结果可能由 Codex 自身配置的服务处理。',
@@ -841,6 +842,20 @@ const settingsHelpZhCN: SettingsHelpMap = {
       '想恢复原有行为，选择“自动（推荐）”并保存。',
     ],
     examples: [],
+  },
+  'settings.agent.AGENT_RUNTIME_API_BASE': {
+    title: 'Agent 引擎 API 地址',
+    summary: '连接独立 Agent 引擎提供的 OpenAI-compatible API。',
+    usage: '填写 HTTP 根地址，不要追加 /v1/chat/completions。模型、Skill、Tool、MCP、记忆与安全规则继续由独立引擎管理。',
+    impact: ['只在问股方式选择独立 Agent 引擎时生效。'],
+    notes: ['网站只执行健康检查和 Agent 请求，不读取独立引擎的模型或 MCP 凭据。'],
+  },
+  'settings.agent.AGENT_RUNTIME_API_KEY': {
+    title: 'Agent 引擎 API Key',
+    summary: '独立 Agent 引擎 API 服务配置的可选 Bearer Token。',
+    usage: '本机未启用认证时可留空；远程绑定必须在引擎侧配置 API Key，并在此填写相同值。',
+    impact: ['用于网站后端到独立 Agent 引擎的请求认证。'],
+    notes: ['该字段按敏感配置遮罩，不会发送到浏览器明文回显。'],
   },
   'settings.agent.AGENT_GENERATION_BACKEND': {
     title: '问股生成方式',
@@ -2012,10 +2027,11 @@ const settingsHelpEnUS: SettingsHelpMap = {
   'settings.agent.AGENT_BACKEND': {
     title: 'Ask-Stock Method',
     showFieldKey: false,
-    summary: 'Choose whether ask-stock Chat uses the default model configuration or Codex on the device running DSA.',
-    usage: 'Keep Auto (recommended) unless Codex is installed and signed in on the device running DSA. Auto never enables the experimental Codex route.',
+    summary: 'Choose the existing default model, an independent Agent engine, or Codex on the DSA device for the primary Agent.',
+    usage: 'Choose Independent Agent Engine for a complete ReAct loop, Skills, Tools, MCP services, sessions, and memory; keep Auto for the existing route.',
     valueNotes: [
       'Auto (recommended) and Default model settings both keep the existing model and API route.',
+      'Independent Agent Engine uses a controlled OpenAI-compatible API in a separate process instead of reimplementing its Agent loop inside the website process.',
       'Codex local Agent (experimental) currently supports single-agent Chat only, not Codex Multi Agent or Codex Deep Research.',
       'Codex local Agent currently supports macOS, Linux, and a DSA backend running completely inside WSL; native Windows backends are not supported yet.',
       'A local Agent is not an offline model; stock questions and tool results may be processed by services configured in Codex.',
@@ -2028,6 +2044,20 @@ const settingsHelpEnUS: SettingsHelpMap = {
       'To restore the original behavior, select Auto (recommended) and save.',
     ],
     examples: [],
+  },
+  'settings.agent.AGENT_RUNTIME_API_BASE': {
+    title: 'Agent Engine API Base URL',
+    summary: 'Connects to the OpenAI-compatible API exposed by the independent Agent engine.',
+    usage: 'Enter the HTTP root without /v1/chat/completions. The independent engine continues to own model, Skill, Tool, MCP, memory, and security configuration.',
+    impact: ['Used only when the ask-stock method is Independent Agent Engine.'],
+    notes: ['The website performs health checks and Agent requests but does not read engine provider or MCP credentials.'],
+  },
+  'settings.agent.AGENT_RUNTIME_API_KEY': {
+    title: 'Agent Engine API Key',
+    summary: 'Optional Bearer token configured by the independent Agent service.',
+    usage: 'Leave empty for an unauthenticated loopback service. Remote bindings must configure an API key and use the same value here.',
+    impact: ['Authenticates website backend requests to the independent Agent engine.'],
+    notes: ['This sensitive field is masked and is never echoed to the browser in plaintext.'],
   },
   'settings.agent.AGENT_GENERATION_BACKEND': {
     title: 'Ask-Stock Generation Method',

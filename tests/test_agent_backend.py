@@ -132,6 +132,10 @@ def test_auto_agent_backend_remains_litellm() -> None:
     assert resolve_agent_backend_id(SimpleNamespace()) == "litellm"
 
 
+def test_external_agent_backend_is_explicit_opt_in() -> None:
+    assert resolve_agent_backend_id(SimpleNamespace(agent_backend="external_runtime")) == "external_runtime"
+
+
 def test_codex_chat_factory_does_not_construct_litellm_context_adapter() -> None:
     prompt_state = SimpleNamespace(
         skill_instructions="",
@@ -156,6 +160,35 @@ def test_codex_chat_factory_does_not_construct_litellm_context_adapter() -> None
         executor = build_agent_chat_executor(config)
 
     assert executor.context_llm_adapter is None
+
+
+def test_external_runtime_chat_factory_does_not_construct_litellm_context_adapter() -> None:
+    prompt_state = SimpleNamespace(
+        skill_instructions="stock research method",
+        default_skill_policy="",
+        use_legacy_default_prompt=False,
+    )
+    config = SimpleNamespace(
+        agent_backend="external_runtime",
+        agent_arch="single",
+        agent_context_compression_enabled=True,
+        agent_context_compression_trigger_tokens=1,
+        agent_litellm_model="must-not-be-used",
+        agent_max_steps=10,
+        agent_orchestrator_timeout_s=600,
+        agent_runtime_api_base="http://127.0.0.1:8900",
+        agent_runtime_api_key="",
+    )
+
+    with patch("src.agent.factory.resolve_skill_prompt_state", return_value=prompt_state), \
+         patch("src.agent.factory.get_tool_registry", return_value=ToolRegistry()), \
+         patch("src.agent.llm_adapter.LLMToolAdapter", side_effect=AssertionError("LiteLLM must not be constructed")):
+        from src.agent.factory import build_agent_chat_executor
+
+        executor = build_agent_chat_executor(config)
+
+    assert executor.context_llm_adapter is None
+    assert executor.backend.backend_id == "external_runtime"
 
 
 def test_generation_codex_cli_and_agent_codex_app_server_routes_remain_independent() -> None:

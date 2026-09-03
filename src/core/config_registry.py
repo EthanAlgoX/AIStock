@@ -71,6 +71,7 @@ _CATEGORY_DEFINITIONS: List[Dict[str, Any]] = [
 ]
 
 WEB_SETTINGS_HIDDEN_FROM_UI = {
+    "AGENT_CAPABILITY_GRANT_SECRET",
     "DATABASE_PATH",
     "SQLITE_WAL_ENABLED",
     "SQLITE_BUSY_TIMEOUT_MS",
@@ -3773,20 +3774,68 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [
             {"label": "Auto (recommended)", "value": "auto"},
             {"label": "Default model settings", "value": "litellm"},
+            {"label": "独立 Agent 引擎", "value": "external_runtime"},
             {"label": "Codex local Agent (experimental)", "value": "codex_app_server"},
         ],
-        "validation": {"enum": ["auto", "litellm", "codex_app_server"]},
+        "validation": {"enum": ["auto", "litellm", "external_runtime", "codex_app_server"]},
         "display_order": 2,
         "help_key": "settings.agent.AGENT_BACKEND",
         "examples": [
             "AGENT_BACKEND=auto",
             "AGENT_BACKEND=litellm",
+            "AGENT_BACKEND=external_runtime",
             "AGENT_BACKEND=codex_app_server",
         ],
         "docs": [
             {
                 "label": "LLM 配置指南",
                 "href": "https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/LLM_CONFIG_GUIDE.md",
+            },
+        ],
+        "warning_codes": [],
+    },
+    "AGENT_RUNTIME_API_BASE": {
+        "title": "独立 Agent 引擎 API Base URL",
+        "description": "HTTP root exposed by the separately managed `独立 Agent 服务` runtime.",
+        "category": "agent",
+        "data_type": "string",
+        "ui_control": "text",
+        "is_sensitive": False,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": "",
+        "options": [],
+        "validation": {},
+        "display_order": 4,
+        "help_key": "settings.agent.AGENT_RUNTIME_API_BASE",
+        "examples": ["AGENT_RUNTIME_API_BASE=http://127.0.0.1:8900"],
+        "docs": [
+            {
+                "label": "独立 Agent 引擎 主 Agent Runtime 接入",
+                "href": "https://github.com/EthanAlgoX/LLM-TradeBot/blob/main/docs/agent-runtime-integration.md",
+            },
+        ],
+        "warning_codes": [],
+    },
+    "AGENT_RUNTIME_API_KEY": {
+        "title": "独立 Agent 引擎 API Key",
+        "description": "Optional Bearer token configured by the independent Agent API service.",
+        "category": "agent",
+        "data_type": "string",
+        "ui_control": "password",
+        "is_sensitive": True,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": "",
+        "options": [],
+        "validation": {},
+        "display_order": 5,
+        "help_key": "settings.agent.AGENT_RUNTIME_API_KEY",
+        "examples": ["AGENT_RUNTIME_API_KEY=<agent-runtime-api-key>"],
+        "docs": [
+            {
+                "label": "独立 Agent 引擎 主 Agent Runtime 接入",
+                "href": "https://github.com/EthanAlgoX/LLM-TradeBot/blob/main/docs/agent-runtime-integration.md",
             },
         ],
         "warning_codes": [],

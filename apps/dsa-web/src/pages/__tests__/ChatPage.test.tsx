@@ -7,6 +7,7 @@ import { UiLanguageProvider } from '../../contexts/UiLanguageContext';
 import { historyApi } from '../../api/history';
 import type { Message, ProgressStep } from '../../stores/agentChatStore';
 import { UI_LANGUAGE_STORAGE_KEY } from '../../utils/uiLanguage';
+import { workspaceCatalogFixture } from '../../testWorkspaceFixtures';
 import ChatPage from '../ChatPage';
 import { extractStockCodeFromMessage, extractStockCodesFromMessage } from '../../utils/chatStockCode';
 
@@ -23,6 +24,7 @@ function createDeferred<T>() {
 const {
   mockGetSkills,
   mockGetStatus,
+  mockGetCapabilities,
   mockDeleteChatSession,
   mockSendChat,
   mockGetSystemConfig,
@@ -36,6 +38,7 @@ const {
 } = vi.hoisted(() => ({
   mockGetSkills: vi.fn(),
   mockGetStatus: vi.fn(),
+  mockGetCapabilities: vi.fn(),
   mockDeleteChatSession: vi.fn(),
   mockSendChat: vi.fn(),
   mockGetSystemConfig: vi.fn(),
@@ -95,6 +98,12 @@ vi.mock('../../api/agent', () => ({
     getStatus: mockGetStatus,
     deleteChatSession: mockDeleteChatSession,
     sendChat: mockSendChat,
+  },
+}));
+
+vi.mock('../../api/workspace', () => ({
+  workspaceApi: {
+    getCapabilities: mockGetCapabilities,
   },
 }));
 
@@ -189,6 +198,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
   window.localStorage.removeItem(UI_LANGUAGE_STORAGE_KEY);
   mockGetStatus.mockReset();
   mockStoreState.messages = [];
@@ -216,6 +226,7 @@ beforeEach(() => {
     ],
     default_skill_id: 'bull_trend',
   });
+  mockGetCapabilities.mockResolvedValue(workspaceCatalogFixture);
   mockGetStatus.mockResolvedValue({
     backend: 'litellm',
     available: true,
@@ -280,6 +291,29 @@ describe('ChatPage', () => {
 
     expect(mockStopStream).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: '发送' })).not.toBeInTheDocument();
+  });
+
+  it('lets the user stop an active main Agent analysis without exposing its runtime', async () => {
+    mockGetStatus.mockResolvedValueOnce({
+      backend: 'external_runtime',
+      available: true,
+      experimental: false,
+      errorCode: null,
+      message: null,
+    });
+    mockStoreState.loading = true;
+
+    render(
+      <MemoryRouter initialEntries={['/chat']}>
+        <ChatPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: '停止分析' }));
+
+    expect(mockStopStream).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('status')).toHaveTextContent('可随时停止');
+    expect(screen.queryByText(/Independent Agent Engine/i)).not.toBeInTheDocument();
   });
 
   it('keeps the existing waiting state for LiteLLM without offering a false stop', async () => {
@@ -369,11 +403,33 @@ describe('ChatPage', () => {
     expect(await screen.findByText('Codex Agent · 实验')).toBeInTheDocument();
     expect(screen.getByText('Codex 当前可用范围')).toBeInTheDocument();
     expect(screen.getByText(/实时行情、新闻、市场热点/)).toBeInTheDocument();
-    expect(screen.getByText('使用已保存的分析上下文和回测汇总，向 Codex 询问个股。')).toBeInTheDocument();
-    expect(screen.getByText(/Codex 将基于已保存的分析上下文和回测汇总回答/)).toBeInTheDocument();
+    expect(screen.getByText('统一理解目标、调用能力并沉淀决策成果')).toBeInTheDocument();
     expect(screen.queryByText(/AI 将调用实时数据工具/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '切换问股方式' })).toBeInTheDocument();
     expect(mockGetStatus).toHaveBeenCalledTimes(1);
+    expect(screen.getByPlaceholderText(/分析 600519/)).toBeEnabled();
+  });
+
+  it('keeps the main Agent page product-focused when the external runtime is active', async () => {
+    mockGetStatus.mockResolvedValueOnce({
+      backend: 'external_runtime',
+      available: true,
+      experimental: false,
+      version: 'external_runtime-agent',
+      errorCode: null,
+      message: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/chat']}>
+        <ChatPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: '主 Agent' })).toBeInTheDocument();
+    expect(screen.getByText('统一理解目标、调用能力并沉淀决策成果')).toBeInTheDocument();
+    expect(screen.getByText(/从研究一家公司、筛选候选股票或完善策略想法开始/)).toBeInTheDocument();
+    expect(screen.queryByText(/Independent Agent Engine/i)).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText(/分析 600519/)).toBeEnabled();
   });
 
@@ -469,7 +525,7 @@ describe('ChatPage', () => {
     const stream = createDeferred<void>();
     let onAccepted: ((event: {
       type: 'accepted';
-      backend: 'litellm' | 'codex_app_server';
+      backend: 'litellm' | 'codex_app_server' | 'external_runtime';
       request_id: string;
       session_id: string;
     }) => void) | undefined;
@@ -555,8 +611,9 @@ describe('ChatPage', () => {
     );
 
     expect(await screen.findByTestId('chat-workspace')).toBeInTheDocument();
-    expect(screen.getByTestId('chat-session-list-scroll')).toBeInTheDocument();
     expect(screen.getByTestId('chat-message-scroll')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '历史对话' }));
+    expect(screen.getByTestId('chat-session-list-scroll')).toBeInTheDocument();
     expect(mockLoadInitialSession).toHaveBeenCalled();
     expect(mockClearCompletionBadge).toHaveBeenCalled();
   });
@@ -653,6 +710,7 @@ describe('ChatPage', () => {
       </MemoryRouter>
     );
 
+    fireEvent.click(await screen.findByRole('button', { name: '历史对话' }));
     const sessionCard = await screen.findByRole('button', {
       name: /切换到对话 请简要分析 600519/,
     });
@@ -669,6 +727,7 @@ describe('ChatPage', () => {
       </MemoryRouter>
     );
 
+    fireEvent.click(await screen.findByRole('button', { name: '历史对话' }));
     const deleteButton = await screen.findByRole('button', {
       name: /删除对话 请简要分析 600519/,
     });
@@ -686,7 +745,7 @@ describe('ChatPage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole('heading', { name: '问股' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '主 Agent' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '导出会话' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '发送到已配置的通知机器人/邮箱' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '历史对话' })).toBeInTheDocument();
@@ -862,7 +921,7 @@ describe('ChatPage', () => {
     });
   });
 
-  it('omits skills for an untouched new session so the server resolves its default', async () => {
+  it('explicitly sends the enabled default for an untouched new session', async () => {
     render(
       <MemoryRouter initialEntries={['/chat']}>
         <ChatPage />
@@ -876,10 +935,12 @@ describe('ChatPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '发送' }));
 
     await waitFor(() => expect(mockStartStream).toHaveBeenCalled());
-    expect(mockStartStream.mock.calls.at(-1)?.[0]).not.toHaveProperty('skills');
+    expect(mockStartStream.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ skills: ['bull_trend'] }),
+    );
   });
 
-  it('omits skills when continuing a legacy session without persisted Skill state', async () => {
+  it('explicitly sends the enabled default for a legacy session without Skill state', async () => {
     mockStoreState.messages = [
       { id: 'legacy-user', role: 'user', content: '分析 AAPL' },
       { id: 'legacy-assistant', role: 'assistant', content: '历史分析结果' },
@@ -903,9 +964,51 @@ describe('ChatPage', () => {
       expect.objectContaining({
         message: '继续分析',
         session_id: 'session-1',
+        skills: ['bull_trend'],
       }),
     );
-    expect(mockStartStream.mock.calls.at(-1)?.[0]).not.toHaveProperty('skills');
+  });
+
+  it('removes disabled historical skills at the final request boundary', async () => {
+    mockStoreState.selectedSkillIds = ['ma_golden_cross'];
+    mockGetSkills.mockResolvedValue({
+      skills: [
+        { id: 'bull_trend', name: '趋势分析', description: '默认趋势' },
+      ],
+      default_skill_id: 'bull_trend',
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/chat']}>
+        <ChatPage />
+      </MemoryRouter>
+    );
+
+    await screen.findByRole('checkbox', { name: '趋势分析' });
+    expect(screen.queryByRole('checkbox', { name: '均线金叉' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/分析 600519/), {
+      target: { value: '继续分析' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+
+    await waitFor(() => expect(mockStartStream).toHaveBeenCalled());
+    expect(mockStartStream.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ skills: [] }),
+    );
+  });
+
+  it('does not expose Skill quick questions when every Skill is disabled', async () => {
+    mockGetSkills.mockResolvedValue({ skills: [], default_skill_id: '' });
+
+    render(
+      <MemoryRouter initialEntries={['/chat']}>
+        <ChatPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(mockGetSkills).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: '分析比亚迪趋势' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: '趋势分析' })).not.toBeInTheDocument();
   });
 
   it('sends multiple selected skills in order', async () => {
@@ -1847,6 +1950,7 @@ describe('ChatPage', () => {
     );
 
     expect(await screen.findByDisplayValue('请深入分析 贵州茅台(600519)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '历史对话' }));
     fireEvent.click(screen.getByRole('button', { name: '切换到对话 请简要分析 600519' }));
     expect(mockSwitchSession).not.toHaveBeenCalled();
 
@@ -1927,6 +2031,7 @@ describe('ChatPage', () => {
     );
 
     expect(await screen.findByDisplayValue('请深入分析 贵州茅台(600519)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '历史对话' }));
     fireEvent.click(screen.getByRole('button', { name: '开启新对话' }));
     expect(mockStartNewChat).toHaveBeenCalled();
 
@@ -1957,6 +2062,7 @@ describe('ChatPage', () => {
     );
 
     expect(await screen.findByDisplayValue('请深入分析 贵州茅台(600519)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '历史对话' }));
     fireEvent.click(screen.getByRole('button', { name: '切换到对话 旧会话' }));
     expect(mockSwitchSession).toHaveBeenCalledWith('session-2');
 
@@ -1986,6 +2092,7 @@ describe('ChatPage', () => {
     );
 
     expect(await screen.findByDisplayValue('请深入分析 贵州茅台(600519)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '历史对话' }));
     fireEvent.click(screen.getByRole('button', { name: '删除对话 请简要分析 600519' }));
     fireEvent.click(screen.getByRole('button', { name: '删除' }));
 
@@ -2019,7 +2126,7 @@ describe('ChatPage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole('heading', { name: '问股' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '主 Agent' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/分析 600519/)).toHaveValue('');
     expect(historyApi.getDetail).not.toHaveBeenCalled();
   });
