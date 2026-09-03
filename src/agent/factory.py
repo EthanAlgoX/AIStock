@@ -27,7 +27,7 @@ Usage::
 import copy
 import logging
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from src.config import AGENT_MAX_STEPS_DEFAULT
 
@@ -202,9 +202,18 @@ def get_tool_registry():
     from src.agent.tools.search_tools import ALL_SEARCH_TOOLS
     from src.agent.tools.market_tools import ALL_MARKET_TOOLS
     from src.agent.tools.backtest_tools import ALL_BACKTEST_TOOLS
+    from src.agent.tools.screening_tools import ALL_SCREENING_TOOLS
 
     registry = ToolRegistry()
-    for tool_fn in ALL_DATA_TOOLS + ALL_ANALYSIS_TOOLS + ALL_SEARCH_TOOLS + ALL_MARKET_TOOLS + ALL_BACKTEST_TOOLS:
+    tools = (
+        ALL_DATA_TOOLS
+        + ALL_ANALYSIS_TOOLS
+        + ALL_SEARCH_TOOLS
+        + ALL_MARKET_TOOLS
+        + ALL_BACKTEST_TOOLS
+        + ALL_SCREENING_TOOLS
+    )
+    for tool_fn in tools:
         registry.register(tool_fn)
 
     _TOOL_REGISTRY = registry
@@ -382,7 +391,32 @@ def build_agent_executor(config=None, skills: Optional[List[str]] = None):
     )
 
 
-def build_agent_chat_executor(config=None, skills: Optional[List[str]] = None):
+def _filtered_tool_registry(tool_ids: Optional[List[str]] = None):
+    """Return an isolated ToolRegistry restricted to a validated allowlist."""
+    registry = get_tool_registry()
+    if tool_ids is None:
+        return registry
+    from src.agent.tools.registry import ToolRegistry
+
+    filtered = ToolRegistry()
+    requested = set(tool_ids)
+    for tool_def in registry.list_tools():
+        if tool_def.name in requested:
+            filtered.register(tool_def)
+    unknown = requested - set(filtered.list_names())
+    if unknown:
+        logger.warning("[AgentFactory] Ignoring unknown tool ids: %s", sorted(unknown))
+    return filtered
+
+
+def build_agent_chat_executor(
+    config=None,
+    skills: Optional[List[str]] = None,
+    *,
+    tool_ids: Optional[List[str]] = None,
+    extra_skill_instructions: str = "",
+    external_tools: Optional[List[Any]] = None,
+):
     """Build the backend-neutral executor used only by Agent Chat endpoints."""
     if config is None:
         from src.config import get_config
@@ -398,33 +432,53 @@ def build_agent_chat_executor(config=None, skills: Optional[List[str]] = None):
 
     backend_id = resolve_agent_backend_id(config)
     arch = str(getattr(config, "agent_arch", "single") or "single").strip().lower()
-    if backend_id == "codex_app_server" and arch != "single":
+    if backend_id in {"codex_app_server", "nanobot"} and arch != "single":
         raise AgentBackendConfigError(
             "unsupported_agent_arch",
-            "Codex Agent currently supports single-agent Chat only",
+            f"{backend_id} currently supports single-agent Chat only",
         )
     if backend_id == "litellm" and arch == "multi":
         return build_agent_executor(config, skills=skills)
 
-    registry = get_tool_registry()
+    registry = _filtered_tool_registry(tool_ids)
+    if external_tools:
+        if registry is get_tool_registry():
+            from src.agent.tools.registry import ToolRegistry
+
+            isolated = ToolRegistry()
+            for tool_def in registry.list_tools():
+                isolated.register(tool_def)
+            registry = isolated
+        for tool_def in external_tools:
+            registry.register(tool_def)
     prompt_state = resolve_skill_prompt_state(config, skills=skills)
+    skill_instructions = prompt_state.skill_instructions
+    if extra_skill_instructions.strip():
+        skill_instructions = "\n\n".join(
+            part for part in (skill_instructions.strip(), extra_skill_instructions.strip()) if part
+        )
     if backend_id == "litellm":
         from src.agent.llm_adapter import LLMToolAdapter
 
         context_llm_adapter = LLMToolAdapter(config)
         backend = LiteLLMAgentBackend(registry, context_llm_adapter)
-    else:
+    elif backend_id == "codex_app_server":
         from src.agent.codex_agent_backend import CodexAgentBackend
         from src.agent.tool_surface import ToolSurface
 
         context_llm_adapter = None
         backend = CodexAgentBackend(ToolSurface(registry), config)
+    else:
+        from src.agent.nanobot_agent_backend import NanobotAgentBackend
+
+        context_llm_adapter = None
+        backend = NanobotAgentBackend(config)
 
     return AgentChatExecutor(
         backend=backend,
         config=config,
         context_llm_adapter=context_llm_adapter,
-        skill_instructions=prompt_state.skill_instructions,
+        skill_instructions=skill_instructions,
         default_skill_policy=prompt_state.default_skill_policy,
         use_legacy_default_prompt=prompt_state.use_legacy_default_prompt,
         max_steps=_coerce_config_int(

@@ -2,15 +2,15 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { strategyWorkspaceApi } from '../../api/strategyWorkspace';
+import { workspaceApi } from '../../api/workspace';
 import DataSourcesPage from '../DataSourcesPage';
 
-vi.mock('../../api/strategyWorkspace', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../api/strategyWorkspace')>();
-  return { ...actual, strategyWorkspaceApi: { listDataSources: vi.fn(), createDataSource: vi.fn(), archiveDataSource: vi.fn() } };
+vi.mock('../../api/workspace', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../api/workspace')>();
+  return { ...actual, workspaceApi: { ...actual.workspaceApi, listDataSources: vi.fn(), createDataSource: vi.fn(), archiveDataSource: vi.fn() } };
 });
 
-const api=vi.mocked(strategyWorkspaceApi);
+const api=vi.mocked(workspaceApi);
 const builtIns=[
   { sourceId:'system_market_data',name:'系统行情与 K 线',kind:'kline' as const,connectionKey:'system_market_data',required:true,builtIn:true,selectable:true,availability:'system_managed' as const,markets:['cn','hk','us'] },
   { sourceId:'system_news',name:'系统新闻检索',kind:'news' as const,connectionKey:'system_news',required:false,builtIn:true,selectable:true,availability:'system_managed' as const,markets:['cn','hk','us'] },
@@ -25,7 +25,7 @@ describe('DataSourcesPage',()=>{
     expect(await screen.findByText('系统行情与 K 线')).toBeInTheDocument();
     expect(screen.getByText('系统新闻检索')).toBeInTheDocument();
     expect(screen.getByText('系统基本面数据')).toBeInTheDocument();
-    expect(screen.getByText('策略必备')).toBeInTheDocument();
+    expect(screen.getByText('默认启用')).toBeInTheDocument();
   });
 
   it('persists the data type and market tag used by strategy matching',async()=>{
@@ -68,5 +68,37 @@ describe('DataSourcesPage',()=>{
     expect(screen.getByText('已配置提供方')).toBeInTheDocument();
     expect(screen.getByText('待配置提供方')).toBeInTheDocument();
     expect(screen.queryByText(/策略草稿/)).not.toBeInTheDocument();
+  });
+
+  it('shows every publisher covered by the default finance RSS route',async()=>{
+    api.listDataSources.mockResolvedValue([
+      ...builtIns,
+      {
+        sourceId:'news:finance_rss',
+        name:'财经资讯 RSS 聚合',
+        kind:'news',
+        connectionKey:'news:finance_rss',
+        required:false,
+        builtIn:true,
+        selectable:true,
+        availability:'configured',
+        selectionMode:'provider',
+        markets:['cn','hk','us'],
+        includedSources:[
+          {id:'reuters-business',name:'Reuters Business',domain:'reuters.com',category:'publisher',markets:['cn','hk','us']},
+          {id:'business-wire',name:'Business Wire',domain:'businesswire.com',category:'corporate_wire',markets:['cn','hk','us']},
+          {id:'sec',name:'SEC',domain:'sec.gov',category:'regulator',markets:['us']},
+        ],
+      },
+    ]);
+
+    render(<MemoryRouter><DataSourcesPage /></MemoryRouter>);
+
+    expect(await screen.findByRole('heading',{name:'默认财经资讯网络'})).toBeInTheDocument();
+    expect(screen.getByText('Reuters Business')).toBeInTheDocument();
+    expect(screen.getByText('Business Wire')).toBeInTheDocument();
+    expect(screen.getByText('SEC')).toBeInTheDocument();
+    expect(screen.getByText('3 个来源·默认可用')).toBeInTheDocument();
+    expect(screen.getByText(/不表示已批量抓取或保存各站正文/)).toBeInTheDocument();
   });
 });

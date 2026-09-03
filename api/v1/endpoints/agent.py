@@ -35,6 +35,7 @@ TOOL_DISPLAY_NAMES: Dict[str, str] = {
     "analyze_pattern":            "识别K线形态",
     "get_market_indices":         "获取市场指数",
     "get_sector_rankings":        "分析行业板块",
+    "screen_stock_universe":      "运行股票池筛选",
     "get_skill_backtest_summary": "获取技能回测概览",
     "get_strategy_backtest_summary": "获取策略回测概览",
     "get_stock_backtest_summary": "获取个股回测数据",
@@ -44,8 +45,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_ACTIVE_CODEX_STREAMS: Dict[str, threading.Event] = {}
-_ACTIVE_CODEX_STREAMS_LOCK = threading.Lock()
+_ACTIVE_CANCELLABLE_STREAMS: Dict[str, threading.Event] = {}
+_ACTIVE_CANCELLABLE_STREAMS_LOCK = threading.Lock()
 
 class ChatRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -58,10 +59,13 @@ class ChatRequest(BaseModel):
         validation_alias=AliasChoices("skills", "strategies"),
     )
     context: Optional[Dict[str, Any]] = None  # Previous analysis context for data reuse
+    capabilities: Optional[Dict[str, Any]] = None
 
     @property
     def effective_skills(self) -> Optional[List[str]]:
         """Return skill ids from the unified request shape."""
+        if isinstance(self.capabilities, dict) and isinstance(self.capabilities.get("skillIds"), list):
+            return [str(item) for item in self.capabilities["skillIds"]]
         return self.skills
 
 
@@ -72,6 +76,16 @@ def _build_agent_chat_context(request: ChatRequest, config, skills: Optional[Lis
     context.pop("strategies", None)
     if skills is not None:
         context["skills"] = skills
+    from src.agent.agent_backend import resolve_agent_backend_id
+    from src.services.workspace_service import WorkspaceService
+
+    workspace = WorkspaceService()
+    capability_input = request.capabilities
+    if capability_input is None and resolve_agent_backend_id(config) == "nanobot":
+        capability_input = workspace.capability_catalog()["defaults"]["chat"]
+    if capability_input is not None:
+        bindings = workspace.validate_bindings(capability_input)
+        context["capability_manifest"] = workspace._capability_manifest(bindings)
     report_language = context.get("report_language")
     if report_language is None or (isinstance(report_language, str) and not report_language.strip()):
         context["report_language"] = config.report_language
@@ -125,7 +139,7 @@ async def get_agent_models():
         selected_backend = resolve_agent_backend_id(config)
     except AgentBackendConfigError:
         return AgentModelsResponse(models=[])
-    if selected_backend == "codex_app_server":
+    if selected_backend in {"codex_app_server", "nanobot"}:
         return AgentModelsResponse(models=[])
     return AgentModelsResponse(
         models=[AgentModelDeployment(**item) for item in list_agent_model_deployments(config)]
@@ -167,13 +181,36 @@ def _build_skills_response(config) -> SkillsResponse:
             skill.name,
         ),
     )
+    enabled_skill_ids = {skill.name for skill in available_skills}
+    custom_skills: List[SkillInfo] = []
+    try:
+        from src.services.workspace_service import WorkspaceService
+
+        workspace_skills = WorkspaceService().list_skills()
+        enabled_skill_ids = {
+            str(item["id"])
+            for item in workspace_skills
+            if item.get("enabled")
+        }
+        known_builtin = {skill.name for skill in available_skills}
+        custom_skills = [
+            SkillInfo(id=item["id"], name=item["name"], description=item["description"])
+            for item in workspace_skills
+            if not item["builtIn"] and item["enabled"] and item["id"] not in known_builtin
+        ]
+    except Exception as exc:  # Capability catalog failure must not break core Chat.
+        logger.warning("Unable to apply workspace Skill catalog to Chat: %s", exc)
+    enabled_builtin_skills = [
+        skill for skill in available_skills if skill.name in enabled_skill_ids
+    ]
     skills = [
         SkillInfo(id=skill.name, name=skill.display_name, description=skill.description)
-        for skill in available_skills
+        for skill in enabled_builtin_skills
     ]
+    skills.extend(custom_skills)
     return SkillsResponse(
         skills=skills,
-        default_skill_id=get_primary_default_skill_id(available_skills),
+        default_skill_id=get_primary_default_skill_id(enabled_builtin_skills),
     )
 
 
@@ -227,7 +264,11 @@ async def agent_chat(
         )
         skills = skill_selection.effective_skill_ids
         selected_skill_ids = skill_selection.selected_skill_ids_update
-        executor = _build_executor(config, skills or None)
+        executor = (
+            _build_executor(config, skills or None)
+            if request.capabilities is None
+            else _build_executor(config, skills or None, request.capabilities)
+        )
 
         ctx = _build_agent_chat_context(request, config, skills)
 
@@ -350,11 +391,23 @@ async def send_chat_to_notification(request: SendChatRequest):
     return {"success": True}
 
 
-def _build_executor(config, skills: Optional[List[str]] = None):
+def _build_executor(config, skills: Optional[List[str]] = None, capabilities: Optional[Dict[str, Any]] = None):
     """Build and return the backend-neutral Chat executor (sync helper)."""
     from src.agent.factory import build_agent_chat_executor
+    from src.services.workspace_service import WorkspaceService, normalize_bindings
 
-    return build_agent_chat_executor(config, skills=skills)
+    service = WorkspaceService()
+    bindings = service.validate_bindings(capabilities) if capabilities is not None else normalize_bindings({"skillIds": skills or []})
+    requested_skills = bindings["skillIds"] if capabilities is not None else (skills or [])
+    builtin_skills, extra_instructions = service.resolve_skill_selection(requested_skills)
+    external_tools = service.resolve_mcp_tool_definitions(bindings["mcpIds"])
+    return build_agent_chat_executor(
+        config,
+        skills=builtin_skills or None,
+        tool_ids=bindings["toolIds"] if capabilities is not None else None,
+        extra_skill_instructions=extra_instructions,
+        external_tools=external_tools,
+    )
 
 
 def _get_agent_chat_status(config) -> Dict[str, Any]:
@@ -495,6 +548,7 @@ async def agent_chat_stream(
     """
     config = get_config()
     backend_id = _select_agent_chat_backend(config)
+    supports_server_cancellation = backend_id in {"codex_app_server", "nanobot"}
 
     session_id = request.session_id or str(uuid.uuid4())
     loop = asyncio.get_running_loop()
@@ -510,9 +564,9 @@ async def agent_chat_stream(
     selected_skill_ids = skill_selection.selected_skill_ids_update
     stream_ctx = _build_agent_chat_context(request, config, skills)
 
-    if backend_id == "codex_app_server":
-        with _ACTIVE_CODEX_STREAMS_LOCK:
-            if request_id in _ACTIVE_CODEX_STREAMS:
+    if supports_server_cancellation:
+        with _ACTIVE_CANCELLABLE_STREAMS_LOCK:
+            if request_id in _ACTIVE_CANCELLABLE_STREAMS:
                 raise HTTPException(
                     status_code=409,
                     detail={
@@ -520,10 +574,10 @@ async def agent_chat_stream(
                         "message": "This Agent request is already running",
                     },
                 )
-            _ACTIVE_CODEX_STREAMS[request_id] = cancel_event
+            _ACTIVE_CANCELLABLE_STREAMS[request_id] = cancel_event
 
     def progress_callback(event: dict):
-        if backend_id == "codex_app_server" and cancel_event.is_set():
+        if supports_server_cancellation and cancel_event.is_set():
             return
         # Enrich tool events with display names
         if event.get("type") in ("tool_start", "tool_done"):
@@ -536,7 +590,7 @@ async def agent_chat_stream(
             execute_kwargs = {
                 "progress_callback": progress_callback,
             }
-            if backend_id == "codex_app_server":
+            if supports_server_cancellation:
                 execute_kwargs["cancel_event"] = cancel_event
             result = executor.execute_turn(
                 turn,
@@ -560,7 +614,7 @@ async def agent_chat_stream(
             logger.error("Agent stream error: %s", exc)
             event = {
                 "type": "error",
-                "message": "Agent Chat failed" if backend_id == "codex_app_server" else str(exc),
+                "message": "Agent Chat failed" if supports_server_cancellation else str(exc),
                 "error_code": getattr(exc, "code", "unknown_backend_error"),
                 "backend": backend_id,
                 "request_id": request_id,
@@ -571,7 +625,15 @@ async def agent_chat_stream(
         fut = None
         try:
             try:
-                executor = await asyncio.to_thread(_build_executor, config, skills or None)
+                if request.capabilities is None:
+                    executor = await asyncio.to_thread(_build_executor, config, skills or None)
+                else:
+                    executor = await asyncio.to_thread(
+                        _build_executor,
+                        config,
+                        skills or None,
+                        request.capabilities,
+                    )
                 turn = await asyncio.to_thread(
                     executor.prepare_turn,
                     message=request.message,
@@ -606,8 +668,8 @@ async def agent_chat_stream(
             fut = loop.run_in_executor(None, run_sync, executor, turn)
             while True:
                 try:
-                    if backend_id == "codex_app_server":
-                        # Codex owns one authoritative backend deadline.  A
+                    if supports_server_cancellation:
+                        # The external runtime owns one authoritative backend deadline. A
                         # second API timeout would race it and could emit a
                         # terminal event before process cleanup finishes.
                         event = await queue.get()
@@ -621,16 +683,16 @@ async def agent_chat_stream(
                 if event.get("type") in ("done", "error"):
                     break
         finally:
-            if backend_id == "codex_app_server" and (fut is None or not fut.done()):
+            if supports_server_cancellation and (fut is None or not fut.done()):
                 cancel_event.set()
             try:
-                if backend_id == "codex_app_server" and fut is not None:
+                if supports_server_cancellation and fut is not None:
                     while not fut.done():
                         try:
                             await asyncio.shield(fut)
                         except asyncio.CancelledError:
                             # Client disconnect cancellation must not abandon the
-                            # owned Codex/tool worker before it actually exits.
+                            # owned runtime/tool worker before it actually exits.
                             cancel_event.set()
                     if not fut.cancelled():
                         fut.result()
@@ -644,10 +706,10 @@ async def agent_chat_stream(
             except Exception as exc:
                 logger.warning("agent executor cleanup error (ignored): %s", exc, exc_info=True)
             finally:
-                if backend_id == "codex_app_server":
-                    with _ACTIVE_CODEX_STREAMS_LOCK:
-                        if _ACTIVE_CODEX_STREAMS.get(request_id) is cancel_event:
-                            _ACTIVE_CODEX_STREAMS.pop(request_id, None)
+                if supports_server_cancellation:
+                    with _ACTIVE_CANCELLABLE_STREAMS_LOCK:
+                        if _ACTIVE_CANCELLABLE_STREAMS.get(request_id) is cancel_event:
+                            _ACTIVE_CANCELLABLE_STREAMS.pop(request_id, None)
 
     return StreamingResponse(
         event_generator(),
@@ -662,9 +724,9 @@ async def agent_chat_stream(
 
 @router.post("/chat/stream/{request_id}/cancel")
 async def cancel_agent_chat_stream(request_id: str):
-    """Signal cancellation while the original Codex SSE remains open."""
-    with _ACTIVE_CODEX_STREAMS_LOCK:
-        cancel_event = _ACTIVE_CODEX_STREAMS.get(request_id)
+    """Signal cancellation while the original cancellable Agent SSE remains open."""
+    with _ACTIVE_CANCELLABLE_STREAMS_LOCK:
+        cancel_event = _ACTIVE_CANCELLABLE_STREAMS.get(request_id)
     if cancel_event is None:
         raise HTTPException(
             status_code=404,

@@ -74,11 +74,11 @@ components:
 
 ## Overview
 
-**Creative North Star: "The Strategy Control Plane"**
+**Creative North Star: "The Agent Decision Desk"**
 
-LLM TradeBot should feel like a precise institutional research instrument: calm enough for long sessions, dense enough for real decision work, and explicit about every state transition. The design exposes the product's defining mechanism—data entering a frozen black-box strategy version, then becoming a validation experiment or research run—without turning it into a decorative financial dashboard.
+LLM TradeBot should feel like a precise institutional research instrument: calm enough for long sessions, dense enough for real decision work, and explicit about every state transition. The main Agent conversation owns the general-purpose canvas; individual-stock analysis, screening, trading, and expert review use focused task flows. Expert review separates one-on-one consultation from group deliberation, keeps shared evidence and independent Persona sessions visible, and never fills unavailable viewpoints with sample conclusions. Trading adds a restrained paper-runtime ledger beneath its strategy definition, keeping configuration, hard risk boundaries, runtime state, and unavailable backend evidence visibly distinct. Mounted capabilities, artifacts, snapshots, approvals, and runs form a clear operational layer around it without turning the product into a decorative financial dashboard.
 
-The system rejects floating neon cards, decorative glass, diffuse colored glow, and oversized rounded containers. Brand expression comes from exact alignment, restrained cobalt signals, compact labels, tabular data, and a stable operational rail.
+The system rejects floating neon cards, decorative glass, diffuse colored glow, and oversized rounded containers. Brand expression comes from exact alignment, restrained cobalt signals, compact labels, tabular data, and a stable application header.
 
 **Key Characteristics:**
 
@@ -129,9 +129,9 @@ The palette is restrained and state-rich. Neutral surfaces carry almost the whol
 
 ## Layout
 
-Desktop uses a fixed 232px operational rail and a continuous content canvas. Content is capped near 1540px and uses 16px, 28px, and 40px responsive page gutters. Page headers sit directly on the canvas with a structural divider rather than inside a card. Dense information may use tables or divided ledgers; repeated equal cards are reserved for genuinely independent objects.
+Desktop uses a sticky application header and a continuous full-width content canvas. The header exposes only the five primary decision workspaces—Primary Agent, market intelligence, stock analysis, screening, and trading—while expert review, scheduling, runs, and the capability center remain compact utility destinations. Conversation workspaces use one dominant Agent canvas plus an optional 304px context rail. Structured research and screening workspaces use a linear task form plus a 304px capability rail. Configuration pages are capped near 1540px and use 16px, 28px, and 40px responsive page gutters. Page headers sit directly on the canvas with a structural divider rather than inside a card. Dense information may use tables or divided ledgers; repeated equal cards are reserved for genuinely independent objects.
 
-At widths below 1024px, the sidebar becomes a drawer and a 56px mobile command bar owns navigation, theme, and language. Multi-column metrics collapse to a two-column ledger; task forms and lifecycle rails stack without changing label hierarchy.
+At widths below 1024px, the five decision workspaces move into a fixed bottom navigation with safe-area padding. A 56px mobile command bar shows the current workspace and opens a right-side utility drawer for expert review, scheduling, runs, capabilities, model usage, settings, theme, and language. Multi-column metrics collapse to a two-column ledger; task forms and task-progress rails stack without changing label hierarchy.
 
 ## Elevation & Depth
 
@@ -173,17 +173,13 @@ Controls use a compact 10px radius. Main surfaces use 12px, and overlays may use
 
 ### Navigation
 
-The desktop rail is fixed and opaque. Items are 40px high with a 10px radius. Active state uses a two-pixel left indicator, cobalt icon/text, and a quiet cobalt tint. Group labels are compact uppercase labels; mobile navigation uses a standard drawer. Product navigation groups are stable: strategy operations first, data and applications second, governance and system last. Future execution surfaces must carry an explicit not-enabled status until real execution exists.
-
-### Strategy Lifecycle Rail
-
-A complete strategy product enters version management, then validation, then research run. Data is shown as a supporting dependency link rather than the first lifecycle node because the platform checks declared requirements during strategy intake. The active node is cobalt and every other node remains neutral. This component is navigation and product explanation at once; internal Agent/workflow assets never appear as a required user step.
+The desktop application header is sticky, opaque, and task-first. Primary items are at least 44px high with a 10px radius; the active workspace uses cobalt icon/text and a quiet cobalt tint. Only the five decision workspaces appear as labelled global tabs. Expert review, scheduled tasks, runs, and the capability center use labelled tooltips and compact utility buttons, while model usage, platform settings, theme, language, and logout live in the utility drawer. Capability configuration retains its own local tabs for overview, Skill, built-in tools, MCP services, data sources, and expert setup instead of repeating these routes in global navigation. Scheduled tasks and runs share a local task-center navigation. On mobile, exactly five primary destinations appear in the bottom navigation and all secondary destinations move to the utility drawer. Tool and MCP remain distinct: tools expose callable schemas and permissions, while MCP pages manage external servers that may provide tools, resources, or prompts. Each capability page separates platform presets from workspace-defined entries without pretending that frontend drafts are already executable. The trading surface must describe a local flow preview and future proposals rather than imply a background Run or order execution until runtime, risk, approval, and execution services are connected.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** use divided ledgers and lists for related strategy state.
+- **Do** use divided ledgers and lists for related task, capability, and artifact state.
 - **Do** reserve cobalt for the one active or primary operation.
 - **Do** keep published, validated, running, and trading states visually and semantically distinct.
 - **Do** preserve both light and dark themes with equivalent hierarchy and contrast.

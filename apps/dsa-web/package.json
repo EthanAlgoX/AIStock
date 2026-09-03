@@ -13,12 +13,11 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:smoke": "playwright test e2e/smoke.spec.ts e2e/report-markdown.spec.ts e2e/market-structure-card-visual.spec.ts",
-    "test:e2e:strategy": "DSA_STRATEGY_E2E=1 playwright test e2e/strategy-definition-auth.spec.ts e2e/strategy-editor-flow.spec.ts e2e/strategy-revision-conflict.spec.ts e2e/strategy-version-compare.spec.ts",
     "preview": "vite preview"
   },
   "dependencies": {
     "@remixicon/react": "^4.9.0",
-    "axios": "^1.13.4",
+    "axios": "^1.20.0",
     "camelcase-keys": "^10.0.2",
     "clsx": "^2.1.1",
     "lucide-react": "^0.555.0",
@@ -27,7 +26,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.13.0",
+    "react-router-dom": "^7.18.3",
     "recharts": "^3.3.0",
     "remark-gfm": "^4.0.1",
     "remove-markdown": "^0.6.3",

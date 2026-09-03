@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ChevronDown, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, History, Network, SlidersHorizontal } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { agentApi } from '../api/agent';
+import { workspaceApi } from '../api/workspace';
 import { systemConfigApi } from '../api/systemConfig';
 import { ApiErrorAlert, Badge, Button, ConfirmDialog, EmptyState, InlineAlert, ScrollArea, Tooltip } from '../components/common';
 import { createParsedApiError, getParsedApiError } from '../api/error';
@@ -31,9 +32,72 @@ import { findMatchingStockCode, includesStockCode, normalizeStockCode } from '..
 import { useStockIndex } from '../hooks/useStockIndex';
 import type { StockIndexItem } from '../types/stockIndex';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
+import AgentCapabilityPanel from '../components/agent/AgentCapabilityPanel';
+import { AgentWorkspacePanel } from '../components/agent/AgentWorkspacePanel';
 
 // Quick question examples shown on empty state
 type ActiveStockContext = Pick<ChatFollowUpContext, 'stock_code' | 'stock_name'>;
+
+export type AgentWorkspaceMode = 'general' | 'trading';
+
+const WORKSPACE_COPY: Record<AgentWorkspaceMode, {
+  title: string;
+  subtitle: string;
+  taskTypeLabel: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  placeholder: string;
+}> = {
+  general: {
+    title: '主 Agent',
+    subtitle: '统一理解目标、调用能力并沉淀决策成果',
+    taskTypeLabel: '自然语言任务',
+    emptyTitle: '描述目标，Agent 负责组织工作',
+    emptyDescription: '从研究一家公司、筛选候选股票或完善策略想法开始。任务启动后，系统会绑定当前上下文，并在完成时形成可追溯成果。',
+    placeholder: '输入目标，例如：分析 600519',
+  },
+  trading: {
+    title: '主 Agent · 交易',
+    subtitle: '围绕持仓、信号和风险约束形成可复核的交易提案',
+    taskTypeLabel: '交易决策',
+    emptyTitle: '描述你的交易目标与约束',
+    emptyDescription: '输入账户范围、标的、持仓目标和风险边界。Agent 可以调用当前会话能力生成交易提案，但不会绕过风险检查或审批。',
+    placeholder: '输入交易目标，例如：基于当前持仓生成 600519 的调仓提案',
+  },
+};
+
+const WORKSPACE_STARTERS: Record<Exclude<AgentWorkspaceMode, 'general'>, string[]> = {
+  trading: [
+    '基于当前持仓生成一份调仓提案',
+    '检查 600519 的交易信号与风险约束',
+    '为候选股票生成仅供审批的目标仓位建议',
+  ],
+};
+
+const WORKSPACE_ARTIFACTS: Record<AgentWorkspaceMode, string[]> = {
+  general: ['ResearchReport', 'CandidateList', 'StrategySpec'],
+  trading: ['TradeProposal', 'RiskAssessment'],
+};
+
+type PreviewCapabilitySelection = {
+  toolIds: string[];
+  dataSourceIds: string[];
+  mcpIds: string[];
+  expertIds: number[];
+  expertTeamIds: number[];
+};
+
+const EMPTY_CAPABILITY_PREVIEW: PreviewCapabilitySelection = {
+  toolIds: [],
+  dataSourceIds: [],
+  mcpIds: [],
+  expertIds: [],
+  expertTeamIds: [],
+};
+
+const toggleArrayValue = <T,>(items: T[], value: T): T[] => (
+  items.includes(value) ? items.filter((item) => item !== value) : [...items, value]
+);
 
 const QUICK_QUESTIONS: Array<{
   label: string;
@@ -94,6 +158,13 @@ const getMessageSkillNames = (msg: Message): string[] => {
 };
 
 const getMessageSkillLabel = (msg: Message): string => getMessageSkillNames(msg).join('、');
+
+const formatRunElapsed = (seconds: number): string => {
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return remainingSeconds > 0 ? `${minutes} 分 ${remainingSeconds} 秒` : `${minutes} 分钟`;
+};
 
 const isStageDoneSuccessful = (status?: string): boolean => {
   if (!status) return true;
@@ -199,8 +270,9 @@ const restoreActiveStockContextFromMessages = (messages: Message[]): ActiveStock
   return restoredContext;
 };
 
-const ChatPage: React.FC = () => {
+const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'general' }) => {
   const { t } = useUiLanguage();
+  const workspaceCopy = WORKSPACE_COPY[workspace];
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [input, setInput] = useState('');
@@ -208,6 +280,8 @@ const ChatPage: React.FC = () => {
   const [defaultSkillIds, setDefaultSkillIds] = useState<string[]>([]);
   const [showSkillDesc, setShowSkillDesc] = useState<string | null>(null);
   const [mobileSkillPickerOpen, setMobileSkillPickerOpen] = useState(false);
+  const [capabilityPanelOpen, setCapabilityPanelOpen] = useState(false);
+  const [capabilityPreviewBySession, setCapabilityPreviewBySession] = useState<Record<string, PreviewCapabilitySelection>>({});
   const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -233,8 +307,10 @@ const ChatPage: React.FC = () => {
   const [agentStatus, setAgentStatus] = useState<AgentStatusResponse | null>(null);
   const [agentStatusError, setAgentStatusError] = useState<string | null>(null);
   const [agentStatusChecking, setAgentStatusChecking] = useState(true);
+  const [runElapsedSeconds, setRunElapsedSeconds] = useState(0);
+  const runtimeOwnsStockContext = agentStatus?.backend === 'codex_app_server' || agentStatus?.backend === 'nanobot';
   const { index: stockIndex } = useStockIndex(
-    agentStatus?.backend === 'codex_app_server',
+    runtimeOwnsStockContext,
   );
   const watchlistMessageTimerRef = useRef<number | null>(null);
   const copyResetTimerRef = useRef<Partial<Record<string, number>>>({});
@@ -268,7 +344,7 @@ const ChatPage: React.FC = () => {
 
   // Set page title
   useEffect(() => {
-    document.title = '问股 - LLM TradeBot';
+    document.title = '主 Agent - LLM TradeBot';
   }, []);
 
   useEffect(() => {
@@ -360,6 +436,87 @@ const ChatPage: React.FC = () => {
     clearCompletionBadge,
   } = useAgentChatStore();
   const selectedSkillIds = sessionSelectedSkillIds ?? defaultSkillIds;
+  const capabilitySessionKey = sessionId || 'new-session';
+  const capabilityPreview = capabilityPreviewBySession[capabilitySessionKey] ?? EMPTY_CAPABILITY_PREVIEW;
+
+  const updateDataSourcePreview = useCallback((sourceId: string) => {
+    setCapabilityPreviewBySession((current) => {
+      const existing = current[capabilitySessionKey] ?? EMPTY_CAPABILITY_PREVIEW;
+      return {
+        ...current,
+        [capabilitySessionKey]: {
+          ...existing,
+          dataSourceIds: toggleArrayValue(existing.dataSourceIds, sourceId),
+        },
+      };
+    });
+  }, [capabilitySessionKey]);
+
+  const updateToolPreview = useCallback((toolId: string) => {
+    setCapabilityPreviewBySession((current) => {
+      const existing = current[capabilitySessionKey] ?? EMPTY_CAPABILITY_PREVIEW;
+      return {
+        ...current,
+        [capabilitySessionKey]: {
+          ...existing,
+          toolIds: toggleArrayValue(existing.toolIds, toolId),
+        },
+      };
+    });
+  }, [capabilitySessionKey]);
+
+  const updateMcpPreview = useCallback((mcpId: string) => {
+    setCapabilityPreviewBySession((current) => {
+      const existing = current[capabilitySessionKey] ?? EMPTY_CAPABILITY_PREVIEW;
+      return {
+        ...current,
+        [capabilitySessionKey]: {
+          ...existing,
+          mcpIds: toggleArrayValue(existing.mcpIds, mcpId),
+        },
+      };
+    });
+  }, [capabilitySessionKey]);
+
+  const updateExpertPreview = useCallback((expertId: number) => {
+    setCapabilityPreviewBySession((current) => {
+      const existing = current[capabilitySessionKey] ?? EMPTY_CAPABILITY_PREVIEW;
+      return {
+        ...current,
+        [capabilitySessionKey]: {
+          ...existing,
+          expertIds: toggleArrayValue(existing.expertIds, expertId),
+        },
+      };
+    });
+  }, [capabilitySessionKey]);
+
+  const updateExpertTeamPreview = useCallback((teamId: number) => {
+    setCapabilityPreviewBySession((current) => {
+      const existing = current[capabilitySessionKey] ?? EMPTY_CAPABILITY_PREVIEW;
+      return {
+        ...current,
+        [capabilitySessionKey]: {
+          ...existing,
+          expertTeamIds: toggleArrayValue(existing.expertTeamIds, teamId),
+        },
+      };
+    });
+  }, [capabilitySessionKey]);
+
+  const closeCapabilityPanel = useCallback(() => {
+    setCapabilityPanelOpen(false);
+    window.requestAnimationFrame(() => document.getElementById('chat-capability-trigger')?.focus());
+  }, []);
+
+  useEffect(() => {
+    if (!capabilityPanelOpen) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeCapabilityPanel();
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [capabilityPanelOpen, closeCapabilityPanel]);
 
   useEffect(() => {
     if (activeStockContext || messages.length === 0) {
@@ -424,7 +581,16 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     if (!loading) {
       pendingScrollBehaviorRef.current = 'smooth';
+      setRunElapsedSeconds(0);
+      return;
     }
+
+    const startedAt = Date.now();
+    setRunElapsedSeconds(0);
+    const intervalId = window.setInterval(() => {
+      setRunElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(intervalId);
   }, [loading]);
 
   useEffect(() => {
@@ -438,9 +604,10 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     agentApi.getSkills()
       .then((res) => {
+        const enabledIds = new Set(res.skills.map((skill) => skill.id));
         setSkills(res.skills);
         const defaultId =
-          res.default_skill_id ||
+          (enabledIds.has(res.default_skill_id) ? res.default_skill_id : '') ||
           res.skills[0]?.id ||
           '';
         setDefaultSkillIds(defaultId ? [defaultId] : []);
@@ -449,6 +616,34 @@ const ChatPage: React.FC = () => {
         console.error('Failed to load chat skills:', error);
       });
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    void workspaceApi.getCapabilities()
+      .then((catalog) => {
+        if (!active) return;
+        setCapabilityPreviewBySession((current) => {
+          if (current[capabilitySessionKey]) return current;
+          const defaults = catalog.defaults.chat;
+          return {
+            ...current,
+            [capabilitySessionKey]: {
+              toolIds: defaults.toolIds,
+              dataSourceIds: defaults.dataSourceIds,
+              mcpIds: defaults.mcpIds,
+              expertIds: defaults.expertIds,
+              expertTeamIds: defaults.expertTeamIds,
+            },
+          };
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to load default Chat capabilities:', error);
+      });
+    return () => {
+      active = false;
+    };
+  }, [capabilitySessionKey]);
 
   const loadAgentStatus = useCallback(async () => {
     const requestId = agentStatusRequestIdRef.current + 1;
@@ -546,7 +741,8 @@ const ChatPage: React.FC = () => {
   );
 
   const availableSkillIds = new Set(skills.map((skill) => skill.id));
-  const quickQuestions = QUICK_QUESTIONS.filter((question) => availableSkillIds.size === 0 || availableSkillIds.has(question.skill));
+  const quickQuestions = QUICK_QUESTIONS.filter((question) => availableSkillIds.has(question.skill));
+  const workspaceStarters = workspace === 'general' ? [] : WORKSPACE_STARTERS[workspace];
   const selectedSkillIdSet = new Set(selectedSkillIds);
   const skillLimitReached = selectedSkillIds.length >= MAX_SELECTED_SKILLS;
   const agentConfirmedUnavailable = Boolean(agentStatus && !agentStatus.available);
@@ -573,15 +769,16 @@ const ChatPage: React.FC = () => {
   );
 
   const normalizeSelectedSkillIds = useCallback((skillIds: string[]) => {
+    const enabledIds = new Set(skills.map((skill) => skill.id));
     const normalized: string[] = [];
     for (const skillId of skillIds) {
       const cleaned = skillId.trim();
-      if (cleaned && !normalized.includes(cleaned)) {
+      if (cleaned && enabledIds.has(cleaned) && !normalized.includes(cleaned)) {
         normalized.push(cleaned);
       }
     }
     return normalized.slice(0, MAX_SELECTED_SKILLS);
-  }, []);
+  }, [skills]);
 
   const toggleSkillSelection = useCallback((skillId: string) => {
     if (selectedSkillIds.includes(skillId)) {
@@ -683,26 +880,24 @@ const ChatPage: React.FC = () => {
       if (overrideMessage !== undefined) {
         setInput(msgText);
       }
-      const requestedSkillIds = overrideSkillIds ?? sessionSelectedSkillIds;
-      const usedSkillIds = normalizeSelectedSkillIds(
-        requestedSkillIds ?? selectedSkillIds,
-      );
+      const requestedSkillIds = overrideSkillIds ?? selectedSkillIds;
+      const usedSkillIds = normalizeSelectedSkillIds(requestedSkillIds);
       const usedSkillNames = usedSkillIds.length > 0 ? getSkillNames(usedSkillIds) : ['通用'];
-      const codexStockContext = agentStatus?.backend === 'codex_app_server'
+      const runtimeStockContext = runtimeOwnsStockContext
         ? overrideStockContext
         : undefined;
 
-      let nextActiveStockContext = codexStockContext ?? activeStockContext;
-      let useActiveContextForThisSend = Boolean(codexStockContext);
-      const stockResolution = codexStockContext
+      let nextActiveStockContext = runtimeStockContext ?? activeStockContext;
+      let useActiveContextForThisSend = Boolean(runtimeStockContext);
+      const stockResolution = runtimeStockContext
         ? null
         : resolveActiveStockContextFromMessage(msgText, activeStockContext);
       if (stockResolution) {
         nextActiveStockContext = stockResolution.context;
         useActiveContextForThisSend = stockResolution.useForCurrentSend;
       } else if (
-        agentStatus?.backend === 'codex_app_server'
-        && !codexStockContext
+        runtimeOwnsStockContext
+        && !runtimeStockContext
         && (!nextActiveStockContext || SWITCH_STOCK_MESSAGE_RE.test(msgText))
       ) {
         const nameContext = resolveUniqueStockNameContext(msgText, stockIndex);
@@ -718,9 +913,15 @@ const ChatPage: React.FC = () => {
       const payload = {
         message: msgText,
         session_id: sessionId,
-        ...(requestedSkillIds !== null
-          ? { skills: normalizeSelectedSkillIds(requestedSkillIds) }
-          : {}),
+        skills: usedSkillIds,
+        capabilities: {
+          skillIds: usedSkillIds,
+          toolIds: capabilityPreview.toolIds,
+          mcpIds: capabilityPreview.mcpIds,
+          dataSourceIds: capabilityPreview.dataSourceIds,
+          expertIds: capabilityPreview.expertIds,
+          expertTeamIds: capabilityPreview.expertTeamIds,
+        },
         context: contextForSend ?? undefined,
       };
       await startStream(payload, {
@@ -740,10 +941,11 @@ const ChatPage: React.FC = () => {
         },
       });
     },
-    [activeStockContext, agentAvailable, agentStatus, getSkillNames, input, loading, normalizeSelectedSkillIds, requestScrollToBottom, selectedSkillIds, sessionId, sessionSelectedSkillIds, startStream, stockIndex],
+    [activeStockContext, agentAvailable, agentStatus, capabilityPreview, getSkillNames, input, loading, normalizeSelectedSkillIds, requestScrollToBottom, runtimeOwnsStockContext, selectedSkillIds, sessionId, startStream, stockIndex],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -1034,22 +1236,17 @@ const ChatPage: React.FC = () => {
   return (
     <div
       data-testid="chat-workspace"
-      className="flex h-[calc(100vh-5rem)] w-full min-w-0 gap-4 overflow-hidden sm:h-[calc(100vh-5.5rem)] lg:h-[calc(100vh-2rem)]"
+      className="flex h-[calc(100dvh-7.5rem)] w-full min-w-0 gap-4 overflow-hidden lg:h-[calc(100dvh-4rem)]"
     >
-      {/* Desktop sidebar */}
-      <div className="hidden h-full w-64 flex-shrink-0 flex-col overflow-hidden rounded-[1.25rem] border border-white/8 bg-card/82 shadow-soft-card md:flex">
-        {sidebarContent}
-      </div>
-
-      {/* Mobile sidebar overlay */}
+      {/* Conversation history is secondary context and opens on demand. */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 md:hidden"
+          className="fixed inset-0 z-40"
           onClick={() => setSidebarOpen(false)}
         >
           <div className="page-drawer-overlay absolute inset-0" />
           <div
-            className="absolute left-0 top-0 bottom-0 w-72 flex flex-col glass-card overflow-hidden border-r border-white/10 bg-card/90 shadow-2xl"
+            className="absolute bottom-0 left-0 top-0 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col overflow-hidden border-r border-border bg-card shadow-2xl lg:top-16"
             onClick={(e) => e.stopPropagation()}
           >
             {sidebarContent}
@@ -1069,55 +1266,83 @@ const ChatPage: React.FC = () => {
         onCancel={() => setDeleteConfirmId(null)}
       />
 
-      {/* Main chat area */}
-      <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="mb-4 flex-shrink-0 space-y-3">
-          <div className="flex items-start justify-between gap-4">
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+      {capabilityPanelOpen ? (
+        <div className="fixed inset-0 z-50" onClick={closeCapabilityPanel}>
+          <div className="page-drawer-overlay absolute inset-0" />
+          <div className="absolute inset-y-0 right-0 p-3" role="dialog" aria-modal="true" aria-label="本次会话能力" onClick={(event) => event.stopPropagation()}>
+            <AgentCapabilityPanel
+              skills={skills}
+              selectedSkillIds={selectedSkillIds}
+              onToggleSkill={toggleSkillSelection}
+              skillLimitReached={skillLimitReached}
+              selectedToolIds={capabilityPreview.toolIds}
+              onToggleTool={updateToolPreview}
+              selectedDataSourceIds={capabilityPreview.dataSourceIds}
+              onToggleDataSource={updateDataSourcePreview}
+              selectedMcpIds={capabilityPreview.mcpIds}
+              onToggleMcp={updateMcpPreview}
+              selectedExpertIds={capabilityPreview.expertIds}
+              onToggleExpert={updateExpertPreview}
+              selectedExpertTeamIds={capabilityPreview.expertTeamIds}
+              onToggleExpertTeam={updateExpertTeamPreview}
+              onClose={closeCapabilityPanel}
+              className="w-[min(21rem,calc(100vw-1.5rem))]"
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {/* Main Agent workspace */}
+      <div className="flex h-full min-w-0 flex-1 overflow-hidden border border-border/80 bg-card shadow-soft-card">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex-shrink-0 border-b border-border/75 px-4 py-3 md:px-5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="md:hidden p-1.5 -ml-1 rounded-lg hover:bg-hover transition-colors text-secondary-text hover:text-foreground"
+                className="-ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-border bg-background text-secondary-text transition-colors hover:border-primary/30 hover:text-foreground"
                 aria-label="历史对话"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
-                </svg>
+                <History className="h-4 w-4" aria-hidden="true" />
               </button>
-              <svg
-                className="w-6 h-6 text-cyan"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                />
-              </svg>
-              问股
-              {agentStatus ? (
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h1 className="truncate text-base font-semibold tracking-[-0.015em] text-foreground">{workspaceCopy.title}</h1>
+                  <span className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium',
+                    agentAvailable ? 'border-success/25 bg-success/5 text-success' : 'border-border bg-background text-muted-text',
+                  )}>
+                    <span className={cn('h-1.5 w-1.5 rounded-full', agentAvailable ? 'bg-success' : 'bg-muted-text')} />
+                    {agentStatusChecking ? '检查中' : agentAvailable ? '可用' : '不可用'}
+                  </span>
+                  {agentStatus && agentStatus.backend !== 'nanobot' ? (
                 <Badge
                   variant={agentStatus.backend === 'codex_app_server' ? 'warning' : 'history'}
                   size="sm"
                 >
-                  {t(agentStatus.backend === 'codex_app_server' ? 'chat.codexBackendBadge' : 'chat.defaultBackendBadge')}
+                  {t(agentStatus.backend === 'codex_app_server'
+                    ? 'chat.codexBackendBadge'
+                    : 'chat.defaultBackendBadge')}
                 </Badge>
-              ) : null}
-            </h1>
-            {messages.length > 0 && (
-              <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+                  ) : null}
+                </div>
+                <p className="mt-0.5 hidden truncate text-[11px] text-muted-text sm:block">{workspaceCopy.subtitle}</p>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <Button
+                id="chat-capability-trigger"
+                variant="secondary"
+                size="sm"
+                onClick={() => setCapabilityPanelOpen(true)}
+                className="xl:hidden"
+                aria-label="打开本次会话能力"
+              >
+                <Network className="h-4 w-4" aria-hidden="true" />
+                <span>能力</span>
+              </Button>
+              {messages.length > 0 ? (
+                <>
                 <Tooltip content="导出会话为 Markdown 文件">
                   <span className="inline-flex">
                     <Button
@@ -1139,7 +1364,7 @@ const ChatPage: React.FC = () => {
                           d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                         />
                       </svg>
-                      导出会话
+                      <span className="hidden sm:inline">导出会话</span>
                     </Button>
                   </span>
                 </Tooltip>
@@ -1204,16 +1429,14 @@ const ChatPage: React.FC = () => {
                           />
                         </svg>
                       )}
-                      发送
+                      <span className="hidden sm:inline">发送</span>
                     </Button>
                   </span>
                 </Tooltip>
-              </div>
-            )}
+                </>
+              ) : null}
+            </div>
           </div>
-          <p className="text-secondary-text text-sm">
-            {t(agentStatus?.backend === 'codex_app_server' ? 'chat.introCodex' : 'chat.introDefault')}
-          </p>
           {agentStatus?.backend === 'codex_app_server' ? (
             <InlineAlert
               variant="warning"
@@ -1241,7 +1464,7 @@ const ChatPage: React.FC = () => {
           ) : null}
         </header>
 
-        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden border border-white/6 bg-card/78 glass-card">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background/55">
           {/* Messages */}
           <ScrollArea
             className="relative z-10 flex-1"
@@ -1251,15 +1474,11 @@ const ChatPage: React.FC = () => {
             testId="chat-message-scroll"
           >
             {messages.length === 0 && !loading ? (
-              <div className="flex h-full items-center justify-center">
+              <div className="flex h-full items-center justify-center px-2 py-10">
                 <EmptyState
-                  title="开始问股"
-                  description={t(
-                    agentStatus?.backend === 'codex_app_server'
-                      ? 'chat.emptyDescriptionCodex'
-                      : 'chat.emptyDescriptionDefault',
-                  )}
-                  className="max-w-2xl border-dashed bg-card/55"
+                  title={workspaceCopy.emptyTitle}
+                  description={workspaceCopy.emptyDescription}
+                  className="max-w-[42rem] border-0 bg-transparent shadow-none"
                   icon={(
                     <svg
                       className="h-8 w-8"
@@ -1276,15 +1495,14 @@ const ChatPage: React.FC = () => {
                     </svg>
                   )}
                   action={(
-                    <div className="flex max-w-lg flex-wrap justify-center gap-2">
-                      {quickQuestions.map((q, i) => (
-                        <button
-                          key={i}
-                          onClick={() => handleQuickQuestion(q)}
-                          disabled={!agentAvailable}
-                          className="quick-question-btn disabled:cursor-not-allowed disabled:opacity-60"
-                        >
+                    <div className="flex max-w-xl flex-wrap justify-center gap-2">
+                      {workspace === 'general' ? quickQuestions.map((q, i) => (
+                        <button key={i} onClick={() => handleQuickQuestion(q)} disabled={!agentAvailable} className="quick-question-btn disabled:cursor-not-allowed disabled:opacity-60">
                           {q.label}
+                        </button>
+                      )) : workspaceStarters.map((prompt) => (
+                        <button key={prompt} onClick={() => void handleSend(prompt)} disabled={!agentAvailable} className="quick-question-btn disabled:cursor-not-allowed disabled:opacity-60">
+                          {prompt}
                         </button>
                       ))}
                     </div>
@@ -1313,7 +1531,7 @@ const ChatPage: React.FC = () => {
                       msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'
                     )}
                   >
-                    {msg.role === 'assistant' && (skillLabel || msg.backend) && (
+                    {msg.role === 'assistant' && (skillLabel || (msg.backend && msg.backend !== 'nanobot')) && (
                       <div className="mb-2 flex flex-wrap gap-2">
                         {skillLabel ? <Badge variant="info" className="chat-skill-badge shadow-none" aria-label={`技能 ${skillLabel}`}>
                           <svg
@@ -1331,9 +1549,11 @@ const ChatPage: React.FC = () => {
                           </svg>
                           {skillLabel}
                         </Badge> : null}
-                        {msg.backend ? (
+                        {msg.backend && msg.backend !== 'nanobot' ? (
                           <Badge variant={msg.backend === 'codex_app_server' ? 'warning' : 'history'} size="sm">
-                            {t(msg.backend === 'codex_app_server' ? 'chat.codexBackendBadge' : 'chat.defaultBackendBadge')}
+                            {t(msg.backend === 'codex_app_server'
+                              ? 'chat.codexBackendBadge'
+                              : 'chat.defaultBackendBadge')}
                           </Badge>
                         ) : null}
                       </div>
@@ -1392,7 +1612,11 @@ const ChatPage: React.FC = () => {
                 <div className="w-8 h-8 rounded-full bg-elevated text-foreground flex items-center justify-center flex-shrink-0 text-xs font-bold">
                   AI
                 </div>
-                <div className="min-w-[200px] max-w-[min(100%,48rem)] overflow-hidden rounded-2xl rounded-tl-sm border border-white/6 bg-card/72 px-5 py-4">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="min-w-[240px] max-w-[min(100%,48rem)] overflow-hidden rounded-2xl rounded-tl-sm border border-white/6 bg-card/72 px-5 py-4"
+                >
                   <div className="flex items-center gap-2.5 text-sm text-secondary-text">
                     <div className="relative w-4 h-4 flex-shrink-0">
                       <div className="absolute inset-0 rounded-full border-2 border-cyan/20" />
@@ -1402,6 +1626,9 @@ const ChatPage: React.FC = () => {
                       {getCurrentStage(progressSteps)}
                     </span>
                   </div>
+                  <p className="mt-2 pl-6 text-xs text-muted-text">
+                    已运行 {formatRunElapsed(runElapsedSeconds)}，可随时停止
+                  </p>
                 </div>
               </div>
             )}
@@ -1439,7 +1666,7 @@ const ChatPage: React.FC = () => {
           )}
 
           {/* Input area */}
-          <div className="border-t border-white/6 bg-card/88 p-4 md:p-6 relative z-20">
+          <div className="relative z-20 border-t border-border/75 bg-card p-3 md:p-4">
             <div className="space-y-3">
               {chatError ? <ApiErrorAlert error={chatError} /> : null}
               {terminalStatus === 'cancelled' ? (
@@ -1498,7 +1725,7 @@ const ChatPage: React.FC = () => {
                   className="rounded-xl px-3 py-2 text-xs shadow-none"
                 />
               ) : null}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/6 bg-surface/25 px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-2">
                 <label
                   className={cn(
                     'inline-flex items-center gap-2 text-sm',
@@ -1537,7 +1764,7 @@ const ChatPage: React.FC = () => {
                 <div className="space-y-2">
                   <button
                     type="button"
-                    className="home-surface-button flex h-10 w-full items-center justify-between gap-3 rounded-xl px-3 text-left text-sm text-foreground md:hidden"
+                    className="home-surface-button flex h-9 w-full items-center justify-between gap-3 rounded-[10px] px-3 text-left text-sm text-foreground md:hidden"
                     aria-label={mobileSkillPickerOpen ? '收起策略选择' : '展开策略选择'}
                     aria-expanded={mobileSkillPickerOpen}
                     aria-controls="chat-skill-picker-panel"
@@ -1545,7 +1772,7 @@ const ChatPage: React.FC = () => {
                   >
                     <span className="flex min-w-0 items-center gap-2">
                       <SlidersHorizontal className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                      <span className="flex-shrink-0 font-medium">策略</span>
+                      <span className="flex-shrink-0 font-medium">Skills</span>
                       <span className="truncate text-xs text-muted-text">{selectedSkillSummary}</span>
                     </span>
                     <ChevronDown
@@ -1561,11 +1788,11 @@ const ChatPage: React.FC = () => {
                     data-testid="chat-skill-picker-panel"
                     className={cn(
                       mobileSkillPickerOpen ? 'flex' : 'hidden',
-                      'max-h-40 flex-wrap items-start gap-x-5 gap-y-2 overflow-y-auto rounded-xl border border-white/6 bg-surface/25 px-3 py-2 md:flex md:max-h-none md:overflow-visible md:border-0 md:bg-transparent md:p-0',
+                      'max-h-40 flex-wrap items-start gap-x-5 gap-y-2 overflow-y-auto rounded-[10px] border border-border bg-background px-3 py-2',
                     )}
                   >
                     <span className="text-xs text-muted-text font-medium uppercase tracking-wider flex-shrink-0 mt-1">
-                      策略
+                      Skills
                     </span>
                     <label className="flex items-center gap-1.5 text-sm cursor-pointer group mt-0.5">
                       <input
@@ -1637,15 +1864,16 @@ const ChatPage: React.FC = () => {
               </div>
             )}
 
-              <div className="flex items-end gap-3">
+              <div className="flex items-end gap-2">
                 <textarea
+                  aria-label="向主 Agent 描述任务"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="例如：分析 600519 / 茅台现在适合买入吗？ (Enter 发送, Shift+Enter 换行)"
+                  placeholder={workspaceCopy.placeholder}
                   disabled={loading || !agentAvailable}
                   rows={1}
-                  className="input-surface input-focus-glow flex-1 min-h-[44px] max-h-[200px] rounded-xl border bg-transparent px-4 py-2.5 text-sm transition-all focus:outline-none resize-none disabled:cursor-not-allowed disabled:opacity-60"
+                  className="input-surface input-focus-glow min-h-[46px] max-h-[200px] flex-1 resize-none rounded-[10px] border bg-background px-4 py-3 text-sm transition-all focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                   style={{ height: 'auto' }}
                   onInput={(e) => {
                     const t = e.target as HTMLTextAreaElement;
@@ -1653,7 +1881,7 @@ const ChatPage: React.FC = () => {
                     t.style.height = `${Math.min(t.scrollHeight, 200)}px`;
                   }}
                 />
-                {loading && agentStatus?.backend === 'codex_app_server' ? (
+                {loading && runtimeOwnsStockContext ? (
                   <Button
                     variant="danger-subtle"
                     onClick={stopStream}
@@ -1677,6 +1905,23 @@ const ChatPage: React.FC = () => {
             </div>
           </div>
         </div>
+        </div>
+
+        <AgentWorkspacePanel
+          taskTypeLabel={workspaceCopy.taskTypeLabel}
+          artifactTypes={WORKSPACE_ARTIFACTS[workspace]}
+          skills={skills}
+          selectedSkillIds={selectedSkillIds}
+          selectedToolCount={capabilityPreview.toolIds.length}
+          selectedDataSourceCount={capabilityPreview.dataSourceIds.length}
+          selectedMcpCount={capabilityPreview.mcpIds.length}
+          selectedExpertCount={capabilityPreview.expertIds.length}
+          selectedExpertTeamCount={capabilityPreview.expertTeamIds.length}
+          activeStockCode={activeStockCode}
+          hasConversation={messages.length > 0}
+          isRunning={loading}
+          onOpenCapabilities={() => setCapabilityPanelOpen(true)}
+        />
       </div>
     </div>
   );

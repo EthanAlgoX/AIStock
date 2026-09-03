@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="620" viewBox="0 0 1800 620" role="img" aria-labelledby="title desc">
+  <title id="title">LLM TradeBot 策略生命周期流程图</title>
+  <desc id="desc">策略包接入后组合运行配置，冻结为不可变版本，分流到历史验证与持续研究运行，最终汇聚为可追溯证据。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111f"/>
+      <stop offset="1" stop-color="#0a1930"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#17324e" stroke-width="1" opacity="0.32"/>
+    </pattern>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#020812" flood-opacity="0.5"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12Z" fill="#55c7f3"/>
+    </marker>
+  </defs>
+  <rect width="1800" height="620" rx="30" fill="url(#bg)"/>
+  <rect width="1800" height="620" rx="30" fill="url(#grid)"/>
+  <rect x="1.5" y="1.5" width="1797" height="617" rx="28.5" fill="none" stroke="#24435f" stroke-width="3"/>
+
+  <text x="72" y="72" fill="#f3f8ff" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="30" font-weight="700">策略生命周期</text>
+  <text x="72" y="104" fill="#79a1c4" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17" letter-spacing="2">从策略内核到可追溯研究证据</text>
+
+  <path d="M360 315H430" fill="none" stroke="#55c7f3" stroke-width="5" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M730 315H800" fill="none" stroke="#55c7f3" stroke-width="5" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M1100 315H1138V223H1170" fill="none" stroke="#55c7f3" stroke-width="5" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M1138 315V427H1170" fill="none" stroke="#55c7f3" stroke-width="5" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <circle cx="1138" cy="315" r="9" fill="#07111f" stroke="#55c7f3" stroke-width="5"/>
+  <path d="M1430 223H1470V315H1500" fill="none" stroke="#59d6b0" stroke-width="5" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M1430 427H1470V315" fill="none" stroke="#59d6b0" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="1470" cy="315" r="9" fill="#07111f" stroke="#59d6b0" stroke-width="5"/>
+
+  <g filter="url(#shadow)">
+    <rect x="60" y="190" width="300" height="250" rx="22" fill="#0d2238" stroke="#2f8fbd" stroke-width="3"/>
+    <rect x="60" y="190" width="300" height="12" rx="6" fill="#55c7f3"/>
+    <circle cx="102" cy="238" r="24" fill="#123755" stroke="#55c7f3" stroke-width="2"/>
+    <text x="102" y="246" text-anchor="middle" fill="#dff7ff" font-family="Inter, sans-serif" font-size="20" font-weight="800">01</text>
+    <text x="138" y="246" fill="#f4f9ff" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="26" font-weight="700">策略包接入</text>
+    <text x="90" y="305" fill="#a8c7df" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="18">Python 内核与 Schema</text>
+    <text x="90" y="343" fill="#a8c7df" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="18">数据依赖与参数声明</text>
+    <text x="90" y="381" fill="#a8c7df" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="18">STRATEGY.md 与测试</text>
+
+    <rect x="430" y="190" width="300" height="250" rx="22" fill="#101f43" stroke="#6179dc" stroke-width="3"/>
+    <rect x="430" y="190" width="300" height="12" rx="6" fill="#7089ee"/>
+    <circle cx="472" cy="238" r="24" fill="#25346a" stroke="#7089ee" stroke-width="2"/>
+    <text x="472" y="246" text-anchor="middle" fill="#eef0ff" font-family="Inter, sans-serif" font-size="20" font-weight="800">02</text>
+    <text x="508" y="246" fill="#f4f6ff" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="26" font-weight="700">运行配置组合</text>
+    <text x="460" y="305" fill="#b8c5ef" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17">市场 · 数据源 · 股票范围</text>
+    <text x="460" y="343" fill="#b8c5ef" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17">周期 · 参数 · 风险边界</text>
+    <text x="460" y="381" fill="#b8c5ef" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17">形成完整可运行策略</text>
+
+    <rect x="800" y="190" width="300" height="250" rx="22" fill="#25243d" stroke="#d7a846" stroke-width="3"/>
+    <rect x="800" y="190" width="300" height="12" rx="6" fill="#e7b64f"/>
+    <circle cx="842" cy="238" r="24" fill="#514225" stroke="#e7b64f" stroke-width="2"/>
+    <text x="842" y="246" text-anchor="middle" fill="#fff4d5" font-family="Inter, sans-serif" font-size="20" font-weight="800">03</text>
+    <text x="878" y="246" fill="#fff9ea" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="26" font-weight="700">版本冻结发布</text>
+    <text x="830" y="305" fill="#dacda9" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17">生成不可变版本快照</text>
+    <text x="830" y="343" fill="#dacda9" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17">固定 StrategyVersion 归属</text>
+    <text x="830" y="381" fill="#dacda9" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17">发布不等于验证有效</text>
+
+    <rect x="1170" y="140" width="260" height="166" rx="20" fill="#10243b" stroke="#55c7f3" stroke-width="3"/>
+    <circle cx="1210" cy="182" r="20" fill="#123755" stroke="#55c7f3" stroke-width="2"/>
+    <text x="1210" y="189" text-anchor="middle" fill="#dff7ff" font-family="Inter, sans-serif" font-size="17" font-weight="800">04A</text>
+    <text x="1242" y="190" fill="#f4f9ff" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="24" font-weight="700">历史验证</text>
+    <text x="1200" y="238" fill="#a8c7df" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17">冻结数据快照</text>
+    <text x="1200" y="270" fill="#a8c7df" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17">保存观察性实验结果</text>
+
+    <rect x="1170" y="344" width="260" height="166" rx="20" fill="#10243b" stroke="#55c7f3" stroke-width="3"/>
+    <circle cx="1210" cy="386" r="20" fill="#123755" stroke="#55c7f3" stroke-width="2"/>
+    <text x="1210" y="393" text-anchor="middle" fill="#dff7ff" font-family="Inter, sans-serif" font-size="17" font-weight="800">04B</text>
+    <text x="1242" y="394" fill="#f4f9ff" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="24" font-weight="700">持续研究运行</text>
+    <text x="1200" y="442" fill="#a8c7df" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17">执行单次或持续研究</text>
+    <text x="1200" y="474" fill="#a8c7df" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17">保存输入、状态与输出</text>
+
+    <rect x="1500" y="215" width="240" height="200" rx="22" fill="#12352f" stroke="#59d6b0" stroke-width="3"/>
+    <rect x="1500" y="215" width="240" height="12" rx="6" fill="#59d6b0"/>
+    <text x="1620" y="282" text-anchor="middle" fill="#ecfff9" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="25" font-weight="700">证据归档</text>
+    <text x="1620" y="329" text-anchor="middle" fill="#b4e4d6" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17">版本 · 运行 · 来源</text>
+    <text x="1620" y="363" text-anchor="middle" fill="#b4e4d6" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17">可追溯 · 可复现</text>
+  </g>
+</svg>

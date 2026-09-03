@@ -34,6 +34,15 @@ const litellmStatus: AgentBackendStatusResponse = {
   message: null,
 };
 
+const nanobotStatus: AgentBackendStatusResponse = {
+  backend: 'nanobot',
+  available: true,
+  experimental: false,
+  version: 'nanobot-agent',
+  errorCode: null,
+  message: null,
+};
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((nextResolve) => {
@@ -86,6 +95,22 @@ describe('AgentBackendStatusPanel', () => {
     expect(await screen.findByText('Codex Agent')).toBeInTheDocument();
     expect(screen.getByText('实验功能')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /真实测试/ })).not.toBeInTheDocument();
+  });
+
+  it('shows Nanobot ownership boundaries and runtime metadata', async () => {
+    previewStatus.mockResolvedValueOnce(nanobotStatus);
+    renderPanel({
+      items: [
+        { key: 'AGENT_BACKEND', value: 'nanobot' },
+        { key: 'NANOBOT_API_BASE', value: 'http://127.0.0.1:8900' },
+      ],
+      selectedBackend: 'nanobot',
+    });
+
+    expect(await screen.findByText('Nanobot Runtime')).toBeInTheDocument();
+    expect(screen.getByText('Nanobot 独立运行时')).toBeInTheDocument();
+    expect(screen.getByText(/网站 MCP 草稿和数据源目录目前不会自动同步/)).toBeInTheDocument();
+    expect(screen.getByText(/nanobot-agent/)).toBeInTheDocument();
   });
 
   it('ignores a stale draft preview response', async () => {

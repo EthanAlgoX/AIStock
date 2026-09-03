@@ -29,10 +29,13 @@ AGENT_BACKEND_ERROR_CODES = frozenset(
         "tool_roundtrip_failed",
         "resource_cleanup_failed",
         "invalid_timeout",
+        "invalid_config",
+        "authentication_failed",
+        "runtime_unavailable",
         "unknown_backend_error",
     }
 )
-AGENT_BACKEND_IDS = frozenset({"auto", "litellm", "codex_app_server"})
+AGENT_BACKEND_IDS = frozenset({"auto", "litellm", "codex_app_server", "nanobot"})
 
 
 class AgentBackendConfigError(ValueError):
@@ -65,6 +68,7 @@ class AgentRunRequest:
     max_wall_clock_seconds: Optional[float]
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None
     cancel_event: Optional[threading.Event] = None
+    capability_manifest: Optional[Dict[str, Any]] = None
 
 
 @dataclass

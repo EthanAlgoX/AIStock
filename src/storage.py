@@ -1221,6 +1221,196 @@ class DecisionSignalFeedbackRecord(Base):
     updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, index=True)
 
 
+class WorkspaceCapabilityPreferenceRecord(Base):
+    """Workspace-wide allowlist state for built-in and configured capabilities."""
+
+    __tablename__ = 'workspace_capability_preferences'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    capability_kind = Column(String(32), nullable=False, index=True)
+    capability_id = Column(String(128), nullable=False, index=True)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
+
+    __table_args__ = (
+        UniqueConstraint('capability_kind', 'capability_id', name='uix_workspace_capability_preference'),
+    )
+
+
+class WorkspaceSkillRecord(Base):
+    """A user-authored financial Skill stored independently from runtime code."""
+
+    __tablename__ = 'workspace_skills'
+
+    id = Column(String(128), primary_key=True)
+    name = Column(String(120), nullable=False, unique=True, index=True)
+    category = Column(String(32), nullable=False, default='general', index=True)
+    description = Column(Text)
+    instructions = Column(Text, nullable=False)
+    version = Column(Integer, nullable=False, default=1)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    archived_at = Column(DateTime, index=True)
+    created_at = Column(DateTime, default=utc_naive_now, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
+
+
+class WorkspaceMcpServerRecord(Base):
+    """MCP connection metadata; credentials remain environment references."""
+
+    __tablename__ = 'workspace_mcp_servers'
+
+    id = Column(String(128), primary_key=True)
+    name = Column(String(120), nullable=False, unique=True, index=True)
+    transport = Column(String(16), nullable=False, default='http', index=True)
+    location = Column(Text, nullable=False)
+    credential_key = Column(String(160))
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    discovered_capabilities_json = Column(Text, nullable=False, default='[]')
+    health_status = Column(String(24), nullable=False, default='unknown', index=True)
+    last_checked_at = Column(DateTime, index=True)
+    last_error = Column(Text)
+    archived_at = Column(DateTime, index=True)
+    created_at = Column(DateTime, default=utc_naive_now, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
+
+
+class WorkspaceExpertRecord(Base):
+    """Versioned expert Persona Prompt executed by the shared Agent runtime."""
+
+    __tablename__ = 'workspace_experts'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    expert_key = Column(String(96), nullable=False, unique=True, index=True)
+    name = Column(String(120), nullable=False, unique=True, index=True)
+    style = Column(String(240), nullable=False)
+    description = Column(Text)
+    philosophy = Column(Text)
+    focus_json = Column(Text, nullable=False, default='[]')
+    prompt = Column(Text, nullable=False)
+    version = Column(Integer, nullable=False, default=1)
+    built_in = Column(Boolean, nullable=False, default=False, index=True)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    archived_at = Column(DateTime, index=True)
+    created_at = Column(DateTime, default=utc_naive_now, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
+
+
+class WorkspaceExpertTeamRecord(Base):
+    """Selectable expert membership and deliberation protocol."""
+
+    __tablename__ = 'workspace_expert_teams'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    team_key = Column(String(96), nullable=False, unique=True, index=True)
+    name = Column(String(120), nullable=False, unique=True, index=True)
+    description = Column(Text)
+    member_ids_json = Column(Text, nullable=False, default='[]')
+    protocol = Column(Text, nullable=False)
+    version = Column(Integer, nullable=False, default=1)
+    built_in = Column(Boolean, nullable=False, default=False, index=True)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    archived_at = Column(DateTime, index=True)
+    created_at = Column(DateTime, default=utc_naive_now, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
+
+
+class WorkspaceTaskRecord(Base):
+    """Reusable Agent-first task definition for research, screening or trading."""
+
+    __tablename__ = 'workspace_tasks'
+
+    id = Column(String(64), primary_key=True)
+    task_kind = Column(String(32), nullable=False, index=True)
+    name = Column(String(160), nullable=False, index=True)
+    market = Column(String(16), nullable=False, index=True)
+    objective = Column(Text, nullable=False)
+    subject_json = Column(Text, nullable=False, default='{}')
+    config_json = Column(Text, nullable=False, default='{}')
+    capability_bindings_json = Column(Text, nullable=False, default='{}')
+    version = Column(Integer, nullable=False, default=1)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    archived_at = Column(DateTime, index=True)
+    created_at = Column(DateTime, default=utc_naive_now, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
+
+
+class WorkspaceRunRecord(Base):
+    """Durable execution ledger for every Agent-first task run."""
+
+    __tablename__ = 'workspace_runs'
+
+    id = Column(String(64), primary_key=True)
+    task_id = Column(String(64), ForeignKey('workspace_tasks.id'), nullable=False, index=True)
+    task_kind = Column(String(32), nullable=False, index=True)
+    status = Column(String(24), nullable=False, default='queued', index=True)
+    trigger_type = Column(String(24), nullable=False, default='manual', index=True)
+    data_snapshot_id = Column(String(64), index=True)
+    task_snapshot_json = Column(Text, nullable=False, default='{}')
+    result_summary_json = Column(Text)
+    error_code = Column(String(64), index=True)
+    error_message = Column(Text)
+    cancel_requested = Column(Boolean, nullable=False, default=False)
+    started_at = Column(DateTime, index=True)
+    completed_at = Column(DateTime, index=True)
+    created_at = Column(DateTime, default=utc_naive_now, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
+
+    __table_args__ = (Index('ix_workspace_run_task_created', 'task_id', 'created_at'),)
+
+
+class WorkspaceDataSnapshotRecord(Base):
+    """Frozen availability and source metadata used by one workspace run."""
+
+    __tablename__ = 'workspace_data_snapshots'
+
+    id = Column(String(64), primary_key=True)
+    run_id = Column(String(64), nullable=False, unique=True, index=True)
+    as_of = Column(DateTime, nullable=False, index=True)
+    source_ids_json = Column(Text, nullable=False, default='[]')
+    source_versions_json = Column(Text, nullable=False, default='{}')
+    quality_json = Column(Text, nullable=False, default='{}')
+    created_at = Column(DateTime, default=utc_naive_now, nullable=False, index=True)
+
+
+class WorkspaceArtifactRecord(Base):
+    """A structured, independently addressable outcome of a workspace run."""
+
+    __tablename__ = 'workspace_artifacts'
+
+    id = Column(String(64), primary_key=True)
+    run_id = Column(String(64), ForeignKey('workspace_runs.id'), nullable=False, index=True)
+    artifact_type = Column(String(64), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    content_json = Column(Text, nullable=False, default='{}')
+    content_text = Column(Text)
+    version = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, default=utc_naive_now, nullable=False, index=True)
+
+
+class WorkspaceScheduleRecord(Base):
+    """Durable daily or interval trigger for a frozen task definition."""
+
+    __tablename__ = 'workspace_schedules'
+
+    id = Column(String(64), primary_key=True)
+    task_id = Column(String(64), ForeignKey('workspace_tasks.id'), nullable=False, index=True)
+    name = Column(String(160), nullable=False)
+    schedule_mode = Column(String(16), nullable=False, index=True)
+    run_at = Column(String(8))
+    interval_minutes = Column(Integer)
+    timezone = Column(String(64), nullable=False, default='Asia/Shanghai')
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    next_run_at = Column(DateTime, nullable=False, index=True)
+    last_run_at = Column(DateTime, index=True)
+    last_run_id = Column(String(64), index=True)
+    claim_token = Column(String(64), index=True)
+    claimed_at = Column(DateTime, index=True)
+    created_at = Column(DateTime, default=utc_naive_now, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
+
+    __table_args__ = (Index('ix_workspace_schedule_due', 'enabled', 'next_run_at'),)
+
+
 class SimulationDataSourceRecord(Base):
     """User-maintained data-source catalog entry for strategy authorization.
 

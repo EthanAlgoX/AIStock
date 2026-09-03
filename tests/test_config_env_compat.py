@@ -189,6 +189,27 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
 
     @patch("src.config.setup_env")
     @patch.object(Config, "_parse_litellm_yaml", return_value=[])
+    def test_agent_backend_env_accepts_nanobot_runtime(
+        self, _mock_parse_litellm_yaml, _mock_setup_env
+    ):
+        with patch.dict(
+            os.environ,
+            {
+                "STOCK_LIST": "600519",
+                "AGENT_BACKEND": " NANOBOT ",
+                "NANOBOT_API_BASE": "http://127.0.0.1:8900/",
+                "NANOBOT_API_KEY": "test-key",
+            },
+            clear=True,
+        ):
+            config = Config._load_from_env()
+
+        self.assertEqual(config.agent_backend, "nanobot")
+        self.assertEqual(config.nanobot_api_base, "http://127.0.0.1:8900")
+        self.assertEqual(config.nanobot_api_key, "test-key")
+
+    @patch("src.config.setup_env")
+    @patch.object(Config, "_parse_litellm_yaml", return_value=[])
     def test_generation_backend_env_accepts_phase2_values(
         self, _mock_parse_litellm_yaml, _mock_setup_env
     ):

@@ -177,6 +177,8 @@ class SystemConfigService:
         "AGENT_MODE",
         "AGENT_ARCH",
         "AGENT_ORCHESTRATOR_TIMEOUT_S",
+        "NANOBOT_API_BASE",
+        "NANOBOT_API_KEY",
     }
 
     _LLM_CAPABILITY_ORDER: Tuple[str, ...] = ("json", "tools", "stream", "vision")
@@ -3343,6 +3345,8 @@ class SystemConfigService:
                 "AGENT_ORCHESTRATOR_TIMEOUT_S": str(
                     runtime_config.agent_orchestrator_timeout_s
                 ),
+                "NANOBOT_API_BASE": runtime_config.nanobot_api_base,
+                "NANOBOT_API_KEY": runtime_config.nanobot_api_key,
             }
         )
         if runtime_config._agent_mode_explicit:
@@ -4477,17 +4481,32 @@ class SystemConfigService:
 
         agent_backend = (effective_map.get("AGENT_BACKEND") or "auto").strip().lower()
         agent_arch = (effective_map.get("AGENT_ARCH") or "single").strip().lower()
-        if agent_backend == "codex_app_server" and agent_arch != "single" and (
+        if agent_backend in {"codex_app_server", "nanobot"} and agent_arch != "single" and (
             {"AGENT_BACKEND", "AGENT_ARCH"} & updated_keys
         ):
             issues.append(
                 {
                     "key": "AGENT_ARCH",
                     "code": "unsupported_agent_arch",
-                    "message": "Codex 本地 Agent 当前只支持单 Agent 问股，请切换为 single。",
+                    "message": f"{agent_backend} 当前只支持单 Agent 问股，请切换为 single。",
                     "severity": "error",
                     "expected": "single",
                     "actual": agent_arch,
+                }
+            )
+
+        nanobot_api_base = (effective_map.get("NANOBOT_API_BASE") or "").strip()
+        if agent_backend == "nanobot" and not nanobot_api_base and (
+            {"AGENT_BACKEND", "NANOBOT_API_BASE"} & updated_keys
+        ):
+            issues.append(
+                {
+                    "key": "NANOBOT_API_BASE",
+                    "code": "missing_dependency",
+                    "message": "选择 Nanobot Runtime 时必须填写 nanobot serve 的 API 根地址。",
+                    "severity": "error",
+                    "expected": "http://127.0.0.1:8900",
+                    "actual": "",
                 }
             )
 

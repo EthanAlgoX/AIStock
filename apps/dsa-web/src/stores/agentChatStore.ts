@@ -11,6 +11,7 @@ import {
 import { generateUUID } from '../utils/uuid';
 
 const STORAGE_KEY_SESSION = 'dsa_chat_session_id';
+const PRIMARY_AGENT_ROUTE = '/overview';
 
 export interface ProgressStep {
   type: string;
@@ -55,7 +56,7 @@ export interface StreamMeta {
 
 export interface StreamAcceptedEvent {
   type: 'accepted';
-  backend: 'litellm' | 'codex_app_server';
+  backend: 'litellm' | 'codex_app_server' | 'nanobot';
   request_id: string;
   session_id: string;
 }
@@ -73,6 +74,9 @@ type StreamFailureEvent = {
 };
 
 function streamFailureFallback(event: StreamFailureEvent, defaultMessage: string): string {
+  if (event.backend === 'nanobot') {
+    return '主 Agent 暂时无法完成本次任务，请查看 Agent 设置中的连接状态。';
+  }
   return event.backend === 'codex_app_server'
     ? 'Codex Agent 暂时无法完成本次问股，请查看 Agent 设置中的运行状态。'
     : defaultMessage;
@@ -378,7 +382,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
             throw protocolError('Agent stream emitted accepted more than once.');
           }
           if (
-            (event.backend !== 'litellm' && event.backend !== 'codex_app_server')
+            (event.backend !== 'litellm' && event.backend !== 'codex_app_server' && event.backend !== 'nanobot')
             || event.request_id !== requestId
             || event.session_id !== streamSessionId
           ) {
@@ -388,7 +392,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
           finalBackend = acceptedEvent.backend;
           set((s) => ({
             messages: [...s.messages, { ...userMessage, backend: acceptedEvent!.backend }],
-            serverCancellation: acceptedEvent!.backend === 'codex_app_server',
+            serverCancellation: acceptedEvent!.backend === 'codex_app_server' || acceptedEvent!.backend === 'nanobot',
             sessions: s.sessions.some((x) => x.session_id === streamSessionId)
               ? s.sessions
               : [
@@ -506,7 +510,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
         }));
       }
 
-      if (ownsStream() && !ac.signal.aborted && currentRoute !== '/chat') {
+      if (ownsStream() && !ac.signal.aborted && currentRoute !== PRIMARY_AGENT_ROUTE) {
         set({ completionBadge: true });
       }
     } catch (error: unknown) {
@@ -515,7 +519,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
       } else {
         set({ chatError: getParsedApiError(error) });
         const { currentRoute } = get();
-        if (currentRoute !== '/chat') {
+        if (currentRoute !== PRIMARY_AGENT_ROUTE) {
           set({ completionBadge: true });
         }
       }

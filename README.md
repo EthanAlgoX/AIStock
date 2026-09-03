@@ -4,9 +4,9 @@
 
 # LLM TradeBot
 
-**把策略代码变成可配置、可验证、可追溯的股票研究系统**
+**Turn strategy code into a configurable, verifiable, and traceable stock-research system**
 
-策略内核 · 不可变版本 · 历史验证 · 持续研究运行
+Strategy kernels · Immutable versions · Historical validation · Continuous research runs
 
 [![CI](https://github.com/EthanAlgoX/LLM-TradeBot/actions/workflows/ci.yml/badge.svg)](https://github.com/EthanAlgoX/LLM-TradeBot/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -14,71 +14,62 @@
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111)](https://react.dev/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Research_API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 
-[产品定位](#产品定位) · [工作方式](#工作方式) · [快速开始](#快速开始) · [核心能力](#核心能力) · [策略包接入](#策略包接入) · [文档入口](#文档入口)
+[Positioning](#positioning) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Core capabilities](#core-capabilities) · [Strategy package intake](#strategy-package-intake) · [Documentation](#documentation)
 
-**简体中文** · [English](docs/README_EN.md)
+**English** · [简体中文](docs/README_ZH.md)
 
 <br>
 
-<img src="docs/assets/readme/llm-tradebot-hero-v2.jpg" alt="行情与数据源汇入策略内核，封存为不可变版本，再产出验证结果和研究证据" width="100%">
+<img src="docs/assets/readme/llm-tradebot-hero-v2.jpg" alt="Market data flows into a strategy kernel, becomes an immutable version, and produces validation results and traceable research evidence" width="100%">
 
 </div>
 
-> LLM TradeBot 面向 A 股、港股和美股的策略研究与工程化验证。它不连接券商、不自动下单，也不会把策略发布、历史回放或模型建议包装成真实交易结果。
+> LLM TradeBot supports strategy research and engineering validation for mainland China, Hong Kong, and US equities. It does not connect to brokers or place orders, and it never presents publication, historical replay, or model suggestions as real trading results.
 
-## 产品定位
+## Positioning
 
-LLM TradeBot 关注的不是“再做一个股票聊天机器人”，而是把策略研究中最容易失控的部分变成明确契约：**策略如何接入、数据从哪里来、配置如何组合、版本如何冻结、实验如何复现、结果如何追溯。**
+LLM TradeBot is not another stock-market chatbot. It turns the parts of strategy research that most often drift out of control into explicit contracts: **how strategies enter the system, where data comes from, how configuration is composed, how versions are frozen, how experiments are reproduced, and how results are traced.**
 
-外部工程工具负责生成或维护 Python 策略包；平台负责检查策略契约，并将内核与市场、数据源、股票范围、周期、参数和风险边界组合为可以验证和运行的完整策略。
+External engineering tools generate or maintain Python strategy packages. The platform checks their contracts and combines each kernel with a market, data sources, a stock universe, schedule, parameters, and risk boundaries to create a complete strategy that can be validated and run.
 
-| 01 · 接入 | 02 · 组合 | 03 · 冻结 | 04 · 研究 |
+| 01 · Import | 02 · Compose | 03 · Freeze | 04 · Research |
 | --- | --- | --- | --- |
-| 上传 Python 策略内核与 Schema | 绑定市场、数据源、周期和参数 | 发布不可变 `StrategyVersion` | 执行历史验证或持续研究运行 |
+| Upload a Python kernel and schemas | Bind markets, data, schedules, and parameters | Publish an immutable `StrategyVersion` | Run historical validation or continuous research |
 
 <div align="center">
-  <img src="docs/assets/readme/strategy-lifecycle-v2.jpg" alt="从数据组合、策略内核到不可变版本、历史验证与研究运行的生命周期" width="100%">
+  <img src="docs/assets/readme/strategy-lifecycle-en.svg" alt="Lifecycle flowchart covering package intake, runtime composition, immutable version publication, historical validation and continuous research, and evidence archiving" width="100%">
 </div>
 
-### 两层策略模型
+### Two-layer strategy model
 
-| 对象 | 负责内容 | 运行语义 |
+| Object | Responsibility | Runtime semantics |
 | --- | --- | --- |
-| **策略内核** | Python 实现、输入输出 Schema、数据依赖、参数声明与 `STRATEGY.md` | 不能脱离配置直接运行 |
-| **完整策略** | 策略内核 + 市场 + 数据来源 + 股票范围 + 周期 + 参数 + 风险边界 | 检查并发布后可运行 |
-| **StrategyVersion** | 完整策略的不可变版本快照 | 验证、运行与审计的唯一版本依据 |
+| **Strategy kernel** | Python implementation, input/output schemas, data dependencies, parameter declarations, and `STRATEGY.md` | Cannot run without a configuration |
+| **Complete strategy** | Kernel + market + data sources + stock universe + schedule + parameters + risk boundaries | Runnable after checks and publication |
+| **StrategyVersion** | Immutable snapshot of a complete strategy | Sole version reference for validation, runs, and audit |
 
-同一个策略内核可以派生多套完整策略，用来比较不同市场、周期或参数，而不必把运行环境写死在代码里。
+One kernel can produce multiple complete strategies for different markets, schedules, or parameters without hard-coding runtime assumptions into strategy code.
 
-## 工作方式
+## How it works
 
-```mermaid
-flowchart LR
-    IDEA["策略想法"] --> PKG["Python 策略包"]
-    PKG --> CHECK["契约与安全检查"]
-    DATA["市场与数据源"] --> CONFIG["运行配置"]
-    CHECK --> CONFIG
-    CONFIG --> VERSION["不可变版本"]
-    VERSION --> VALIDATE["历史验证"]
-    VERSION --> RUN["研究运行"]
-    VALIDATE --> EVIDENCE["可追溯证据"]
-    RUN --> EVIDENCE
-```
+<div align="center">
+  <img src="docs/assets/readme/research-workflow-en.svg" alt="End-to-end flowchart with two inputs, contract checks, a correction loop, runtime configuration, immutable versioning, validation and research branches, and evidence convergence" width="100%">
+</div>
 
-- **检查策略**：验证内核状态、输入输出契约、数据依赖、市场匹配和运行配置。
-- **历史验证**：冻结版本和数据快照，保存观察性实验结果；可以在发布前执行，也可以对历史版本重新研究。
-- **正式发布**：只表示策略定义已被冻结，不代表策略已经验证有效。
-- **研究运行**：保存每次运行的输入、版本、状态和输出；当前不是模拟交易或真实交易。
+- **Strategy checks** validate kernel state, input/output contracts, data dependencies, market compatibility, and runtime configuration.
+- **Historical validation** freezes the version and data snapshot, then persists observational experiment results. It can run before publication or revisit a published version later.
+- **Publication** means only that the strategy definition is frozen. It does not mean the strategy has been proven effective.
+- **Research runs** retain each run's input, version, status, and output. They are not paper trading or live trading.
 
-## 快速开始
+## Quick start
 
-### 环境要求
+### Requirements
 
 - Python 3.10+
-- Node.js 20.19+ 与 npm 10+
-- macOS、Linux 或 Windows（推荐 WSL）
+- Node.js 20.19+ and npm 10+
+- macOS, Linux, or Windows (WSL recommended)
 
-### 本地启动
+### Local startup
 
 ```bash
 git clone https://github.com/EthanAlgoX/LLM-TradeBot.git
@@ -98,168 +89,168 @@ cd ../..
 python main.py --serve-only --host 127.0.0.1 --port 8000
 ```
 
-启动后访问：
+After startup, open:
 
-- Web 控制台：<http://127.0.0.1:8000>
-- API 文档：<http://127.0.0.1:8000/docs>
+- Web console: <http://127.0.0.1:8000>
+- API documentation: <http://127.0.0.1:8000/docs>
 
-> 不配置 LLM 也可以浏览策略、数据和验证页面。需要模型的策略运行会明确停止并提示配置，不会绕过安全限制。
+> You can browse strategy, data, and validation pages without an LLM configuration. Runs that require a model stop explicitly and request configuration instead of bypassing safety limits.
 
 <details>
-<summary><strong>前后端开发模式</strong></summary>
+<summary><strong>Frontend and backend development</strong></summary>
 
 ```bash
-# 终端 1：FastAPI
+# Terminal 1: FastAPI
 python main.py --serve-only --host 127.0.0.1 --port 8000
 
-# 终端 2：React / Vite
+# Terminal 2: React / Vite
 cd apps/dsa-web
 npm run dev
 ```
 
-前端默认运行在 <http://127.0.0.1:5173>，`/api` 请求代理到 `http://127.0.0.1:8000`。
+The frontend runs at <http://127.0.0.1:5173> and proxies `/api` to `http://127.0.0.1:8000`.
 
 </details>
 
 <details>
-<summary><strong>Docker 启动</strong></summary>
+<summary><strong>Docker startup</strong></summary>
 
 ```bash
 cp .env.example .env
 docker compose -f docker/docker-compose.yml up -d server
 ```
 
-完整部署选项见 [部署指南](docs/DEPLOY.md)。
+See the [deployment guide](docs/DEPLOY_EN.md) for complete options.
 
 </details>
 
-## 核心能力
+## Core capabilities
 
-| 能力 | 平台提供什么 | 关键约束 |
+| Capability | What the platform provides | Key boundary |
 | --- | --- | --- |
-| **策略治理** | 策略草稿、复制、检查、差异、不可变发布与删除 | 正式版本不可原地修改 |
-| **策略包运行** | ZIP 上传、静态检查、归档及受限 Python 子进程调用 | 不是通用容器级沙箱 |
-| **数据编排** | 多市场数据源目录、依赖声明、运行配置与 fallback | 不伪造缺失行情或历史股票池 |
-| **历史验证** | 本地 OHLCV 观察性回放、实验历史与版本对比 | 回放完成不等于策略有效 |
-| **研究运行** | 单次与持续运行、状态记录、版本归属和结果留存 | 不产生订单、成交或持仓 |
-| **研究产品** | 单股研究、选股扫描与交易决策提案 | 所有结果保留来源与运行归属 |
+| **Strategy governance** | Drafts, copies, checks, diffs, immutable publication, and deletion | Published versions cannot be edited in place |
+| **Package runtime** | ZIP upload, static checks, archiving, and restricted Python subprocess invocation | Not a general-purpose container sandbox |
+| **Data orchestration** | Multi-market source catalog, dependency declarations, runtime configuration, and fallback | Never fabricates missing quotes or historical universes |
+| **Historical validation** | Local OHLCV observational replay, experiment history, and version comparison | A completed replay does not prove strategy effectiveness |
+| **Research runs** | One-off and continuous runs, status history, version attribution, and retained results | Produces no orders, fills, or positions |
+| **Research products** | Single-stock research, candidate screening, and decision proposals | Every result retains its source and run attribution |
 
-### 三类策略输出
+### Three strategy outputs
 
-每个策略只声明一个产品用途和对应输出契约：
+Each strategy declares exactly one product purpose and output contract:
 
-| 策略用途 | 输出契约 | 产品入口 |
+| Strategy purpose | Output contract | Product entry point |
 | --- | --- | --- |
-| 单股研究 `research_report` | `ResearchReport` | 单股研究：结构化报告与历史记录 |
-| 选股扫描 `candidate_screening` | `CandidateList` | 选股扫描：候选列表与来源记录 |
-| 交易决策 `trading_decision` | `DecisionProposal` | 验证中心与运行中心：观察性回放和研究运行 |
+| Single-stock research `research_report` | `ResearchReport` | Structured reports and history |
+| Candidate screening `candidate_screening` | `CandidateList` | Candidate lists and source records |
+| Trading decision `trading_decision` | `DecisionProposal` | Observational replay and research runs in Validation Center and Run Center |
 
-`DecisionProposal` 是研究决策提案，不是订单、成交或持仓指令。
+A `DecisionProposal` is a research proposal, not an order, fill, or position instruction.
 
-### 开箱即用的策略
+### Ready-to-use strategies
 
-平台会在真实数据库中初始化三套普通策略内核；它们和用户上传的策略使用同一套模型、版本与产品入口。
+The platform initializes three ordinary strategy kernels in the real database. They use the same models, versioning, and product entry points as uploaded strategies.
 
-| 策略 | 用途 | 实现基础 |
+| Strategy | Purpose | Implementation basis |
 | --- | --- | --- |
-| **单股研究策略** | 生成结构化个股研究报告 | 多源证据准备、确定性分析与 LLM 报告生成 |
-| **多因子选股策略** | 从市场快照生成候选列表 | 硬筛、因子评分、可选 LLM 重排与失败回退 |
-| **研究决策基线** | 生成研究型交易决策提案 | 候选筛选、OHLCV 可复现规则与决策内核 |
+| **Single-stock research strategy** | Produce a structured equity research report | Multi-source evidence, deterministic analysis, and LLM report generation |
+| **Multi-factor screening strategy** | Produce candidates from a market snapshot | Hard filters, factor scoring, optional LLM reranking, and failure fallback |
+| **Research decision baseline** | Produce a research decision proposal | Candidate selection, reproducible OHLCV rules, and a decision kernel |
 
-系统只在本地存在足够真实历史行情时形成可回放的固定股票池，不会补造股票、行情或回测结果。
+The system creates a replayable fixed universe only when sufficient real local market history exists. It never invents symbols, quotes, or backtest results.
 
-### 主要页面
+### Main pages
 
-| 页面 | 路由 | 作用 |
+| Page | Route | Purpose |
 | --- | --- | --- |
-| 策略首页 | `/overview` | 汇总策略、验证、运行与数据源状态 |
-| 策略中心 | `/strategies` | 管理策略、配置、版本、检查与发布 |
-| 策略生成指南 | `/strategy-development` | 生成包含当前数据目录的策略开发说明 |
-| 验证中心 | `/backtests` | 执行 OHLCV 历史回放并比较实验与版本 |
-| 运行中心 | `/runs` | 运行正式策略并查看单次/持续运行记录 |
-| 数据中心 | `/data` | 查看来源、市场标签、连接配置与可用状态 |
-| 单股研究 | `/stock-research` | 选择正式策略并生成结构化研究报告 |
-| 选股扫描 | `/screening` | 选择正式策略并生成候选股票列表 |
-| 模型用量 | `/usage` | 查看模型调用量及可追溯归属 |
-| 平台设置 | `/settings` | 配置模型运行时、认证和平台参数 |
+| Strategy Overview | `/overview` | Summarize strategy, validation, run, and data-source status |
+| Strategy Center | `/strategies` | Manage strategies, configurations, versions, checks, and publication |
+| Strategy Generation Guide | `/strategy-development` | Generate development instructions containing the current data catalog |
+| Validation Center | `/backtests` | Run OHLCV historical replay and compare experiments and versions |
+| Run Center | `/runs` | Run published strategies and inspect one-off or continuous history |
+| Data Center | `/data` | Inspect sources, market labels, connection settings, and availability |
+| Single-stock Research | `/stock-research` | Select a published strategy and produce a structured report |
+| Screening | `/screening` | Select a published strategy and produce a candidate list |
+| Model Usage | `/usage` | Inspect model usage and traceable attribution |
+| Platform Settings | `/settings` | Configure model runtimes, authentication, and platform parameters |
 
-## 策略包接入
+## Strategy package intake
 
-1. 在数据中心确认目标市场与数据来源。
-2. 打开“策略生成指南”，复制包含当前数据目录的动态开发说明。
-3. 将说明交给 Codex、Claude Code 或其他工程工具，并描述策略想法。
-4. 获得包含 `strategy.yaml`、`strategy.py`、Schema、测试和 `STRATEGY.md` 的 ZIP 策略包。
-5. 在策略中心上传内核，创建独立运行配置并执行检查。
-6. 按需进行历史验证，然后发布不可变版本。
+1. Confirm the target market and sources in Data Center.
+2. Open Strategy Generation Guide and copy its dynamic instructions, including the current data catalog.
+3. Give those instructions and your strategy idea to Codex, Claude Code, or another engineering tool.
+4. Receive a ZIP package containing `strategy.yaml`, `strategy.py`, schemas, tests, and `STRATEGY.md`.
+5. Upload the kernel in Strategy Center, create an independent runtime configuration, and run checks.
+6. Perform historical validation when needed, then publish an immutable version.
 
-策略包唯一执行入口：
+The strategy package has one execution entry point:
 
 ```python
 def run(context: StrategyContext) -> StrategyResult:
     ...
 ```
 
-完整 Manifest、Schema、最低输出字段和受限执行规则见 [策略包规范](docs/strategy-package-spec.md)。
+See the [strategy package specification](docs/strategy-package-spec.md) for the full manifest, schemas, minimum output fields, and restricted-execution rules.
 
-## 能力边界
+## Capability boundaries
 
-### 当前明确不做
+### Explicitly out of scope today
 
-- 券商连接、自动下单、订单、成交、持仓和资金账本。
-- 模拟交易撮合、真实收益监控或自动风险放行。
-- 对缺失历史成分的动态选股策略补造历史股票池。
-- 把受限 Python 子进程描述为可以安全执行任意不受信任代码的通用沙箱。
+- Broker connectivity, automatic order placement, orders, fills, positions, and cash ledgers.
+- Paper-trading matching, real-return monitoring, or automated risk approval.
+- Fabricating point-in-time universes for dynamic screening strategies when historical constituents are unavailable.
+- Presenting the restricted Python subprocess as a general sandbox for arbitrary untrusted code.
 
-验证中心的“回放完成”只代表可信观察性实验执行成功，不会自动升级为“策略已验证有效”。详细语义见 [StrategyVersion 历史验证](docs/strategy-version-validation.md)。
+“Replay completed” means only that a trustworthy observational experiment executed successfully. It does not automatically become “strategy validated.” See [StrategyVersion historical validation](docs/strategy-version-validation.md) for exact semantics.
 
-## 技术栈
+## Technology stack
 
-| 层级 | 技术 |
+| Layer | Technology |
 | --- | --- |
-| Web | React 19、TypeScript、Vite、React Router、Tailwind CSS、Recharts、Vitest、Playwright |
-| API | FastAPI、Pydantic、Uvicorn |
-| 服务与存储 | Python、SQLAlchemy、SQLite、本地文件归档 |
-| 数据适配 | AkShare、Tushare、Baostock、YFinance、Longbridge 等适配器与回退链 |
-| 策略执行 | 受限 Python 子进程、标准化输入输出契约、不可变版本快照 |
+| Web | React 19, TypeScript, Vite, React Router, Tailwind CSS, Recharts, Vitest, Playwright |
+| API | FastAPI, Pydantic, Uvicorn |
+| Services and storage | Python, SQLAlchemy, SQLite, local file archives |
+| Data adapters | AkShare, Tushare, Baostock, YFinance, Longbridge, and existing fallback chains |
+| Strategy execution | Restricted Python subprocesses, standardized I/O contracts, immutable version snapshots |
 
 <details>
-<summary><strong>项目结构</strong></summary>
+<summary><strong>Repository structure</strong></summary>
 
 ```text
 LLM-TradeBot/
-├── api/                    # FastAPI 路由、Schema 与中间件
-├── apps/dsa-web/           # React / TypeScript Web 控制台
-├── apps/dsa-desktop/       # Electron 桌面端
-├── src/core/               # 分析与运行主流程编排
-├── src/services/           # 策略、验证、数据与报告服务
-├── src/schemas/            # 后端领域 Schema
-├── data_provider/          # 行情与第三方数据适配器
-├── tests/                  # Python 测试
-├── docs/                   # 配置、协议、验证与专题文档
-├── main.py                 # CLI 与 Web/API 启动入口
-└── server.py               # FastAPI ASGI 入口
+├── api/                    # FastAPI routes, schemas, and middleware
+├── apps/dsa-web/           # React / TypeScript web console
+├── apps/dsa-desktop/       # Electron desktop app
+├── src/core/               # Analysis and runtime orchestration
+├── src/services/           # Strategy, validation, data, and report services
+├── src/schemas/            # Backend domain schemas
+├── data_provider/          # Market-data and third-party adapters
+├── tests/                  # Python tests
+├── docs/                   # Configuration, contracts, validation, and topic docs
+├── main.py                 # CLI and Web/API entry point
+└── server.py               # FastAPI ASGI entry point
 ```
 
 </details>
 
-## 文档入口
+## Documentation
 
-| 主题 | 文档 |
+| Topic | Documents |
 | --- | --- |
-| 文档总览 | [文档中心](docs/INDEX.md) |
-| 策略接入 | [策略包规范](docs/strategy-package-spec.md) · [策略架构](docs/strategy-architecture.md) |
-| 验证语义 | [StrategyVersion 历史验证](docs/strategy-version-validation.md) |
-| 配置与模型 | [完整指南](docs/full-guide.md) · [LLM 配置指南](docs/LLM_CONFIG_GUIDE.md) |
-| 部署与桌面端 | [部署指南](docs/DEPLOY.md) · [桌面端打包](docs/desktop-package.md) |
-| 开发与测试 | [测试指南](docs/testing.md) · [贡献指南](docs/CONTRIBUTING.md) |
+| Documentation map | [Documentation center](docs/INDEX_EN.md) |
+| Strategy intake | [Strategy package specification](docs/strategy-package-spec.md) · [Strategy architecture](docs/strategy-architecture.md) |
+| Validation semantics | [StrategyVersion historical validation](docs/strategy-version-validation.md) |
+| Configuration and models | [Full guide](docs/full-guide_EN.md) · [LLM configuration guide](docs/LLM_CONFIG_GUIDE_EN.md) |
+| Deployment and desktop | [Deployment guide](docs/DEPLOY_EN.md) · [Desktop packaging](docs/desktop-package.md) |
+| Development and testing | [Testing guide](docs/testing.md) · [Contribution guide](docs/CONTRIBUTING_EN.md) |
 
-### 开发验证
+### Development validation
 
 ```bash
-# 后端质量门禁
+# Backend quality gate
 ./scripts/ci_gate.sh
 
-# 后端离线测试
+# Offline backend tests
 python -m pytest -m "not network"
 
 # Web
@@ -271,8 +262,8 @@ npm run build
 
 ## License
 
-本项目采用 [MIT License](LICENSE)。原始版权声明与第三方许可必须保留。
+This project is licensed under the [MIT License](LICENSE). Original copyright notices and third-party licenses must be preserved.
 
-## 免责声明
+## Disclaimer
 
-本项目仅用于软件工程、策略研究与历史验证，不构成投资建议。历史回放、研究报告和模型输出均不能保证未来表现，任何交易决策及其后果由使用者自行承担。
+This project is for software engineering, strategy research, and historical validation only. It is not investment advice. Historical replays, research reports, and model outputs do not guarantee future performance. Users are responsible for their own trading decisions and outcomes.

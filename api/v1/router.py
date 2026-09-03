@@ -27,6 +27,7 @@ from api.v1.endpoints import (
     stocks,
     system_config,
     usage,
+    workspace,
 )
 
 # 创建 v1 版本主路由。
@@ -120,4 +121,16 @@ router.include_router(
 router.include_router(
     health.router,
     tags=["Health"]
+)
+
+router.include_router(
+    workspace.router,
+    prefix="/workspace",
+    tags=["AgentWorkspace"],
+)
+
+router.include_router(
+    workspace.mcp_router,
+    prefix="/mcp",
+    tags=["FinancialMCP"],
 )

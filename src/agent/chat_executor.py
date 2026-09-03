@@ -92,6 +92,7 @@ class AgentChatExecutor:
             use_codex_prompt=self.backend.backend_id == "codex_app_server",
             include_provider_trace=not self.backend.runtime_owns_loop,
             strict_initial_stock_scope=self.backend.runtime_owns_loop,
+            use_runtime_prompt=self.backend.backend_id == "nanobot",
         )
         baseline_len = len(prepared.history_messages) + 2
         run_id = str(uuid.uuid4())
@@ -128,6 +129,7 @@ class AgentChatExecutor:
                 max_wall_clock_seconds=self.timeout_seconds,
                 progress_callback=progress_callback,
                 cancel_event=cancel_event,
+                capability_manifest=turn.prepared.capability_manifest,
             )
         )
         total_tokens = 0

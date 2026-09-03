@@ -121,7 +121,7 @@ _FALLBACK_LITELLM_MODEL_PROVIDERS = _MANAGED_LITELLM_KEY_PROVIDERS | set(SUPPORT
 }
 _FALSEY_ENV_VALUES = {"0", "false", "no", "off"}
 PROMPT_CACHE_DIAGNOSTICS_LEVELS = {"off", "basic", "debug"}
-SUPPORTED_AGENT_BACKENDS = {"auto", "litellm", "codex_app_server"}
+SUPPORTED_AGENT_BACKENDS = {"auto", "litellm", "codex_app_server", "nanobot"}
 TICKFLOW_KLINE_ADJUST_VALUES = {"none", "forward", "backward", "forward_additive", "backward_additive"}
 # Fallback defaults used when ANSPIRE_API_KEYS is reused as legacy OpenAI-compatible source.
 # These are compatibility examples; actual availability should be validated by Anspire console/model entitlement.
@@ -997,6 +997,9 @@ class Config:
 
     # === Agent 模式配置 ===
     agent_backend: str = "auto"
+    nanobot_api_base: str = ""
+    nanobot_api_key: str = ""
+    agent_capability_grant_secret: str = ""
     agent_generation_backend: str = AUTO_AGENT_BACKEND_ID
     agent_litellm_model: str = ""  # Optional Agent-only primary model; empty inherits LITELLM_MODEL
     agent_mode: bool = False
@@ -1901,6 +1904,9 @@ class Config:
             newsnow_base_url=((os.getenv('NEWSNOW_BASE_URL') or '').strip().rstrip('/') or 'https://newsnow.busiyi.world'),
             bias_threshold=parse_env_float(os.getenv('BIAS_THRESHOLD'), 5.0, field_name='BIAS_THRESHOLD', minimum=1.0),
             agent_backend=(os.getenv('AGENT_BACKEND', 'auto') or 'auto').strip().lower(),
+            nanobot_api_base=(os.getenv('NANOBOT_API_BASE') or '').strip().rstrip('/'),
+            nanobot_api_key=(os.getenv('NANOBOT_API_KEY') or '').strip(),
+            agent_capability_grant_secret=(os.getenv('AGENT_CAPABILITY_GRANT_SECRET') or '').strip(),
             agent_generation_backend=agent_generation_backend,
             agent_litellm_model=agent_litellm_model,
             agent_mode=os.getenv('AGENT_MODE', 'false').lower() == 'true',
@@ -3142,16 +3148,26 @@ class Config:
             issues.append(ConfigIssue(
                 severity="error",
                 message=(
-                    "AGENT_BACKEND 当前支持 auto、litellm、codex_app_server。"
+                    "AGENT_BACKEND 当前支持 auto、litellm、codex_app_server、nanobot。"
                     f"已配置的值为：{agent_backend}。"
                 ),
                 field="AGENT_BACKEND",
                 code="capability_unsupported",
             ))
-        if agent_backend == "codex_app_server" and self.agent_arch != "single":
+        if agent_backend == "nanobot" and not self.nanobot_api_base:
             issues.append(ConfigIssue(
                 severity="error",
-                message="Codex 本地 Agent 当前只支持单 Agent 问股，请将 AGENT_ARCH 设为 single。",
+                message="使用 Nanobot Runtime 时必须配置 NANOBOT_API_BASE。",
+                field="NANOBOT_API_BASE",
+                code="invalid_config",
+            ))
+        if agent_backend in {"codex_app_server", "nanobot"} and self.agent_arch != "single":
+            issues.append(ConfigIssue(
+                severity="error",
+                message=(
+                    f"{agent_backend} 当前只支持单 Agent 问股，"
+                    "请将 AGENT_ARCH 设为 single。"
+                ),
                 field="AGENT_ARCH",
                 code="unsupported_agent_arch",
             ))

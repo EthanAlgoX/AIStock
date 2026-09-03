@@ -307,6 +307,23 @@ class IntelligenceServiceTestCase(unittest.TestCase):
         self.assertEqual(created["market"], "hk")
         self.assertFalse(created["enabled"])
 
+    def test_builtin_templates_include_curated_finance_and_regulatory_feeds(self) -> None:
+        templates = self.service.list_source_templates()
+        template_ids = {item["template_id"] for item in templates["items"]}
+
+        self.assertTrue(
+            {
+                "global-cnbc-markets",
+                "global-yahoo-finance",
+                "global-financial-times",
+                "global-reuters-business",
+                "global-business-wire",
+                "global-globenewswire",
+                "us-federal-reserve",
+                "sec-company-news",
+            }.issubset(template_ids)
+        )
+
     def test_newsnow_source_fetches_json_items(self) -> None:
         source = self.service.create_source({
             "name": "newsnow-cls",

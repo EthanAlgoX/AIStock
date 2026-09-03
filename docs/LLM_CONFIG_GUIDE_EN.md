@@ -52,6 +52,20 @@ AGENT_GENERATION_BACKEND=auto
 - The Web settings generation-backend quick check only reads saved `.env`, runtime defaults, and unsaved drafts. It does not write config, reload runtime, or send a real model request; `available` only means the current config can be attempted. JSON smoke test is a separate explicit button that sends one real generation-backend request with a server-owned fixed JSON prompt/schema to verify extractor behavior, JSON contract, timeout, output limits, and usage-unavailable semantics.
 - `GET /api/v1/system/config/generation-backends/status` only reads saved config. Unsaved drafts use `POST /api/v1/system/config/generation-backends/status/preview` or `POST /api/v1/system/config/generation-backends/smoke-test`; masked secrets preserve saved values. `health_status` and `last_error_code/message` describe only the current computation, not persisted historical health.
 
+### Nanobot Agent Runtime
+
+`AGENT_BACKEND=nanobot` replaces only the Agent execution layer for existing ask-stock Chat. DSA submits a task through the official OpenAI-compatible API exposed by a separate `nanobot serve` process; Nanobot owns ReAct, skills, tools, MCP, sessions, and memory:
+
+```env
+AGENT_MODE=true
+AGENT_BACKEND=nanobot
+AGENT_ARCH=single
+NANOBOT_API_BASE=http://127.0.0.1:8900
+NANOBOT_API_KEY=
+```
+
+The Settings quick check reads only `/health` and `/v1/models` and does not run an Agent task. Providers, runtime skills, MCP servers, and tool permissions stay configured inside Nanobot, and DSA does not read those credentials. Website skills are passed as investment-analysis methods, but website MCP drafts and data-source catalog entries are not automatically registered as Nanobot tools. See [Nanobot Agent Runtime integration](nanobot-integration_EN.md) for setup, security, session, and rollback details.
+
 ### Codex Local Agent (Phase 6 Experimental Prototype)
 
 `AGENT_BACKEND` selects only the runtime for the existing ask-stock Chat. It does not change regular reports, scheduled analysis, market review, the regular Agent analysis pipeline, LiteLLM Multi Agent, or Deep Research:

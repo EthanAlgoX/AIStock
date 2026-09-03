@@ -71,6 +71,7 @@ _CATEGORY_DEFINITIONS: List[Dict[str, Any]] = [
 ]
 
 WEB_SETTINGS_HIDDEN_FROM_UI = {
+    "AGENT_CAPABILITY_GRANT_SECRET",
     "DATABASE_PATH",
     "SQLITE_WAL_ENABLED",
     "SQLITE_BUSY_TIMEOUT_MS",
@@ -3773,20 +3774,68 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "options": [
             {"label": "Auto (recommended)", "value": "auto"},
             {"label": "Default model settings", "value": "litellm"},
+            {"label": "Nanobot Agent Runtime", "value": "nanobot"},
             {"label": "Codex local Agent (experimental)", "value": "codex_app_server"},
         ],
-        "validation": {"enum": ["auto", "litellm", "codex_app_server"]},
+        "validation": {"enum": ["auto", "litellm", "nanobot", "codex_app_server"]},
         "display_order": 2,
         "help_key": "settings.agent.AGENT_BACKEND",
         "examples": [
             "AGENT_BACKEND=auto",
             "AGENT_BACKEND=litellm",
+            "AGENT_BACKEND=nanobot",
             "AGENT_BACKEND=codex_app_server",
         ],
         "docs": [
             {
                 "label": "LLM 配置指南",
                 "href": "https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/LLM_CONFIG_GUIDE.md",
+            },
+        ],
+        "warning_codes": [],
+    },
+    "NANOBOT_API_BASE": {
+        "title": "Nanobot API Base URL",
+        "description": "HTTP root exposed by the separately managed `nanobot serve` runtime.",
+        "category": "agent",
+        "data_type": "string",
+        "ui_control": "text",
+        "is_sensitive": False,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": "",
+        "options": [],
+        "validation": {},
+        "display_order": 4,
+        "help_key": "settings.agent.NANOBOT_API_BASE",
+        "examples": ["NANOBOT_API_BASE=http://127.0.0.1:8900"],
+        "docs": [
+            {
+                "label": "Nanobot 主 Agent Runtime 接入",
+                "href": "https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/nanobot-integration.md",
+            },
+        ],
+        "warning_codes": [],
+    },
+    "NANOBOT_API_KEY": {
+        "title": "Nanobot API Key",
+        "description": "Optional Bearer token configured by the nanobot API service.",
+        "category": "agent",
+        "data_type": "string",
+        "ui_control": "password",
+        "is_sensitive": True,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": "",
+        "options": [],
+        "validation": {},
+        "display_order": 5,
+        "help_key": "settings.agent.NANOBOT_API_KEY",
+        "examples": ["NANOBOT_API_KEY=<nanobot-api-key>"],
+        "docs": [
+            {
+                "label": "Nanobot 主 Agent Runtime 接入",
+                "href": "https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/nanobot-integration.md",
             },
         ],
         "warning_codes": [],

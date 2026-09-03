@@ -21,6 +21,7 @@ interface AgentBackendStatusPanelProps {
 }
 
 function backendLabel(backendId: string, t: ReturnType<typeof useUiLanguage>['t']): string {
+  if (backendId === 'nanobot') return t('settings.agentBackendNanobotLabel');
   return backendId === 'codex_app_server'
     ? t('settings.agentBackendCodexLabel')
     : t('settings.agentBackendDefaultLabel');
@@ -28,6 +29,9 @@ function backendLabel(backendId: string, t: ReturnType<typeof useUiLanguage>['t'
 
 function statusMessage(status: AgentBackendStatusResponse, t: ReturnType<typeof useUiLanguage>['t']): string {
   if (status.available) return t('settings.agentBackendCanTryDescription');
+  if (status.backend === 'nanobot' && status.errorCode === 'invalid_config') return t('settings.agentBackendNanobotConfigMissing');
+  if (status.backend === 'nanobot' && status.errorCode === 'authentication_failed') return t('settings.agentBackendNanobotAuthFailed');
+  if (status.backend === 'nanobot') return t('settings.agentBackendNanobotUnavailable');
   if (status.errorCode === 'command_not_found') return t('settings.agentBackendCommandNotFound');
   if (status.errorCode === 'unsupported_agent_arch') return t('settings.agentBackendSingleOnly');
   if (status.errorCode === 'agent_mode_disabled') return t('settings.agentBackendModeDisabled');
@@ -66,7 +70,9 @@ export function AgentBackendStatusPanel({
   );
   const hasDraft = requestItems.length > 0;
   const isCodex = selectedBackend === 'codex_app_server';
-  const hasArchitectureConflict = isCodex && agentArch !== 'single';
+  const isNanobot = selectedBackend === 'nanobot';
+  const requiresSingleAgent = isCodex || isNanobot;
+  const hasArchitectureConflict = requiresSingleAgent && agentArch !== 'single';
 
   const refresh = useCallback(async () => {
     const requestId = refreshRequestIdRef.current + 1;
@@ -150,6 +156,13 @@ export function AgentBackendStatusPanel({
         <SettingsAlert
           title={t('settings.agentBackendCodexNoticeTitle')}
           message={t('settings.agentBackendCodexNotice')}
+          variant="warning"
+        />
+      ) : null}
+      {isNanobot ? (
+        <SettingsAlert
+          title={t('settings.agentBackendNanobotNoticeTitle')}
+          message={t('settings.agentBackendNanobotNotice')}
           variant="warning"
         />
       ) : null}

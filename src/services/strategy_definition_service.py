@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 from sqlalchemy import desc, func, select
 
+from src.data.default_news_sources import DEFAULT_FINANCE_NEWS_SOURCES
 from src.services.strategy_graph_validator import StrategyGraphValidator
 from src.services.simulation_strategy_service import SimulationStrategyService
 from src.services.strategy_graph_runtime_service import StrategyGraphRuntimeService, StrategyGraphRunError
@@ -67,7 +68,7 @@ class StrategyDefinitionService:
     BUILTIN_DATA_SOURCES = (
         {"sourceId": "system_market_data", "name": "系统自动选择", "kind": "kline", "description": "按市场和可用性自动选择行情来源；失败时按系统顺序切换。", "connectionKey": "system_market_data", "required": True, "selectionMode": "automatic", "markets": ["cn", "hk", "us", "jp", "kr", "tw"]},
         {"sourceId": "local_stock_daily", "name": "本地日线库 stock_daily", "kind": "kline", "description": "只使用数据库中已经留存的日线数据，不主动请求外部行情。", "connectionKey": "local_stock_daily", "required": False, "selectionMode": "local", "markets": ["cn", "hk", "us", "jp", "kr", "tw"]},
-        {"sourceId": "system_news", "name": "系统自动选择", "kind": "news", "description": "按设置中的新闻渠道顺序检索；当前渠道失败时自动切换。", "connectionKey": "system_news", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us"]},
+        {"sourceId": "system_news", "name": "系统自动选择", "kind": "news", "description": "保留已配置新闻渠道的优先级；未配置密钥时默认使用免密钥财经 RSS 聚合，并继续故障切换。每次运行记录真实来源。", "connectionKey": "system_news", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us"]},
         {"sourceId": "system_fundamentals", "name": "按市场自动选择", "kind": "fundamentals", "description": "A 股优先使用 AkShare，海外市场使用 YFinance，并按现有管线补充可用字段。", "connectionKey": "system_fundamentals", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us", "jp", "kr", "tw"]},
         {"sourceId": "system_sentiment", "name": "系统情绪与社交信号", "kind": "other", "description": "可选的情绪与社交研究输入；实际可用性在运行时检查。", "connectionKey": "system_sentiment", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us"]},
     )
@@ -80,6 +81,7 @@ class StrategyDefinitionService:
         {"sourceId": "kline:efinance", "name": "Efinance 行情", "kind": "kline", "description": "指定 Efinance 行情适配器，仅用于 A 股。", "connectionKey": "kline:efinance", "providerName": "EfinanceFetcher", "markets": ["cn"], "availabilityKey": "always"},
         {"sourceId": "kline:pytdx", "name": "通达信 Pytdx", "kind": "kline", "description": "指定 Pytdx 行情；使用系统设置中的通达信节点。", "connectionKey": "kline:pytdx", "providerName": "PytdxFetcher", "markets": ["cn"], "availabilityKey": "always"},
         {"sourceId": "kline:tushare", "name": "Tushare 行情", "kind": "kline", "description": "指定 Tushare 行情，需要先配置 TUSHARE_TOKEN。", "connectionKey": "kline:tushare", "providerName": "TushareFetcher", "markets": ["cn", "hk"], "availabilityKey": "tushare"},
+        {"sourceId": "news:finance_rss", "name": "财经资讯 RSS 聚合", "kind": "news", "description": "免密钥定向检索财经媒体、企业公告线与监管机构；只保存标题、摘要、时间、来源和原文链接。", "connectionKey": "news:finance_rss", "providerName": "FinanceRSS", "includedSources": [dict(source) for source in DEFAULT_FINANCE_NEWS_SOURCES], "markets": ["cn", "hk", "us"], "availabilityKey": "always"},
         {"sourceId": "news:searxng", "name": "SearXNG 新闻搜索", "kind": "news", "description": "指定 SearXNG；可使用自建实例或系统允许的公共实例。", "connectionKey": "news:searxng", "providerName": "SearXNG", "markets": ["cn", "hk", "us"], "availabilityKey": "searxng"},
         {"sourceId": "news:bocha", "name": "Bocha 新闻搜索", "kind": "news", "description": "指定 Bocha 中文搜索，需要先配置 API Key。", "connectionKey": "news:bocha", "providerName": "Bocha", "markets": ["cn", "hk", "us"], "availabilityKey": "bocha"},
         {"sourceId": "news:tavily", "name": "Tavily 新闻搜索", "kind": "news", "description": "指定 Tavily 新闻搜索，需要先配置 API Key。", "connectionKey": "news:tavily", "providerName": "Tavily", "markets": ["cn", "hk", "us"], "availabilityKey": "tavily"},

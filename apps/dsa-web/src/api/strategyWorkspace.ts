@@ -35,7 +35,8 @@ export type StrategyValidationComparison = { strategyId:number; strategyName:str
 export type StrategyValidationVersionStatus = { strategyVersionId:number; versionRevision:number; status:'not_started'|'queued'|'running'|'completed'|'validated'|'failed'; latestExperimentId?:number|null; latestCompletedExperimentId?:number|null; completedAt?:string|null; validatedAt?:string|null };
 export type StrategyDeletionImpact = { strategyId:number; strategyName:string; hasPublishedVersion:boolean; publishedVersionCount:number; isRunning:boolean; activeContinuousRunCount:number; activeResearchRunCount:number; requiresConfirmation:boolean };
 export type StrategyDeletionResult = { strategyId:number; deleted:boolean; deletedAt:string; wasPublished:boolean; terminatedContinuousRuns:number; cancelledResearchRuns:number; historyRetained:boolean };
-export type StrategyDataSource = { id?:number; sourceId:string; name:string; kind:'kline'|'news'|'fundamentals'|'other'; description?:string|null; connectionKey:string; required:boolean; builtIn:boolean; selectable:boolean; availability:'system_managed'|'configured'|'unconfigured'|'registered'; selectionMode?:'automatic'|'provider'|'local'; providerName?:string; markets?:string[]; createdAt?:string; updatedAt?:string };
+export type StrategyDataSourceMember = { id:string; name:string; domain:string; category:'publisher'|'corporate_wire'|'regulator'; markets:string[] };
+export type StrategyDataSource = { id?:number; sourceId:string; name:string; kind:'kline'|'news'|'fundamentals'|'other'; description?:string|null; connectionKey:string; required:boolean; builtIn:boolean; selectable:boolean; availability:'system_managed'|'configured'|'unconfigured'|'registered'; selectionMode?:'automatic'|'provider'|'local'; providerName?:string; includedSources?:StrategyDataSourceMember[]; markets?:string[]; createdAt?:string; updatedAt?:string };
 
 const root='/api/v1/simulation/definition';
 export const strategyWorkspaceApi={

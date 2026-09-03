@@ -19,6 +19,7 @@ from src.agent.codex_app_server_transport import (
     is_native_windows,
     resolve_command,
 )
+from src.agent.nanobot_agent_backend import NanobotHTTPTransport, NanobotTransportError
 from src.config import Config, parse_env_bool, parse_env_int
 from src.services.generation_backend_status_service import GenerationBackendStatusService
 
@@ -174,12 +175,12 @@ def evaluate_agent_backend_config(config: Config) -> Dict[str, Any]:
             "error_code": "agent_mode_disabled",
             "message": "Agent mode is disabled",
         }
-    if selected == "codex_app_server" and getattr(config, "agent_arch", "single") != "single":
+    if selected in {"codex_app_server", "nanobot"} and getattr(config, "agent_arch", "single") != "single":
         return {
             "backend": selected,
             "available": False,
             "error_code": "unsupported_agent_arch",
-            "message": "Codex Agent currently supports single-agent Chat only",
+            "message": f"{selected} currently supports single-agent Chat only",
         }
     if (
         selected == "codex_app_server"
@@ -197,6 +198,13 @@ def evaluate_agent_backend_config(config: Config) -> Dict[str, Any]:
             "available": False,
             "error_code": "capability_unsupported",
             "message": "no_agent_primary",
+        }
+    if selected == "nanobot" and not str(getattr(config, "nanobot_api_base", "") or "").strip():
+        return {
+            "backend": selected,
+            "available": False,
+            "error_code": "invalid_config",
+            "message": "NANOBOT_API_BASE is required",
         }
     return {
         "backend": selected,
@@ -228,7 +236,30 @@ class AgentBackendStatusService:
             )
         if evaluation["backend"] == "litellm":
             return self._response(backend="litellm", available=True)
+        if evaluation["backend"] == "nanobot":
+            return self._nanobot_cheap_status(config)
         return self._codex_cheap_status()
+
+    def _nanobot_cheap_status(self, config: Config) -> Dict[str, Any]:
+        """Probe nanobot health/model metadata without running an Agent turn."""
+        try:
+            transport = NanobotHTTPTransport(
+                config.nanobot_api_base,
+                config.nanobot_api_key,
+            )
+            status = transport.probe(timeout=3.0)
+        except NanobotTransportError as exc:
+            return self._response(
+                backend="nanobot",
+                available=False,
+                error_code=exc.code,
+                message=str(exc),
+            )
+        return self._response(
+            backend="nanobot",
+            available=True,
+            version=status.get("model"),
+        )
 
     def _codex_cheap_status(self) -> Dict[str, Any]:
         if is_native_windows():
@@ -330,6 +361,8 @@ class AgentBackendStatusService:
             self._effective_map.get("AGENT_GENERATION_BACKEND") or "auto"
         ).strip().lower()
         config.agent_litellm_model = (self._effective_map.get("AGENT_LITELLM_MODEL") or "").strip()
+        config.nanobot_api_base = (self._effective_map.get("NANOBOT_API_BASE") or "").strip()
+        config.nanobot_api_key = (self._effective_map.get("NANOBOT_API_KEY") or "").strip()
         config.agent_arch = (self._effective_map.get("AGENT_ARCH") or "single").strip().lower()
         config.agent_mode = parse_env_bool(self._effective_map.get("AGENT_MODE"), default=False)
         config._agent_mode_explicit = "AGENT_MODE" in self._effective_map

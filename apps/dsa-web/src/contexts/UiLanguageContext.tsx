@@ -7,12 +7,19 @@ type UiLanguageContextValue = {
   language: UiLanguage;
   setLanguage: (language: UiLanguage) => void;
   t: (key: UiTextKey, params?: UiTextParams) => string;
+  /**
+   * Selects page-local copy while newer product surfaces are migrated into the
+   * shared catalogue. Keeping the selection in the language context makes
+   * every caller reactive and avoids independent language state per page.
+   */
+  localize: (zh: string, en: string) => string;
 };
 
 const fallbackContext: UiLanguageContextValue = {
   language: 'zh',
   setLanguage: () => undefined,
   t: (key, params) => formatUiText(UI_TEXT.zh[key], params),
+  localize: (zh) => zh,
 };
 
 const UiLanguageContext = createContext<UiLanguageContextValue | null>(null);
@@ -35,6 +42,7 @@ export const UiLanguageProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     language,
     setLanguage,
     t: (key, params) => formatUiText(UI_TEXT[language][key], params),
+    localize: (zh, en) => (language === 'en' ? en : zh),
   }), [language, setLanguage]);
 
   return (

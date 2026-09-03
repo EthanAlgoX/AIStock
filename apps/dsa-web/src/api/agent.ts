@@ -3,6 +3,7 @@ import { API_BASE_URL } from '../utils/constants';
 import { createApiError, isApiRequestError, parseApiError } from './error';
 import { toCamelCase } from './utils';
 import type { AgentBackendStatusResponse } from '../types/systemConfig';
+import type { AgentCapabilityBindings } from '../types/capabilities';
 
 export interface ChatStreamOptions {
   signal?: AbortSignal;
@@ -18,6 +19,7 @@ export function isAbortError(error: unknown): boolean {
 export interface ChatRequest {
   message: string;
   skills?: string[];
+  capabilities?: AgentCapabilityBindings;
 }
 
 export interface ChatStreamRequest extends ChatRequest {

@@ -198,6 +198,14 @@ class TestValidateStructuredLLM:
         assert error.field == "AGENT_ARCH"
         assert "single" in error.message
 
+    def test_nanobot_agent_backend_requires_base_and_single_agent_architecture(self):
+        cfg = _make_config(agent_backend="nanobot", agent_arch="multi", nanobot_api_base="")
+
+        issues = cfg.validate_structured()
+
+        assert any(i.code == "unsupported_agent_arch" and i.field == "AGENT_ARCH" for i in issues)
+        assert any(i.code == "invalid_config" and i.field == "NANOBOT_API_BASE" for i in issues)
+
     def test_unknown_agent_backend_is_structured_config_error(self):
         cfg = _make_config(agent_backend="unknown")
 

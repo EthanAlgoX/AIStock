@@ -305,6 +305,14 @@ async def app_lifespan(app: FastAPI):
     strategy_continuous_runs = StrategyContinuousRunService()
     strategy_continuous_runs.resume_active()
     app.state.strategy_continuous_runs = strategy_continuous_runs
+    from src.services.workspace_service import WorkspaceSchedulerService, WorkspaceService
+
+    interrupted_workspace_runs = WorkspaceService().reconcile_interrupted_runs()
+    if interrupted_workspace_runs:
+        logger.warning("Marked %s interrupted Agent workspace run(s) as failed", interrupted_workspace_runs)
+    workspace_scheduler = WorkspaceSchedulerService()
+    workspace_scheduler.start()
+    app.state.workspace_scheduler = workspace_scheduler
     try:
         yield
     finally:
@@ -319,6 +327,10 @@ async def app_lifespan(app: FastAPI):
         if continuous_runs is not None:
             continuous_runs.stop_workers()
             delattr(app.state, "strategy_continuous_runs")
+        workspace_scheduler = getattr(app.state, "workspace_scheduler", None)
+        if workspace_scheduler is not None:
+            workspace_scheduler.stop()
+            delattr(app.state, "workspace_scheduler")
         runtime_scheduler = getattr(app.state, "runtime_scheduler_service", None)
         if runtime_scheduler is not None:
             runtime_scheduler.stop()
@@ -343,13 +355,14 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
     
     # 创建 FastAPI 实例
     app = FastAPI(
-        title="Daily Stock Analysis API",
+        title="LLM TradeBot API",
         description=(
-            "A股/港股/美股自选股智能分析系统 API\n\n"
+            "面向 A 股、港股和美股的 Agent 驱动投资决策平台 API。\n\n"
             "## 功能模块\n"
-            "- 股票分析：触发 AI 智能分析\n"
-            "- 历史记录：查询历史分析报告\n"
-            "- 股票数据：获取行情数据\n\n"
+            "- 主 Agent：会话、Skill 与受控工具调用\n"
+            "- 决策工作台：市场情报、个股分析、选股和模拟交易\n"
+            "- 能力中心：Tool、MCP、数据源、专家与专家团\n"
+            "- 任务治理：定时计划、数据快照、Run 与 Artifact\n\n"
             "## 认证方式\n"
             "支持可选管理员认证：ADMIN_AUTH_ENABLED=true 时，除登录、状态、健康检查和 "
             "OpenAPI 文档外，/api/v1/* 需要有效管理员会话 Cookie；关闭时不强制认证。"

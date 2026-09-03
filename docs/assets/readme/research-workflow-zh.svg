@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="900" viewBox="0 0 1800 900" role="img" aria-labelledby="title desc">
+  <title id="title">LLM TradeBot 端到端研究工作流</title>
+  <desc id="desc">策略包和数据目录进入契约检查；未通过时返回修正，通过后组合配置并冻结版本，再分流到历史验证与研究运行，最终归档证据。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#07111f"/><stop offset="1" stop-color="#0a1930"/></linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#17324e" stroke-width="1" opacity="0.32"/></pattern>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#020812" flood-opacity="0.5"/></filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0L12 6L0 12Z" fill="#55c7f3"/></marker>
+    <marker id="arrowMint" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0L12 6L0 12Z" fill="#59d6b0"/></marker>
+    <marker id="arrowAmber" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0L12 6L0 12Z" fill="#e7b64f"/></marker>
+  </defs>
+  <rect width="1800" height="900" rx="30" fill="url(#bg)"/><rect width="1800" height="900" rx="30" fill="url(#grid)"/><rect x="1.5" y="1.5" width="1797" height="897" rx="28.5" fill="none" stroke="#24435f" stroke-width="3"/>
+  <text x="72" y="72" fill="#f3f8ff" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="30" font-weight="700">端到端研究工作流</text>
+  <text x="72" y="104" fill="#79a1c4" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="17" letter-spacing="2">检查失败明确回修，正式版本分流验证与研究</text>
+
+  <path d="M360 225H430V315H500" fill="none" stroke="#55c7f3" stroke-width="5" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M360 425H430V315" fill="none" stroke="#55c7f3" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="430" cy="315" r="9" fill="#07111f" stroke="#55c7f3" stroke-width="5"/>
+  <path d="M790 315H830" fill="none" stroke="#55c7f3" stroke-width="5" marker-end="url(#arrow)"/>
+  <path d="M1030 315H1080" fill="none" stroke="#59d6b0" stroke-width="5" marker-end="url(#arrowMint)"/>
+  <text x="1048" y="294" fill="#8ce8cb" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700">是</text>
+  <path d="M930 415V535H790" fill="none" stroke="#e7b64f" stroke-width="5" marker-end="url(#arrowAmber)"/>
+  <text x="948" y="474" fill="#f0c96e" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700">否</text>
+  <path d="M680 535V470H645V385" fill="none" stroke="#e7b64f" stroke-width="4" stroke-dasharray="10 10" marker-end="url(#arrowAmber)"/>
+  <path d="M1380 315H1430" fill="none" stroke="#55c7f3" stroke-width="5" marker-end="url(#arrow)"/>
+  <path d="M1580 385V500H1405V535" fill="none" stroke="#55c7f3" stroke-width="5" marker-end="url(#arrow)"/>
+  <path d="M1580 385V500H1675V535" fill="none" stroke="#55c7f3" stroke-width="5" marker-end="url(#arrow)"/>
+  <path d="M1405 665V735H1535" fill="none" stroke="#59d6b0" stroke-width="5" marker-end="url(#arrowMint)"/>
+  <path d="M1675 665V735H1535" fill="none" stroke="#59d6b0" stroke-width="5"/>
+  <circle cx="1535" cy="735" r="9" fill="#07111f" stroke="#59d6b0" stroke-width="5"/>
+
+  <g filter="url(#shadow)" font-family="Inter, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif">
+    <rect x="70" y="165" width="290" height="120" rx="20" fill="#0d2238" stroke="#55c7f3" stroke-width="3"/><text x="215" y="218" text-anchor="middle" fill="#f4f9ff" font-size="25" font-weight="700">Python 策略包</text><text x="215" y="254" text-anchor="middle" fill="#a8c7df" font-size="17">内核 · Schema · 依赖声明</text>
+    <rect x="70" y="365" width="290" height="120" rx="20" fill="#0d2238" stroke="#55c7f3" stroke-width="3"/><text x="215" y="418" text-anchor="middle" fill="#f4f9ff" font-size="25" font-weight="700">市场与数据目录</text><text x="215" y="454" text-anchor="middle" fill="#a8c7df" font-size="17">来源 · 市场标签 · 可用状态</text>
+    <rect x="500" y="245" width="290" height="140" rx="20" fill="#25243d" stroke="#e7b64f" stroke-width="3"/><text x="645" y="302" text-anchor="middle" fill="#fff9ea" font-size="25" font-weight="700">契约与安全检查</text><text x="645" y="340" text-anchor="middle" fill="#dacda9" font-size="17">输入输出 · 依赖 · 市场匹配</text>
+    <polygon points="930,215 1030,315 930,415 830,315" fill="#162742" stroke="#55c7f3" stroke-width="3"/><text x="930" y="308" text-anchor="middle" fill="#f4f9ff" font-size="22" font-weight="700">检查</text><text x="930" y="338" text-anchor="middle" fill="#a8c7df" font-size="17">通过？</text>
+    <rect x="570" y="535" width="220" height="120" rx="20" fill="#392d21" stroke="#e7b64f" stroke-width="3"/><text x="680" y="588" text-anchor="middle" fill="#fff4d5" font-size="23" font-weight="700">返回修正</text><text x="680" y="624" text-anchor="middle" fill="#dacda9" font-size="17">策略包或依赖配置</text>
+    <rect x="1080" y="235" width="300" height="160" rx="20" fill="#101f43" stroke="#7089ee" stroke-width="3"/><text x="1230" y="294" text-anchor="middle" fill="#f4f6ff" font-size="25" font-weight="700">组合运行配置</text><text x="1230" y="332" text-anchor="middle" fill="#b8c5ef" font-size="17">市场 · 股票范围 · 周期</text><text x="1230" y="362" text-anchor="middle" fill="#b8c5ef" font-size="17">参数 · 风险边界</text>
+    <rect x="1430" y="245" width="300" height="140" rx="20" fill="#25243d" stroke="#d9e4ef" stroke-width="3"/><text x="1580" y="302" text-anchor="middle" fill="#f6f9fc" font-size="24" font-weight="700">冻结 StrategyVersion</text><text x="1580" y="340" text-anchor="middle" fill="#bdcbd8" font-size="17">生成不可变版本快照</text>
+    <rect x="1280" y="535" width="250" height="130" rx="20" fill="#10243b" stroke="#55c7f3" stroke-width="3"/><text x="1405" y="588" text-anchor="middle" fill="#f4f9ff" font-size="24" font-weight="700">历史验证</text><text x="1405" y="625" text-anchor="middle" fill="#a8c7df" font-size="17">冻结快照 · 观察性回放</text>
+    <rect x="1550" y="535" width="250" height="130" rx="20" fill="#10243b" stroke="#55c7f3" stroke-width="3"/><text x="1675" y="588" text-anchor="middle" fill="#f4f9ff" font-size="24" font-weight="700">研究运行</text><text x="1675" y="625" text-anchor="middle" fill="#a8c7df" font-size="17">单次执行 · 持续运行</text>
+    <rect x="1410" y="735" width="250" height="110" rx="20" fill="#12352f" stroke="#59d6b0" stroke-width="3"/><text x="1535" y="785" text-anchor="middle" fill="#ecfff9" font-size="24" font-weight="700">证据归档</text><text x="1535" y="819" text-anchor="middle" fill="#b4e4d6" font-size="17">版本 · 输入 · 状态 · 输出</text>
+  </g>
+</svg>

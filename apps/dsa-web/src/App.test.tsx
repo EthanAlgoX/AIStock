@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -30,35 +30,37 @@ vi.mock("./stores/agentChatStore", () => ({
   useAgentChatStore: useAgentChatStoreMock,
 }));
 
-vi.mock("./pages/HomePage", () => ({
-  default: () => <div data-testid="home-page">Home</div>,
+vi.mock("./pages/SkillSettingsPage", () => ({
+  default: () => <div data-testid="skill-settings-page">Skill settings</div>,
+}));
+
+vi.mock("./pages/McpSettingsPage", () => ({
+  default: () => <div data-testid="mcp-settings-page">MCP settings</div>,
+}));
+
+vi.mock("./pages/ToolSettingsPage", () => ({
+  default: () => <div data-testid="tool-settings-page">Tool settings</div>,
+}));
+
+vi.mock("./pages/CapabilityOverviewPage", () => ({
+  default: () => <div data-testid="capability-overview-page">Capability overview</div>,
+}));
+
+vi.mock("./pages/TaskRunsPage", () => ({
+  default: () => <div data-testid="task-runs-page">Tasks and runs</div>,
 }));
 
 vi.mock("./pages/ChatPage", () => ({
-  default: () => {
+  default: ({ workspace = "general" }: { workspace?: string }) => {
     if (chatPageShouldThrow.value) {
       throw new Error("chunk load failed");
     }
-    return <div data-testid="chat-page">Chat</div>;
+    return <div data-testid="chat-page" data-workspace={workspace}>Chat</div>;
   },
 }));
 
-vi.mock("./pages/PortfolioPage", () => ({
-  default: () => <div data-testid="portfolio-page">Portfolio</div>,
-}));
-
-vi.mock("./pages/DecisionSignalsPage", () => ({
-  default: () => (
-    <div data-testid="decision-signals-page">Decision signals</div>
-  ),
-}));
-
-vi.mock("./pages/BacktestPage", () => ({
-  default: () => <div data-testid="backtest-page">Backtest</div>,
-}));
-
-vi.mock("./pages/AlertsPage", () => ({
-  default: () => <div data-testid="alerts-page">Alerts</div>,
+vi.mock("./pages/MarketIntelligencePage", () => ({
+  default: () => <div data-testid="market-intelligence-page">Market intelligence</div>,
 }));
 
 vi.mock("./pages/TokenUsagePage", () => ({
@@ -69,19 +71,27 @@ vi.mock("./pages/AgentCenterPage", () => ({
   default: () => <div data-testid="agent-center-page">Agent center</div>,
 }));
 
-vi.mock("./pages/StrategyLibraryPage", () => ({
-  default: () => <div data-testid="strategy-library-page">Strategy center</div>,
+vi.mock("./pages/StockAnalysisPage", () => ({
+  default: () => <div data-testid="stock-analysis-page">Stock analysis</div>,
 }));
 
-vi.mock("./pages/StrategyDevelopmentGuidePage", () => ({
-  default: () => <div data-testid="strategy-development-page">Strategy guide</div>,
+vi.mock("./pages/ScreeningWorkspacePage", () => ({
+  default: () => <div data-testid="screening-workspace-page">Screening</div>,
 }));
 
-vi.mock("./pages/StrategyValidationPage", () => ({
-  default: () => <div data-testid="backtest-center-page">Backtest center</div>,
+vi.mock("./pages/TradingWorkspacePage", () => ({
+  default: () => <div data-testid="trading-strategy-workspace">Trading strategy</div>,
 }));
 
-vi.mock("./pages/SettingsPage", () => ({
+vi.mock("./pages/ScheduledTasksPage", () => ({
+  default: () => <div data-testid="scheduled-tasks-page">Scheduled tasks</div>,
+}));
+
+vi.mock("./pages/ExpertReviewPage", () => ({
+  default: () => <div data-testid="expert-review-page">Expert review</div>,
+}));
+
+vi.mock("./pages/PlatformSettingsPage", () => ({
   default: () => <div data-testid="settings-page">Settings</div>,
 }));
 
@@ -146,15 +156,15 @@ describe("App routing behavior", () => {
     expect(window.location.search).toBe("?redirect=%2Fportfolio");
   });
 
-  it("renders the current route page after auth is ready", async () => {
+  it("canonicalizes the legacy chat route to the primary Agent", async () => {
     window.history.pushState({}, "", "/chat");
 
     render(<App />);
 
     expect(await screen.findByTestId("chat-page")).toBeInTheDocument();
-    expect(setCurrentRoute).toHaveBeenCalledWith("/chat");
+    expect(setCurrentRoute).toHaveBeenCalledWith("/overview");
+    expect(window.location.pathname).toBe("/overview");
     expect(screen.queryByTestId("login-page")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("home-page")).not.toBeInTheDocument();
   });
 
   it("routes /usage to the token usage page after auth is ready", async () => {
@@ -164,44 +174,94 @@ describe("App routing behavior", () => {
 
     expect(await screen.findByTestId("token-usage-page")).toBeInTheDocument();
     expect(setCurrentRoute).toHaveBeenCalledWith("/usage");
-    expect(screen.queryByTestId("home-page")).not.toBeInTheDocument();
   });
 
-  it("redirects the legacy /agents route to the black-box strategy center", async () => {
+  it("routes /runs to the task and run ledger", async () => {
+    window.history.pushState({}, "", "/runs");
+
+    render(<App />);
+
+    expect(await screen.findByTestId("task-runs-page")).toBeInTheDocument();
+  });
+
+  it("redirects the legacy /agents route to expert capability configuration", async () => {
     window.history.pushState({}, "", "/agents");
 
     render(<App />);
 
-    expect(await screen.findByTestId("strategy-library-page")).toBeInTheDocument();
+    expect(await screen.findByTestId("agent-center-page")).toBeInTheDocument();
     expect(setCurrentRoute).toHaveBeenCalledWith("/agents");
-    expect(window.location.pathname).toBe("/strategies");
+    expect(window.location.pathname).toBe("/capabilities/experts");
   });
 
-  it("routes /strategy-development to the generation guide", async () => {
-    window.history.pushState({}, "", "/strategy-development");
+  it("routes capability configuration pages independently", async () => {
+    window.history.pushState({}, "", "/capabilities/mcp");
     render(<App />);
-    expect(await screen.findByTestId("strategy-development-page")).toBeInTheDocument();
+    expect(await screen.findByTestId("mcp-settings-page")).toBeInTheDocument();
   });
 
-  it("routes /backtests to the strategy backtest center", async () => {
-    window.history.pushState({}, "", "/backtests");
-
+  it("routes the capability center to its own overview", async () => {
+    window.history.pushState({}, "", "/capabilities");
     render(<App />);
-
-    expect(await screen.findByTestId("backtest-center-page")).toBeInTheDocument();
-    expect(setCurrentRoute).toHaveBeenCalledWith("/backtests");
+    expect(await screen.findByTestId("capability-overview-page")).toBeInTheDocument();
   });
 
-  it("routes /decision-signals to the AI signals page after auth is ready", async () => {
+  it("routes built-in tools separately from MCP services", async () => {
+    window.history.pushState({}, "", "/capabilities/tools");
+    render(<App />);
+    expect(await screen.findByTestId("tool-settings-page")).toBeInTheDocument();
+  });
+
+  it("routes market intelligence as an independent page", async () => {
+    window.history.pushState({}, "", "/market-intelligence");
+    render(<App />);
+    expect(await screen.findByTestId("market-intelligence-page")).toBeInTheDocument();
+  });
+
+  it("routes stock analysis and screening to structured Agent task workspaces", async () => {
+    window.history.pushState({}, "", "/stock-research");
+    render(<App />);
+    expect(await screen.findByTestId("stock-analysis-page")).toBeInTheDocument();
+  });
+
+  it("routes screening to its structured Agent task workspace", async () => {
+    window.history.pushState({}, "", "/screening");
+    render(<App />);
+    expect(await screen.findByTestId("screening-workspace-page")).toBeInTheDocument();
+  });
+
+  it("routes trading to the structured strategy and paper runtime workspace", async () => {
+    window.history.pushState({}, "", "/trading");
+    render(<App />);
+    expect(await screen.findByTestId("trading-strategy-workspace")).toBeInTheDocument();
+  });
+
+  it("routes scheduled tasks to an independent scheduler workspace", async () => {
+    window.history.pushState({}, "", "/schedules");
+    render(<App />);
+    expect(await screen.findByTestId("scheduled-tasks-page")).toBeInTheDocument();
+  });
+
+  it("routes expert review to the single and group review workspace", async () => {
+    window.history.pushState({}, "", "/expert-review");
+    render(<App />);
+    expect(await screen.findByTestId("expert-review-page")).toBeInTheDocument();
+  });
+
+  it.each(["/strategies", "/backtest", "/backtests", "/strategy-development"])("retires the legacy strategy route %s", async (path) => {
+    window.history.pushState({}, "", path);
+    render(<App />);
+    expect(await screen.findByTestId("chat-page")).toHaveAttribute("data-workspace", "general");
+    expect(window.location.pathname).toBe("/overview");
+  });
+
+  it("folds the legacy signal route into the trading workspace", async () => {
     window.history.pushState({}, "", "/decision-signals");
 
     render(<App />);
 
-    expect(
-      await screen.findByTestId("decision-signals-page"),
-    ).toBeInTheDocument();
-    expect(setCurrentRoute).toHaveBeenCalledWith("/decision-signals");
-    expect(screen.queryByTestId("home-page")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("trading-strategy-workspace")).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/trading");
   });
 
   it("redirects authenticated login visits back to the home page", async () => {
@@ -216,7 +276,7 @@ describe("App routing behavior", () => {
 
     render(<App />);
 
-    expect(await screen.findByTestId("home-page")).toBeInTheDocument();
+    expect(await screen.findByTestId("chat-page")).toBeInTheDocument();
     expect(screen.queryByTestId("login-page")).not.toBeInTheDocument();
   });
 
@@ -225,7 +285,7 @@ describe("App routing behavior", () => {
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
     chatPageShouldThrow.value = true;
-    window.history.pushState({}, "", "/chat");
+    window.history.pushState({}, "", "/overview");
 
     try {
       render(<App />);
@@ -244,9 +304,10 @@ describe("App routing behavior", () => {
       ).toBeInTheDocument();
 
       chatPageShouldThrow.value = false;
-      fireEvent.click(screen.getByRole("link", { name: "策略中心" }));
+      const mainNavigation = screen.getByRole("navigation", { name: "主导航" });
+      fireEvent.click(within(mainNavigation).getByRole("link", { name: "个股分析" }));
 
-      expect(await screen.findByTestId("strategy-library-page")).toBeInTheDocument();
+      expect(await screen.findByTestId("stock-analysis-page")).toBeInTheDocument();
       expect(
         screen.queryByRole("heading", { name: "页面加载失败" }),
       ).not.toBeInTheDocument();

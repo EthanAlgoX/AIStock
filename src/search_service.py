@@ -12,6 +12,7 @@ A股自选股智能分析系统 - 搜索服务模块
 """
 
 import logging
+import html
 import multiprocessing
 import re
 import threading
@@ -23,6 +24,7 @@ from email.utils import parsedate_to_datetime
 from typing import List, Dict, Any, Optional, Tuple
 from itertools import cycle
 from urllib.parse import parse_qsl, unquote, urlparse
+from xml.etree import ElementTree as ET
 import requests
 from newspaper import Article, Config
 from tenacity import (
@@ -43,6 +45,7 @@ from src.data.stock_mapping import (
     canonicalize_foreign_stock_code,
     foreign_stock_english_aliases,
 )
+from src.data.default_news_sources import DEFAULT_FINANCE_NEWS_SOURCES
 from src.services.run_diagnostics import record_provider_run, record_provider_run_started
 
 logger = logging.getLogger(__name__)
@@ -407,6 +410,116 @@ class BaseSearchProvider(ABC):
             SearchResponse 对象
         """
         return self._execute_search(query, max_results=max_results, days=days)
+
+
+class FinanceRssSearchProvider(BaseSearchProvider):
+    """Keyless, targeted finance-news search backed by Google News RSS.
+
+    The provider intentionally searches only a curated set of finance and
+    regulatory publishers.  It stores no article body and returns the RSS
+    headline, publisher, timestamp, summary and link for evidence attribution.
+    """
+
+    SEARCH_ENDPOINT = "https://news.google.com/rss/search"
+    CURATED_SITES = tuple(str(source["domain"]) for source in DEFAULT_FINANCE_NEWS_SOURCES)
+    _TAG_RE = re.compile(r"<[^>]+>")
+
+    def __init__(self):
+        # A sentinel keeps the existing provider execution/caching contract;
+        # it is never sent to the public RSS endpoint.
+        super().__init__(["public-rss"], "FinanceRSS")
+
+    @staticmethod
+    def _locale(query: str) -> Dict[str, str]:
+        if any("\u3400" <= char <= "\u9fff" for char in query):
+            return {"hl": "zh-CN", "gl": "CN", "ceid": "CN:zh-Hans"}
+        return {"hl": "en-US", "gl": "US", "ceid": "US:en"}
+
+    @classmethod
+    def _clean_summary(cls, value: str) -> str:
+        return re.sub(r"\s+", " ", html.unescape(cls._TAG_RE.sub(" ", value or ""))).strip()[:500]
+
+    @staticmethod
+    def _published_date(value: str) -> Optional[str]:
+        try:
+            parsed = parsedate_to_datetime(value)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc).date().isoformat()
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+    @classmethod
+    def _parse_feed(cls, content: bytes, *, query: str, max_results: int) -> SearchResponse:
+        try:
+            root = ET.fromstring(content)
+        except ET.ParseError as exc:
+            return SearchResponse(
+                query=query,
+                results=[],
+                provider="FinanceRSS",
+                success=False,
+                error_message=f"RSS XML 解析失败: {exc}",
+            )
+
+        results: List[SearchResult] = []
+        for node in root.findall(".//item"):
+            title = (node.findtext("title") or "").strip()
+            link = (node.findtext("link") or "").strip()
+            source_node = node.find("source")
+            source = (source_node.text or "").strip() if source_node is not None else "Google News RSS"
+            published = cls._published_date(node.findtext("pubDate") or "")
+            if not title or not link or not published:
+                continue
+            results.append(
+                SearchResult(
+                    title=title,
+                    snippet=cls._clean_summary(node.findtext("description") or ""),
+                    url=link,
+                    source=source or "Google News RSS",
+                    published_date=published,
+                )
+            )
+            if len(results) >= max_results:
+                break
+        return SearchResponse(
+            query=query,
+            results=results,
+            provider="FinanceRSS",
+            success=True,
+        )
+
+    def _do_search(
+        self,
+        query: str,
+        api_key: str,
+        max_results: int,
+        days: int = 7,
+    ) -> SearchResponse:
+        del api_key
+        site_clause = " OR ".join(f"site:{site}" for site in self.CURATED_SITES)
+        params = {
+            "q": f"({query}) ({site_clause}) when:{max(1, min(int(days), 30))}d",
+            **self._locale(query),
+        }
+        response = requests.get(
+            self.SEARCH_ENDPOINT,
+            headers={
+                "Accept": "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8",
+                "User-Agent": "LLM-TradeBot/1.0 (+finance research RSS)",
+            },
+            params=params,
+            timeout=6,
+        )
+        if response.status_code != 200:
+            return SearchResponse(
+                query=query,
+                results=[],
+                provider=self.name,
+                success=False,
+                error_message=f"Google News RSS HTTP {response.status_code}",
+            )
+        return self._parse_feed(response.content, query=query, max_results=max_results)
 
 
 class TavilySearchProvider(BaseSearchProvider):
@@ -2464,7 +2577,22 @@ class SearchService:
             self._providers.append(MiniMaxSearchProvider(minimax_keys))
             logger.info(f"已配置 MiniMax 搜索，共 {len(minimax_keys)} 个 API Key")
 
-        # 6. SearXNG（自建实例优先；未配置时可自动发现公共实例）
+        # 6. 免密钥财经 RSS 聚合。保留显式配置渠道的既有优先级；当没有
+        #    API Key 或自建 SearXNG 时，它成为 system_news 的首个真实默认入口。
+        self._finance_rss_auto_enabled = not any(
+            (
+                bocha_keys,
+                tavily_keys,
+                anspire_keys,
+                brave_keys,
+                serpapi_keys,
+                minimax_keys,
+                searxng_base_urls,
+            )
+        )
+        self._providers.append(FinanceRssSearchProvider())
+
+        # 7. SearXNG（自建实例优先；未配置时可自动发现公共实例）
         searxng_provider = SearXNGSearchProvider(
             searxng_base_urls,
             use_public_instances=bool(searxng_public_instances_enabled and not searxng_base_urls),
@@ -2476,13 +2604,12 @@ class SearchService:
             else:
                 logger.info("已启用 SearXNG 公共实例自动发现模式")
 
-        # 7. Anspire Search（实时智能搜索优化）
+        # 8. Anspire Search（实时智能搜索优化）
         if anspire_keys:
             self._providers.insert(0, AnspireSearchProvider(anspire_keys))
             logger.info(f"已配置 Anspire Search 搜索，共 {len(anspire_keys)} 个 API Key")
             
-        if not self._providers:
-            logger.warning("未配置任何搜索能力，新闻搜索功能将不可用")
+        logger.info("已启用免密钥财经 RSS 聚合新闻源")
 
         # In-memory search result cache: {cache_key: (timestamp, SearchResponse)}
         self._cache: Dict[str, Tuple[float, 'SearchResponse']] = {}
@@ -2670,6 +2797,25 @@ class SearchService:
     def is_available(self) -> bool:
         """检查是否有可用的搜索引擎"""
         return any(p.is_available for p in self._providers)
+
+    def _provider_enabled_for_request(
+        self,
+        provider: BaseSearchProvider,
+        provider_name: Optional[str] = None,
+    ) -> bool:
+        """Keep configured-provider semantics while exposing RSS explicitly.
+
+        FinanceRSS is selected automatically only when the installation has no
+        configured search provider.  A strategy can still request it directly
+        through ``provider_name=FinanceRSS`` in every environment.
+        """
+        if not provider.is_available:
+            return False
+        if provider_name:
+            return provider.name.casefold() == provider_name.casefold()
+        if isinstance(provider, FinanceRssSearchProvider):
+            return self._finance_rss_auto_enabled
+        return True
 
     def _cache_key(self, query: str, max_results: int, days: int) -> str:
         """Build a cache key from query parameters."""
@@ -3865,7 +4011,7 @@ class SearchService:
         had_provider_success = False
         try:
             for provider in self._providers:
-                if not provider.is_available:
+                if not self._provider_enabled_for_request(provider):
                     continue
                 search_kwargs: Dict[str, Any] = {}
                 if isinstance(provider, TavilySearchProvider):
@@ -4102,9 +4248,7 @@ class SearchService:
             best_ranked_response: Optional[SearchResponse] = None
             best_ranked_stats: Optional[Dict[str, int]] = None
             for provider in self._providers:
-                if not provider.is_available:
-                    continue
-                if provider_name and provider.name.casefold() != provider_name.casefold():
+                if not self._provider_enabled_for_request(provider, provider_name):
                     continue
 
                 search_kwargs: Dict[str, Any] = {}
@@ -4335,9 +4479,7 @@ class SearchService:
         
         # 依次尝试各个搜索引擎
         for provider in self._providers:
-            if not provider.is_available:
-                continue
-            if provider_name and provider.name.casefold() != provider_name.casefold():
+            if not self._provider_enabled_for_request(provider, provider_name):
                 continue
             
             response = provider.search(query, max_results=5)
@@ -4521,7 +4663,11 @@ class SearchService:
                 break
             
             # 选择搜索引擎（轮流使用）
-            available_providers = [p for p in self._providers if p.is_available]
+            available_providers = [
+                provider
+                for provider in self._providers
+                if self._provider_enabled_for_request(provider)
+            ]
             if not available_providers:
                 break
             
@@ -4749,7 +4895,7 @@ class SearchService:
             
             # 依次尝试各个搜索引擎
             for provider in self._providers:
-                if not provider.is_available:
+                if not self._provider_enabled_for_request(provider):
                     continue
                 
                 try:

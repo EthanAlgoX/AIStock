@@ -71,5 +71,6 @@
 | 文档 | 内容 |
 | --- | --- |
 | [英文文档索引](INDEX_EN.md) | English documentation index |
-| [英文 README](README_EN.md) | English project overview and quick start |
+| [英文 README](../README.md) | English project overview and quick start |
+| [简体中文 README](README_ZH.md) | 简体中文项目概览与快速开始 |
 | [繁中 README](README_CHT.md) | 繁體中文項目概覽與快速開始 |

@@ -59,6 +59,20 @@ AGENT_GENERATION_BACKEND=auto
 - Web 设置页的生成后端快速检查只读取已保存的 `.env`、运行时兜底值和未保存草稿；它不会写配置、重载运行时，也不会发起真实模型请求。`available` 只表示当前配置具备尝试运行的条件。JSON 冒烟测试是单独的显式操作，会使用服务端固定的 JSON 提示词和 schema 发起一次真实的生成后端请求，用于验证提取器、JSON 契约、超时、输出限制和 usage-unavailable 语义。
 - `GET /api/v1/system/config/generation-backends/status` 只读取已保存配置；未保存草稿需调用 `POST /api/v1/system/config/generation-backends/status/preview` 或 `POST /api/v1/system/config/generation-backends/smoke-test`。被遮罩的密钥字段会继续沿用已保存值。`health_status` 与 `last_error_code/message` 只代表本次计算结果，不是历史持久健康状态。
 
+### Nanobot 主 Agent Runtime
+
+`AGENT_BACKEND=nanobot` 只替换现有问股 Chat 的 Agent 执行层。DSA 通过独立 `nanobot serve` 的官方 OpenAI-compatible API 提交任务，Nanobot 自己负责 ReAct、Skill、Tool、MCP、会话和记忆：
+
+```env
+AGENT_MODE=true
+AGENT_BACKEND=nanobot
+AGENT_ARCH=single
+NANOBOT_API_BASE=http://127.0.0.1:8900
+NANOBOT_API_KEY=
+```
+
+设置页的快速检查只读取 `/health` 和 `/v1/models`，不会触发 Agent 任务。Nanobot 的 provider、运行时 Skill、MCP 和工具权限继续在 Nanobot 内配置，DSA 不读取其凭据。网站 Skill 会作为投资分析方法传入，但网站 MCP 草稿和数据源目录不会自动注册为 Nanobot 工具。完整启动、安全、会话和回滚说明见 [Nanobot 主 Agent Runtime 接入](nanobot-integration.md)。
+
 ### Codex 本地 Agent（Phase 6 实验原型）
 
 `AGENT_BACKEND` 只决定现有问股 Chat 的运行方式，不影响普通报告、定时分析、大盘复盘、普通 Agent 分析 pipeline、LiteLLM Multi Agent 或 Deep Research：

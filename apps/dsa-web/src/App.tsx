@@ -21,33 +21,24 @@ import {
 import { useAgentChatStore } from "./stores/agentChatStore";
 import "./App.css";
 
-const HomePage = lazy(() => import("./pages/HomePage"));
-const StrategyOverviewPage = lazy(() => import("./pages/StrategyOverviewPage"));
-const StrategyWorkspacePage = lazy(
-  () => import("./pages/StrategyWorkspacePage"),
-);
-const StrategyEditorPage = lazy(() => import("./pages/StrategyEditorPage"));
-const StrategyRunPage = lazy(() => import("./pages/StrategyRunPage"));
-const BacktestPage = lazy(() => import("./pages/BacktestPage"));
 const SettingsPage = lazy(() => import("./pages/PlatformSettingsPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const ChatPage = lazy(() => import("./pages/ChatPage"));
-const PortfolioPage = lazy(() => import("./pages/PortfolioPage"));
-const DecisionSignalsPage = lazy(() => import("./pages/DecisionSignalsPage"));
-const AlertsPage = lazy(() => import("./pages/AlertsPage"));
+const MarketIntelligencePage = lazy(() => import("./pages/MarketIntelligencePage"));
 const TokenUsagePage = lazy(() => import("./pages/TokenUsagePage"));
-const StockScreeningPage = lazy(() => import("./pages/StockScreeningPage"));
-const StrategyLibraryPage = lazy(() => import("./pages/StrategyLibraryPage"));
-const StrategyValidationPage = lazy(
-  () => import("./pages/StrategyValidationPage"),
-);
-const LiveNewsPage = lazy(() => import("./pages/LiveNewsPage"));
 const DataSourcesPage = lazy(() => import("./pages/DataSourcesPage"));
-const StrategyDevelopmentGuidePage = lazy(
-  () => import("./pages/StrategyDevelopmentGuidePage"),
-);
-const StrategyImportPage = lazy(() => import("./pages/StrategyImportPage"));
+const CapabilityOverviewPage = lazy(() => import("./pages/CapabilityOverviewPage"));
+const SkillSettingsPage = lazy(() => import("./pages/SkillSettingsPage"));
+const ToolSettingsPage = lazy(() => import("./pages/ToolSettingsPage"));
+const McpSettingsPage = lazy(() => import("./pages/McpSettingsPage"));
+const AgentCenterPage = lazy(() => import("./pages/AgentCenterPage"));
+const StockAnalysisPage = lazy(() => import("./pages/StockAnalysisPage"));
+const ScreeningWorkspacePage = lazy(() => import("./pages/ScreeningWorkspacePage"));
+const TradingWorkspacePage = lazy(() => import("./pages/TradingWorkspacePage"));
+const ScheduledTasksPage = lazy(() => import("./pages/ScheduledTasksPage"));
+const ExpertReviewPage = lazy(() => import("./pages/ExpertReviewPage"));
+const TaskRunsPage = lazy(() => import("./pages/TaskRunsPage"));
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -106,50 +97,39 @@ const AppContent: React.FC = () => {
         }
       >
         <Route path="/" element={<Navigate to="/overview" replace />} />
-        <Route path="/overview" element={<StrategyOverviewPage />} />
-        <Route path="/legacy-dashboard" element={<HomePage />} />
-        <Route path="/stock-research" element={<HomePage />} />
-        <Route path="/chat" element={<ChatPage />} />
-        <Route path="/portfolio" element={<PortfolioPage />} />
-        <Route path="/decision-signals" element={<DecisionSignalsPage />} />
-        <Route path="/screening" element={<StockScreeningPage />} />
-        <Route path="/backtest" element={<BacktestPage />} />
-        <Route path="/alerts" element={<AlertsPage />} />
+        <Route path="/overview" element={<ChatPage workspace="general" />} />
+        <Route path="/market-intelligence" element={<MarketIntelligencePage />} />
+        <Route path="/stock-research" element={<StockAnalysisPage />} />
+        <Route path="/chat" element={<Navigate to="/overview" replace />} />
+        <Route path="/portfolio" element={<Navigate to="/trading" replace />} />
+        <Route path="/decision-signals" element={<Navigate to="/trading" replace />} />
+        <Route path="/screening" element={<ScreeningWorkspacePage />} />
+        <Route path="/trading" element={<TradingWorkspacePage />} />
+        <Route path="/schedules" element={<ScheduledTasksPage />} />
+        <Route path="/expert-review" element={<ExpertReviewPage />} />
+        <Route path="/backtest" element={<Navigate to="/overview" replace />} />
+        <Route path="/alerts" element={<Navigate to="/schedules" replace />} />
+        <Route path="/runs/*" element={<TaskRunsPage />} />
         <Route path="/usage" element={<TokenUsagePage />} />
-        <Route path="/simulation" element={<Navigate to="/runs" replace />} />
-        <Route
-          path="/strategy-editor"
-          element={<Navigate to="/strategies" replace />}
-        />
-        <Route path="/runs/preview" element={<Navigate to="/runs" replace />} />
-        <Route path="/strategies" element={<StrategyLibraryPage />} />
-        <Route path="/agents" element={<Navigate to="/strategies" replace />} />
-        <Route path="/strategy-development" element={<StrategyDevelopmentGuidePage />} />
-        <Route path="/strategies/import" element={<StrategyImportPage />} />
-        <Route
-          path="/strategies/:strategyId"
-          element={<StrategyWorkspacePage />}
-        />
-        <Route
-          path="/strategies/:strategyId/editor"
-          element={<StrategyEditorPage />}
-        />
-        <Route
-          path="/strategies/:strategyId/versions"
-          element={<StrategyWorkspacePage />}
-        />
-        <Route
-          path="/strategies/:strategyId/memory"
-          element={<StrategyWorkspacePage />}
-        />
-        <Route path="/validation" element={<StrategyValidationPage />} />
-        <Route path="/research" element={<StrategyValidationPage />} />
-        <Route path="/backtests" element={<StrategyValidationPage />} />
-        <Route path="/runs" element={<StrategyRunPage />} />
-        <Route path="/runs/:runId" element={<StrategyRunPage />} />
-        <Route path="/news" element={<LiveNewsPage />} />
-        <Route path="/data-sources" element={<DataSourcesPage />} />
-        <Route path="/data" element={<DataSourcesPage />} />
+        <Route path="/simulation" element={<Navigate to="/trading" replace />} />
+        <Route path="/strategy-editor" element={<Navigate to="/overview" replace />} />
+        <Route path="/strategies/*" element={<Navigate to="/overview" replace />} />
+        <Route path="/agents" element={<Navigate to="/capabilities/experts" replace />} />
+        <Route path="/strategy-development" element={<Navigate to="/overview" replace />} />
+        <Route path="/validation" element={<Navigate to="/overview" replace />} />
+        <Route path="/research" element={<Navigate to="/stock-research" replace />} />
+        <Route path="/backtests" element={<Navigate to="/overview" replace />} />
+        <Route path="/legacy-strategy-overview" element={<Navigate to="/overview" replace />} />
+        <Route path="/legacy-dashboard" element={<Navigate to="/overview" replace />} />
+        <Route path="/news" element={<Navigate to="/market-intelligence" replace />} />
+        <Route path="/data-sources" element={<Navigate to="/capabilities/data" replace />} />
+        <Route path="/data" element={<Navigate to="/capabilities/data" replace />} />
+        <Route path="/capabilities" element={<CapabilityOverviewPage />} />
+        <Route path="/capabilities/skills" element={<SkillSettingsPage />} />
+        <Route path="/capabilities/tools" element={<ToolSettingsPage />} />
+        <Route path="/capabilities/mcp" element={<McpSettingsPage />} />
+        <Route path="/capabilities/data" element={<DataSourcesPage />} />
+        <Route path="/capabilities/experts" element={<AgentCenterPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

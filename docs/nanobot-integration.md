@@ -1,0 +1,108 @@
+# Nanobot 主 Agent Runtime 接入
+
+LLM-TradeBot 可以把问股首页的 Agent 执行委托给独立运行的 Nanobot。网站继续负责会话入口、股票范围、用户可见历史和结果展示；Nanobot 负责自己的 ReAct 模型—工具循环、Skill、内置 Tool、MCP、会话记忆、安全限制和恢复机制。
+
+## 为什么使用独立进程
+
+当前 LLM-TradeBot 与 Nanobot 对 `tiktoken` 的依赖范围不兼容。为避免破坏现有分析、报告和策略运行链路，本项目不复制 Nanobot 的 Agent 循环，也不把 Nanobot Python SDK 安装进主进程，而是调用 `nanobot serve` 提供的官方 OpenAI-compatible API：
+
+```text
+浏览器 /overview
+→ LLM-TradeBot Agent API
+→ 短时任务能力授权
+→ nanobot serve 的逐任务 Tool / Skill 受限视图
+→ 带签名授权的 LLM-TradeBot 金融 MCP
+```
+
+这也让 Nanobot 可以独立升级、重启和收紧工具权限，不把模型、MCP 或 provider 密钥交给 LLM-TradeBot。
+
+## 启动 Nanobot
+
+先在 Nanobot 项目或已安装的 `nanobot-ai` 环境完成自身配置：
+
+```bash
+python -m pip install nanobot-ai
+nanobot plugins enable api
+nanobot onboard --wizard
+nanobot agent -m "Hello!"
+nanobot serve --timeout 300
+```
+
+当前网站要求 Nanobot `/health` 明确声明 `taskCapabilityIsolation: 1`。旧版 Runtime 即使能够聊天也会被网站拒绝，避免其静默忽略能力边界。Nanobot 侧还需挂载网站的金融 MCP：
+
+```json
+{
+  "tools": {
+    "mcpServers": {
+      "finance": {
+        "type": "streamableHttp",
+        "url": "http://127.0.0.1:8000/api/v1/mcp",
+        "toolTimeout": 60,
+        "enabledTools": ["*"]
+      }
+    },
+    "ssrfWhitelist": ["127.0.0.1/32"]
+  }
+}
+```
+
+`finance` 是协议固定名称。Runtime 可以在启动时发现工作区内全部可发布金融工具，但每一轮只会向模型暴露网站授权的精确名称。
+
+默认 API 根地址为 `http://127.0.0.1:8900`。如果使用仓库旁的源码副本，请在该项目自己的虚拟环境中执行等价命令，不要把其依赖安装进 LLM-TradeBot 的虚拟环境。
+
+## 配置网站
+
+可以在「设置 → Agent 设置」中保存，也可以写入 `.env`：
+
+```env
+AGENT_MODE=true
+AGENT_BACKEND=nanobot
+AGENT_ARCH=single
+NANOBOT_API_BASE=http://127.0.0.1:8900
+NANOBOT_API_KEY=
+AGENT_CAPABILITY_GRANT_SECRET=
+```
+
+单进程开发环境可不设置 `AGENT_CAPABILITY_GRANT_SECRET`，此时使用进程级随机密钥。多进程、多副本或滚动部署必须给所有 LLM-TradeBot 实例配置同一个高强度随机值，否则授权可能被另一个实例判为无效。
+
+保存并重启 LLM-TradeBot 后，Agent 设置页的状态卡会调用 Nanobot 的 `/health` 与 `/v1/models` 做轻量检查，不会执行模型任务。`/overview` 始终只展示统一的“主 Agent”界面，不暴露底层 Runtime 名称；第一次提问才会真正进入 Nanobot。网站通过 Nanobot 的 SSE 响应接收最终内容，并在运行中展示阶段、耗时和停止入口；用户停止后会中断底层连接，使原请求以 `cancelled` 终止。
+
+公开绑定 Nanobot API 时必须在 Nanobot 侧配置 `api.apiKey`，并把相同 Bearer Token 填入 `NANOBOT_API_KEY`。生产环境还应使用 TLS、网络访问控制和反向代理；该端点拥有 Agent 工具权限，不能按普通无状态模型接口暴露。
+
+## 能力与状态归属
+
+| 能力 | 归属 | 当前网站行为 |
+| --- | --- | --- |
+| ReAct 循环、会话与长期记忆 | Nanobot | 由 Nanobot 配置和执行 |
+| Nanobot Runtime Tool / Skill | Nanobot | 每轮构造精确受限视图；未获授权的能力不进入模型 Schema 或 Skill 上下文，也无法被执行 |
+| 网站内置股票分析 Skill | LLM-TradeBot | 选中后作为投资分析方法与任务约束交给 Nanobot，不冒充 Nanobot 工具 |
+| 工作区 Skill、Tool、MCP、数据源和专家目录 | LLM-TradeBot | 后端持久化、校验绑定并冻结到每次 Run |
+| 站内金融 Tool Surface | LLM-TradeBot | 通过 `/api/v1/mcp` 发布目录；执行时必须同时通过工作区白名单、短时签名授权、股票范围和数据源类型校验 |
+| 股票范围、可见会话、结果展示 | LLM-TradeBot | 每轮冻结并保存 |
+| 交易、审批和硬风控 | LLM-TradeBot | 不授权 Nanobot 绕过；当前接入只允许其提出分析结果 |
+
+网站会把同一个 DSA 会话映射为稳定、不可反推出原始 ID 的 Nanobot `session_id`，因此 Nanobot 可以延续自己的会话记忆。删除网站会话不会远程删除 Nanobot 的持久会话；需要彻底删除时，还应在 Nanobot 侧执行相应会话清理。
+
+## 强隔离执行顺序
+
+1. 网站校验任务绑定并冻结 `capability_manifest`；
+2. 网站根据本轮 Tool、Skill、数据源和股票范围签发最长 15 分钟的 HMAC 授权；
+3. Nanobot 为本轮构造新的 ToolRegistry 受限视图，并过滤 Skill 摘要、always Skill 和显式 `$skill` 加载；
+4. `finance` MCP Wrapper 在真正调用时注入授权，模型无法自行生成或修改；
+5. 网站 MCP 网关重新验签，并再次检查精确 Tool、股票范围与所需数据源类型；
+6. 任一层不支持协议、缺少授权、授权过期或能力不匹配时均 fail closed。
+
+## 当前限制
+
+- Nanobot OpenAI-compatible 流当前只把最终回复 token 返回给网站；网站无法展示 Nanobot 内部每一次 Tool/MCP 调用的完整事件链，也不会从流式响应取得精确 token usage。
+- 网站已将内置 Tool 与 MCP Server 拆分为独立配置页。健康的外部 HTTP MCP 会通过站内金融网关代理，并使用同一逐任务授权边界；stdio MCP 不由网站执行。
+- 网站只展示经过治理的金融 Skill 白名单。Nanobot 的非金融个人助理、文件整理、社交渠道等通用 Skill 不进入默认目录；会话、记忆、工具循环、任务恢复和安全限制仍继续复用 Nanobot Runtime。
+- 网站在 `/api/v1/mcp` 发布启用的金融 READ / COMPUTE Tool，并在 `/api/v1/workspace/runtime-manifest` 返回隔离协议、连接地址与白名单。Nanobot 仍需在自身配置中挂载该 HTTP MCP；网站不会启动用户登记的 stdio 命令。
+- 数据源授权当前落实到数据类别（行情、新闻、基本面）与具体来源 ID 的审计上下文；底层同类别 provider fallback 仍由现有数据服务管理，不会把每个供应商自动变为独立 Nanobot Tool。
+- 当前仅支持 `AGENT_ARCH=single`，不接入 LLM-TradeBot 原有 Multi Agent 或 Deep Research。
+
+这些边界会在主 Agent 能力面板和配置页持续显示，避免把“已登记”误写成“已可调用”。
+
+## 回滚
+
+将 `AGENT_BACKEND` 改回 `auto` 或 `litellm` 并重启即可恢复原有问股 Agent。Nanobot 是独立进程，停用它不会修改已有策略、报告、数据源或历史会话。

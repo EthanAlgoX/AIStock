@@ -1403,8 +1403,8 @@ const SettingsPage: React.FC = () => {
   const activeCategoryDescription = getCategoryDescription(activeCategory as SystemConfigCategory, '', uiLanguage);
   const selectedAgentBackend = (rawActiveItemMap.get('AGENT_BACKEND') || 'auto').trim().toLowerCase();
   const selectedAgentArch = (rawActiveItemMap.get('AGENT_ARCH') || 'single').trim().toLowerCase();
-  const hasCodexArchitectureConflict = selectedAgentBackend === 'codex_app_server' && selectedAgentArch !== 'single';
-  const codexArchitectureIssue: ConfigValidationIssue = {
+  const hasSingleAgentArchitectureConflict = ['codex_app_server', 'nanobot'].includes(selectedAgentBackend) && selectedAgentArch !== 'single';
+  const singleAgentArchitectureIssue: ConfigValidationIssue = {
     key: 'AGENT_ARCH',
     code: 'unsupported_agent_arch',
     message: t('settings.agentBackendSingleOnly'),
@@ -1420,8 +1420,8 @@ const SettingsPage: React.FC = () => {
       {visibleActiveItems.length ? (
         <div className="divide-y divide-[var(--settings-border-soft)] overflow-hidden rounded-lg border border-[var(--settings-border)] bg-[var(--settings-surface)]">
           {visibleActiveItems.map((item) => {
-            const fieldIssues = item.key === 'AGENT_ARCH' && hasCodexArchitectureConflict
-              ? [...(issueByKey[item.key] || []), codexArchitectureIssue]
+            const fieldIssues = item.key === 'AGENT_ARCH' && hasSingleAgentArchitectureConflict
+              ? [...(issueByKey[item.key] || []), singleAgentArchitectureIssue]
               : issueByKey[item.key] || [];
             return (
               <SettingsField

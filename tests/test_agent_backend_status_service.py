@@ -91,6 +91,55 @@ def test_litellm_status_uses_unsaved_model_draft() -> None:
     assert payload["available"] is True
 
 
+def test_nanobot_status_requires_api_base_without_network_probe(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.services.agent_backend_status_service.NanobotHTTPTransport",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not probe")),
+    )
+    payload = AgentBackendStatusService(
+        effective_map={"AGENT_BACKEND": "nanobot", "AGENT_ARCH": "single"}
+    ).get_status()
+
+    assert payload["backend"] == "nanobot"
+    assert payload["available"] is False
+    assert payload["error_code"] == "invalid_config"
+
+
+def test_nanobot_status_probes_health_and_model_metadata_only(monkeypatch) -> None:
+    calls = []
+
+    class FakeTransport:
+        def __init__(self, api_base, api_key):
+            calls.append((api_base, api_key))
+
+        def probe(self, timeout):
+            calls.append(("probe", timeout))
+            return {"model": "nanobot-model"}
+
+    monkeypatch.setattr(
+        "src.services.agent_backend_status_service.NanobotHTTPTransport",
+        FakeTransport,
+    )
+    payload = AgentBackendStatusService(
+        effective_map={
+            "AGENT_BACKEND": "nanobot",
+            "AGENT_ARCH": "single",
+            "NANOBOT_API_BASE": "http://127.0.0.1:8900",
+            "NANOBOT_API_KEY": "draft-key",
+        }
+    ).get_status()
+
+    assert payload == {
+        "backend": "nanobot",
+        "available": True,
+        "experimental": False,
+        "version": "nanobot-model",
+        "error_code": None,
+        "message": None,
+    }
+    assert calls == [("http://127.0.0.1:8900", "draft-key"), ("probe", 3.0)]
+
+
 def test_codex_multi_is_rejected_without_command_probe(monkeypatch) -> None:
     monkeypatch.setattr(
         "src.services.agent_backend_status_service.resolve_command",

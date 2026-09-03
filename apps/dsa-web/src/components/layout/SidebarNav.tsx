@@ -1,29 +1,20 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   BarChart3,
-  BookOpenCheck,
-  Database,
+  Boxes,
+  CalendarClock,
   Gauge,
-  Home,
+  History,
   LogOut,
-  PlayCircle,
-  SearchCode,
   Settings2,
-  Target,
+  UsersRound,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import {
-  SCREENING_CONFIG_CHANGED_EVENT,
-  SYSTEM_CONFIG_CHANGED_EVENT,
-  screeningApi,
-} from "../../api/screening";
 import { useAuth } from "../../contexts/AuthContext";
-import { useAgentChatStore } from "../../stores/agentChatStore";
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
 import type { UiTextKey } from "../../i18n/uiText";
 import { cn } from "../../utils/cn";
 import { ConfirmDialog } from "../common/ConfirmDialog";
-import { StatusDot } from "../common/StatusDot";
 import { UiLanguageToggle } from "../i18n/UiLanguageToggle";
 import { ThemeToggle } from "../theme/ThemeToggle";
 
@@ -38,62 +29,38 @@ type NavItem = {
   labelKey: UiTextKey;
   to: string;
   icon: React.ComponentType<{ className?: string }>;
-  group: "operations" | "applications" | "governance";
+  group: "automation" | "applications" | "governance";
   exact?: boolean;
-  badge?: "completion";
 };
 
 const NAV_ITEMS: NavItem[] = [
   {
-    key: "home",
-    labelKey: "layout.nav.home",
-    to: "/overview",
-    icon: Home,
-    group: "operations",
-    exact: true,
+    key: "scheduledTasks",
+    labelKey: "layout.nav.scheduledTasks",
+    to: "/schedules",
+    icon: CalendarClock,
+    group: "automation",
   },
   {
-    key: "library",
-    labelKey: "layout.nav.library",
-    to: "/strategies",
-    icon: BookOpenCheck,
-    group: "operations",
+    key: "expertReview",
+    labelKey: "layout.nav.expertReview",
+    to: "/expert-review",
+    icon: UsersRound,
+    group: "automation",
   },
   {
-    key: "backtests",
-    labelKey: "layout.nav.validation",
-    to: "/backtests",
-    icon: BarChart3,
-    group: "operations",
-    badge: "completion",
+    key: "capabilities",
+    labelKey: "layout.nav.capabilities",
+    to: "/capabilities",
+    icon: Boxes,
+    group: "applications",
   },
   {
     key: "runs",
     labelKey: "layout.nav.runs",
     to: "/runs",
-    icon: PlayCircle,
-    group: "operations",
-  },
-  {
-    key: "dataSources",
-    labelKey: "layout.nav.dataSources",
-    to: "/data",
-    icon: Database,
-    group: "applications",
-  },
-  {
-    key: "stockResearch",
-    labelKey: "layout.nav.stockResearch",
-    to: "/stock-research",
-    icon: SearchCode,
-    group: "applications",
-  },
-  {
-    key: "candidates",
-    labelKey: "layout.nav.screeningTool",
-    to: "/screening",
-    icon: Target,
-    group: "applications",
+    icon: History,
+    group: "governance",
   },
   {
     key: "usage",
@@ -112,7 +79,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const GROUP_LABELS: Record<NavItem["group"], UiTextKey> = {
-  operations: "layout.navGroup.workspace",
+  automation: "layout.navGroup.automation",
   applications: "layout.navGroup.assets",
   governance: "layout.navGroup.governance",
 };
@@ -124,55 +91,11 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
 }) => {
   const { authEnabled, logout } = useAuth();
   const { t } = useUiLanguage();
-  const completionBadge = useAgentChatStore((state) => state.completionBadge);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [showScreeningNav, setShowScreeningNav] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-
-    const refreshScreeningStatus = async () => {
-      try {
-        const status = await screeningApi.getStatus();
-        if (active) {
-          setShowScreeningNav(status.enabled);
-        }
-      } catch {
-        if (active) {
-          setShowScreeningNav(false);
-        }
-      }
-    };
-
-    void refreshScreeningStatus();
-    window.addEventListener(
-      SCREENING_CONFIG_CHANGED_EVENT,
-      refreshScreeningStatus,
-    );
-    window.addEventListener(
-      SYSTEM_CONFIG_CHANGED_EVENT,
-      refreshScreeningStatus,
-    );
-
-    return () => {
-      active = false;
-      window.removeEventListener(
-        SCREENING_CONFIG_CHANGED_EVENT,
-        refreshScreeningStatus,
-      );
-      window.removeEventListener(
-        SYSTEM_CONFIG_CHANGED_EVENT,
-        refreshScreeningStatus,
-      );
-    };
-  }, []);
-
-  const navItems = showScreeningNav
-    ? NAV_ITEMS
-    : NAV_ITEMS.filter((item) => item.key !== "candidates");
+  const navItems = NAV_ITEMS;
   const isRail = variant === "rail";
   const itemBaseClass = cn(
-    "group relative flex h-10 w-full items-center overflow-hidden rounded-[10px] border border-transparent text-[13px] leading-none text-secondary-text transition-colors duration-150",
+    "group relative flex h-11 w-full items-center overflow-hidden rounded-[10px] border border-transparent text-[13px] leading-none text-secondary-text transition-colors duration-150",
     isRail
       ? "justify-center gap-2.5 px-2"
       : collapsed
@@ -232,7 +155,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
         aria-label={t("layout.mainNav")}
       >
         {navItems.map(
-          ({ key, labelKey, to, icon: Icon, group, exact, badge }, index) => {
+          ({ key, labelKey, to, icon: Icon, group, exact }, index) => {
             const label = t(labelKey);
             const startsGroup =
               index === 0 || group !== navItems[index - 1]?.group;
@@ -242,7 +165,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
               <div
                 key={key}
                 className={cn(
-                shouldDivide ? "mt-3 border-t border-border/65 pt-3" : "",
+                  shouldDivide ? "mt-3 border-t border-border/65 pt-3" : "",
                 )}
               >
                 {startsGroup && !collapsed ? (
@@ -276,17 +199,6 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                       />
                       {!collapsed ? (
                         <span className={itemLabelClass}>{label}</span>
-                      ) : null}
-                      {badge === "completion" && completionBadge ? (
-                        <StatusDot
-                          tone="info"
-                          data-testid="chat-completion-badge"
-                          className={cn(
-                            "absolute right-3 border-2 border-background shadow-[0_0_10px_var(--nav-indicator-shadow)]",
-                            collapsed ? "right-2 top-2" : "",
-                          )}
-                          aria-label={t("layout.newChatMessage")}
-                        />
                       ) : null}
                     </>
                   )}

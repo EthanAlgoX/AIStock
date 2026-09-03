@@ -49,6 +49,19 @@ def _codex_config(**overrides):
     return SimpleNamespace(**values)
 
 
+def _nanobot_config(**overrides):
+    values = {
+        "agent_backend": "nanobot",
+        "agent_arch": "single",
+        "agent_orchestrator_timeout_s": 600,
+        "nanobot_api_base": "http://127.0.0.1:8900",
+        "nanobot_api_key": "",
+        "report_language": "zh",
+    }
+    values.update(overrides)
+    return SimpleNamespace(**values)
+
+
 def _result(*, backend: str = "litellm", success: bool = True, error_code=None):
     return SimpleNamespace(
         success=success,
@@ -405,6 +418,7 @@ def test_agent_models_do_not_fall_back_to_litellm_for_codex_or_invalid_backend()
     for config in (
         SimpleNamespace(agent_backend="invalid", agent_arch="single"),
         SimpleNamespace(agent_backend="codex_app_server", agent_arch="multi"),
+        SimpleNamespace(agent_backend="nanobot", agent_arch="single"),
     ):
         with patch("api.v1.endpoints.agent.get_config", return_value=config), \
              patch("api.v1.endpoints.agent.list_agent_model_deployments", return_value=[deployment]) as deployments:
@@ -556,11 +570,11 @@ def test_codex_stream_skill_resolution_failure_does_not_register_request() -> No
                 )
             )
 
-        with agent_endpoint._ACTIVE_CODEX_STREAMS_LOCK:
-            assert request_id not in agent_endpoint._ACTIVE_CODEX_STREAMS
+        with agent_endpoint._ACTIVE_CANCELLABLE_STREAMS_LOCK:
+            assert request_id not in agent_endpoint._ACTIVE_CANCELLABLE_STREAMS
     finally:
-        with agent_endpoint._ACTIVE_CODEX_STREAMS_LOCK:
-            agent_endpoint._ACTIVE_CODEX_STREAMS.pop(request_id, None)
+        with agent_endpoint._ACTIVE_CANCELLABLE_STREAMS_LOCK:
+            agent_endpoint._ACTIVE_CANCELLABLE_STREAMS.pop(request_id, None)
 
 
 @pytest.mark.parametrize("failure", ["context preparation failed", "database write failed"])
@@ -608,6 +622,26 @@ def test_server_selects_actual_backend_for_stream() -> None:
     assert first_event["backend"] == "codex_app_server"
 
 
+def test_nanobot_stream_forwards_server_cancellation_event() -> None:
+    executor = _executor(_result(backend="nanobot"))
+    with patch("api.v1.endpoints.agent.asyncio.to_thread", side_effect=_immediate_to_thread), \
+         patch("api.v1.endpoints.agent.get_config", return_value=_nanobot_config()), \
+         patch("api.v1.endpoints.agent._build_executor", return_value=executor):
+        events = asyncio.run(
+            _collect_stream_events(
+                agent_endpoint.ChatRequest(
+                    message="分析 AAPL",
+                    session_id="nanobot-cancellable",
+                    request_id="nanobot-request",
+                )
+            )
+        )
+
+    assert [event["type"] for event in events] == ["accepted", "done"]
+    assert events[0]["backend"] == "nanobot"
+    assert isinstance(executor.execute_turn.call_args.kwargs["cancel_event"], threading.Event)
+
+
 def test_agent_chat_stream_cancels_backend_when_generator_closes() -> None:
     executor = _executor(_result(backend="codex_app_server", success=False, error_code="cancelled"))
 
@@ -631,8 +665,8 @@ def test_agent_chat_stream_cancels_backend_when_generator_closes() -> None:
 
 def test_codex_stop_waits_for_cleanup_and_emits_one_terminal_event() -> None:
     cancel_event = threading.Event()
-    with agent_endpoint._ACTIVE_CODEX_STREAMS_LOCK:
-        agent_endpoint._ACTIVE_CODEX_STREAMS["cancel-request"] = cancel_event
+    with agent_endpoint._ACTIVE_CANCELLABLE_STREAMS_LOCK:
+        agent_endpoint._ACTIVE_CANCELLABLE_STREAMS["cancel-request"] = cancel_event
     try:
         assert asyncio.run(agent_endpoint.cancel_agent_chat_stream("cancel-request")) == {
             "accepted": True,
@@ -640,8 +674,8 @@ def test_codex_stop_waits_for_cleanup_and_emits_one_terminal_event() -> None:
         }
         assert cancel_event.is_set()
     finally:
-        with agent_endpoint._ACTIVE_CODEX_STREAMS_LOCK:
-            agent_endpoint._ACTIVE_CODEX_STREAMS.pop("cancel-request", None)
+        with agent_endpoint._ACTIVE_CANCELLABLE_STREAMS_LOCK:
+            agent_endpoint._ACTIVE_CANCELLABLE_STREAMS.pop("cancel-request", None)
 
 
 def test_codex_stop_rejects_unknown_or_finished_request() -> None:
