@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Optional
+from urllib.parse import urlsplit
 
 from sqlalchemy import desc, func, select
 
@@ -70,7 +71,8 @@ class StrategyDefinitionService:
         {"sourceId": "local_stock_daily", "name": "本地日线库 stock_daily", "kind": "kline", "description": "只使用数据库中已经留存的日线数据，不主动请求外部行情。", "connectionKey": "local_stock_daily", "required": False, "selectionMode": "local", "markets": ["cn", "hk", "us", "jp", "kr", "tw"]},
         {"sourceId": "system_news", "name": "系统自动选择", "kind": "news", "description": "保留已配置新闻渠道的优先级；未配置密钥时默认使用免密钥财经 RSS 聚合，并继续故障切换。每次运行记录真实来源。", "connectionKey": "system_news", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us"]},
         {"sourceId": "system_fundamentals", "name": "按市场自动选择", "kind": "fundamentals", "description": "A 股优先使用 AkShare，海外市场使用 YFinance，并按现有管线补充可用字段。", "connectionKey": "system_fundamentals", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us", "jp", "kr", "tw"]},
-        {"sourceId": "system_sentiment", "name": "系统情绪与社交信号", "kind": "other", "description": "可选的情绪与社交研究输入；实际可用性在运行时检查。", "connectionKey": "system_sentiment", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us"]},
+        {"sourceId": "system_macro_data", "name": "系统宏观数据", "kind": "macro", "description": "按市场合并官方与公开宏观序列；缺失项保持缺失，不使用示例值。", "connectionKey": "system_macro_data", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us"]},
+        {"sourceId": "system_sentiment", "name": "系统情绪与社交信号", "kind": "other", "description": "预留的情绪与社交研究输入；当前没有绑定可执行适配器，不能挂载到新任务。", "connectionKey": "system_sentiment", "required": False, "selectionMode": "automatic", "selectable": False, "markets": ["cn", "hk", "us"]},
     )
 
     PROVIDER_DATA_SOURCES = (
@@ -81,6 +83,7 @@ class StrategyDefinitionService:
         {"sourceId": "kline:efinance", "name": "Efinance 行情", "kind": "kline", "description": "指定 Efinance 行情适配器，仅用于 A 股。", "connectionKey": "kline:efinance", "providerName": "EfinanceFetcher", "markets": ["cn"], "availabilityKey": "always"},
         {"sourceId": "kline:pytdx", "name": "通达信 Pytdx", "kind": "kline", "description": "指定 Pytdx 行情；使用系统设置中的通达信节点。", "connectionKey": "kline:pytdx", "providerName": "PytdxFetcher", "markets": ["cn"], "availabilityKey": "always"},
         {"sourceId": "kline:tushare", "name": "Tushare 行情", "kind": "kline", "description": "指定 Tushare 行情，需要先配置 TUSHARE_TOKEN。", "connectionKey": "kline:tushare", "providerName": "TushareFetcher", "markets": ["cn", "hk"], "availabilityKey": "tushare"},
+        {"sourceId": "kline:hithink_finance", "name": "同花顺金融数据", "kind": "kline", "description": "同花顺官方 Financial API，提供 A 股行情快照、前复权日 K 与主要指数；需要先配置 HITHINK_FINANCE_API_KEY。", "connectionKey": "kline:hithink_finance", "providerName": "HiThinkFinanceFetcher", "markets": ["cn"], "availabilityKey": "hithink_finance"},
         {"sourceId": "news:finance_rss", "name": "财经资讯 RSS 聚合", "kind": "news", "description": "免密钥定向检索财经媒体、企业公告线与监管机构；只保存标题、摘要、时间、来源和原文链接。", "connectionKey": "news:finance_rss", "providerName": "FinanceRSS", "includedSources": [dict(source) for source in DEFAULT_FINANCE_NEWS_SOURCES], "markets": ["cn", "hk", "us"], "availabilityKey": "always"},
         {"sourceId": "news:searxng", "name": "SearXNG 新闻搜索", "kind": "news", "description": "指定 SearXNG；可使用自建实例或系统允许的公共实例。", "connectionKey": "news:searxng", "providerName": "SearXNG", "markets": ["cn", "hk", "us"], "availabilityKey": "searxng"},
         {"sourceId": "news:bocha", "name": "Bocha 新闻搜索", "kind": "news", "description": "指定 Bocha 中文搜索，需要先配置 API Key。", "connectionKey": "news:bocha", "providerName": "Bocha", "markets": ["cn", "hk", "us"], "availabilityKey": "bocha"},
@@ -91,7 +94,40 @@ class StrategyDefinitionService:
         {"sourceId": "news:anspire", "name": "Anspire 新闻搜索", "kind": "news", "description": "指定 Anspire Search，需要先配置 API Key。", "connectionKey": "news:anspire", "providerName": "Anspire", "markets": ["cn", "hk", "us"], "availabilityKey": "anspire"},
         {"sourceId": "fundamentals:akshare", "name": "AkShare 基本面", "kind": "fundamentals", "description": "指定 AkShare 基本面适配器，主要用于 A 股。", "connectionKey": "fundamentals:akshare", "providerName": "AkShare", "markets": ["cn"], "availabilityKey": "fundamentals"},
         {"sourceId": "fundamentals:yfinance", "name": "YFinance 基本面", "kind": "fundamentals", "description": "指定 YFinance 基本面适配器，主要用于海外市场。", "connectionKey": "fundamentals:yfinance", "providerName": "YFinance", "markets": ["hk", "us", "jp", "kr", "tw"], "availabilityKey": "fundamentals"},
+        {"sourceId": "macro:fred", "name": "FRED 官方宏观数据", "kind": "macro", "description": "美国圣路易斯联储官方序列：美债收益率、实际利率、信用利差、通胀和就业；需要 FRED_API_KEY。", "connectionKey": "macro:fred", "providerName": "FredMacroFetcher", "markets": ["cn", "hk", "us"], "availabilityKey": "fred"},
+        {"sourceId": "macro:apocdata", "name": "ApocData 中国宏观", "kind": "macro", "description": "免密钥公共接口，提供中国 GDP、CPI、PPI 和 PMI；属于第三方聚合数据，运行时保留来源与时间。", "connectionKey": "macro:apocdata", "providerName": "ApocDataMacroFetcher", "markets": ["cn", "hk"], "availabilityKey": "always"},
+        {"sourceId": "macro:yfinance", "name": "YFinance 宏观行情代理", "kind": "macro", "description": "免密钥高频市场观测：美债 10Y、美元、人民币、日元、VIX、原油和铜；不替代官方低频宏观发布。", "connectionKey": "macro:yfinance", "providerName": "YfinanceFetcher", "markets": ["cn", "hk", "us"], "availabilityKey": "always"},
     )
+
+    DATA_SOURCE_SETUP = {
+        "system_market_data": {"accessMode": "automatic", "setupUrl": None, "configurationKeys": []},
+        "local_stock_daily": {"accessMode": "local", "setupUrl": None, "configurationKeys": []},
+        "system_news": {"accessMode": "automatic", "setupUrl": None, "configurationKeys": []},
+        "system_fundamentals": {"accessMode": "automatic", "setupUrl": None, "configurationKeys": []},
+        "system_macro_data": {"accessMode": "automatic", "setupUrl": None, "configurationKeys": []},
+        "system_sentiment": {"accessMode": "automatic", "setupUrl": None, "configurationKeys": []},
+        "kline:tencent": {"accessMode": "no_credential", "setupUrl": "https://gu.qq.com/", "configurationKeys": []},
+        "kline:akshare": {"accessMode": "no_credential", "setupUrl": "https://akshare.akfamily.xyz/tutorial.html", "configurationKeys": []},
+        "kline:baostock": {"accessMode": "no_credential", "setupUrl": "https://baostock.com/", "configurationKeys": []},
+        "kline:yfinance": {"accessMode": "no_credential", "setupUrl": "https://ranaroussi.github.io/yfinance/", "configurationKeys": []},
+        "kline:efinance": {"accessMode": "no_credential", "setupUrl": "https://github.com/Micro-sheep/efinance", "configurationKeys": []},
+        "kline:pytdx": {"accessMode": "no_credential", "setupUrl": "https://github.com/rainx/pytdx", "configurationKeys": ["PYTDX_SERVERS"]},
+        "kline:tushare": {"accessMode": "token", "setupUrl": "https://tushare.pro/document/1?doc_id=37", "configurationKeys": ["TUSHARE_TOKEN"]},
+        "kline:hithink_finance": {"accessMode": "api_key", "setupUrl": "https://github.com/HiThink-Tech/Financial-API", "configurationKeys": ["HITHINK_FINANCE_API_KEY"]},
+        "news:finance_rss": {"accessMode": "no_credential", "setupUrl": None, "configurationKeys": []},
+        "news:searxng": {"accessMode": "base_url", "setupUrl": "https://docs.searxng.org/dev/search_api.html", "configurationKeys": ["SEARXNG_BASE_URLS"]},
+        "news:bocha": {"accessMode": "api_key", "setupUrl": "https://open.bocha.cn/", "configurationKeys": ["BOCHA_API_KEYS"]},
+        "news:tavily": {"accessMode": "api_key", "setupUrl": "https://app.tavily.com/", "configurationKeys": ["TAVILY_API_KEYS"]},
+        "news:brave": {"accessMode": "api_key", "setupUrl": "https://api-dashboard.search.brave.com/app/keys", "configurationKeys": ["BRAVE_API_KEYS"]},
+        "news:serpapi": {"accessMode": "api_key", "setupUrl": "https://serpapi.com/manage-api-key", "configurationKeys": ["SERPAPI_API_KEYS"]},
+        "news:minimax": {"accessMode": "api_key", "setupUrl": "https://platform.minimaxi.com/", "configurationKeys": ["MINIMAX_API_KEYS"]},
+        "news:anspire": {"accessMode": "api_key", "setupUrl": "https://open.anspire.cn/", "configurationKeys": ["ANSPIRE_API_KEYS"]},
+        "fundamentals:akshare": {"accessMode": "no_credential", "setupUrl": "https://akshare.akfamily.xyz/tutorial.html", "configurationKeys": ["ENABLE_FUNDAMENTAL_PIPELINE"]},
+        "fundamentals:yfinance": {"accessMode": "no_credential", "setupUrl": "https://ranaroussi.github.io/yfinance/", "configurationKeys": ["ENABLE_FUNDAMENTAL_PIPELINE"]},
+        "macro:fred": {"accessMode": "api_key", "setupUrl": "https://fred.stlouisfed.org/docs/api/api_key.html", "configurationKeys": ["FRED_API_KEY"]},
+        "macro:apocdata": {"accessMode": "no_credential", "setupUrl": "https://github.com/ApocData/ApocData-skill", "configurationKeys": []},
+        "macro:yfinance": {"accessMode": "no_credential", "setupUrl": "https://ranaroussi.github.io/yfinance/", "configurationKeys": []},
+    }
 
     def __init__(self, db_manager: Optional[DatabaseManager] = None, actor_id: str = "local-admin"):
         self.db = db_manager or DatabaseManager.get_instance()
@@ -733,7 +769,13 @@ class StrategyDefinitionService:
     # --- Data-source catalog ---------------------------------------------------------
     def list_data_sources(self) -> list[dict[str, Any]]:
         builtins = [
-            {**item, "builtIn": True, "selectable": True, "availability": "system_managed"}
+            {
+                **item,
+                **self.DATA_SOURCE_SETUP[item["sourceId"]],
+                "builtIn": True,
+                "selectable": bool(item.get("selectable", True)),
+                "availability": "system_managed",
+            }
             for item in self.BUILTIN_DATA_SOURCES
         ]
         providers = self._provider_data_sources()
@@ -759,6 +801,12 @@ class StrategyDefinitionService:
         configured = {
             "always": True,
             "tushare": bool(getattr(config, "tushare_token", None)),
+            "hithink_finance": bool(
+                getattr(config, "hithink_finance_api_key", "").strip()
+                if isinstance(getattr(config, "hithink_finance_api_key", None), str)
+                else ""
+            ),
+            "fred": bool(str(getattr(config, "fred_api_key", None) or "").strip()),
             "searxng": bool(getattr(config, "searxng_base_urls", None)) or bool(getattr(config, "searxng_public_instances_enabled", False)),
             "bocha": bool(getattr(config, "bocha_api_keys", None)),
             "tavily": bool(getattr(config, "tavily_api_keys", None)),
@@ -771,6 +819,7 @@ class StrategyDefinitionService:
         return [
             {
                 **{key: value for key, value in item.items() if key != "availabilityKey"},
+                **cls.DATA_SOURCE_SETUP[item["sourceId"]],
                 "required": False,
                 "builtIn": True,
                 "selectionMode": "provider",
@@ -784,9 +833,13 @@ class StrategyDefinitionService:
         name = self._required(payload.get("name"), "DATA_SOURCE_NAME_REQUIRED", "数据源名称不能为空。", 120)
         description = self._text(payload.get("description"), 1000)
         connection_key = self._required(payload.get("connectionKey"), "DATA_SOURCE_CONNECTION_REQUIRED", "请输入系统中已配置的连接标识。", 160)
+        setup_url = self._setup_url(payload.get("setupUrl"))
+        access_mode = str(payload.get("accessMode") or "custom").strip().lower()
+        if access_mode not in {"no_credential", "api_key", "token", "base_url", "account", "custom"}:
+            raise StrategyDefinitionError("DATA_SOURCE_ACCESS_MODE_INVALID", "请选择正确的数据源接入方式。")
         source_kind = str(payload.get("kind") or "").strip().lower()
-        if source_kind not in {"kline", "news", "fundamentals", "other"}:
-            raise StrategyDefinitionError("DATA_SOURCE_KIND_INVALID", "请选择 K 线、新闻、基本面或其他数据类型。")
+        if source_kind not in {"kline", "news", "fundamentals", "macro", "other"}:
+            raise StrategyDefinitionError("DATA_SOURCE_KIND_INVALID", "请选择 K 线、新闻、基本面、宏观或其他数据类型。")
         raw_markets = payload.get("markets") if isinstance(payload.get("markets"), list) else []
         markets = list(dict.fromkeys(str(item).strip().lower() for item in raw_markets if str(item).strip()))
         if not markets or any(item not in {"cn", "hk", "us"} for item in markets):
@@ -810,6 +863,8 @@ class StrategyDefinitionService:
                 markets_json=self._dump(markets),
                 description=description,
                 connection_key=connection_key,
+                setup_url=setup_url,
+                access_mode=access_mode,
             )
             session.add(row)
             session.flush()
@@ -1821,6 +1876,9 @@ class StrategyDefinitionService:
             "kind": row.source_kind,
             "description": row.description,
             "connectionKey": row.connection_key,
+            "setupUrl": row.setup_url,
+            "accessMode": row.access_mode or "custom",
+            "configurationKeys": [],
             "markets": self._load(row.markets_json),
             "required": False,
             "builtIn": False,
@@ -1830,6 +1888,21 @@ class StrategyDefinitionService:
             "createdAt": self._iso(row.created_at),
             "updatedAt": self._iso(row.updated_at),
         }
+
+    @staticmethod
+    def _setup_url(value: Any) -> Optional[str]:
+        if value is None or not str(value).strip():
+            return None
+        url = str(value).strip()
+        if len(url) > 2048:
+            raise StrategyDefinitionError("DATA_SOURCE_SETUP_URL_INVALID", "接入说明链接不能超过 2048 个字符。")
+        parsed = urlsplit(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+            raise StrategyDefinitionError(
+                "DATA_SOURCE_SETUP_URL_INVALID",
+                "接入说明链接必须是安全的 HTTP(S) 地址，且不能包含账号、Token 或密钥。",
+            )
+        return url
 
     def _strategy_detail(self, session, row):
         result = self._strategy_summary(session, row); result["versions"] = self.list_versions(row.id); return result

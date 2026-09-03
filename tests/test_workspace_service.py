@@ -67,7 +67,9 @@ def test_capability_registry_persists_custom_skills_and_allowlist(workspace):
         "system_market_data",
         "system_news",
         "system_fundamentals",
+        "system_macro_data",
     ]
+    assert "get_macro_indicators" in catalog["defaults"]["research"]["toolIds"]
 
     created = workspace.create_skill({
         "id": "cash-flow-review",
@@ -85,6 +87,75 @@ def test_capability_registry_persists_custom_skills_and_allowlist(workspace):
 
     workspace.update_skill("cash-flow-review", {"enabled": False})
     assert {item["id"]: item for item in workspace.list_skills()}["cash-flow-review"]["enabled"] is False
+
+
+def test_data_source_probe_persists_observed_health_separately_from_configuration(workspace):
+    before = {item["sourceId"]: item for item in workspace.list_data_sources()}
+    assert before["kline:akshare"]["availability"] == "configured"
+    assert before["kline:akshare"]["healthStatus"] == "not_tested"
+    assert before["kline:akshare"]["operational"] is False
+
+    probe_result = {
+        "status": "available",
+        "recordCount": 12,
+        "errorCode": None,
+        "error": None,
+        "detail": {"provider": "AkshareFetcher", "latestDate": "2026-09-03"},
+    }
+    with patch.object(workspace, "_run_data_source_probe", return_value=probe_result):
+        checked = workspace.probe_data_source("kline:akshare")
+
+    assert checked["availability"] == "configured"
+    assert checked["healthStatus"] == "available"
+    assert checked["operational"] is True
+    assert checked["lastRecordCount"] == 12
+    assert checked["lastCheckedAt"]
+    assert checked["healthDetail"]["provider"] == "AkshareFetcher"
+
+    persisted = {item["sourceId"]: item for item in workspace.list_data_sources()}
+    assert persisted["kline:akshare"]["healthStatus"] == "available"
+
+
+def test_custom_data_source_does_not_claim_runtime_health_without_adapter(workspace):
+    created = workspace.create_data_source({
+        "name": "私有研究仓",
+        "description": "仅登记连接身份",
+        "connectionKey": "private_research_v1",
+        "setupUrl": "https://data.example.com/docs",
+        "accessMode": "account",
+        "kind": "other",
+        "markets": ["cn"],
+    })
+    assert created["availability"] == "registered"
+    assert created["healthStatus"] == "not_tested"
+    assert created["probeSupported"] is False
+    assert created["operational"] is False
+    assert created["setupUrl"] == "https://data.example.com/docs"
+    assert created["accessMode"] == "account"
+
+    with pytest.raises(WorkspaceError) as unsupported:
+        workspace.probe_data_source(created["sourceId"])
+    assert unsupported.value.code == "data_source_probe_unsupported"
+
+
+def test_macro_source_probe_is_source_pinned_and_reports_series(workspace):
+    with patch("data_provider.DataFetcherManager") as manager_cls:
+        manager_cls.return_value.get_macro_indicators.return_value = [
+            {"key": "china_pmi", "current": 49.8, "source": "ApocData 公共宏观接口"}
+        ]
+        result = workspace._probe_macro_source({
+            "kind": "macro",
+            "markets": ["cn", "hk"],
+            "selectionMode": "provider",
+            "providerName": "ApocDataMacroFetcher",
+        })
+
+    manager_cls.return_value.get_macro_indicators.assert_called_once_with(
+        region="cn",
+        preferred_fetcher="ApocDataMacroFetcher",
+    )
+    assert result["status"] == "available"
+    assert result["detail"]["series"] == ["china_pmi"]
 
 
 def test_task_contracts_reject_incomplete_or_unsafe_definitions(workspace):
@@ -108,6 +179,27 @@ def test_task_contracts_reject_incomplete_or_unsafe_definitions(workspace):
             capabilities=_empty_bindings(toolIds=["tool-that-does-not-exist"]),
         ))
     assert invalid_binding.value.code == "capability_binding_invalid"
+
+    with pytest.raises(WorkspaceError) as missing_industry:
+        workspace.create_task(_task_payload("industry_analysis"))
+    assert missing_industry.value.code == "industry_required"
+
+
+def test_market_and_industry_analysis_use_workspace_artifact_contracts(workspace):
+    market_task = workspace.create_task(_task_payload(
+        "market_analysis",
+        name="A 股宏观分析",
+        subject={"scope": "CN"},
+    ))
+    industry_task = workspace.create_task(_task_payload(
+        "industry_analysis",
+        name="半导体产业分析",
+        subject={"industry": "半导体"},
+    ))
+
+    assert market_task["kind"] == "market_analysis"
+    assert industry_task["subject"]["industry"] == "半导体"
+    assert "get_macro_indicators" in workspace.default_bindings("market_analysis")["toolIds"]
 
 
 def test_run_freezes_context_and_persists_structured_artifacts(workspace):
@@ -208,6 +300,69 @@ def test_schedule_launches_due_task_and_updates_ledger(workspace):
     create_run.assert_called_once_with(task["id"], trigger_type="schedule")
     updated = {item["id"]: item for item in workspace.list_schedules()}[schedule["id"]]
     assert updated["lastRunId"] == "run-from-schedule"
+
+
+def test_market_dashboard_persists_layout_and_publishes_scheduled_research(workspace):
+    task = workspace.create_task(_task_payload(
+        "research",
+        name="贵州茅台每日跟踪",
+        subject={"stock": "600519", "stockName": "贵州茅台"},
+    ))
+    workspace.create_schedule({
+        "taskId": task["id"],
+        "name": "贵州茅台收盘复盘",
+        "scheduleMode": "daily",
+        "runAt": "18:30",
+        "timezone": "Asia/Shanghai",
+        "publishToMarket": True,
+        "marketDashboardTitle": "贵州茅台跟踪",
+    })
+
+    dashboard = workspace.update_market_dashboard("CN", {
+        "widgetIds": ["overview", "subscriptions", "news"],
+        "newsSourceIds": [12],
+        "newsKeywords": ["白酒", "消费"],
+    })
+
+    assert dashboard["widgetIds"] == ["overview", "subscriptions", "news"]
+    assert dashboard["newsSourceIds"] == [12]
+    assert dashboard["newsKeywords"] == ["白酒", "消费"]
+    assert dashboard["subscriptions"][0]["taskId"] == task["id"]
+    assert dashboard["subscriptions"][0]["title"] == "贵州茅台跟踪"
+    assert dashboard["subscriptions"][0]["schedules"][0]["runAt"] == "18:30"
+
+
+def test_market_subscription_returns_only_artifact_summary(workspace):
+    task = workspace.create_task(_task_payload(
+        "research",
+        subject={"stock": "AAPL", "stockName": "Apple"},
+    ))
+    result = SimpleNamespace(
+        success=True,
+        content='{"ResearchReport":{"conclusion":"盈利质量稳定，继续观察估值。","confidence":0.73,"risks":["估值偏高"]}}',
+        backend="litellm",
+        model="test-model",
+        tool_calls_log=[],
+        error_code=None,
+        error=None,
+    )
+    with patch("src.services.workspace_service._WORKERS", _ImmediateExecutor()), patch.object(
+        workspace,
+        "_call_agent",
+        return_value=result,
+    ):
+        run = workspace.create_run(task["id"])
+    workspace.create_market_subscription({"taskId": task["id"], "market": "US"})
+
+    subscription = workspace.get_market_dashboard("US")["subscriptions"][0]
+
+    assert subscription["latestArtifact"]["runId"] == run["id"]
+    assert subscription["latestArtifact"]["summary"] == {
+        "text": "盈利质量稳定，继续观察估值。",
+        "risks": ["估值偏高"],
+        "confidence": 0.73,
+    }
+    assert "content" not in subscription["latestArtifact"]
 
 
 def test_schedule_rejects_disabled_tasks_and_invalid_updates(workspace):

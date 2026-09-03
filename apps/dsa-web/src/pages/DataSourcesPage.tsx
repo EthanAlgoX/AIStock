@@ -1,22 +1,28 @@
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import {
+  Activity,
   ArrowRight,
+  CircleCheck,
   CircleAlert,
+  CircleHelp,
+  CircleX,
   Database,
+  KeyRound,
   LoaderCircle,
   Newspaper,
   Plus,
-  ShieldCheck,
+  RefreshCw,
   Trash2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   workspaceApi,
   type WorkspaceDataSource,
+  type WorkspaceDataSourceAccessMode,
 } from "../api/workspace";
 import { toApiErrorMessage } from "../api/error";
-import { AppPage, Card, PageHeader } from "../components/common";
+import { AppPage, Card, PageHeader, Tooltip } from "../components/common";
 import { useUiLanguage } from "../contexts/UiLanguageContext";
 import {
   dataSourceMarketSummary,
@@ -24,6 +30,7 @@ import {
   strategyMarketLabel,
 } from "../utils/strategyMarkets";
 import { CapabilityCenterNav } from "../components/capability/CapabilityCenterNav";
+import { DataSourceAccessConfigPanel } from "../components/capability/DataSourceAccessConfigPanel";
 
 const DataSourcesPage: React.FC = () => {
   const { language, localize } = useUiLanguage();
@@ -31,14 +38,19 @@ const DataSourcesPage: React.FC = () => {
     kline: localize("K 线与行情", "Market data & OHLCV"),
     news: localize("新闻与资讯", "News & intelligence"),
     fundamentals: localize("基本面", "Fundamentals"),
+    macro: localize("宏观数据", "Macro data"),
     other: localize("其他研究数据", "Other research data"),
   };
   const [sources, setSources] = useState<WorkspaceDataSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [probingSourceIds, setProbingSourceIds] = useState<string[]>([]);
+  const [configuringSourceId, setConfiguringSourceId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [name, setName] = useState("");
   const [connectionKey, setConnectionKey] = useState("");
+  const [setupUrl, setSetupUrl] = useState("");
+  const [accessMode, setAccessMode] = useState<Exclude<WorkspaceDataSourceAccessMode, "automatic" | "local">>("api_key");
   const [description, setDescription] = useState("");
   const [kind, setKind] = useState<WorkspaceDataSource["kind"]>("kline");
   const [markets, setMarkets] = useState<string[]>(["cn"]);
@@ -67,13 +79,15 @@ const DataSourcesPage: React.FC = () => {
   }, [load]);
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!name.trim() || !connectionKey.trim() || markets.length === 0) return;
+    if (!name.trim() || !connectionKey.trim() || !setupUrl.trim() || markets.length === 0) return;
     setSaving(true);
     setError("");
     try {
       const created = await workspaceApi.createDataSource({
         name: name.trim(),
         connectionKey: connectionKey.trim(),
+        setupUrl: setupUrl.trim(),
+        accessMode,
         description: description.trim() || undefined,
         kind,
         markets,
@@ -81,6 +95,8 @@ const DataSourcesPage: React.FC = () => {
       setSources((current) => [...current, created]);
       setName("");
       setConnectionKey("");
+      setSetupUrl("");
+      setAccessMode("api_key");
       setDescription("");
       setKind("kline");
       setMarkets(["cn"]);
@@ -120,10 +136,31 @@ const DataSourcesPage: React.FC = () => {
       );
     }
   };
-  const defaults = sources.filter((item) =>
-    ["system_market_data", "system_news", "system_fundamentals"].includes(
-      item.sourceId,
-    ),
+  const probe = async (source: WorkspaceDataSource) => {
+    setProbingSourceIds((current) => [...current, source.sourceId]);
+    setError("");
+    try {
+      const checked = await workspaceApi.probeDataSource(source.sourceId);
+      setSources((current) =>
+        current.map((item) =>
+          item.sourceId === checked.sourceId ? checked : item,
+        ),
+      );
+    } catch (error) {
+      setError(
+        toApiErrorMessage(
+          error,
+          localize("无法完成数据源检测。", "Unable to test the data source."),
+        ),
+      );
+    } finally {
+      setProbingSourceIds((current) =>
+        current.filter((item) => item !== source.sourceId),
+      );
+    }
+  };
+  const defaults = sources.filter(
+    (item) => item.builtIn && item.selectionMode !== "provider",
   );
   const providers = sources.filter(
     (item) => item.selectionMode === "provider" && item.builtIn,
@@ -135,11 +172,25 @@ const DataSourcesPage: React.FC = () => {
   const unconfiguredProviders = providers.filter(
     (item) => !item.selectable,
   ).length;
-  const readyDefaults = defaults.filter((item) => item.selectable).length;
+  const checkedAvailable = sources.filter(
+    (item) => item.healthStatus === "available",
+  ).length;
+  const checkedWithIssues = sources.filter((item) =>
+    ["degraded", "unavailable"].includes(item.healthStatus ?? ""),
+  ).length;
+  const notTested = sources.filter(
+    (item) =>
+      item.probeSupported &&
+      item.availability !== "unconfigured" &&
+      (!item.healthStatus || item.healthStatus === "not_tested"),
+  ).length;
   const financeRssSource = providers.find(
     (item) => item.sourceId === "news:finance_rss",
   );
   const financeNewsSources = financeRssSource?.includedSources ?? [];
+  const configuringSource = providers.find(
+    (item) => item.sourceId === configuringSourceId,
+  );
   const financeNewsGroups = [
     {
       category: "publisher" as const,
@@ -166,6 +217,140 @@ const DataSourcesPage: React.FC = () => {
       ),
     },
   ];
+  const accessModeLabel = (source: WorkspaceDataSource) => {
+    const labels: Record<WorkspaceDataSourceAccessMode, string> = {
+      automatic: localize("系统自动路由", "Automatic routing"),
+      local: localize("本地数据，无需注册", "Local data; no registration"),
+      no_credential: localize("免密钥接入", "No credential required"),
+      api_key: "API Key",
+      token: "Token",
+      base_url: localize("实例地址", "Instance URL"),
+      account: localize("账号授权", "Account authorization"),
+      custom: localize("自定义认证", "Custom authentication"),
+    };
+    const mode = source.accessMode ?? (source.selectionMode === "automatic" ? "automatic" : "custom");
+    const keys = source.configurationKeys?.filter(Boolean) ?? [];
+    return keys.length ? `${labels[mode]} · ${keys.join(" / ")}` : labels[mode];
+  };
+  const setupLink = (source: WorkspaceDataSource) => {
+    if (!source.setupUrl) return null;
+    return (
+      <Tooltip
+        content={localize(
+          `打开 ${source.name} 的官方注册或接入说明`,
+          `Open official registration or setup instructions for ${source.name}`,
+        )}
+        side="bottom"
+      >
+        <a
+          href={source.setupUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={localize(
+            `打开 ${source.name} 接入说明`,
+            `Open setup instructions for ${source.name}`,
+          )}
+          className="-m-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-text transition-colors hover:bg-hover hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <CircleHelp className="h-4 w-4" aria-hidden="true" />
+        </a>
+      </Tooltip>
+    );
+  };
+  const configurationBadge = (source: WorkspaceDataSource) => {
+    const definitions = {
+      system_managed: [localize("系统托管", "System managed"), "bg-cyan/10 text-cyan"],
+      configured: [localize("已配置", "Configured"), "bg-success/10 text-success"],
+      unconfigured: [localize("未配置", "Not configured"), "bg-warning/10 text-warning"],
+      registered: [localize("已登记", "Registered"), "bg-hover text-secondary-text"],
+    } as const;
+    const [label, className] = definitions[source.availability];
+    return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${className}`}>{label}</span>;
+  };
+  const healthBadge = (source: WorkspaceDataSource) => {
+    if (source.builtIn && !source.selectable && !source.probeSupported) {
+      return (
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-hover px-2 py-0.5 text-[11px] text-muted-text">
+          <CircleX className="h-3 w-3" aria-hidden="true" />
+          {localize("未接入", "Not integrated")}
+        </span>
+      );
+    }
+    const status =
+      source.healthStatus ??
+      (source.availability === "unconfigured" ? "not_configured" : "not_tested");
+    const definitions = {
+      available: [localize("可用", "Available"), "bg-success/10 text-success", CircleCheck],
+      degraded: [localize("部分可用", "Degraded"), "bg-warning/10 text-warning", CircleAlert],
+      unavailable: [localize("不可用", "Unavailable"), "bg-danger/10 text-danger", CircleX],
+      not_configured: [localize("不可检测", "Cannot test"), "bg-hover text-muted-text", CircleHelp],
+      not_tested: [localize("未检测", "Not tested"), "bg-hover text-muted-text", CircleHelp],
+    } as const;
+    const [label, className, Icon] = definitions[status];
+    return (
+      <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${className}`}>
+        <Icon className="h-3 w-3" aria-hidden="true" />
+        {label}
+      </span>
+    );
+  };
+  const healthDetail = (source: WorkspaceDataSource) => {
+    if (!source.lastCheckedAt) {
+      return source.probeSupported && source.availability !== "unconfigured"
+        ? localize("尚未进行真实连接检测", "No live connection test yet")
+        : source.availability === "unconfigured"
+          ? localize("完成配置后才可检测", "Configure this source before testing")
+          : localize("尚未绑定检测适配器", "No probe adapter is bound yet");
+    }
+    const checkedAt = new Intl.DateTimeFormat(language === "en" ? "en" : "zh-CN", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(source.lastCheckedAt));
+    const observations = [
+      localize(`检测于 ${checkedAt}`, `Checked ${checkedAt}`),
+      source.lastLatencyMs != null ? `${source.lastLatencyMs} ms` : null,
+      source.lastRecordCount != null
+        ? localize(`${source.lastRecordCount} 条有效记录`, `${source.lastRecordCount} valid records`)
+        : null,
+    ].filter(Boolean);
+    return observations.join(" · ");
+  };
+  const probeButton = (source: WorkspaceDataSource) => {
+    const probing = probingSourceIds.includes(source.sourceId);
+    if (!source.probeSupported || source.availability === "unconfigured") return null;
+    return (
+      <button
+        type="button"
+        onClick={() => void probe(source)}
+        disabled={probing}
+        className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-base px-3 text-xs font-medium text-secondary-text transition-colors hover:border-cyan/40 hover:text-foreground disabled:cursor-wait disabled:opacity-60"
+        aria-label={localize(`检测 ${source.name}`, `Test ${source.name}`)}
+      >
+        {probing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+        {probing
+          ? localize("检测中", "Testing")
+          : source.lastCheckedAt
+            ? localize("重新检测", "Retest")
+            : localize("检测", "Test")}
+      </button>
+    );
+  };
+  const configureButton = (source: WorkspaceDataSource) => {
+    if (!source.configurationKeys?.length) return null;
+    return (
+      <button
+        type="button"
+        onClick={() => setConfiguringSourceId(source.sourceId)}
+        className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-base px-3 text-xs font-medium text-secondary-text transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        aria-label={localize(`配置 ${source.name}`, `Configure ${source.name}`)}
+      >
+        <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
+        {localize("配置接入", "Configure")}
+      </button>
+    );
+  };
 
   return (
     <AppPage className="space-y-6">
@@ -173,8 +358,8 @@ const DataSourcesPage: React.FC = () => {
         eyebrow="Platform data dependencies"
         title={localize("数据源", "Data sources")}
         description={localize(
-          "管理主 Agent 在个股分析、选股和交易任务中可选择的数据连接、适用市场与配置状态。密钥仍由设置管理。",
-          "Manage the data connections, supported markets, and configuration status available to Primary Agent research, screening, and trading tasks. Secrets remain managed in Settings.",
+          "管理主 Agent 在个股分析、选股和交易任务中可选择的数据连接、适用市场、配置状态与实测可用性。敏感凭据通过受保护的配置字段保存。",
+          "Manage the data connections, supported markets, configuration state, and tested availability for Primary Agent research, screening, and trading tasks. Sensitive credentials are saved through protected configuration fields.",
         )}
         actions={
           <Link
@@ -210,24 +395,24 @@ const DataSourcesPage: React.FC = () => {
       >
         {[
           [
-            localize("系统默认", "System defaults"),
-            loading ? "—" : `${readyDefaults}/${defaults.length}`,
-            localize("当前可用 / 全部", "Available / total"),
-          ],
-          [
             localize("已配置提供方", "Configured providers"),
             loading ? "—" : configuredProviders,
-            localize("可固定数据口径", "Available for pinned datasets"),
+            localize("具备发起请求的配置", "Configured to make requests"),
           ],
           [
-            localize("待配置提供方", "Unconfigured providers"),
-            loading ? "—" : unconfiguredProviders,
-            localize("连接尚不可用", "Connection unavailable"),
+            localize("实测可用", "Verified available"),
+            loading ? "—" : checkedAvailable,
+            localize("最近检测返回有效数据", "Returned valid data in latest test"),
           ],
           [
-            localize("自定义来源", "Custom sources"),
-            loading ? "—" : customSources.length,
-            localize("已登记到目录", "Registered in catalog"),
+            localize("检测异常", "Test issues"),
+            loading ? "—" : checkedWithIssues,
+            localize("部分可用或不可用", "Degraded or unavailable"),
+          ],
+          [
+            localize("等待检测", "Awaiting test"),
+            loading ? "—" : notTested,
+            localize(`${unconfiguredProviders} 个仍待配置`, `${unconfiguredProviders} still need configuration`),
           ],
         ].map(([label, value, hint]) => (
           <div key={label} className="bg-card px-4 py-4">
@@ -248,13 +433,13 @@ const DataSourcesPage: React.FC = () => {
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-secondary-text">
                 {localize(
-                  "K 线、新闻和基本面已作为新 Agent 任务的默认输入。系统会沿用设置中的提供方优先级和失败降级，不要求每个任务重复配置。",
-                  "Market data, news, and fundamentals are default inputs for new Agent tasks. Provider priority and fallback settings are reused so every task does not need duplicate configuration.",
+                  "K 线、新闻、基本面和宏观数据已作为新 Agent 任务的默认输入。系统会沿用设置中的提供方优先级和失败降级，不要求每个任务重复配置。",
+                  "Market data, news, fundamentals, and macro observations are default inputs for new Agent tasks. Provider priority and fallback settings are reused so every task does not need duplicate configuration.",
                 )}
               </p>
             </div>
-            <span className="shrink-0 rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success">
-              {localize("开箱即用", "Ready to use")}
+            <span className="shrink-0 rounded-full bg-cyan/10 px-3 py-1 text-xs font-medium text-cyan">
+              {localize("默认绑定", "Bound by default")}
             </span>
           </div>
           {loading ? (
@@ -269,13 +454,18 @@ const DataSourcesPage: React.FC = () => {
                   key={source.sourceId}
                   className="flex items-start gap-3 py-4 first:pt-0 last:pb-0"
                 >
-                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-success" />
+                  <Activity className="mt-0.5 h-5 w-5 shrink-0 text-cyan" />
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-medium text-foreground">
                         {source.name}
                       </h3>
-                      {source.required ? (
+                      {setupLink(source)}
+                      {!source.selectable ? (
+                        <span className="text-xs text-muted-text">
+                          {localize("暂不可绑定", "Not bindable yet")}
+                        </span>
+                      ) : source.required ? (
                         <span className="text-xs text-cyan">
                           {localize("默认启用", "Enabled by default")}
                         </span>
@@ -290,13 +480,22 @@ const DataSourcesPage: React.FC = () => {
                       <span className="rounded-full bg-hover px-2 py-0.5 text-[11px] text-secondary-text">
                         {dataSourceMarketSummary(source, language)}
                       </span>
+                      {configurationBadge(source)}
+                      {healthBadge(source)}
                     </div>
                     <p className="mt-1 text-sm leading-6 text-secondary-text">
                       {source.description}
                     </p>
                     <p className="mt-1 text-xs text-muted-text">
-                      {localize("连接", "Connection")}: {source.connectionKey}
+                      {accessModeLabel(source)}
                     </p>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs text-muted-text">{healthDetail(source)}</p>
+                        {source.lastError ? <p className="mt-1 text-xs text-danger">{source.lastError}</p> : null}
+                      </div>
+                      {probeButton(source)}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -309,8 +508,8 @@ const DataSourcesPage: React.FC = () => {
           </h2>
           <p className="mt-2 text-sm leading-6 text-secondary-text">
             {localize(
-              "标注数据类型和适用市场后，Agent 任务只展示兼容来源。这里仅保存无密钥的连接标识；对应适配器必须已在系统中配置。",
-              "After you label the data type and supported markets, Agent tasks only show compatible sources. Only a secret-free connection key is stored here; its adapter must already be configured.",
+              "填写官方注册或接入文档链接，并按该来源真实的认证形式登记。这里只保存无密钥的适配器标识和接入说明，不保存 API Key、Token 或账号密码。",
+              "Add the official registration or setup URL and choose the source's actual authentication method. This catalog stores only a secret-free adapter key and setup instructions, never API keys, tokens, or passwords.",
             )}
           </p>
           <form
@@ -403,6 +602,41 @@ const DataSourcesPage: React.FC = () => {
               ) : null}
             </fieldset>
             <label className="block text-sm text-secondary-text">
+              {localize("注册或接入说明链接", "Registration or setup URL")}
+              <input
+                aria-label={localize("注册或接入说明链接", "Registration or setup URL")}
+                required
+                type="url"
+                maxLength={2048}
+                value={setupUrl}
+                onChange={(event) => setSetupUrl(event.target.value)}
+                placeholder="https://provider.example.com/developers"
+                className="mt-1 w-full rounded-lg border border-border bg-base p-2.5 text-foreground"
+              />
+              <span className="mt-1 block text-xs text-muted-text">
+                {localize(
+                  "使用官方注册页或开发者文档；不要把带账号、Token 或密钥的私有链接粘贴到这里。",
+                  "Use the official registration page or developer documentation. Never paste a private URL containing an account, token, or key.",
+                )}
+              </span>
+            </label>
+            <label className="block text-sm text-secondary-text">
+              {localize("接入方式", "Access method")}
+              <select
+                aria-label={localize("接入方式", "Access method")}
+                value={accessMode}
+                onChange={(event) => setAccessMode(event.target.value as typeof accessMode)}
+                className="mt-1 w-full rounded-lg border border-border bg-base p-2.5 text-foreground"
+              >
+                <option value="api_key">API Key</option>
+                <option value="token">Token</option>
+                <option value="base_url">{localize("实例地址", "Instance URL")}</option>
+                <option value="account">{localize("账号授权", "Account authorization")}</option>
+                <option value="no_credential">{localize("免密钥接入", "No credential required")}</option>
+                <option value="custom">{localize("自定义认证", "Custom authentication")}</option>
+              </select>
+            </label>
+            <label className="block text-sm text-secondary-text">
               {localize("连接标识", "Connection key")}
               <input
                 aria-label={localize("连接标识", "Connection key")}
@@ -441,6 +675,7 @@ const DataSourcesPage: React.FC = () => {
                 saving ||
                 !name.trim() ||
                 !connectionKey.trim() ||
+                !setupUrl.trim() ||
                 markets.length === 0
               }
             >
@@ -479,8 +714,8 @@ const DataSourcesPage: React.FC = () => {
             <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success">
               <Newspaper className="h-3.5 w-3.5" />
               {localize(
-                `${financeNewsSources.length} 个来源·默认可用`,
-                `${financeNewsSources.length} sources · available by default`,
+                `${financeNewsSources.length} 个默认覆盖来源`,
+                `${financeNewsSources.length} sources in default coverage`,
               )}
             </span>
           </div>
@@ -511,9 +746,14 @@ const DataSourcesPage: React.FC = () => {
                         className="flex min-w-0 items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-foreground">
+                          <a
+                            href={source.websiteUrl ?? `https://${source.domain}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block truncate text-sm font-medium text-foreground underline-offset-4 hover:text-primary hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                          >
                             {source.name}
-                          </p>
+                          </a>
                           <p className="truncate font-mono text-[11px] text-muted-text">
                             {source.domain}
                           </p>
@@ -545,8 +785,8 @@ const DataSourcesPage: React.FC = () => {
           </h2>
           <p className="mt-1 text-sm text-secondary-text">
             {localize(
-              "Agent 任务默认使用自动路由；用户指定提供方或任务需要复现数据口径时，平台会核对以下连接。市场标签决定任务可选择的来源。",
-              "Agent tasks use automatic routing by default. When a user pins a provider or a task needs a reproducible dataset, the platform checks the following connections. Market tags determine task compatibility.",
+              "Agent 任务默认使用自动路由；点击来源名称旁的问号可打开官方注册或接入说明。每项都会标明真实的凭据形式与站内配置键，市场标签决定任务可选择的来源。",
+              "Agent tasks use automatic routing by default. Use the help icon beside a source to open its official registration or setup instructions. Each entry identifies its actual credential method and in-app configuration key; market tags determine task compatibility.",
             )}
           </p>
         </div>
@@ -584,17 +824,17 @@ const DataSourcesPage: React.FC = () => {
                         key={source.sourceId}
                         className="py-3 first:pt-0 last:pb-0"
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium text-foreground">
-                            {source.name}
-                          </p>
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${source.selectable ? "bg-success/10 text-success" : "bg-warning/10 text-warning"}`}
-                          >
-                            {source.selectable
-                              ? localize("已配置", "Configured")
-                              : localize("未配置", "Not configured")}
-                          </span>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <p className="min-w-0 text-sm font-medium text-foreground">
+                              {source.name}
+                            </p>
+                            {setupLink(source)}
+                          </div>
+                          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                            {configurationBadge(source)}
+                            {healthBadge(source)}
+                          </div>
                         </div>
                         <p className="mt-1 text-xs leading-5 text-secondary-text">
                           {source.description}
@@ -605,6 +845,19 @@ const DataSourcesPage: React.FC = () => {
                             `Markets: ${dataSourceMarketSummary(source, language)}`,
                           )}
                         </p>
+                        <p className="mt-1 break-words text-[11px] text-muted-text">
+                          {accessModeLabel(source)}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-[11px] text-muted-text">{healthDetail(source)}</p>
+                            {source.lastError ? <p className="mt-1 text-[11px] leading-5 text-danger">{source.lastError}</p> : null}
+                          </div>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {configureButton(source)}
+                            {probeButton(source)}
+                          </div>
+                        </div>
                       </div>
                     ))}
                 </div>
@@ -613,6 +866,16 @@ const DataSourcesPage: React.FC = () => {
           </div>
         )}
       </section>
+      {configuringSource ? (
+        <section aria-label={localize("数据源接入配置", "Data source connection settings")}>
+          <DataSourceAccessConfigPanel
+            key={configuringSource.sourceId}
+            source={configuringSource}
+            onClose={() => setConfiguringSourceId(null)}
+            onSaved={load}
+          />
+        </section>
+      ) : null}
       <section>
         <div className="mb-3">
           <h2 className="text-xl font-semibold text-foreground">
@@ -644,12 +907,15 @@ const DataSourcesPage: React.FC = () => {
                     <h3 className="font-medium text-foreground">
                       {source.name}
                     </h3>
+                    {setupLink(source)}
                     <span className="rounded-full bg-hover px-2 py-0.5 text-xs text-secondary-text">
                       {kindLabel[source.kind]}
                     </span>
                     <span className="rounded-full bg-hover px-2 py-0.5 text-xs text-secondary-text">
                       {dataSourceMarketSummary(source, language)}
                     </span>
+                    {configurationBadge(source)}
+                    {healthBadge(source)}
                   </div>
                   <p className="mt-1 text-sm text-secondary-text">
                     {source.description ||
@@ -665,6 +931,8 @@ const DataSourcesPage: React.FC = () => {
                       "registered; adapter checked at runtime",
                     )}
                   </p>
+                  <p className="mt-1 text-xs text-muted-text">{accessModeLabel(source)}</p>
+                  <p className="mt-1 text-xs text-muted-text">{healthDetail(source)}</p>
                 </div>
                 <button
                   type="button"

@@ -376,7 +376,7 @@ class StrategyDataSourceCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     description: Optional[str] = Field(None, max_length=1000)
     connectionKey: str = Field(..., min_length=2, max_length=160)
-    kind: Literal["kline", "news", "fundamentals", "other"]
+    kind: Literal["kline", "news", "fundamentals", "macro", "other"]
     markets: list[Literal["cn", "hk", "us"]] = Field(..., min_length=1, max_length=3)
 
 

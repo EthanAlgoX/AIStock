@@ -84,6 +84,37 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
 
     @patch("src.config.setup_env")
     @patch.object(Config, "_parse_litellm_yaml", return_value=[])
+    def test_load_from_env_reads_hithink_finance_settings(
+        self, _mock_parse_litellm_yaml, _mock_setup_env
+    ):
+        with patch.dict(
+            os.environ,
+            {
+                "STOCK_LIST": "600519",
+                "HITHINK_FINANCE_API_KEY": "hf-secret",
+                "HITHINK_FINANCE_BASE_URL": "https://finance.example.test",
+                "HITHINK_FINANCE_TIMEOUT_SECONDS": "9.5",
+                "HITHINK_FINANCE_PRIORITY": "1",
+            },
+            clear=True,
+        ):
+            config = Config._load_from_env()
+
+        self.assertEqual(config.hithink_finance_api_key, "hf-secret")
+        self.assertEqual(config.hithink_finance_base_url, "https://finance.example.test")
+        self.assertEqual(config.hithink_finance_timeout_seconds, 9.5)
+        self.assertEqual(config.hithink_finance_priority, 1)
+
+    @patch("src.config.setup_env")
+    @patch.object(Config, "_parse_litellm_yaml", return_value=[])
+    def test_load_from_env_reads_fred_api_key(self, _mock_parse_litellm_yaml, _mock_setup_env):
+        with patch.dict(os.environ, {"STOCK_LIST": "AAPL", "FRED_API_KEY": "fred-secret"}, clear=True):
+            config = Config._load_from_env()
+
+        self.assertEqual(config.fred_api_key, "fred-secret")
+
+    @patch("src.config.setup_env")
+    @patch.object(Config, "_parse_litellm_yaml", return_value=[])
     def test_market_review_region_accepts_comma_separated_supported_values(
         self, _mock_parse_litellm_yaml, _mock_setup_env
     ):

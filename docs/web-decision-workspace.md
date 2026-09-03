@@ -40,10 +40,10 @@ Web 产品以主 Agent 为统一交互和任务编排层。主 Agent、个股分
 
 后端统一管理以下对象：
 
-- `Task`：研究、选股、交易或专家评审的可编辑定义；
+- `Task`：个股研究、选股、交易、专家评审、市场宏观或产业分析的可编辑定义；
 - `DataSnapshot`：本次运行的数据来源 ID、目录状态和 `asOf` 时点；
 - `Run`：手动或定时触发的一次执行，可排队、运行、取消、完成或失败；
-- `Artifact`：`ResearchReport`、`ScreenSpec`、`CandidateList`、`ExpertReview`、`TradeProposal`、`RiskAssessment` 或 `PaperTradingRun`；
+- `Artifact`：`ResearchReport`、`ScreenSpec`、`CandidateList`、`ExpertReview`、`MarketAnalysisReport`、`IndustryReport`、`TradeProposal`、`RiskAssessment` 或 `PaperTradingRun`；
 - `Schedule`：每日固定时间或分钟间隔计划。
 
 每次 Run 都冻结任务版本与能力清单。服务重启时，无法恢复的排队或执行中任务会被明确标记失败，不会永久显示“运行中”。用户可以在 `/runs` 查看结果、错误和成果对象。
@@ -53,6 +53,22 @@ Web 产品以主 Agent 为统一交互和任务编排层。主 Agent、个股分
 ### 主 Agent
 
 `/overview` 使用流式 Agent API，支持会话、上下文、停止操作和任务级能力绑定。页面始终显示“主 Agent”，不会把底层引擎名称作为产品信息展示。工作区禁用的 Skill 和 Tool 不会再出现在可选目录或最终请求中。
+
+### 市场情报
+
+`/market-intelligence` 按 A 股、港股和美股分别读取数据，不会把其他市场的报告或前端示例数据填充到当前市场。切换市场时，页面通过 `/api/v1/analysis/market-snapshot` 读取无需 LLM 的轻量实时指数与宏观快照；如果该市场已有完整复盘，则同时展示最近一次 Agent 摘要。历史复盘中的摘要保留原始生成时间，实时数据保留本次采集时间。
+
+“生成最新复盘”会通过 `/api/v1/analysis/market-review` 创建真实后台任务，并轮询任务状态；任务完成后重新载入持久化报告。“刷新数据”会跳过短时缓存重新请求实时市场快照，同时重读报告、资讯和来源状态。页面同时读取 `/api/v1/intelligence/items` 中实际落库的市场与全球资讯，以及 `/api/v1/intelligence/sources` 的最近同步结果。工作区数据源的 `selectable` 只表示目录配置满足运行前检查，不等同于远端提供方健康或本次快照实际使用。
+
+用户可以为 A 股、港股和美股分别开关 Agent 摘要、分析订阅、宏观监控、主要指数、市场宽度、板块排行和市场资讯七种展示模块。看板布局、资讯来源和关注关键词通过 Workspace API 持久化；浏览器本地仅保留旧版本迁移回退。提供方路由仍由后端数据服务按市场、配置和失败降级规则决定，看板设置不会绕过该路由，也不会生成缺失指标。
+
+“分析订阅”把已有 Task 的最新成功 Artifact 发布到市场页面。个股分析和选股仍在各自工作台定义任务与能力，创建定时计划时可以选择“展示到市场看板”；市场页只返回结论、风险、置信度、成果时间和运行状态等摘要，不传输完整报告。点击摘要会进入 `/runs/{runId}` 查看冻结任务、数据快照和完整 Artifact。宏观分析与产业分析无需新增一级页面，可直接在市场看板编辑器中填写目标、设置每日运行时间并挂载 Skill、内置 Tool、MCP、数据源、专家或专家团；后端分别保存为 `market_analysis` / `industry_analysis` Task，并产出 `MarketAnalysisReport` / `IndustryReport`。
+
+资讯订阅直接过滤情报服务已经落库的真实内容。用户可以指定一个或多个启用资讯源，并添加最多 20 个关注关键词；不选择来源或关键词时保持当前市场与全球资讯的默认聚合。原始资讯不被冒充为 Agent 判断，需要解释时应通过宏观、产业或其他分析任务形成独立 Artifact。
+
+宏观监控固定拆成两层：A 股、港股、美股分别展示自己的核心传导链和重点变量，三地共同使用 15 项每日宏观检查表。复盘由 `global-macro-review` 加对应市场 Skill 约束分析方法，所有读取统一经过只读 `get_macro_indicators` Tool 与数据源权限检查。免密钥 ApocData 公共接口提供中国 GDP、CPI、PPI、PMI，Yahoo Finance 提供美国 10 年期国债收益率、DXY、USD/CNH、USD/JPY、VIX、Brent 和铜等高频市场观测；配置 `FRED_API_KEY` 后，FRED 官方序列优先补充美国 2Y/10Y、实际利率、高收益债利差、通胀与就业。社融、房地产和 Fed 政策预期等未接入项仍只显示“待接入”，不展示估算值。历史报告没有 `macro_indicators` 时仍可正常打开，并可从已有美股指数快照复用 VIX。
+
+这些 Skill 分别改造自 MIT 许可的 [`gauss314/skills`](https://github.com/gauss314/skills) 与 [`openclaw-data-china-stock`](https://github.com/shaoxing-xie/openclaw-data-china-stock)；中国基础发布值接口参考 Apache-2.0 许可的 [`ApocData-skill`](https://github.com/ApocData/ApocData-skill)。项目只复用分析契约与公开接口，不执行第三方 Skill 自带脚本。来源详情见 `THIRD_PARTY_NOTICES.md`。
 
 ### 个股分析
 
@@ -85,5 +101,9 @@ Web 产品以主 Agent 为统一交互和任务编排层。主 Agent、个股分
 - 数据快照目前冻结来源目录、可用状态与运行时点，不是底层供应商原始数据的完整不可变副本；
 - 独立 Agent 引擎的 OpenAI-compatible 流不返回完整内部 Tool/MCP 轨迹，网站只能记录最终结果、能力策略 ID 和自身侧工具审计；
 - 模拟交易当前停留在提案层，没有成交撮合、资金曲线和绩效归因；
-- 自定义数据源登记的是已配置连接标识，具体适配器仍需由系统设置或后端服务提供。
+- 数据源的“配置状态”和“实测状态”严格分离：“已配置”只表示具备发起请求的必要配置；“可用 / 部分可用 / 不可用”只来自用户主动触发的有界真实请求。检测结果会保存最近检测时间、耗时、有效记录数和脱敏失败原因，未检测来源不会被展示为可用。
+- 每个实际提供方在目录中声明官方注册或接入说明链接、认证形式和准确配置键。API Key、Token、免密钥 SDK、自建实例地址与账号授权不会混为同一种表单；用户可从来源旁的说明图标打开官网，并在站内只编辑该适配器声明的受保护配置字段。系统自动路由和本地数据库不是外部提供方，因此明确显示为无需注册且不伪造外链。
+- 自定义数据源登记的是官方接入说明、认证形式和已配置连接标识，具体适配器仍需由系统设置或后端服务提供；目录只保存无密钥元数据，不保存 API Key、Token 或账号密码。没有绑定可执行适配器时仅显示“已登记 / 未检测”，不能进行在线检测，也不会进入实测可用统计。
 - 数据源目录统一通过 `/api/v1/workspace/data-sources` 查询、登记和归档；旧 `/api/v1/simulation/definition/data-sources` 仅保留历史客户端兼容，不再由 Agent-first 页面直接调用。
+- 单源在线检测使用 `POST /api/v1/workspace/data-sources/{sourceId}/probe`。行情检测固定一个代表性标的并校验 K 线必要字段与新鲜度；新闻检测要求结果通过现有时效和相关性过滤；基本面检测区分完整与部分字段；本地日线库检测真实记录数和最近交易日。检测最长等待 20 秒，并限制并发，避免外部源拖住 Web 请求。
+- 市场情报的轻量快照按需请求并使用 120 秒进程内缓存，不是持续推送的逐笔行情；完整 Agent 结论仍只在用户生成复盘后保存。

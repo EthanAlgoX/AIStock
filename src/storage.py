@@ -1274,6 +1274,27 @@ class WorkspaceMcpServerRecord(Base):
     updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
 
 
+class WorkspaceDataSourceHealthRecord(Base):
+    """Last explicit connectivity check for a workspace data source.
+
+    Configuration state remains part of the data-source catalog.  This table
+    records an observed runtime result so a configured source is never
+    presented as healthy merely because its credentials or adapter exist.
+    """
+
+    __tablename__ = 'workspace_data_source_health'
+
+    source_id = Column(String(128), primary_key=True)
+    health_status = Column(String(24), nullable=False, default='not_tested', index=True)
+    latency_ms = Column(Integer)
+    record_count = Column(Integer)
+    error_code = Column(String(64))
+    error_message = Column(Text)
+    detail_json = Column(Text, nullable=False, default='{}')
+    last_checked_at = Column(DateTime, nullable=False, default=utc_naive_now, index=True)
+    updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
+
+
 class WorkspaceExpertRecord(Base):
     """Versioned expert Persona Prompt executed by the shared Agent runtime."""
 
@@ -1411,6 +1432,37 @@ class WorkspaceScheduleRecord(Base):
     __table_args__ = (Index('ix_workspace_schedule_due', 'enabled', 'next_run_at'),)
 
 
+class WorkspaceMarketDashboardRecord(Base):
+    """Workspace-level presentation preferences for one market dashboard."""
+
+    __tablename__ = 'workspace_market_dashboards'
+
+    market = Column(String(16), primary_key=True)
+    config_json = Column(Text, nullable=False, default='{}')
+    created_at = Column(DateTime, default=utc_naive_now, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
+
+
+class WorkspaceMarketSubscriptionRecord(Base):
+    """Publish the latest successful artifact of a task into a market dashboard."""
+
+    __tablename__ = 'workspace_market_subscriptions'
+
+    id = Column(String(64), primary_key=True)
+    task_id = Column(String(64), ForeignKey('workspace_tasks.id'), nullable=False, index=True)
+    market = Column(String(16), nullable=False, index=True)
+    title = Column(String(160), nullable=False)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    position = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=utc_naive_now, nullable=False, index=True)
+    updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
+
+    __table_args__ = (
+        UniqueConstraint('task_id', 'market', name='uix_workspace_market_subscription_task_market'),
+        Index('ix_workspace_market_subscription_market_position', 'market', 'position'),
+    )
+
+
 class SimulationDataSourceRecord(Base):
     """User-maintained data-source catalog entry for strategy authorization.
 
@@ -1428,6 +1480,8 @@ class SimulationDataSourceRecord(Base):
     markets_json = Column(Text, nullable=False, default='[]')
     description = Column(Text)
     connection_key = Column(String(160), nullable=False)
+    setup_url = Column(Text)
+    access_mode = Column(String(32), nullable=False, default='custom')
     archived_at = Column(DateTime, index=True)
     created_at = Column(DateTime, default=utc_naive_now, nullable=False, index=True)
     updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
@@ -2239,6 +2293,8 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             },
             'simulation_data_sources': {
                 'markets_json': "TEXT NOT NULL DEFAULT '[]'",
+                'setup_url': 'TEXT',
+                'access_mode': "VARCHAR(32) NOT NULL DEFAULT 'custom'",
             },
             'simulation_audit_events': {
                 'actor_id': 'VARCHAR(128)',

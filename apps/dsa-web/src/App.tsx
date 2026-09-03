@@ -39,6 +39,7 @@ const TradingWorkspacePage = lazy(() => import("./pages/TradingWorkspacePage"));
 const ScheduledTasksPage = lazy(() => import("./pages/ScheduledTasksPage"));
 const ExpertReviewPage = lazy(() => import("./pages/ExpertReviewPage"));
 const TaskRunsPage = lazy(() => import("./pages/TaskRunsPage"));
+const TaskRunDetailPage = lazy(() => import("./pages/TaskRunDetailPage"));
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -109,7 +110,8 @@ const AppContent: React.FC = () => {
         <Route path="/expert-review" element={<ExpertReviewPage />} />
         <Route path="/backtest" element={<Navigate to="/overview" replace />} />
         <Route path="/alerts" element={<Navigate to="/schedules" replace />} />
-        <Route path="/runs/*" element={<TaskRunsPage />} />
+        <Route path="/runs" element={<TaskRunsPage />} />
+        <Route path="/runs/:runId" element={<TaskRunDetailPage />} />
         <Route path="/usage" element={<TokenUsagePage />} />
         <Route path="/simulation" element={<Navigate to="/trading" replace />} />
         <Route path="/strategy-editor" element={<Navigate to="/overview" replace />} />

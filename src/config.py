@@ -879,6 +879,11 @@ class Config:
 
     # === 数据源 API Token ===
     tushare_token: Optional[str] = None
+    fred_api_key: Optional[str] = None
+    hithink_finance_api_key: Optional[str] = None
+    hithink_finance_base_url: str = "https://fuyao.aicubes.cn"
+    hithink_finance_timeout_seconds: float = 15.0
+    hithink_finance_priority: int = 0
     tickflow_api_key: Optional[str] = None
     tickflow_kline_adjust: str = "none"
     tickflow_priority: int = 2
@@ -1785,6 +1790,21 @@ class Config:
             feishu_app_secret=os.getenv('FEISHU_APP_SECRET'),
             feishu_folder_token=os.getenv('FEISHU_FOLDER_TOKEN'),
             tushare_token=os.getenv('TUSHARE_TOKEN'),
+            fred_api_key=os.getenv('FRED_API_KEY') or None,
+            hithink_finance_api_key=os.getenv('HITHINK_FINANCE_API_KEY') or None,
+            hithink_finance_base_url=(os.getenv('HITHINK_FINANCE_BASE_URL') or 'https://fuyao.aicubes.cn').strip(),
+            hithink_finance_timeout_seconds=parse_env_float(
+                os.getenv('HITHINK_FINANCE_TIMEOUT_SECONDS'),
+                15.0,
+                field_name='HITHINK_FINANCE_TIMEOUT_SECONDS',
+                minimum=0.1,
+            ),
+            hithink_finance_priority=parse_env_int(
+                os.getenv('HITHINK_FINANCE_PRIORITY'),
+                0,
+                field_name='HITHINK_FINANCE_PRIORITY',
+                minimum=0,
+            ),
             tickflow_api_key=os.getenv('TICKFLOW_API_KEY'),
             tickflow_kline_adjust=normalize_tickflow_kline_adjust(os.getenv('TICKFLOW_KLINE_ADJUST')),
             tickflow_priority=parse_env_int(os.getenv('TICKFLOW_PRIORITY'), 2, field_name='TICKFLOW_PRIORITY', minimum=0),
@@ -2922,11 +2942,11 @@ class Config:
     @classmethod
     def _resolve_realtime_source_priority(cls) -> str:
         """
-        Resolve realtime source priority with automatic tushare injection.
+        Resolve realtime source priority with configured provider injection.
 
-        When TUSHARE_TOKEN is configured but REALTIME_SOURCE_PRIORITY is not
-        explicitly set, automatically prepend 'tushare' to the default priority
-        so that the paid data source is utilized for realtime quotes as well.
+        When supported token providers are configured but
+        REALTIME_SOURCE_PRIORITY is not explicitly set, prepend them to the
+        default chain so their realtime quote capability is actually used.
         """
         explicit = os.getenv('REALTIME_SOURCE_PRIORITY')
         default_priority = 'tencent,akshare_sina,efinance,akshare_em'
@@ -2935,19 +2955,19 @@ class Config:
             # User explicitly set priority, respect it
             return explicit
 
-        tushare_token = os.getenv('TUSHARE_TOKEN', '').strip()
-        if tushare_token:
-            # Token configured but no explicit priority override
-            # Prepend tushare so the paid source is tried first
+        configured_sources: List[str] = []
+        if os.getenv('HITHINK_FINANCE_API_KEY', '').strip():
+            configured_sources.append('hithink_finance')
+        if os.getenv('TUSHARE_TOKEN', '').strip():
+            configured_sources.append('tushare')
+        resolved = ','.join([*configured_sources, default_priority])
+        if configured_sources:
             import logging
-            logger = logging.getLogger(__name__)
-            resolved = f'tushare,{default_priority}'
-            logger.info(
-                f"TUSHARE_TOKEN detected, auto-injecting tushare into realtime priority: {resolved}"
+            logging.getLogger(__name__).info(
+                "Configured realtime providers auto-injected: %s",
+                ",".join(configured_sources),
             )
-            return resolved
-
-        return default_priority
+        return resolved
 
     @classmethod
     def reset_instance(cls) -> None:

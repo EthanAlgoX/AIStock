@@ -73,17 +73,56 @@ def test_workspace_capability_manifest_and_task_schedule_round_trip(workspace_cl
     assert workspace_client.get("/workspace/schedules").json()[0]["name"] == "开盘前选股"
 
 
+def test_market_dashboard_and_task_subscription_round_trip(workspace_client):
+    task = workspace_client.post("/workspace/tasks", json={
+        "kind": "research",
+        "name": "Apple 每日跟踪",
+        "market": "US",
+        "objective": "跟踪盈利质量、估值和风险事件",
+        "subject": {"stock": "AAPL", "stockName": "Apple"},
+        "config": {},
+        "capabilities": {},
+    }).json()
+    schedule = workspace_client.post("/workspace/schedules", json={
+        "taskId": task["id"],
+        "name": "Apple 收盘复盘",
+        "scheduleMode": "daily",
+        "runAt": "17:00",
+        "timezone": "America/New_York",
+        "publishToMarket": True,
+    })
+    assert schedule.status_code == 201
+
+    updated = workspace_client.put("/workspace/market-dashboards/US", json={
+        "widgetIds": ["overview", "subscriptions", "news"],
+        "newsSourceIds": [],
+        "newsKeywords": ["Fed"],
+    })
+    assert updated.status_code == 200
+    assert updated.json()["newsKeywords"] == ["Fed"]
+    assert updated.json()["subscriptions"][0]["taskId"] == task["id"]
+
+    subscription_id = updated.json()["subscriptions"][0]["id"]
+    removed = workspace_client.delete(f"/workspace/market-subscriptions/{subscription_id}")
+    assert removed.status_code == 200
+    assert workspace_client.get("/workspace/market-dashboards/US").json()["subscriptions"] == []
+
+
 def test_workspace_data_source_round_trip_uses_agent_first_api(workspace_client):
     created = workspace_client.post("/workspace/data-sources", json={
         "name": "测试行情仓",
         "description": "用于 Agent 研究任务",
         "connectionKey": "test_market_warehouse",
+        "setupUrl": "https://data.example.com/register",
+        "accessMode": "api_key",
         "kind": "kline",
         "markets": ["cn", "hk"],
     })
     assert created.status_code == 201
     assert created.json()["builtIn"] is False
     assert created.json()["sourceId"].startswith("custom:")
+    assert created.json()["setupUrl"] == "https://data.example.com/register"
+    assert created.json()["accessMode"] == "api_key"
 
     listed = workspace_client.get("/workspace/data-sources")
     assert listed.status_code == 200
@@ -96,6 +135,24 @@ def test_workspace_data_source_round_trip_uses_agent_first_api(workspace_client)
         item["sourceId"] != created.json()["sourceId"]
         for item in workspace_client.get("/workspace/data-sources").json()
     )
+
+
+def test_workspace_data_source_probe_returns_observed_health(workspace_client, workspace_service):
+    probe_result = {
+        "status": "degraded",
+        "recordCount": 0,
+        "errorCode": "empty_result",
+        "error": "请求成功，但没有有效记录。",
+        "detail": {"provider": "FinanceRSS"},
+    }
+    with patch.object(workspace_service, "_run_data_source_probe", return_value=probe_result):
+        response = workspace_client.post("/workspace/data-sources/news%3Afinance_rss/probe")
+
+    assert response.status_code == 200
+    assert response.json()["availability"] == "configured"
+    assert response.json()["healthStatus"] == "degraded"
+    assert response.json()["operational"] is True
+    assert response.json()["lastErrorCode"] == "empty_result"
 
 
 def test_workspace_data_source_rejects_invalid_market_before_service_call(workspace_client):

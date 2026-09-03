@@ -96,6 +96,7 @@ class MarketOverview:
     limit_up_count: int = 0             # 涨停家数
     limit_down_count: int = 0           # 跌停家数
     total_amount: float = 0.0           # 两市成交额（亿元）
+    macro_indicators: List[Dict[str, Any]] = field(default_factory=list)
     # north_flow: float = 0.0           # 北向资金净流入（亿元）- 已废弃，接口不可用
     
     # 板块涨幅榜
@@ -237,6 +238,30 @@ class MarketAnalyzer:
                 return "Analyze the key moves in the KOSPI, KOSDAQ, and other major Korean indices."
             return "Analyze the price action in the SSE, SZSE, ChiNext, and other major indices."
         return self.profile.prompt_index_hint
+
+    def _get_macro_skill_ids(self) -> List[str]:
+        regional = {
+            "cn": "a-share-macro-review",
+            "hk": "hk-macro-review",
+            "us": "us-macro-review",
+        }.get(self.region)
+        return ["global-macro-review", regional] if regional else ["global-macro-review"]
+
+    def _get_macro_skill_prompt_block(self) -> str:
+        """Load the market-specific Skill through the shared Skill registry."""
+        try:
+            from src.agent.factory import get_skill_manager
+
+            manager = get_skill_manager(getattr(self, "config", None))
+            skill_ids = [item for item in self._get_macro_skill_ids() if manager.get(item)]
+            manager.activate(skill_ids)
+            instructions = manager.get_skill_instructions().strip()
+        except Exception as exc:
+            logger.warning("[大盘] %s action=load_macro_skills status=failed error=%s", self._log_context(), exc)
+            return ""
+        if not instructions:
+            return ""
+        return f"## Agent 宏观分析 Skill\n{instructions}"
 
     def _get_strategy_prompt_block(self) -> str:
         if self.region == "hk" and self._get_review_language() == "en":
@@ -434,6 +459,10 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         # 1. 获取主要指数行情（按 region 切换 A 股/美股）
         overview.indices = self._get_main_indices()
 
+        # 全球宏观高频指标对 A 股、港股和美股都构成共同上下文。
+        # 数据源缺失时保持空列表，不生成估算值或示例值。
+        overview.macro_indicators = self._get_macro_indicators()
+
         # 2. 获取涨跌统计（A 股有，美股无等效数据）
         if self.profile.has_market_stats:
             self._get_market_statistics(overview)
@@ -447,6 +476,24 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         # self._get_north_flow(overview)
         
         return overview
+
+    def _get_macro_indicators(self) -> List[Dict[str, Any]]:
+        """Fetch real high-frequency macro observations for the review snapshot."""
+        try:
+            rows = self.data_manager.get_macro_indicators(region=self.region)
+        except Exception as exc:
+            logger.warning("[大盘] %s action=get_macro_indicators status=failed error=%s", self._log_context(), exc)
+            return []
+        if not isinstance(rows, list):
+            return []
+        indicators = [row for row in rows if isinstance(row, dict) and row.get("key")]
+        logger.info(
+            "[大盘] %s action=get_macro_indicators status=%s count=%d",
+            self._log_context(),
+            "success" if indicators else "empty",
+            len(indicators),
+        )
+        return indicators
 
     
     def _get_main_indices(self) -> List[MarketIndex]:
@@ -802,6 +849,8 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             "date": overview.date,
             "market_scope": self._get_market_scope_name(language),
             "indices": [idx.to_dict() for idx in overview.indices],
+            "macro_indicators": list(overview.macro_indicators or []),
+            "analysis_skills": self._get_macro_skill_ids(),
             "sectors": {
                 "top": list(overview.top_sectors or []),
                 "bottom": list(overview.bottom_sectors or []),
@@ -1425,6 +1474,25 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         for idx in overview.indices:
             direction = "↑" if idx.change_pct > 0 else "↓" if idx.change_pct < 0 else "-"
             indices_text += f"- {idx.name}: {idx.current:.2f} ({direction}{abs(idx.change_pct):.2f}%)\n"
+
+        macro_text = ""
+        for item in overview.macro_indicators:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or item.get("key") or "").strip()
+            try:
+                current = float(item.get("current"))
+                change_pct = float(item.get("change_pct"))
+            except (TypeError, ValueError):
+                continue
+            unit = str(item.get("unit") or "").strip()
+            unit_suffix = f" {unit}" if unit else ""
+            change_label = str(item.get("change_label") or "日变动").strip()
+            as_of = str(item.get("as_of") or "").strip()
+            source = str(item.get("source") or "").strip()
+            provenance = " / ".join(part for part in (source, as_of) if part)
+            provenance_suffix = f" [{provenance}]" if provenance else ""
+            macro_text += f"- {name}: {current:.3f}{unit_suffix} ({change_label} {change_pct:+.2f}%){provenance_suffix}\n"
         
         # 板块信息
         top_sectors_text = self._format_ranking_summary(overview.top_sectors)
@@ -1565,6 +1633,9 @@ Concept lagging: {bottom_concepts_text if bottom_concepts_text else "N/A"}"""
 ## Major Indices
 {indices_placeholder}
 
+## Global Macro Market Tape
+{macro_text if macro_text else "No connected high-frequency macro observations"}
+
 {stats_block}
 
 {sector_block}
@@ -1577,6 +1648,8 @@ Concept lagging: {bottom_concepts_text if bottom_concepts_text else "N/A"}"""
 {data_no_indices_hint}
 
 {self._get_strategy_prompt_block()}
+
+{self._get_macro_skill_prompt_block()}
 
 ---
 
@@ -1619,6 +1692,9 @@ Output the report content directly, no extra commentary.
 ## 主要指数
 {indices_placeholder}
 
+## 全球宏观高频指标
+{macro_text if macro_text else "暂无已接入的宏观高频指标；不要编造数值"}
+
 {stats_block}
 
 {sector_block}
@@ -1631,6 +1707,8 @@ Output the report content directly, no extra commentary.
 {data_no_indices_hint}
 
 {self._get_strategy_prompt_block()}
+
+{self._get_macro_skill_prompt_block()}
 
 ---
 

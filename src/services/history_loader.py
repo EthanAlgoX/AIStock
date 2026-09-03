@@ -153,6 +153,7 @@ def load_history_df(
         "kline:baostock": "BaostockFetcher",
         "kline:yfinance": "YfinanceFetcher",
         "kline:tushare": "TushareFetcher",
+        "kline:hithink_finance": "HiThinkFinanceFetcher",
         "kline:efinance": "EfinanceFetcher",
         "kline:pytdx": "PytdxFetcher",
     }

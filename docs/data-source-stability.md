@@ -8,7 +8,7 @@
 
 如果遇到“数据源失败”，通常不是系统只能用一个源，而是免费源被限流、上游接口临时变更、网络抖动或当前市场/标的不支持。DSA 已经内置多数据源 fallback，会按场景自动尝试下一个源；如果你希望更稳定，建议至少配置一个 token 型稳定源：
 
-- A 股个股与选股：优先配置 `TUSHARE_TOKEN`，并保留 AkShare / Efinance / Tencent / Baostock / YFinance 兜底。
+- A 股个股：可配置 `HITHINK_FINANCE_API_KEY` 或 `TUSHARE_TOKEN`，并保留 AkShare / Efinance / Tencent / Baostock / YFinance 兜底。
 - A 股大盘复盘：配置 `TICKFLOW_API_KEY` 后，指数和市场宽度会优先尝试 TickFlow，失败后回退现有免费源。
 - 港股 / 美股：配置 `LONGBRIDGE_*` 后优先使用 Longbridge，YFinance、Finnhub、AlphaVantage 继续兜底。
 - 热点题材：选股的热点实现参考 AlphaSift，默认走 EastMoney provider，并使用本地 last-good cache 降低实时接口失败影响。
@@ -17,9 +17,9 @@
 
 | 场景 | 已接入源 | 默认使用方式 | 失败处理 |
 | --- | --- | --- | --- |
-| A 股日线 / 技术面 | Efinance、Tencent、AkShare、Tushare、Pytdx、Baostock、YFinance | `DataFetcherManager` 按优先级尝试；配置 `TUSHARE_TOKEN` 后 Tushare 自动进入候选源 | 单源失败后尝试下一个源；连续失败会短期熔断该源 |
-| A 股实时行情 | Tencent、AkShare Sina、Efinance、AkShare EM、Tushare | `REALTIME_SOURCE_PRIORITY` 控制顺序，默认偏向 Tencent / Sina 这类轻量源 | 失败源记录 `fallback_from`，成功源继续返回 |
-| A 股大盘复盘 | TickFlow、AkShare、Tushare、Efinance | 配置 `TICKFLOW_API_KEY` 后，主指数和市场宽度优先尝试 TickFlow | TickFlow 权限不足或失败时回退 AkShare / Tushare / Efinance 链路 |
+| A 股日线 / 技术面 | HiThink Financial API、Efinance、Tencent、AkShare、Tushare、Pytdx、Baostock、YFinance | `DataFetcherManager` 按优先级尝试；配置对应密钥后 token 型来源自动进入候选源 | 单源失败后尝试下一个源；连续失败会短期熔断该源 |
+| A 股实时行情 | HiThink Financial API、Tencent、AkShare Sina、Efinance、AkShare EM、Tushare | `REALTIME_SOURCE_PRIORITY` 控制顺序；未显式配置时自动注入已配置的 HiThink/Tushare | 失败源记录 `fallback_from`，成功源继续返回 |
+| A 股大盘复盘 | TickFlow、HiThink Financial API、AkShare、Tushare、Efinance | 各已配置来源按管理器优先级尝试主要指数 | 单源权限不足或失败时继续现有回退链 |
 | 选股快照 | Tushare、Sina、Efinance、AkShare EM、EastMoney Datacenter | 有 `TUSHARE_TOKEN` 时自动把 `tushare` 放入快照优先级；否则使用免费源链路 | 选股引擎维护 source health；状态接口透出 snapshot/daily health |
 | 选股日线补特征 | `DataFetcherManager` | 选股引擎优先复用现有日线与缓存链路 | 现有链路失败后才回到引擎自身的日线源 |
 | 选股热点题材 | EastMoney provider、参考 AlphaSift 的 hotspot 实现、last-good cache | 未指定 provider 时默认使用 EastMoney provider | 实时失败时回退热点缓存；无缓存时返回稳定空态和可读错误 |
@@ -138,7 +138,8 @@ ENABLE_EASTMONEY_PATCH=true
 TUSHARE_TOKEN=your_tushare_token
 TICKFLOW_API_KEY=your_tickflow_key
 
-REALTIME_SOURCE_PRIORITY=tickflow,tushare,tencent,akshare_sina,efinance,akshare_em
+HITHINK_FINANCE_API_KEY=your_hithink_key
+REALTIME_SOURCE_PRIORITY=hithink_finance,tickflow,tushare,tencent,akshare_sina,efinance,akshare_em
 SNAPSHOT_SOURCE_PRIORITY=tushare,sina,efinance,akshare_em,em_datacenter
 
 # 选股运行期默认值；显式配置时会保留你的值
@@ -168,6 +169,16 @@ LONGBRIDGE_APP_SECRET=your_app_secret
 LONGBRIDGE_ACCESS_TOKEN=your_access_token
 ```
 
+### 宏观数据模式
+
+宏观数据与 K 线使用独立能力类别。默认启用免密钥 ApocData 中国 GDP/CPI/PPI/PMI 和 YFinance 高频市场观测；配置 FRED 后，官方美国序列按稳定 key 优先覆盖相同指标。不同来源并发读取、按优先级合并，单一来源失败不会阻塞其他来源。
+
+```env
+FRED_API_KEY=your_fred_api_key
+```
+
+`get_macro_indicators` 只向 Agent 返回本次真实取得并带有来源、日期和频率的观测。数据源页面的“已配置”不代表远端可用，应以在线检测的“可用 / 部分可用 / 不可用”和复盘快照中的实际来源为准。社融、房地产、Fed Futures 等当前未绑定结构化适配器的项目保持缺失，不通过模型估算。
+
 ## 用户可见提示建议
 
 对外沟通时建议区分三类情况：
@@ -180,7 +191,7 @@ LONGBRIDGE_ACCESS_TOKEN=your_access_token
 
 ## 后续可做的产品化增强
 
-1. 数据源 Doctor 页面：展示每个源最近成功时间、失败原因、熔断状态和下一次恢复探测时间。
+1. 数据源页面已提供第一阶段 Doctor 能力：配置状态与运行健康分开展示，支持单源真实检测，并保存最近检测时间、耗时、有效记录数和失败原因。下一阶段再补充熔断状态与下一次恢复探测时间。
 2. 一键推荐配置：根据市场选择生成 `.env` 片段，例如“A 股稳定模式”“港美股稳定模式”“免费模式”。
 3. 选股状态面板：直接展示 snapshot/daily source health，让用户知道是 Sina、Efinance、AkShare 还是 Tushare 出问题。
 4. 批量任务限速策略：对免费源自动降低并发，优先复用本地日线缓存，减少触发上游限流。

@@ -29,7 +29,9 @@ class DataSourceCreateRequest(WorkspaceModel):
     name: str = Field(..., min_length=1, max_length=120)
     description: Optional[str] = Field(None, max_length=1000)
     connectionKey: str = Field(..., min_length=2, max_length=160)
-    kind: Literal["kline", "news", "fundamentals", "other"]
+    setupUrl: Optional[str] = Field(None, max_length=2048)
+    accessMode: Literal["no_credential", "api_key", "token", "base_url", "account", "custom"] = "custom"
+    kind: Literal["kline", "news", "fundamentals", "macro", "other"]
     markets: List[Literal["cn", "hk", "us"]] = Field(..., min_length=1, max_length=3)
 
 
@@ -104,7 +106,7 @@ class ExpertTeamUpdateRequest(WorkspaceModel):
 
 
 class TaskCreateRequest(WorkspaceModel):
-    kind: Literal["research", "screening", "trading", "expert_review"]
+    kind: Literal["research", "screening", "trading", "expert_review", "market_analysis", "industry_analysis"]
     name: str = Field(..., min_length=1, max_length=160)
     market: Literal["CN", "HK", "US", "GLOBAL"] = "CN"
     objective: str = Field(..., min_length=1, max_length=30000)
@@ -136,6 +138,8 @@ class ScheduleCreateRequest(WorkspaceModel):
     intervalMinutes: Optional[int] = Field(None, ge=5, le=10080)
     timezone: str = Field("Asia/Shanghai", min_length=1, max_length=64)
     enabled: bool = True
+    publishToMarket: bool = False
+    marketDashboardTitle: Optional[str] = Field(None, min_length=1, max_length=160)
 
 
 class ScheduleUpdateRequest(WorkspaceModel):
@@ -144,3 +148,22 @@ class ScheduleUpdateRequest(WorkspaceModel):
     intervalMinutes: Optional[int] = Field(None, ge=5, le=10080)
     timezone: Optional[str] = Field(None, min_length=1, max_length=64)
     enabled: Optional[bool] = None
+
+
+class MarketDashboardUpdateRequest(WorkspaceModel):
+    widgetIds: List[Literal["overview", "macro", "indices", "breadth", "sectors", "news", "subscriptions"]] = Field(..., min_length=1, max_length=7)
+    newsSourceIds: List[int] = Field(default_factory=list, max_length=100)
+    newsKeywords: List[str] = Field(default_factory=list, max_length=20)
+
+
+class MarketSubscriptionCreateRequest(WorkspaceModel):
+    taskId: str = Field(..., min_length=1, max_length=64)
+    market: Literal["CN", "HK", "US", "GLOBAL"]
+    title: Optional[str] = Field(None, min_length=1, max_length=160)
+    enabled: bool = True
+
+
+class MarketSubscriptionUpdateRequest(WorkspaceModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=160)
+    enabled: Optional[bool] = None
+    position: Optional[int] = Field(None, ge=0, le=10000)

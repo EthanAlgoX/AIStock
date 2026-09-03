@@ -144,6 +144,7 @@ class TestFetcherSourceOptimization(unittest.TestCase):
         self.assertEqual(
             manager.available_fetchers,
             [
+                "ApocDataMacroFetcher",
                 "EfinanceFetcher",
                 "AkshareFetcher",
                 "PytdxFetcher",

@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Regression tests for YfinanceFetcher HK bare-code routing.
+"""Regression tests for YfinanceFetcher symbol and date routing.
 
 Covers issue #2091: 4-5 digit pure numeric codes (e.g. 02513, 00700, 0001)
 must route to ``.HK`` rather than fall through to the ``.SZ`` default,
 otherwise Yahoo Finance returns 404 and the daily-data chain breaks.
 """
+
+from unittest.mock import patch
+
+import pandas as pd
 
 from data_provider.yfinance_fetcher import YfinanceFetcher
 
@@ -108,3 +112,21 @@ class TestETFAndSuffixUnchanged:
 
     def test_with_ss_suffix(self) -> None:
         assert YfinanceFetcher()._convert_stock_code("600519.SS") == "600519.SS"
+
+
+class TestInclusiveDateRange:
+    def test_download_converts_inclusive_end_to_yfinance_exclusive_end(self) -> None:
+        returned = pd.DataFrame(
+            {"Close": [100.0]},
+            index=pd.to_datetime(["2026-05-08"]),
+        )
+        with patch("yfinance.download", return_value=returned) as download:
+            frame = YfinanceFetcher()._fetch_raw_data(
+                "AAPL",
+                "2026-05-01",
+                "2026-05-08",
+            )
+
+        assert not frame.empty
+        assert download.call_args.kwargs["start"] == "2026-05-01"
+        assert download.call_args.kwargs["end"] == "2026-05-09"

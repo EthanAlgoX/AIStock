@@ -8,8 +8,9 @@ import logging
 import os
 import re
 import threading
+import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
 from urllib.parse import urlsplit
@@ -28,8 +29,11 @@ from src.storage import (
     WorkspaceArtifactRecord,
     WorkspaceCapabilityPreferenceRecord,
     WorkspaceDataSnapshotRecord,
+    WorkspaceDataSourceHealthRecord,
     WorkspaceExpertRecord,
     WorkspaceExpertTeamRecord,
+    WorkspaceMarketDashboardRecord,
+    WorkspaceMarketSubscriptionRecord,
     WorkspaceMcpServerRecord,
     WorkspaceRunRecord,
     WorkspaceScheduleRecord,
@@ -42,45 +46,65 @@ from src.storage import (
 logger = logging.getLogger(__name__)
 
 CAPABILITY_KINDS = {"skill", "tool", "mcp", "data_source", "expert", "expert_team"}
-TASK_KINDS = {"research", "screening", "trading", "expert_review"}
+TASK_KINDS = {"research", "screening", "trading", "expert_review", "market_analysis", "industry_analysis"}
 TASK_ARTIFACTS = {
     "research": ("ResearchReport",),
     "screening": ("ScreenSpec", "CandidateList"),
     "trading": ("TradeProposal", "RiskAssessment", "PaperTradingRun"),
     "expert_review": ("ExpertReview",),
+    "market_analysis": ("MarketAnalysisReport",),
+    "industry_analysis": ("IndustryReport",),
 }
-_DEFAULT_DATA_SOURCE_IDS = ("system_market_data", "system_news", "system_fundamentals")
+MARKET_DASHBOARD_WIDGETS = {"overview", "macro", "indices", "breadth", "sectors", "news", "subscriptions"}
+DEFAULT_MARKET_DASHBOARD_WIDGETS = ("overview", "macro", "indices", "breadth", "sectors", "news", "subscriptions")
+_DEFAULT_DATA_SOURCE_IDS = ("system_market_data", "system_news", "system_fundamentals", "system_macro_data")
 _DEFAULT_TOOL_IDS = {
     "chat": (
         "get_realtime_quote", "get_daily_history", "get_stock_info",
         "search_stock_news", "search_comprehensive_intel", "analyze_trend",
         "calculate_ma", "get_volume_analysis", "analyze_pattern",
         "get_market_indices", "get_sector_rankings", "screen_stock_universe",
+        "get_macro_indicators",
     ),
     "research": (
         "get_realtime_quote", "get_daily_history", "get_stock_info",
         "search_stock_news", "search_comprehensive_intel", "analyze_trend",
         "calculate_ma", "get_volume_analysis", "analyze_pattern",
         "get_chip_distribution", "get_capital_flow", "get_analysis_context",
+        "get_macro_indicators",
     ),
     "screening": (
         "screen_stock_universe", "get_market_indices", "get_sector_rankings",
         "search_comprehensive_intel",
+        "get_macro_indicators",
     ),
     "trading": (
         "get_realtime_quote", "get_daily_history", "get_portfolio_snapshot",
         "get_capital_flow", "search_stock_news", "analyze_trend",
         "calculate_ma", "get_volume_analysis", "analyze_pattern",
+        "get_macro_indicators",
     ),
     "expert_review": (
         "get_realtime_quote", "get_daily_history", "get_stock_info",
         "search_stock_news", "search_comprehensive_intel", "analyze_trend",
+        "get_macro_indicators",
+    ),
+    "market_analysis": (
+        "get_market_indices", "get_sector_rankings", "search_comprehensive_intel",
+        "get_macro_indicators",
+    ),
+    "industry_analysis": (
+        "get_market_indices", "get_sector_rankings", "screen_stock_universe",
+        "search_stock_news", "search_comprehensive_intel", "get_macro_indicators",
     ),
 }
 _ENV_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,159}$")
 _TIME_RE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.IGNORECASE | re.DOTALL)
 _WORKERS = ThreadPoolExecutor(max_workers=3, thread_name_prefix="workspace_run")
+_DATA_SOURCE_PROBE_WORKERS = ThreadPoolExecutor(max_workers=2, thread_name_prefix="data_source_probe")
+_DATA_SOURCE_PROBE_SLOTS = threading.BoundedSemaphore(2)
+_DATA_SOURCE_PROBE_TIMEOUT_SECONDS = 20.0
 _CANCEL_EVENTS: dict[str, threading.Event] = {}
 _CANCEL_LOCK = threading.Lock()
 
@@ -666,7 +690,296 @@ class WorkspaceService:
     def list_data_sources(self) -> list[dict[str, Any]]:
         from src.services.strategy_definition_service import StrategyDefinitionService
 
-        return StrategyDefinitionService(self.db).list_data_sources()
+        catalog = StrategyDefinitionService(self.db).list_data_sources()
+        with self.db.get_session() as session:
+            health_rows = {
+                row.source_id: row
+                for row in session.execute(select(WorkspaceDataSourceHealthRecord)).scalars().all()
+            }
+        return [self._with_data_source_health(item, health_rows.get(item["sourceId"])) for item in catalog]
+
+    @staticmethod
+    def _data_source_probe_supported(source: dict[str, Any]) -> bool:
+        source_id = str(source.get("sourceId") or "")
+        if source_id in {"system_market_data", "local_stock_daily", "system_news", "system_fundamentals", "system_macro_data"}:
+            return True
+        return bool(source.get("builtIn") and source.get("selectionMode") == "provider")
+
+    @classmethod
+    def _with_data_source_health(
+        cls,
+        source: dict[str, Any],
+        health: Optional[WorkspaceDataSourceHealthRecord],
+    ) -> dict[str, Any]:
+        configured = source.get("availability") != "unconfigured"
+        probe_supported = cls._data_source_probe_supported(source)
+        status = health.health_status if health else "not_tested"
+        if not configured:
+            status = "not_configured"
+        return {
+            **source,
+            "healthStatus": status,
+            "probeSupported": probe_supported,
+            "operational": status in {"available", "degraded"},
+            "lastCheckedAt": _iso(health.last_checked_at) if health else None,
+            "lastLatencyMs": health.latency_ms if health else None,
+            "lastRecordCount": health.record_count if health else None,
+            "lastErrorCode": health.error_code if health else None,
+            "lastError": health.error_message if health else None,
+            "healthDetail": _load(health.detail_json, {}) if health else {},
+        }
+
+    def probe_data_source(self, source_id: str) -> dict[str, Any]:
+        """Run one bounded, source-pinned probe and persist its observed result."""
+        catalog = {item["sourceId"]: item for item in self.list_data_sources()}
+        source = catalog.get(source_id)
+        if not source:
+            raise WorkspaceError("data_source_not_found", "数据源不存在。", 404)
+        if source.get("availability") == "unconfigured":
+            raise WorkspaceError("data_source_not_configured", "请先完成该数据源的必要配置。", 409)
+        if not self._data_source_probe_supported(source):
+            raise WorkspaceError(
+                "data_source_probe_unsupported",
+                "该目录项尚未绑定可执行适配器，无法进行在线检测。",
+                409,
+            )
+        if not _DATA_SOURCE_PROBE_SLOTS.acquire(blocking=False):
+            raise WorkspaceError("data_source_probe_busy", "已有数据源检测正在运行，请稍后重试。", 429)
+
+        started = time.monotonic()
+
+        def run_probe() -> dict[str, Any]:
+            try:
+                return self._run_data_source_probe(source)
+            finally:
+                _DATA_SOURCE_PROBE_SLOTS.release()
+
+        try:
+            future = _DATA_SOURCE_PROBE_WORKERS.submit(run_probe)
+        except Exception:
+            _DATA_SOURCE_PROBE_SLOTS.release()
+            raise
+
+        try:
+            result = future.result(timeout=_DATA_SOURCE_PROBE_TIMEOUT_SECONDS)
+        except FutureTimeoutError:
+            result = {
+                "status": "unavailable",
+                "recordCount": None,
+                "errorCode": "probe_timeout",
+                "error": f"检测在 {int(_DATA_SOURCE_PROBE_TIMEOUT_SECONDS)} 秒内未完成。",
+                "detail": {},
+            }
+        except Exception as exc:
+            logger.warning("Data source probe failed for %s: %s", source_id, exc)
+            result = {
+                "status": "unavailable",
+                "recordCount": None,
+                "errorCode": "request_failed",
+                "error": f"{type(exc).__name__}: 数据请求失败，请检查服务日志。",
+                "detail": {},
+            }
+
+        latency_ms = int((time.monotonic() - started) * 1000)
+        status = str(result.get("status") or "unavailable")
+        if status not in {"available", "degraded", "unavailable"}:
+            status = "unavailable"
+        with self.db.session_scope() as session:
+            row = session.get(WorkspaceDataSourceHealthRecord, source_id)
+            if row is None:
+                row = WorkspaceDataSourceHealthRecord(source_id=source_id)
+                session.add(row)
+            row.health_status = status
+            row.latency_ms = latency_ms
+            row.record_count = result.get("recordCount")
+            row.error_code = result.get("errorCode")
+            row.error_message = result.get("error")
+            row.detail_json = _dump(result.get("detail") or {})
+            row.last_checked_at = utc_naive_now()
+            row.updated_at = utc_naive_now()
+            session.flush()
+            health_item = self._with_data_source_health(source, row)
+        return health_item
+
+    def _run_data_source_probe(self, source: dict[str, Any]) -> dict[str, Any]:
+        kind = source.get("kind")
+        source_id = str(source.get("sourceId") or "")
+        if source_id == "local_stock_daily":
+            return self._probe_local_daily_data()
+        if kind == "kline":
+            return self._probe_kline_source(source)
+        if kind == "news":
+            return self._probe_news_source(source)
+        if kind == "fundamentals":
+            return self._probe_fundamental_source(source)
+        if kind == "macro":
+            return self._probe_macro_source(source)
+        raise RuntimeError("No runtime probe adapter")
+
+    @staticmethod
+    def _probe_macro_source(source: dict[str, Any]) -> dict[str, Any]:
+        from data_provider import DataFetcherManager
+
+        markets = [str(item).lower() for item in source.get("markets") or []]
+        region = "cn" if "cn" in markets else "hk" if "hk" in markets else "us" if "us" in markets else "global"
+        preferred = source.get("providerName") if source.get("selectionMode") == "provider" else None
+        rows = DataFetcherManager().get_macro_indicators(region=region, preferred_fetcher=preferred)
+        if not rows:
+            return {
+                "status": "degraded",
+                "recordCount": 0,
+                "errorCode": "empty_result",
+                "error": "连接已执行，但没有返回可用宏观观测值。",
+                "detail": {"region": region, "provider": preferred or "automatic"},
+            }
+        return {
+            "status": "available",
+            "recordCount": len(rows),
+            "errorCode": None,
+            "error": None,
+            "detail": {
+                "region": region,
+                "provider": preferred or "automatic",
+                "series": [str(item.get("key")) for item in rows if item.get("key")],
+                "sources": sorted({str(item.get("source")) for item in rows if item.get("source")}),
+            },
+        }
+
+    def _probe_local_daily_data(self) -> dict[str, Any]:
+        from src.storage import StockDaily
+
+        with self.db.get_session() as session:
+            count, latest, symbols = session.execute(
+                select(func.count(StockDaily.id), func.max(StockDaily.date), func.count(func.distinct(StockDaily.code)))
+            ).one()
+        if not count:
+            return {
+                "status": "degraded",
+                "recordCount": 0,
+                "errorCode": "empty_dataset",
+                "error": "连接正常，但本地日线库暂无可用记录。",
+                "detail": {"symbolCount": 0},
+            }
+        age_days = (datetime.now(timezone.utc).date() - latest).days if latest else None
+        status = "degraded" if age_days is None or age_days > 10 else "available"
+        return {
+            "status": status,
+            "recordCount": int(count),
+            "errorCode": "stale_dataset" if status == "degraded" else None,
+            "error": "本地日线数据超过 10 天未更新。" if status == "degraded" else None,
+            "detail": {"symbolCount": int(symbols or 0), "latestDate": latest.isoformat() if latest else None},
+        }
+
+    @staticmethod
+    def _probe_kline_source(source: dict[str, Any]) -> dict[str, Any]:
+        import pandas as pd
+
+        from data_provider import DataFetcherManager
+
+        markets = source.get("markets") or []
+        symbol = "AAPL" if "us" in markets and "cn" not in markets else "600519"
+        end = datetime.now(timezone.utc).date()
+        start = end - timedelta(days=21)
+        preferred = source.get("providerName") if source.get("selectionMode") == "provider" else None
+        frame, actual_provider = DataFetcherManager().get_daily_data(
+            symbol,
+            start_date=start.isoformat(),
+            end_date=end.isoformat(),
+            preferred_fetcher=preferred,
+        )
+        if frame is None or frame.empty:
+            return {
+                "status": "degraded",
+                "recordCount": 0,
+                "errorCode": "empty_result",
+                "error": "请求成功，但未返回可用 K 线。",
+                "detail": {"symbol": symbol, "provider": actual_provider},
+            }
+        missing = sorted({"date", "close", "volume"} - set(frame.columns))
+        if missing:
+            return {
+                "status": "unavailable",
+                "recordCount": int(len(frame)),
+                "errorCode": "invalid_schema",
+                "error": "数据已返回，但缺少必要 K 线字段。",
+                "detail": {"symbol": symbol, "provider": actual_provider, "missingFields": missing},
+            }
+        latest = pd.to_datetime(frame["date"], errors="coerce").max()
+        stale = pd.isna(latest) or (end - latest.date()).days > 10
+        return {
+            "status": "degraded" if stale else "available",
+            "recordCount": int(len(frame)),
+            "errorCode": "stale_result" if stale else None,
+            "error": "K 线已返回，但最新交易日距今超过 10 天。" if stale else None,
+            "detail": {
+                "symbol": symbol,
+                "provider": actual_provider,
+                "latestDate": None if pd.isna(latest) else latest.date().isoformat(),
+            },
+        }
+
+    @staticmethod
+    def _probe_news_source(source: dict[str, Any]) -> dict[str, Any]:
+        from src.search_service import get_search_service
+
+        provider = source.get("providerName") if source.get("selectionMode") == "provider" else None
+        response = get_search_service().search_stock_news(
+            "AAPL",
+            "Apple",
+            max_results=3,
+            provider_name=provider,
+        )
+        count = len(response.results or [])
+        if count:
+            return {
+                "status": "available",
+                "recordCount": count,
+                "errorCode": None,
+                "error": None,
+                "detail": {"provider": response.provider, "query": response.query},
+            }
+        return {
+            "status": "degraded" if response.success else "unavailable",
+            "recordCount": 0,
+            "errorCode": "empty_result" if response.success else "provider_error",
+            "error": "连接成功，但当前查询没有通过时效与相关性校验的新闻。" if response.success else "新闻提供方请求失败。",
+            "detail": {"provider": response.provider},
+        }
+
+    @staticmethod
+    def _probe_fundamental_source(source: dict[str, Any]) -> dict[str, Any]:
+        provider = source.get("providerName") if source.get("selectionMode") == "provider" else None
+        if provider == "YFinance":
+            from data_provider.yfinance_fundamental_adapter import YfinanceFundamentalAdapter
+
+            payload = YfinanceFundamentalAdapter().get_fundamental_bundle("AAPL")
+            provider_label = "YFinance"
+        elif provider == "AkShare":
+            from data_provider.fundamental_adapter import AkshareFundamentalAdapter
+
+            payload = AkshareFundamentalAdapter().get_fundamental_bundle("600519")
+            provider_label = "AkShare"
+        else:
+            from data_provider import DataFetcherManager
+
+            payload = DataFetcherManager().get_fundamental_context("600519", budget_seconds=12)
+            provider_label = "automatic"
+        blocks = ("valuation", "growth", "earnings", "institution", "boards")
+        populated = sum(bool(payload.get(block)) for block in blocks)
+        raw_status = str(payload.get("status") or "not_supported")
+        if raw_status == "ok" and populated:
+            status, code, error = "available", None, None
+        elif populated:
+            status, code, error = "degraded", "partial_result", "仅部分基本面字段可用。"
+        else:
+            status, code, error = "unavailable", "empty_result", "未返回可用基本面字段。"
+        return {
+            "status": status,
+            "recordCount": populated,
+            "errorCode": code,
+            "error": error,
+            "detail": {"provider": provider_label, "sourceStatus": raw_status},
+        }
 
     def create_data_source(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Register a data source through the Agent workspace boundary."""
@@ -676,7 +989,8 @@ class WorkspaceService:
         )
 
         try:
-            return StrategyDefinitionService(self.db).create_data_source(payload)
+            created = StrategyDefinitionService(self.db).create_data_source(payload)
+            return self._with_data_source_health(created, None)
         except StrategyDefinitionError as exc:
             raise WorkspaceError(
                 exc.code,
@@ -1199,6 +1513,8 @@ class WorkspaceService:
             raise WorkspaceError("research_stock_required", "单股分析任务必须绑定一只股票。", 422)
         if kind == "expert_review" and not (bindings["expertIds"] or bindings["expertTeamIds"]):
             raise WorkspaceError("expert_required", "专家评审至少需要绑定一位专家或一个专家团。", 422)
+        if kind == "industry_analysis" and not str(subject.get("industry") or "").strip():
+            raise WorkspaceError("industry_required", "产业分析任务必须指定产业或行业主题。", 422)
         if kind != "trading":
             return
         if str(config.get("executionMode") or "paper").lower() != "paper":
@@ -1323,6 +1639,224 @@ class WorkspaceService:
                 event.set()
         return {"accepted": True, "runId": run_id, "status": "cancel_requested"}
 
+    # Market dashboard ------------------------------------------------------------
+    def get_market_dashboard(self, market: str) -> dict[str, Any]:
+        market = self._normalize_dashboard_market(market)
+        with self.db.get_session() as session:
+            row = session.get(WorkspaceMarketDashboardRecord, market)
+            config = self._normalize_dashboard_config(_load(row.config_json, {}) if row else {})
+        return {
+            "market": market,
+            **config,
+            "subscriptions": self.list_market_subscriptions(market),
+            "updatedAt": _iso(row.updated_at) if row else None,
+        }
+
+    def update_market_dashboard(self, market: str, payload: dict[str, Any]) -> dict[str, Any]:
+        market = self._normalize_dashboard_market(market)
+        config = self._normalize_dashboard_config(payload)
+        with self.db.session_scope() as session:
+            row = session.get(WorkspaceMarketDashboardRecord, market)
+            if row is None:
+                row = WorkspaceMarketDashboardRecord(market=market, config_json=_dump(config))
+                session.add(row)
+            else:
+                row.config_json = _dump(config)
+                row.updated_at = utc_naive_now()
+            session.flush()
+        return self.get_market_dashboard(market)
+
+    def create_market_subscription(self, payload: dict[str, Any]) -> dict[str, Any]:
+        task_id = str(payload.get("taskId") or "").strip()
+        task = self.get_task(task_id)
+        market = self._normalize_dashboard_market(payload.get("market") or task["market"])
+        title = str(payload.get("title") or task["name"]).strip()
+        if not title:
+            raise WorkspaceError("market_subscription_invalid", "市场看板订阅标题不能为空。", 422)
+        with self.db.session_scope() as session:
+            existing = session.execute(select(WorkspaceMarketSubscriptionRecord).where(
+                WorkspaceMarketSubscriptionRecord.task_id == task_id,
+                WorkspaceMarketSubscriptionRecord.market == market,
+            )).scalar_one_or_none()
+            if existing:
+                existing.title = title[:160]
+                existing.enabled = bool(payload.get("enabled", True))
+                existing.updated_at = utc_naive_now()
+                row = existing
+            else:
+                position = session.execute(select(func.count(WorkspaceMarketSubscriptionRecord.id)).where(
+                    WorkspaceMarketSubscriptionRecord.market == market,
+                )).scalar_one()
+                row = WorkspaceMarketSubscriptionRecord(
+                    id=uuid.uuid4().hex,
+                    task_id=task_id,
+                    market=market,
+                    title=title[:160],
+                    enabled=bool(payload.get("enabled", True)),
+                    position=int(position or 0),
+                )
+                session.add(row)
+            session.flush()
+            subscription_id = row.id
+        return next(item for item in self.list_market_subscriptions(market) if item["id"] == subscription_id)
+
+    def update_market_subscription(self, subscription_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        with self.db.session_scope() as session:
+            row = session.get(WorkspaceMarketSubscriptionRecord, subscription_id)
+            if not row:
+                raise WorkspaceError("market_subscription_not_found", "市场看板订阅不存在。", 404)
+            if "title" in payload:
+                title = str(payload.get("title") or "").strip()
+                if not title:
+                    raise WorkspaceError("market_subscription_invalid", "市场看板订阅标题不能为空。", 422)
+                row.title = title[:160]
+            if "enabled" in payload:
+                row.enabled = bool(payload["enabled"])
+            if "position" in payload:
+                row.position = max(0, int(payload["position"]))
+            row.updated_at = utc_naive_now()
+            market = row.market
+            session.flush()
+        return next(item for item in self.list_market_subscriptions(market) if item["id"] == subscription_id)
+
+    def delete_market_subscription(self, subscription_id: str) -> dict[str, Any]:
+        with self.db.session_scope() as session:
+            row = session.get(WorkspaceMarketSubscriptionRecord, subscription_id)
+            if not row:
+                raise WorkspaceError("market_subscription_not_found", "市场看板订阅不存在。", 404)
+            session.delete(row)
+        return {"id": subscription_id, "deleted": True}
+
+    def list_market_subscriptions(self, market: Optional[str] = None) -> list[dict[str, Any]]:
+        normalized_market = self._normalize_dashboard_market(market) if market else None
+        with self.db.get_session() as session:
+            statement = select(WorkspaceMarketSubscriptionRecord).order_by(
+                WorkspaceMarketSubscriptionRecord.market,
+                WorkspaceMarketSubscriptionRecord.position,
+                WorkspaceMarketSubscriptionRecord.created_at,
+            )
+            if normalized_market:
+                statement = statement.where(WorkspaceMarketSubscriptionRecord.market == normalized_market)
+            rows = session.execute(statement).scalars().all()
+            return [self._market_subscription_item(session, row) for row in rows]
+
+    def _market_subscription_item(self, session, row: WorkspaceMarketSubscriptionRecord) -> dict[str, Any]:
+        task = session.get(WorkspaceTaskRecord, row.task_id)
+        latest_run = session.execute(select(WorkspaceRunRecord).where(
+            WorkspaceRunRecord.task_id == row.task_id,
+        ).order_by(desc(WorkspaceRunRecord.created_at)).limit(1)).scalar_one_or_none()
+        latest_completed = session.execute(select(WorkspaceRunRecord).where(
+            WorkspaceRunRecord.task_id == row.task_id,
+            WorkspaceRunRecord.status == "completed",
+        ).order_by(desc(WorkspaceRunRecord.completed_at), desc(WorkspaceRunRecord.created_at)).limit(1)).scalar_one_or_none()
+        artifact = None
+        if latest_completed:
+            artifact = session.execute(select(WorkspaceArtifactRecord).where(
+                WorkspaceArtifactRecord.run_id == latest_completed.id,
+                WorkspaceArtifactRecord.artifact_type != "ExpertOpinion",
+            ).order_by(WorkspaceArtifactRecord.created_at).limit(1)).scalar_one_or_none()
+        schedules = session.execute(select(WorkspaceScheduleRecord).where(
+            WorkspaceScheduleRecord.task_id == row.task_id,
+        ).order_by(desc(WorkspaceScheduleRecord.updated_at))).scalars().all()
+        content = _load(artifact.content_json, {}) if artifact else None
+        return {
+            "id": row.id,
+            "taskId": row.task_id,
+            "market": row.market,
+            "title": row.title,
+            "enabled": bool(row.enabled),
+            "position": row.position,
+            "task": self._task_item(task) if task else None,
+            "latestRun": self._market_run_status(latest_run),
+            "latestArtifact": ({
+                "id": artifact.id,
+                "runId": latest_completed.id,
+                "type": artifact.artifact_type,
+                "title": artifact.title,
+                "summary": self._artifact_summary(content, artifact.content_text),
+                "createdAt": _iso(artifact.created_at),
+                "dataSnapshotId": latest_completed.data_snapshot_id,
+            } if artifact and latest_completed else None),
+            "schedules": [self._schedule_item(schedule) for schedule in schedules],
+            "createdAt": _iso(row.created_at),
+            "updatedAt": _iso(row.updated_at),
+        }
+
+    @staticmethod
+    def _market_run_status(row: Optional[WorkspaceRunRecord]) -> Optional[dict[str, Any]]:
+        if row is None:
+            return None
+        return {
+            "id": row.id,
+            "status": row.status,
+            "errorCode": row.error_code,
+            "errorMessage": row.error_message,
+            "startedAt": _iso(row.started_at),
+            "completedAt": _iso(row.completed_at),
+            "createdAt": _iso(row.created_at),
+        }
+
+    @classmethod
+    def _artifact_summary(cls, content: Any, text: Optional[str] = None) -> dict[str, Any]:
+        data = content if isinstance(content, dict) else {}
+        candidates = (
+            "summary", "conclusion", "analysisSummary", "investmentConclusion",
+            "recommendation", "stance", "overview", "content",
+        )
+        summary = ""
+        for key in candidates:
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                summary = value.strip()
+                break
+            if isinstance(value, dict):
+                nested = cls._artifact_summary(value)
+                if nested["text"]:
+                    summary = nested["text"]
+                    break
+        if not summary and text:
+            summary = re.sub(r"\s+", " ", re.sub(r"[#*`>|]", " ", text)).strip()
+        risks = data.get("risks") or data.get("risk") or data.get("keyRisks") or []
+        if isinstance(risks, str):
+            risks = [risks]
+        confidence = data.get("confidence")
+        if isinstance(confidence, (int, float)):
+            confidence = float(confidence)
+            if 1 < confidence <= 100:
+                confidence /= 100
+            if not 0 <= confidence <= 1:
+                confidence = None
+        return {
+            "text": summary[:320],
+            "risks": [str(item)[:160] for item in risks[:3]] if isinstance(risks, list) else [],
+            "confidence": confidence,
+        }
+
+    @staticmethod
+    def _normalize_dashboard_market(value: Any) -> str:
+        market = str(value or "").strip().upper()
+        if market not in {"GLOBAL", "CN", "HK", "US"}:
+            raise WorkspaceError("market_dashboard_market_invalid", "市场看板范围无效。", 422)
+        return market
+
+    @staticmethod
+    def _normalize_dashboard_config(value: Any) -> dict[str, Any]:
+        raw = value if isinstance(value, dict) else {}
+        widget_ids = raw.get("widgetIds")
+        widget_ids = list(dict.fromkeys(str(item) for item in widget_ids)) if isinstance(widget_ids, list) else list(DEFAULT_MARKET_DASHBOARD_WIDGETS)
+        unknown = sorted(set(widget_ids) - MARKET_DASHBOARD_WIDGETS)
+        if unknown:
+            raise WorkspaceError("market_dashboard_widget_invalid", "市场看板包含不支持的展示模块。", 422, {"widgetIds": unknown})
+        if not widget_ids:
+            raise WorkspaceError("market_dashboard_empty", "市场看板至少保留一个展示模块。", 422)
+        source_ids = raw.get("newsSourceIds")
+        keywords = raw.get("newsKeywords")
+        return {
+            "widgetIds": widget_ids,
+            "newsSourceIds": list(dict.fromkeys(int(item) for item in source_ids))[:100] if isinstance(source_ids, list) else [],
+            "newsKeywords": [str(item).strip()[:80] for item in keywords if str(item).strip()][:20] if isinstance(keywords, list) else [],
+        }
+
     # Schedules --------------------------------------------------------------------
     def create_schedule(self, payload: dict[str, Any]) -> dict[str, Any]:
         task_id = str(payload.get("taskId") or "")
@@ -1349,6 +1883,29 @@ class WorkspaceService:
             row = WorkspaceScheduleRecord(id=uuid.uuid4().hex, task_id=task_id, name=str(payload.get("name") or task["name"]), schedule_mode=mode, run_at=run_at or None, interval_minutes=interval if mode == "interval" else None, timezone=timezone_name, enabled=bool(payload.get("enabled", True)), next_run_at=next_run)
             session.add(row)
             session.flush()
+            if bool(payload.get("publishToMarket")):
+                dashboard_market = self._normalize_dashboard_market(task["market"])
+                title = str(payload.get("marketDashboardTitle") or task["name"]).strip()[:160]
+                subscription = session.execute(select(WorkspaceMarketSubscriptionRecord).where(
+                    WorkspaceMarketSubscriptionRecord.task_id == task_id,
+                    WorkspaceMarketSubscriptionRecord.market == dashboard_market,
+                )).scalar_one_or_none()
+                if subscription:
+                    subscription.title = title
+                    subscription.enabled = True
+                    subscription.updated_at = utc_naive_now()
+                else:
+                    position = session.execute(select(func.count(WorkspaceMarketSubscriptionRecord.id)).where(
+                        WorkspaceMarketSubscriptionRecord.market == dashboard_market,
+                    )).scalar_one()
+                    session.add(WorkspaceMarketSubscriptionRecord(
+                        id=uuid.uuid4().hex,
+                        task_id=task_id,
+                        market=dashboard_market,
+                        title=title,
+                        enabled=True,
+                        position=int(position or 0),
+                    ))
             return self._schedule_item(row)
 
     def list_schedules(self) -> list[dict[str, Any]]:

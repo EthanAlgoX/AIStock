@@ -78,6 +78,7 @@ KLINE_FETCHER_BY_CONNECTION = {
     "kline:baostock": "BaostockFetcher",
     "kline:yfinance": "YfinanceFetcher",
     "kline:tushare": "TushareFetcher",
+    "kline:hithink_finance": "HiThinkFinanceFetcher",
     "kline:efinance": "EfinanceFetcher",
     "kline:pytdx": "PytdxFetcher",
 }

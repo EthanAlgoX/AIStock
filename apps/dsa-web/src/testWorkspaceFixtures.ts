@@ -47,6 +47,8 @@ export const workspaceCatalogFixture: WorkspaceCapabilityCatalog = {
     screening: { skillIds: ["quality"], toolIds: ["get_realtime_quote"], mcpIds: [], dataSourceIds: ["market"], expertIds: [], expertTeamIds: [] },
     trading: { skillIds: ["trend"], toolIds: ["get_realtime_quote"], mcpIds: [], dataSourceIds: ["market"], expertIds: [], expertTeamIds: [] },
     expert_review: { skillIds: ["quality"], toolIds: ["get_realtime_quote"], mcpIds: [], dataSourceIds: ["market"], expertIds: [], expertTeamIds: [] },
+    market_analysis: { skillIds: ["quality"], toolIds: ["get_realtime_quote"], mcpIds: [], dataSourceIds: ["market"], expertIds: [], expertTeamIds: [] },
+    industry_analysis: { skillIds: ["quality"], toolIds: ["get_realtime_quote"], mcpIds: [], dataSourceIds: ["market"], expertIds: [], expertTeamIds: [] },
   },
 };
 

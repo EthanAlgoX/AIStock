@@ -17,6 +17,9 @@ from api.v1.schemas.workspace import (
     ExpertUpdateRequest,
     McpServerCreateRequest,
     McpServerUpdateRequest,
+    MarketDashboardUpdateRequest,
+    MarketSubscriptionCreateRequest,
+    MarketSubscriptionUpdateRequest,
     RunCreateRequest,
     ScheduleCreateRequest,
     ScheduleUpdateRequest,
@@ -53,6 +56,7 @@ _TOOL_DATA_SOURCE_KIND = {
     "analyze_pattern": "kline",
     "get_market_indices": "kline",
     "get_sector_rankings": "kline",
+    "get_macro_indicators": "macro",
     "screen_stock_universe": "kline",
     "get_stock_info": "fundamentals",
     "search_stock_news": "news",
@@ -159,6 +163,11 @@ def create_data_source(request: DataSourceCreateRequest) -> dict[str, Any]:
 @router.delete("/data-sources/{source_id}")
 def archive_data_source(source_id: int) -> dict[str, Any]:
     return _call(lambda: _service().archive_data_source(source_id))
+
+
+@router.post("/data-sources/{source_id}/probe")
+def probe_data_source(source_id: str) -> dict[str, Any]:
+    return _call(lambda: _service().probe_data_source(source_id))
 
 
 @router.put("/capabilities/{kind}/preferences")
@@ -294,6 +303,36 @@ def update_schedule(schedule_id: str, request: ScheduleUpdateRequest) -> dict[st
 @router.delete("/schedules/{schedule_id}")
 def delete_schedule(schedule_id: str) -> dict[str, Any]:
     return _call(lambda: _service().delete_schedule(schedule_id))
+
+
+@router.get("/market-dashboards/{market}")
+def get_market_dashboard(market: str) -> dict[str, Any]:
+    return _call(lambda: _service().get_market_dashboard(market))
+
+
+@router.put("/market-dashboards/{market}")
+def update_market_dashboard(market: str, request: MarketDashboardUpdateRequest) -> dict[str, Any]:
+    return _call(lambda: _service().update_market_dashboard(market, request.model_dump()))
+
+
+@router.get("/market-subscriptions")
+def list_market_subscriptions(market: Optional[str] = None) -> list[dict[str, Any]]:
+    return _call(lambda: _service().list_market_subscriptions(market))
+
+
+@router.post("/market-subscriptions", status_code=201)
+def create_market_subscription(request: MarketSubscriptionCreateRequest) -> dict[str, Any]:
+    return _call(lambda: _service().create_market_subscription(request.model_dump()))
+
+
+@router.patch("/market-subscriptions/{subscription_id}")
+def update_market_subscription(subscription_id: str, request: MarketSubscriptionUpdateRequest) -> dict[str, Any]:
+    return _call(lambda: _service().update_market_subscription(subscription_id, request.model_dump(exclude_none=True)))
+
+
+@router.delete("/market-subscriptions/{subscription_id}")
+def delete_market_subscription(subscription_id: str) -> dict[str, Any]:
+    return _call(lambda: _service().delete_market_subscription(subscription_id))
 
 
 def _jsonrpc_result(request_id: Any, result: Any) -> dict[str, Any]:

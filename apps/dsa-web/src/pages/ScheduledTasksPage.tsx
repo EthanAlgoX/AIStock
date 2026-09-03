@@ -6,6 +6,7 @@ import {
   CircleAlert,
   Clock3,
   FileText,
+  LayoutDashboard,
   ListFilter,
   LoaderCircle,
   Repeat2,
@@ -35,6 +36,7 @@ import { cn } from "../utils/cn";
 import { workspaceApi } from "../api/workspace";
 
 type TaskKind = ScheduledTaskKind;
+type ScheduledPlanKind = TaskKind | "market_analysis" | "industry_analysis";
 type MarketId = ScheduledTaskMarket;
 type ScheduleMode = "daily" | "interval";
 type ErrorField = "name" | "stock" | "objective" | "strategy" | "runAt" | "interval";
@@ -54,9 +56,11 @@ type ScheduleDraft = {
   runAt: string;
   intervalMinutes: string;
   capabilities: ScheduledCapabilityBindings;
+  publishToMarket: boolean;
 };
 
-type ScheduledTaskPlan = ScheduleDraft & {
+type ScheduledTaskPlan = Omit<ScheduleDraft, "kind"> & {
+  kind: ScheduledPlanKind;
   id: string;
   taskId?: string;
   createdAt: string;
@@ -77,6 +81,7 @@ const DEFAULT_DRAFT: ScheduleDraft = {
   runAt: "18:30",
   intervalMinutes: "15",
   capabilities: EMPTY_SCHEDULED_CAPABILITIES,
+  publishToMarket: true,
 };
 
 const MARKETS: Array<{ id: MarketId; label: string; timezone: string; timezoneLabel: string }> = [
@@ -115,6 +120,30 @@ const TASK_TYPES: Array<{
   },
 ];
 
+const PLAN_TASK_TYPES: Array<{
+  id: ScheduledPlanKind;
+  title: string;
+  description: string;
+  output: string;
+  icon: typeof FileText;
+}> = [
+  ...TASK_TYPES,
+  {
+    id: "market_analysis",
+    title: "市场分析",
+    description: "按市场生成宏观与风险摘要",
+    output: "MarketAnalysisReport",
+    icon: FileText,
+  },
+  {
+    id: "industry_analysis",
+    title: "产业分析",
+    description: "跟踪指定产业的趋势与风险",
+    output: "IndustryReport",
+    icon: ListFilter,
+  },
+];
+
 const OUTPUT_CONTRACTS: Record<TaskKind, {
   title: string;
   description: string;
@@ -143,9 +172,17 @@ const OUTPUT_CONTRACTS: Record<TaskKind, {
 
 const normalizeCapabilities = normalizeAgentCapabilities;
 
+const isScheduledTaskKind = (value: string | undefined): value is TaskKind => (
+  value === "research" || value === "screening" || value === "trading"
+);
+
+const isScheduledPlanKind = (value: string | undefined): value is ScheduledPlanKind => (
+  isScheduledTaskKind(value) || value === "market_analysis" || value === "industry_analysis"
+);
+
 const getMarket = (market: MarketId) => MARKETS.find((item) => item.id === market) || MARKETS[0];
 
-const getTaskType = (kind: TaskKind) => TASK_TYPES.find((item) => item.id === kind) || TASK_TYPES[0];
+const getTaskType = (kind: ScheduledPlanKind) => PLAN_TASK_TYPES.find((item) => item.id === kind) || PLAN_TASK_TYPES[0];
 
 const getInitialDraft = (search: string, prefill?: ScheduledTaskPrefill): ScheduleDraft => {
   const requestedKind = new URLSearchParams(search).get("type");
@@ -165,6 +202,7 @@ const getInitialDraft = (search: string, prefill?: ScheduledTaskPrefill): Schedu
     scheduleMode: prefill?.scheduleMode || "daily",
     intervalMinutes: prefill?.intervalMinutes || "15",
     capabilities: normalizeCapabilities(prefill?.capabilities),
+    publishToMarket: kind === "research",
   };
 };
 
@@ -174,7 +212,7 @@ const marketMatches = (item: StockIndexItem, market: MarketId) => (
 
 type TradingStrategyOption = { id: string; name: string; versionLabel: string };
 
-const getScheduleSummary = (plan: Pick<ScheduleDraft, "kind" | "scheduleMode" | "runAt" | "intervalMinutes" | "market">) => {
+const getScheduleSummary = (plan: { kind: ScheduledPlanKind; scheduleMode: ScheduleMode; runAt: string; intervalMinutes: string; market: MarketId }) => {
   if (plan.kind === "trading" && plan.scheduleMode === "interval") {
     const minutes = Number(plan.intervalMinutes);
     if (minutes >= 60 && minutes % 60 === 0) return `每 ${minutes / 60} 小时运行`;
@@ -187,6 +225,8 @@ const getTargetSummary = (plan: ScheduledTaskPlan) => {
   const market = getMarket(plan.market).label;
   if (plan.kind === "research") return `${market} · ${plan.stockName ? `${plan.stockName} (${plan.stock})` : plan.stock}`;
   if (plan.kind === "screening") return `${market} · ${plan.industry?.trim() || "全行业"} · Top ${plan.candidateCount}`;
+  if (plan.kind === "market_analysis") return `${market} · ${plan.objective}`;
+  if (plan.kind === "industry_analysis") return `${market} · ${plan.industry?.trim() || plan.objective}`;
   return `${market} · ${plan.strategyName}`;
 };
 
@@ -208,8 +248,8 @@ export default function ScheduledTasksPage() {
 
   useEffect(() => {
     let active = true;
-    void Promise.all([workspaceApi.listSchedules(), workspaceApi.listTasks()])
-      .then(([schedules, tasks]) => {
+    void Promise.all([workspaceApi.listSchedules(), workspaceApi.listTasks(), workspaceApi.listMarketSubscriptions()])
+      .then(([schedules, tasks, subscriptions]) => {
         if (!active) return;
         const taskById = new Map(tasks.map((task) => [task.id, task]));
         setTradingStrategies(tasks.filter((task) => task.kind === "trading" && task.enabled).map((task) => ({ id: task.id, name: task.name, versionLabel: `Task v${task.version}` })));
@@ -222,7 +262,7 @@ export default function ScheduledTasksPage() {
             id: schedule.id,
             taskId: schedule.taskId,
             createdAt: schedule.createdAt,
-            kind: task?.kind === "expert_review" ? "research" : task?.kind || "research",
+            kind: isScheduledPlanKind(task?.kind) ? task.kind : "research",
             name: schedule.name,
             market: task?.market === "GLOBAL" ? "CN" : task?.market || "CN",
             stock: String(subject.stock || ""),
@@ -236,6 +276,7 @@ export default function ScheduledTasksPage() {
             runAt: schedule.runAt || "18:30",
             intervalMinutes: String(schedule.intervalMinutes || 15),
             capabilities: normalizeCapabilities(task?.capabilities),
+            publishToMarket: subscriptions.some((item) => item.taskId === schedule.taskId && item.enabled),
           };
         }));
       })
@@ -290,6 +331,7 @@ export default function ScheduledTasksPage() {
       ...DEFAULT_DRAFT,
       kind,
       market: current.market,
+      publishToMarket: kind === "research",
     }));
     setStockQuery("");
     setPrefillSource("");
@@ -336,6 +378,8 @@ export default function ScheduledTasksPage() {
         runAt: draft.scheduleMode === "daily" ? draft.runAt : undefined,
         intervalMinutes: draft.scheduleMode === "interval" ? Number(draft.intervalMinutes) : undefined,
         timezone: getMarket(draft.market).timezone,
+        publishToMarket: draft.publishToMarket,
+        marketDashboardTitle: draft.name.trim(),
       });
       const plan: ScheduledTaskPlan = { ...draft, id: schedule.id, taskId: task.id, createdAt: schedule.createdAt };
       setPlans((current) => [...current, plan]);
@@ -343,7 +387,7 @@ export default function ScheduledTasksPage() {
       setError("");
       setErrorField(null);
       setStockQuery("");
-      setDraft((current) => ({ ...DEFAULT_DRAFT, kind: current.kind, market: current.market, scheduleMode: current.kind === "trading" ? current.scheduleMode : "daily" }));
+      setDraft((current) => ({ ...DEFAULT_DRAFT, kind: current.kind, market: current.market, scheduleMode: current.kind === "trading" ? current.scheduleMode : "daily", publishToMarket: current.kind === "research" }));
       setPrefillSource("");
     } catch {
       setError("计划注册失败，请检查任务能力和调度配置。");
@@ -603,6 +647,26 @@ export default function ScheduledTasksPage() {
               </div>
             </div>
 
+            {draft.kind !== "trading" ? (
+              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-[10px] border border-border bg-background px-4 py-3.5">
+                <input
+                  type="checkbox"
+                  checked={draft.publishToMarket}
+                  onChange={(event) => updateDraft("publishToMarket", event.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-primary"
+                />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <LayoutDashboard className="h-4 w-4 text-primary" aria-hidden="true" />
+                    展示到{market.label}市场看板
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-text">
+                    看板只展示最近一次成功运行的摘要、数据时间和状态；点击后进入完整成果。
+                  </span>
+                </span>
+              </label>
+            ) : null}
+
             <div className="mt-5 flex flex-col gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs leading-5 text-muted-text">拟定节奏：{getScheduleSummary(draft)}</p>
               <button type="button" onClick={() => void savePlan()} className="btn-primary inline-flex shrink-0 items-center justify-center gap-2">
@@ -658,7 +722,7 @@ export default function ScheduledTasksPage() {
                 <div key={plan.id} className="grid gap-4 px-5 py-4 sm:px-6 lg:grid-cols-[minmax(12rem,1.2fr)_minmax(10rem,1fr)_minmax(11rem,1fr)_minmax(9rem,0.8fr)_auto] lg:items-center">
                   <div className="flex min-w-0 items-start gap-3">
                     <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-border bg-background"><Icon className="h-4 w-4 text-primary" aria-hidden="true" /></span>
-                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-foreground">{plan.name}</span><span className="mt-1 block text-xs text-muted-text">{type.title} · {countScheduledCapabilities(plan.capabilities)} 项能力</span></span>
+                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-foreground">{plan.name}</span><span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-text"><span>{type.title} · {countScheduledCapabilities(plan.capabilities)} 项能力</span>{plan.publishToMarket ? <span className="text-primary">市场展示</span> : null}</span></span>
                   </div>
                   <div><span className="block text-[11px] text-muted-text">运行对象</span><span className="mt-1 block truncate text-sm text-secondary-text">{getTargetSummary(plan)}</span></div>
                   <div><span className="block text-[11px] text-muted-text">拟定节奏</span><span className="mt-1 block text-sm text-secondary-text">{getScheduleSummary(plan)}</span></div>

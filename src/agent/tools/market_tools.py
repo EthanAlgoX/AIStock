@@ -5,6 +5,7 @@ Market tools — wraps DataFetcherManager market-level methods as agent tools.
 Tools:
 - get_market_indices: major market index data
 - get_sector_rankings: sector performance rankings
+- get_macro_indicators: source-attributed macro observations
 """
 
 import logging
@@ -65,6 +66,34 @@ get_market_indices_tool = ToolDefinition(
 )
 
 
+def _handle_get_macro_indicators(region: str = "global") -> dict:
+    """Get source-attributed macro observations without synthetic fallback."""
+    manager = _get_fetcher_manager()
+    indicators = manager.get_macro_indicators(region=region)
+    if not indicators:
+        return {"region": region, "indicators_count": 0, "indicators": [], "warning": "No connected macro observations"}
+    return {"region": region, "indicators_count": len(indicators), "indicators": indicators}
+
+
+get_macro_indicators_tool = ToolDefinition(
+    name="get_macro_indicators",
+    description="Read source-attributed macro observations for global, A-share, Hong Kong, or US market analysis. Missing series remain missing and are never estimated.",
+    parameters=[
+        ToolParameter(
+            name="region",
+            type="string",
+            description="Market context: global, cn, hk, or us.",
+            required=False,
+            default="global",
+            enum=["global", "cn", "hk", "us"],
+        ),
+    ],
+    handler=_handle_get_macro_indicators,
+    category="market",
+    policy=_MARKET_READ_POLICY,
+)
+
+
 # ============================================================
 # get_sector_rankings
 # ============================================================
@@ -112,5 +141,6 @@ get_sector_rankings_tool = ToolDefinition(
 
 ALL_MARKET_TOOLS = [
     get_market_indices_tool,
+    get_macro_indicators_tool,
     get_sector_rankings_tool,
 ]

@@ -16,7 +16,8 @@ YfinanceFetcher - 兜底数据源 (Priority 4)
 
 import csv
 import logging
-from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
 from io import StringIO
 from typing import Optional, List, Dict, Any
 from urllib.error import HTTPError, URLError
@@ -72,6 +73,8 @@ class YfinanceFetcher(BaseFetcher):
     - 某些股票可能无数据
     - 数据精度可能与国内源略有差异
     """
+
+    macro_regions = {"global", "cn", "hk", "us"}
 
     name = "YfinanceFetcher"
     priority = int(os.getenv("YFINANCE_PRIORITY", "4"))
@@ -203,14 +206,23 @@ class YfinanceFetcher(BaseFetcher):
         # 转换代码格式
         yf_code = self._convert_stock_code(stock_code)
 
-        logger.debug(f"调用 yfinance.download({yf_code}, {start_date}, {end_date})")
+        # The shared fetcher contract uses an inclusive end date, while
+        # yfinance.download treats ``end`` as exclusive.
+        try:
+            yfinance_end_date = (
+                datetime.strptime(end_date, "%Y-%m-%d").date() + timedelta(days=1)
+            ).isoformat()
+        except (TypeError, ValueError):
+            yfinance_end_date = end_date
+
+        logger.debug(f"调用 yfinance.download({yf_code}, {start_date}, {yfinance_end_date})")
 
         try:
             # 使用 yfinance 下载数据
             df = yf.download(
                 tickers=yf_code,
                 start=start_date,
-                end=end_date,
+                end=yfinance_end_date,
                 progress=False,  # 禁止进度条
                 auto_adjust=True,  # 自动调整价格（复权）
                 multi_level_index=True
@@ -397,6 +409,66 @@ class YfinanceFetcher(BaseFetcher):
             logger.error(f"[Yfinance] 获取 A 股指数行情失败: {e}")
 
         return None
+
+    def get_macro_indicators(self) -> Optional[List[Dict[str, Any]]]:
+        """Fetch the key global macro-market tape available from Yahoo Finance.
+
+        These are market observations, not official macro releases. Series
+        without a reliable Yahoo instrument (for example social financing,
+        PMI, Fed expectations, or the US high-yield spread) are deliberately
+        omitted and remain visibly unconnected in the Web dashboard.
+        """
+        import yfinance as yf
+
+        instruments = {
+            "us_10y": ("^TNX", "美国 10 年期国债收益率", "%"),
+            "dxy": ("DX-Y.NYB", "DXY 美元指数", "点"),
+            "usd_cnh": ("CNH=X", "USD/CNH", "人民币"),
+            "usd_jpy": ("JPY=X", "USD/JPY", "日元"),
+            "vix": ("^VIX", "VIX", "点"),
+            "brent": ("BZ=F", "Brent 原油", "美元/桶"),
+            "copper": ("HG=F", "COMEX 铜", "美元/磅"),
+        }
+        def fetch_one(key: str, symbol: str, name: str, unit: str) -> Optional[Dict[str, Any]]:
+            try:
+                history = yf.Ticker(symbol).history(period="5d", timeout=8)
+                if history is None or history.empty or "Close" not in history.columns:
+                    return None
+                closes = history["Close"].dropna()
+                if closes.empty:
+                    return None
+                current = float(closes.iloc[-1])
+                previous = float(closes.iloc[-2]) if len(closes) > 1 else current
+                change_pct = ((current - previous) / previous * 100) if previous else 0.0
+                latest_index = closes.index[-1]
+                as_of = latest_index.isoformat() if hasattr(latest_index, "isoformat") else str(latest_index)
+                return {
+                    "key": key,
+                    "name": name,
+                    "current": current,
+                    "change_pct": change_pct,
+                    "previous": previous,
+                    "change_label": "日变动",
+                    "unit": unit,
+                    "frequency": "daily",
+                    "as_of": as_of,
+                    "source": "Yahoo Finance",
+                }
+            except Exception as exc:
+                logger.warning("[Yfinance] 获取宏观指标 %s 失败: %s", name, exc)
+                return None
+
+        rows: Dict[str, Dict[str, Any]] = {}
+        with ThreadPoolExecutor(max_workers=4, thread_name_prefix="yfinance_macro") as executor:
+            futures = {
+                executor.submit(fetch_one, key, symbol, name, unit): key
+                for key, (symbol, name, unit) in instruments.items()
+            }
+            for future in as_completed(futures):
+                item = future.result()
+                if item:
+                    rows[item["key"]] = item
+        return [rows[key] for key in instruments if key in rows] or None
 
     def _get_us_main_indices(self, yf) -> Optional[List[Dict[str, Any]]]:
         """获取美股主要指数行情（SPX、IXIC、DJI、VIX），复用 _fetch_yf_ticker_data"""

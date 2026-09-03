@@ -541,10 +541,21 @@ class StrategyDefinitionServiceTest(unittest.TestCase):
 
     def test_data_source_catalog_combines_system_defaults_and_persisted_custom_entries(self):
         defaults = self.service.list_data_sources()
-        self.assertTrue({"system_market_data", "system_news", "system_fundamentals"}.issubset({item["sourceId"] for item in defaults}))
+        self.assertTrue({"system_market_data", "system_news", "system_fundamentals", "system_macro_data"}.issubset({item["sourceId"] for item in defaults}))
         provider_ids = {item["sourceId"] for item in defaults if item.get("selectionMode") == "provider"}
         self.assertTrue({"kline:akshare", "kline:yfinance", "news:finance_rss", "news:searxng", "fundamentals:akshare"}.issubset(provider_ids))
-        self.assertTrue(next(item for item in defaults if item["sourceId"] == "kline:akshare")["selectable"])
+        self.assertIn("kline:hithink_finance", provider_ids)
+        self.assertTrue({"macro:fred", "macro:apocdata", "macro:yfinance"}.issubset(provider_ids))
+        akshare = next(item for item in defaults if item["sourceId"] == "kline:akshare")
+        self.assertTrue(akshare["selectable"])
+        self.assertEqual(akshare["accessMode"], "no_credential")
+        self.assertTrue(akshare["setupUrl"].startswith("https://"))
+        tushare = next(item for item in defaults if item["sourceId"] == "kline:tushare")
+        self.assertEqual(tushare["accessMode"], "token")
+        self.assertEqual(tushare["configurationKeys"], ["TUSHARE_TOKEN"])
+        searxng = next(item for item in defaults if item["sourceId"] == "news:searxng")
+        self.assertEqual(searxng["accessMode"], "base_url")
+        self.assertEqual(searxng["configurationKeys"], ["SEARXNG_BASE_URLS"])
         finance_rss = next(item for item in defaults if item["sourceId"] == "news:finance_rss")
         self.assertTrue(finance_rss["selectable"])
         self.assertEqual(finance_rss["providerName"], "FinanceRSS")
@@ -554,14 +565,19 @@ class StrategyDefinitionServiceTest(unittest.TestCase):
         self.assertTrue({"Reuters Business", "CNBC", "SEC", "Federal Reserve", "金十数据"}.issubset(
             {item["name"] for item in included_sources}
         ))
+        self.assertTrue(all(str(item["websiteUrl"]).startswith("https://") for item in included_sources))
         self.assertEqual(next(item for item in defaults if item["sourceId"] == "system_market_data")["selectionMode"], "automatic")
+        self.assertFalse(next(item for item in defaults if item["sourceId"] == "system_sentiment")["selectable"])
         created = self.service.create_data_source({
             "name": "行业景气度", "description": "行业周期输入", "connectionKey": "industry_cycle_v1",
+            "setupUrl": "https://data.example.com/developers", "accessMode": "api_key",
             "kind": "other", "markets": ["cn", "hk"],
         })
         self.assertEqual(created["kind"], "other")
         self.assertEqual(created["markets"], ["cn", "hk"])
         self.assertEqual(created["availability"], "registered")
+        self.assertEqual(created["setupUrl"], "https://data.example.com/developers")
+        self.assertEqual(created["accessMode"], "api_key")
         self.assertIn(created["sourceId"], {item["sourceId"] for item in self.service.list_data_sources()})
         archived = self.service.archive_data_source(created["id"])
         self.assertTrue(archived["archived"])
@@ -631,6 +647,20 @@ class StrategyDefinitionServiceTest(unittest.TestCase):
                 "kind": "kline", "markets": ["cn"],
             })
         self.assertEqual(invalid.exception.code, "DATA_SOURCE_CONNECTION_INVALID")
+        with self.assertRaises(StrategyDefinitionError) as unsafe_setup:
+            self.service.create_data_source({
+                "name": "含凭据链接", "connectionKey": "private_docs_link",
+                "setupUrl": "https://user:secret@example.com/docs", "accessMode": "api_key",
+                "kind": "kline", "markets": ["cn"],
+            })
+        self.assertEqual(unsafe_setup.exception.code, "DATA_SOURCE_SETUP_URL_INVALID")
+        with self.assertRaises(StrategyDefinitionError) as invalid_mode:
+            self.service.create_data_source({
+                "name": "错误认证形式", "connectionKey": "invalid_auth_mode",
+                "setupUrl": "https://example.com/docs", "accessMode": "oauth_magic",
+                "kind": "kline", "markets": ["cn"],
+            })
+        self.assertEqual(invalid_mode.exception.code, "DATA_SOURCE_ACCESS_MODE_INVALID")
 
     def test_every_official_strategy_template_creates_a_valid_draft(self):
         templates = SimulationStrategyService().list_templates()

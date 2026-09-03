@@ -154,6 +154,12 @@ export default function AgentCapabilityPanel({
 
   const boundCount = selectedToolIds.length + selectedDataSourceIds.length + selectedMcpIds.length + selectedExpertIds.length + selectedExpertTeamIds.length;
   const readyDataSources = useMemo(() => dataSources.filter((source) => source.selectable), [dataSources]);
+  const dataSourceStatusLabel = (source: WorkspaceDataSource) => {
+    if (source.healthStatus === "available") return "实测可用";
+    if (source.healthStatus === "degraded") return "部分可用";
+    if (source.healthStatus === "unavailable") return "上次检测不可用";
+    return "已配置 · 未检测";
+  };
 
   const toggleSection = (key: SectionKey) => {
     setOpenSections((current) => {
@@ -266,10 +272,10 @@ export default function AgentCapabilityPanel({
                         active={selectedDataSourceIds.includes(source.sourceId)}
                         title={source.name}
                         description={source.description}
-                        statusLabel="已接通"
+                        statusLabel={dataSourceStatusLabel(source)}
                         onClick={() => onToggleDataSource(source.sourceId)}
                       />
-                    )) : <p className="px-3 py-2 text-[11px] leading-4 text-muted-text">暂无已配置且可用的数据源。</p>
+                    )) : <p className="px-3 py-2 text-[11px] leading-4 text-muted-text">暂无可绑定的数据源。</p>
                   ) : null}
 
                   {key === "experts" ? (

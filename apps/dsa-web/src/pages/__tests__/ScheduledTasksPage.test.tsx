@@ -11,6 +11,7 @@ const api = vi.hoisted(() => ({
   createTask: vi.fn(),
   createSchedule: vi.fn(),
   deleteSchedule: vi.fn(),
+  listMarketSubscriptions: vi.fn(),
 }));
 
 vi.mock("../../api/workspace", () => ({ workspaceApi: api }));
@@ -42,6 +43,7 @@ describe("ScheduledTasksPage", () => {
     schedules = [];
     api.listTasks.mockImplementation(async (kind?: string) => tasks.filter((task) => !kind || task.kind === kind));
     api.listSchedules.mockImplementation(async () => schedules);
+    api.listMarketSubscriptions.mockResolvedValue([]);
     api.createTask.mockImplementation(async (value: Partial<ReturnType<typeof workspaceTaskFixture>>) => {
       const task = workspaceTaskFixture({ ...value, id: `task-${tasks.length + 1}` });
       tasks.push(task);
@@ -69,7 +71,7 @@ describe("ScheduledTasksPage", () => {
       kind: "research",
       subject: { stock: "600519.SH", stockName: "贵州茅台" },
     })));
-    expect(api.createSchedule).toHaveBeenCalledWith(expect.objectContaining({ scheduleMode: "daily" }));
+    expect(api.createSchedule).toHaveBeenCalledWith(expect.objectContaining({ scheduleMode: "daily", publishToMarket: true }));
     expect(await screen.findByText("每日茅台复盘")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("已注册");
   });

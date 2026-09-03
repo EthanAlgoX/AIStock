@@ -8,6 +8,8 @@ import type {
   AnalysisReport,
   MarketReviewAccepted,
   MarketReviewRequest,
+  MarketReviewRegion,
+  MarketSnapshot,
   TaskStatus,
   TaskListResponse,
 } from '../types/analysis';
@@ -17,6 +19,20 @@ import { serializeMarketReviewRegions } from '../utils/marketReviewRegion';
 // ============ API Interfaces ============
 
 export const analysisApi = {
+  /**
+   * Fetch live index and macro observations without invoking the LLM.
+   */
+  getMarketSnapshot: async (
+    region: MarketReviewRegion,
+    forceRefresh = false,
+  ): Promise<MarketSnapshot> => {
+    const response = await apiClient.get<Record<string, unknown>>(
+      '/api/v1/analysis/market-snapshot',
+      { params: { region, force_refresh: forceRefresh } },
+    );
+    return toCamelCase<MarketSnapshot>(response.data);
+  },
+
   /**
    * Trigger stock analysis.
    * @param data Analysis request payload

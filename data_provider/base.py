@@ -17,6 +17,7 @@
 import logging
 import random
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import BoundedSemaphore, RLock, Thread
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
@@ -389,6 +390,15 @@ class BaseFetcher(ABC):
         """
         return None
 
+    def get_macro_indicators(self) -> Optional[List[Dict[str, Any]]]:
+        """Return globally shared high-frequency macro market indicators.
+
+        Implementations should only return observations obtained from a real
+        provider. Missing series are omitted instead of being filled with
+        estimated or example values.
+        """
+        return None
+
     def get_market_stats(self) -> Optional[Dict[str, Any]]:
         """
         获取市场涨跌统计
@@ -620,10 +630,14 @@ class DataFetcherManager:
         "TencentFetcher": {"cn"},
         "AkshareFetcher": {"cn", "hk"},
         "TushareFetcher": {"cn", "hk"},
+        "HiThinkFinanceFetcher": {"cn"},
         "TickFlowFetcher": {"cn"},
         "PytdxFetcher": {"cn"},
         "BaostockFetcher": {"cn"},
         "YfinanceFetcher": {"cn", "hk", "us", "jp", "kr", "tw"},
+        # Macro-only fetchers must never enter the daily OHLCV route.
+        "FredMacroFetcher": set(),
+        "ApocDataMacroFetcher": set(),
         "LongbridgeFetcher": {"hk", "us"},
         "FinnhubFetcher": {"us"},
         "AlphaVantageFetcher": {"us"},
@@ -1144,10 +1158,11 @@ class DataFetcherManager:
         初始化默认数据源列表
 
         优先级动态调整逻辑：
+        - 如果配置了 HITHINK_FINANCE_API_KEY：实例化 HiThinkFinanceFetcher，并使用配置的优先级
         - 如果配置了 TUSHARE_TOKEN：实例化 TushareFetcher，并按其内部逻辑提升优先级
         - 如果配置了 Longbridge OAuth 或 Legacy 凭据：实例化 LongbridgeFetcher 作为美股/港股兜底
         - 未配置的可选数据源不实例化，避免在批量拉取时反复探测无效源
-        - 默认优先级：
+        - 默认优先级（未配置可选服务时）：
           0. EfinanceFetcher (Priority 0) - 最高优先级
           1. AkshareFetcher (Priority 1)
           2. PytdxFetcher (Priority 2) - 通达信
@@ -1165,6 +1180,8 @@ class DataFetcherManager:
         from .baostock_fetcher import BaostockFetcher
         from .yfinance_fetcher import YfinanceFetcher
         from .longbridge_fetcher import LongbridgeFetcher
+        from .hithink_finance_fetcher import HiThinkFinanceFetcher
+        from .apocdata_macro_fetcher import ApocDataMacroFetcher
         config = get_config()
         # 创建所有数据源实例（优先级在各 Fetcher 的 __init__ 中确定）
         efinance = EfinanceFetcher()
@@ -1173,7 +1190,33 @@ class DataFetcherManager:
         pytdx = PytdxFetcher()      # 通达信数据源（可配 PYTDX_HOST/PYTDX_PORT）
         baostock = BaostockFetcher()
         yfinance = YfinanceFetcher()
-        optional_fetchers: List[BaseFetcher] = []
+        optional_fetchers: List[BaseFetcher] = [ApocDataMacroFetcher()]
+
+        fred_api_key = (getattr(config, "fred_api_key", None) or "").strip()
+        if fred_api_key:
+            from .fred_macro_fetcher import FredMacroFetcher
+
+            optional_fetchers.append(FredMacroFetcher(api_key=fred_api_key))
+        else:
+            logger.debug("[data source init] skip FredMacroFetcher because FRED_API_KEY is not configured")
+
+        hithink_api_key_value = getattr(config, "hithink_finance_api_key", None)
+        hithink_api_key = hithink_api_key_value.strip() if isinstance(hithink_api_key_value, str) else ""
+        if hithink_api_key:
+            try:
+                optional_fetchers.append(
+                    HiThinkFinanceFetcher(
+                        api_key=hithink_api_key,
+                        base_url=getattr(config, "hithink_finance_base_url", None),
+                        timeout=getattr(config, "hithink_finance_timeout_seconds", 15.0),
+                        priority=getattr(config, "hithink_finance_priority", 0),
+                        max_retries=getattr(config, "max_retries", 3),
+                    )
+                )
+            except Exception as exc:
+                logger.warning("[data source init] HiThinkFinanceFetcher disabled by invalid configuration: %s", exc)
+        else:
+            logger.debug("[data source init] skip HiThinkFinanceFetcher because HITHINK_FINANCE_API_KEY is not configured")
 
         tushare_token = (getattr(config, "tushare_token", None) or "").strip()
         if tushare_token:
@@ -1907,6 +1950,16 @@ class DataFetcherManager:
                         )
                         quote = self._call_fetcher_method(fetcher, 'get_realtime_quote', raw_stock_code or stock_code)
 
+                elif source in ("hithink_finance", "hithink"):
+                    fetcher = self._get_fetcher_by_name("HiThinkFinanceFetcher", capability="realtime_quote")
+                    if fetcher is not None and hasattr(fetcher, 'get_realtime_quote'):
+                        record_provider_run_started(
+                            data_type="realtime_quote",
+                            provider=fetcher.name,
+                            operation="get_realtime_quote",
+                        )
+                        quote = self._call_fetcher_method(fetcher, 'get_realtime_quote', raw_stock_code or stock_code)
+
                 provider_name = fetcher.name if fetcher is not None else source
                 
                 if quote is not None and quote.has_basic_data():
@@ -2489,6 +2542,64 @@ class DataFetcherManager:
                 logger.warning(f"[{fetcher.name}] 获取指数行情失败: {e}")
                 continue
         return []
+
+    def get_macro_indicators(
+        self,
+        region: str = "global",
+        preferred_fetcher: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Collect real global macro-market observations from capable providers.
+
+        Results are merged by stable indicator key. This allows a later
+        provider to fill a missing series without overwriting an observation
+        already returned by a higher-priority source.
+        """
+        normalized_region = str(region or "global").strip().lower()
+        if normalized_region not in {"global", "cn", "hk", "us"}:
+            normalized_region = "global"
+        fetchers = self._get_fetchers_snapshot()
+        if preferred_fetcher:
+            fetchers = [item for item in fetchers if item.name == preferred_fetcher]
+
+        eligible: List[BaseFetcher] = []
+        for fetcher in fetchers:
+            macro_regions = getattr(fetcher, "macro_regions", None)
+            if macro_regions is not None and normalized_region not in macro_regions:
+                continue
+            if not self._is_fetcher_available(fetcher, capability="macro_indicators"):
+                continue
+            eligible.append(fetcher)
+
+        rows_by_fetcher: Dict[int, List[Dict[str, Any]]] = {}
+        if eligible:
+            with ThreadPoolExecutor(max_workers=min(4, len(eligible)), thread_name_prefix="macro_sources") as executor:
+                futures = {
+                    executor.submit(self._call_fetcher_method, fetcher, "get_macro_indicators"): fetcher
+                    for fetcher in eligible
+                }
+                for future in as_completed(futures):
+                    fetcher = futures[future]
+                    try:
+                        rows = future.result()
+                    except Exception as exc:
+                        logger.warning("[%s] 获取宏观市场指标失败: %s", fetcher.name, exc)
+                        continue
+                    if isinstance(rows, list):
+                        rows_by_fetcher[id(fetcher)] = rows
+
+        merged: Dict[str, Dict[str, Any]] = {}
+        # Preserve provider priority even though network calls run concurrently.
+        for fetcher in eligible:
+            rows = rows_by_fetcher.get(id(fetcher), [])
+            if not isinstance(rows, list):
+                continue
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                key = str(row.get("key") or "").strip()
+                if key and key not in merged:
+                    merged[key] = row
+        return list(merged.values())
 
     def get_market_stats(self, *, purpose: str = "unspecified") -> Dict[str, Any]:
         """获取市场涨跌统计（自动切换数据源）"""

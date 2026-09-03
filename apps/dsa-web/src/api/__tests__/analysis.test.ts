@@ -1,14 +1,44 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { analysisApi } from '../analysis';
 
-const post = vi.hoisted(() => vi.fn());
+const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 
 vi.mock('../index', () => ({
   default: {
-    get: vi.fn(),
+    get,
     post,
   },
 }));
+
+describe('analysisApi.getMarketSnapshot', () => {
+  beforeEach(() => {
+    get.mockReset();
+    get.mockResolvedValue({
+      data: {
+        kind: 'market_snapshot',
+        region: 'us',
+        generated_at: '2026-09-04T09:00:00+08:00',
+        date: '2026-09-04',
+        market_scope: '美股',
+        indices: [],
+        macro_indicators: [{ key: 'vix', name: 'VIX', current: 17.2 }],
+        analysis_skills: ['global-macro-review', 'us-macro-review'],
+        data_quality: 'partial',
+        warnings: [],
+      },
+    });
+  });
+
+  it('requests a region-scoped read-only snapshot and converts its fields', async () => {
+    const result = await analysisApi.getMarketSnapshot('us', true);
+
+    expect(get).toHaveBeenCalledWith('/api/v1/analysis/market-snapshot', {
+      params: { region: 'us', force_refresh: true },
+    });
+    expect(result.macroIndicators?.[0].key).toBe('vix');
+    expect(result.analysisSkills).toContain('us-macro-review');
+  });
+});
 
 describe('analysisApi.triggerMarketReview', () => {
   beforeEach(() => {

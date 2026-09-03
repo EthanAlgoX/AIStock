@@ -20,6 +20,8 @@ const TASK_META = {
   screening: { label: "选股", output: "ScreenSpec · CandidateList", icon: ListFilter },
   trading: { label: "交易策略", output: "PaperTradingRun · TradeProposal", icon: ShieldCheck },
   expert_review: { label: "专家评审", output: "ExpertReview", icon: History },
+  market_analysis: { label: "市场分析", output: "MarketAnalysisReport", icon: History },
+  industry_analysis: { label: "产业分析", output: "IndustryReport", icon: Search },
 } as const;
 
 const formatTime = (value?: string | null) => {
@@ -92,7 +94,7 @@ export default function TaskRunsPage() {
             <span className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-border bg-background text-secondary-text"><Icon className="h-4 w-4" /></span>
             <div><p className="text-sm font-semibold text-foreground">{run.taskSnapshot?.name || meta.label}</p><p className="mt-1 text-xs text-secondary-text">{meta.label} · {run.taskSnapshot?.market || "—"} · {meta.output}</p>{run.errorMessage ? <p className="mt-1 line-clamp-1 text-xs text-danger">{run.errorMessage}</p> : null}</div>
             <div className="text-xs text-secondary-text"><p className="flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5" />{formatTime(run.startedAt || run.createdAt)}</p><p className="mt-1 text-muted-text">Snapshot {run.dataSnapshotId?.slice(0, 8)}</p></div>
-            <div className="sm:text-right"><p className={`text-xs font-medium ${tone}`}>{statusLabel[run.status]}</p><p className="mt-1 text-[11px] text-muted-text">{run.triggerType === "schedule" ? "定时触发" : "手动触发"}</p></div>
+            <div className="sm:text-right"><p className={`text-xs font-medium ${tone}`}>{statusLabel[run.status]}</p><p className="mt-1 text-[11px] text-muted-text">{run.triggerType === "schedule" ? "定时触发" : "手动触发"}</p><Link to={`/runs/${run.id}`} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">查看详情 <ArrowRight className="h-3 w-3" /></Link></div>
           </article>;
         })}</div> : <div className="flex min-h-56 flex-col items-center justify-center px-6 py-10 text-center"><CalendarClock className="h-7 w-7 text-muted-text" /><p className="mt-4 font-medium text-foreground">还没有运行记录</p><p className="mt-2 max-w-lg text-sm leading-6 text-secondary-text">从个股分析、选股、交易或专家评审页面启动第一个任务。</p><Link to="/stock-research" className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">开始个股分析 <ArrowRight className="h-3.5 w-3.5" /></Link></div>}
       </section>

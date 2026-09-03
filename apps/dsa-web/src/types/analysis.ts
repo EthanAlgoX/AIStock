@@ -272,6 +272,19 @@ export interface MarketReviewBreadth {
   turnoverUnit?: string;
 }
 
+export interface MarketMacroIndicator {
+  key: string;
+  name: string;
+  current?: number;
+  changePct?: number;
+  previous?: number;
+  changeLabel?: string;
+  unit?: string;
+  frequency?: string;
+  asOf?: string;
+  source?: string;
+}
+
 export interface MarketReviewPayload {
   version?: number;
   kind?: 'market_review' | string;
@@ -285,12 +298,26 @@ export interface MarketReviewPayload {
   marketLight?: Record<string, unknown>;
   breadth?: MarketReviewBreadth;
   indices?: MarketReviewIndex[];
+  macroIndicators?: MarketMacroIndicator[];
+  analysisSkills?: string[];
   sectors?: SectorRankings;
   concepts?: SectorRankings;
   news?: Array<Record<string, unknown>>;
   sections?: MarketReviewPayloadSection[];
   markets?: Record<string, MarketReviewPayload>;
   markdownReport?: string;
+  dataQuality?: 'ok' | 'partial' | 'unavailable';
+  warnings?: string[];
+}
+
+export interface MarketSnapshot extends MarketReviewPayload {
+  kind: 'market_snapshot';
+  region: MarketReviewRegion;
+  generatedAt: string;
+  date: string;
+  marketScope: string;
+  dataQuality: 'ok' | 'partial' | 'unavailable';
+  warnings: string[];
 }
 
 export type AnalysisContextPackBlockStatus =

@@ -9,27 +9,12 @@
 2. 自动故障切换
 3. 防封禁流控策略
 
-数据源优先级（动态调整）：
-【配置了 TUSHARE_TOKEN 时】
-1. TushareFetcher (Priority 0) - 🔥 最高优先级（动态提升）
-2. EfinanceFetcher (Priority 0) - 同优先级
-3. AkshareFetcher (Priority 1) - 来自 akshare 库
-4. PytdxFetcher (Priority 2) - 来自 pytdx 库（通达信）
-5. BaostockFetcher (Priority 3) - 来自 baostock 库
-6. YfinanceFetcher (Priority 4) - 来自 yfinance 库
-7. TencentFetcher (Priority 5) - 腾讯直连日 K 最终兜底
-
-【未配置 TUSHARE_TOKEN 时】
-1. EfinanceFetcher (Priority 0) - 最高优先级，来自 efinance 库
-2. AkshareFetcher (Priority 1) - 来自 akshare 库
-3. PytdxFetcher (Priority 2) - 来自 pytdx 库（通达信）
-4. TushareFetcher (Priority 2) - 来自 tushare 库（不可用）
-5. BaostockFetcher (Priority 3) - 来自 baostock 库
-6. YfinanceFetcher (Priority 4) - 来自 yfinance 库
-7. TencentFetcher (Priority 5) - 腾讯直连日 K 最终兜底
-8. LongbridgeFetcher (Priority 5) - 长桥 OpenAPI（美股/港股兜底，与 Tencent 市场不重叠）
-
-提示：优先级数字越小越优先，同优先级按初始化顺序排列
+数据源优先级由各 Fetcher 和运行配置共同决定：
+- Efinance、AkShare、Pytdx、Baostock、YFinance、Tencent 为基础回退链；
+- 配置密钥后，HiThink Financial API、Tushare、TickFlow、Longbridge、
+  Finnhub、Alpha Vantage 等可选来源才会注册；
+- 数字越小越优先，同优先级按初始化顺序排列；
+- 跨市场请求还会按各来源支持的市场进行过滤。
 """
 
 from .base import BaseFetcher, DataFetcherManager
@@ -43,6 +28,9 @@ from .yfinance_fetcher import YfinanceFetcher
 from .longbridge_fetcher import LongbridgeFetcher
 from .finnhub_fetcher import FinnhubFetcher
 from .alphavantage_fetcher import AlphaVantageFetcher
+from .hithink_finance_fetcher import HiThinkFinanceFetcher
+from .apocdata_macro_fetcher import ApocDataMacroFetcher
+from .fred_macro_fetcher import FredMacroFetcher
 from .us_index_mapping import is_us_index_code, is_us_stock_code, get_us_index_yf_symbol, US_INDEX_MAPPING
 
 __all__ = [
@@ -58,6 +46,9 @@ __all__ = [
     'LongbridgeFetcher',
     'FinnhubFetcher',
     'AlphaVantageFetcher',
+    'HiThinkFinanceFetcher',
+    'ApocDataMacroFetcher',
+    'FredMacroFetcher',
     'is_us_index_code',
     'is_us_stock_code',
     'is_hk_stock_code',

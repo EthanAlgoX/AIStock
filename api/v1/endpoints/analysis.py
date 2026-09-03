@@ -24,7 +24,7 @@ import re
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Union, Dict, Any
+from typing import Optional, Union, Dict, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Depends, Query, Body
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -44,6 +44,7 @@ from api.v1.schemas.analysis import (
     DuplicateTaskErrorResponse,
     MarketReviewRequest,
     MarketReviewAccepted,
+    MarketSnapshotResponse,
 )
 from api.v1.schemas.common import ErrorResponse
 from api.v1.schemas.history import (
@@ -549,6 +550,32 @@ def _handle_sync_analysis(
     except Exception as e:
         logger.error(f"分析失败: {e}", exc_info=True)
         raise api_error(500, "internal_error", f"分析过程发生错误: {str(e)}")
+
+
+# ============================================================
+# GET /market-snapshot - 获取无需 LLM 的实时市场快照
+# ============================================================
+
+@router.get(
+    "/market-snapshot",
+    response_model=MarketSnapshotResponse,
+    responses={200: {"description": "实时市场快照"}},
+    summary="获取实时市场快照",
+    description="读取指定市场的真实指数与宏观观测，不调用 LLM，也不创建或保存市场复盘报告。",
+)
+def get_market_snapshot(
+    region: Literal["cn", "hk", "us"] = Query(..., description="市场区域"),
+    force_refresh: bool = Query(False, description="是否跳过进程内短时缓存"),
+    config: Config = Depends(get_config_dep),
+) -> MarketSnapshotResponse:
+    from src.services.market_snapshot_service import get_current_market_snapshot
+
+    payload = get_current_market_snapshot(
+        region,
+        config=config,
+        force_refresh=force_refresh,
+    )
+    return MarketSnapshotResponse.model_validate(payload)
 
 
 # ============================================================

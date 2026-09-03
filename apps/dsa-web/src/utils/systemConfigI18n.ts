@@ -50,6 +50,11 @@ const categoryDescriptionMap: Record<UiLanguage, Partial<Record<SystemConfigCate
 const fieldTitleMap: Record<string, string> = {
   STOCK_LIST: '自选股列表',
   TUSHARE_TOKEN: 'Tushare Token',
+  FRED_API_KEY: 'FRED 宏观数据 API Key',
+  HITHINK_FINANCE_API_KEY: '同花顺金融数据 API Key',
+  HITHINK_FINANCE_BASE_URL: '同花顺金融数据接口地址',
+  HITHINK_FINANCE_TIMEOUT_SECONDS: '同花顺金融数据超时',
+  HITHINK_FINANCE_PRIORITY: '同花顺金融数据优先级',
   BOCHA_API_KEYS: 'Bocha API Keys',
   TAVILY_API_KEYS: 'Tavily API Keys',
   ANSPIRE_API_KEYS: 'Anspire API Keys',
@@ -219,6 +224,11 @@ const fieldTitleMap: Record<string, string> = {
 const fieldDescriptionMap: Record<string, string> = {
   STOCK_LIST: '推荐使用英文逗号分隔股票代码；中文逗号、顿号、分号、空格和换行会在保存后规范为英文逗号。',
   TUSHARE_TOKEN: '用于接入 Tushare Pro 数据服务的凭据。',
+  FRED_API_KEY: '用于读取 FRED 官方美债收益率、实际利率、信用利差、通胀和就业序列；密钥不会提供给 Agent。',
+  HITHINK_FINANCE_API_KEY: '用于接入同花顺官方 Financial API；密钥仅由后端保存和使用，不会提供给 Agent。',
+  HITHINK_FINANCE_BASE_URL: '同花顺 Financial API 的 REST 地址；除非使用可信兼容网关，否则请保留官方地址。',
+  HITHINK_FINANCE_TIMEOUT_SECONDS: '单次请求等待上限；超时或服务端错误会有限重试，再切换到其他数据源。',
+  HITHINK_FINANCE_PRIORITY: '控制该服务在 A 股日 K 数据源回退链中的位置，数值越小越优先。',
   BOCHA_API_KEYS: '用于新闻检索的 Bocha 密钥，支持逗号分隔多个（最高优先级）。',
   TAVILY_API_KEYS: '用于新闻检索的 Tavily 密钥，支持逗号分隔多个。',
   ANSPIRE_API_KEYS: 'Anspire Open 密钥，支持逗号分隔多个；默认同时用于大模型网关和新闻检索。',

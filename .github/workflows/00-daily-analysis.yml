@@ -272,6 +272,11 @@ jobs:
           # 数据源
           # ==========================================
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          HITHINK_FINANCE_API_KEY: ${{ secrets.HITHINK_FINANCE_API_KEY }}
+          HITHINK_FINANCE_BASE_URL: ${{ vars.HITHINK_FINANCE_BASE_URL || secrets.HITHINK_FINANCE_BASE_URL }}
+          HITHINK_FINANCE_TIMEOUT_SECONDS: ${{ vars.HITHINK_FINANCE_TIMEOUT_SECONDS || secrets.HITHINK_FINANCE_TIMEOUT_SECONDS }}
+          HITHINK_FINANCE_PRIORITY: ${{ vars.HITHINK_FINANCE_PRIORITY || secrets.HITHINK_FINANCE_PRIORITY }}
           # Tushare Pro 自定义接入地址（可选；指向自建网关或第三方兼容镜像时设置）
           TUSHARE_HTTP_URL: ${{ vars.TUSHARE_HTTP_URL || secrets.TUSHARE_HTTP_URL }}
           # TickFlow（A 股日 K、实时行情、股票列表/名称与大盘复盘增强；不设则走免费源 fallback）
@@ -476,6 +481,8 @@ jobs:
           echo ""
           echo "【数据源】"
           echo "  Tushare Token: $([ -n "$TUSHARE_TOKEN" ] && echo '✅ 已配置' || echo '⚪ 未配置')"
+          echo "  FRED API:      $([ -n "$FRED_API_KEY" ] && echo '✅ 已配置' || echo '⚪ 未配置')"
+          echo "  HiThink API:   $([ -n "$HITHINK_FINANCE_API_KEY" ] && echo '✅ 已配置' || echo '⚪ 未配置')"
           echo "  TickFlow:      $([ -n "$TICKFLOW_API_KEY" ] && echo '✅ 已配置' || echo '⚪ 未配置')"
           if [ -n "$LONGBRIDGE_APP_KEY" ] && [ -n "$LONGBRIDGE_APP_SECRET" ] && [ -n "$LONGBRIDGE_ACCESS_TOKEN" ]; then
             echo "  Longbridge: ✅ 已配置（Legacy API Key）"

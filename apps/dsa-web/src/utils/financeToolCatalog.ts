@@ -66,6 +66,14 @@ export const FINANCE_TOOL_CATALOG: FinanceToolCatalogItem[] = [
     scope: "市场",
   },
   {
+    id: "get_macro_indicators",
+    name: "宏观指标",
+    description: "按市场读取带来源和时间的宏观观测值；缺失序列不会用估算值填充。",
+    category: "market",
+    permission: "READ",
+    scope: "市场",
+  },
+  {
     id: "get_sector_rankings",
     name: "行业板块排名",
     description: "读取行业和板块的相对强弱与排名。",

@@ -107,8 +107,8 @@ describe('AgentBackendStatusPanel', () => {
       selectedBackend: 'external_runtime',
     });
 
-    expect((await screen.findAllByText('独立 Agent 引擎')).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText(/网站 MCP 草稿和数据源目录目前不会自动同步/)).toBeInTheDocument();
+    expect((await screen.findAllByText('独立 Agent 引擎')).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/负责 ReAct、Skill、Tool、MCP 和记忆/)).toBeInTheDocument();
     expect(screen.getByText(/external_runtime-agent/)).toBeInTheDocument();
   });
 

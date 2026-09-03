@@ -10,7 +10,7 @@
 3. 定义异步任务队列相关模型
 """
 
-from typing import Optional, List, Any, Literal
+from typing import Optional, List, Any, Dict, Literal
 from enum import Enum
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
@@ -172,6 +172,24 @@ class MarketReviewAccepted(BaseModel):
         None,
         description="任务 ID（仅当任务实际提交时返回）",
     )
+
+
+class MarketSnapshotResponse(BaseModel):
+    """Read-only live market data used before an Agent review exists."""
+
+    version: int = 1
+    kind: Literal["market_snapshot"] = "market_snapshot"
+    region: Literal["cn", "hk", "us"]
+    market_scope: str
+    generated_at: str
+    date: str
+    indices: List[Dict[str, Any]] = Field(default_factory=list)
+    macro_indicators: List[Dict[str, Any]] = Field(default_factory=list)
+    analysis_skills: List[str] = Field(default_factory=list)
+    breadth: Optional[Dict[str, Any]] = None
+    sectors: Dict[str, Any] = Field(default_factory=dict)
+    data_quality: Literal["ok", "partial", "unavailable"]
+    warnings: List[str] = Field(default_factory=list)
 
 
 class AnalysisResultResponse(BaseModel):
