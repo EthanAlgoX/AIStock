@@ -40,12 +40,9 @@ vi.mock("../../hooks/useStockIndex", () => ({
   }),
 }));
 
-vi.mock("../../components/agent/AgentCapabilityPanel", () => ({
-  default: ({ scopeLabel, onToggleSkill, className }: { scopeLabel: string; onToggleSkill: (id: string) => void; className?: string }) => (
-    <aside aria-label={`本次${scopeLabel}能力`} className={className}>
-      <button type="button" onClick={() => onToggleSkill("quality")}>选择质量分析 Skill</button>
-    </aside>
-  ),
+vi.mock("../../components/agent/AgentCapabilityPanel", async () => ({
+  ...await vi.importActual("../../components/agent/AgentCapabilityPanel"),
+  default: ({ scopeLabel, className }: { scopeLabel: string; className?: string }) => <aside aria-label={`本次${scopeLabel}能力`} className={className} />,
 }));
 
 describe("AgentTaskSetupPage", () => {
@@ -53,7 +50,7 @@ describe("AgentTaskSetupPage", () => {
     render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
     fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "比较成长质量" } });
     fireEvent.change(screen.getByRole("combobox", { name: "候选深研数量" }), { target: { value: "2" } });
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "候选研究方法" })).toHaveValue("12"));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "候选深研策略" })).toHaveValue("12"));
     fireEvent.click(screen.getByRole("button", { name: "运行选股任务" }));
     await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
       config: expect.objectContaining({ strategyVersionId: 13, deepResearchCount: 2, deepResearchVersionId: 12 }),
@@ -97,9 +94,8 @@ describe("AgentTaskSetupPage", () => {
     expect(runButton).toBeDisabled();
 
     fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
-    fireEvent.click(screen.getByRole("button", { name: "高级能力配置" }));
-    fireEvent.click(screen.getByRole("button", { name: "选择质量分析 Skill" }));
-    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "研究策略" })).toHaveValue("12"));
+    fireEvent.change(screen.getByRole("combobox", { name: "研究策略" }), { target: { value: "custom" } });
     await waitFor(() => expect(runButton).toBeEnabled());
     fireEvent.click(runButton);
 
@@ -111,7 +107,7 @@ describe("AgentTaskSetupPage", () => {
     api.listStrategies.mockResolvedValue([{ id: 1, name: "单股研究 · A股配置", productRole: "configured", currentPublishedVersionId: 12, currentPublishedVersionNumber: 1, kernelExecutionStatus: "ready", currentStrategyPurpose: "research_report" }]);
     render(<MemoryRouter><AgentTaskSetupPage mode="research" /></MemoryRouter>);
     await screen.findByRole("option", { name: "单股研究 · A股配置 · v1" });
-    expect(screen.getByRole("combobox", { name: /研究流程/ })).toHaveValue("12");
+    expect(screen.getByRole("combobox", { name: /研究策略/ })).toHaveValue("12");
     fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
     fireEvent.click(screen.getByRole("button", { name: "运行单股分析" }));
     await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
@@ -136,7 +132,7 @@ describe("AgentTaskSetupPage", () => {
     expect(api.createTask).not.toHaveBeenCalled();
   });
 
-  it("hands the selected stock and Agent capabilities to the central scheduler", async () => {
+  it.each(["custom", "preset"])("hands %s strategy bindings to the central scheduler", async (selection) => {
     render(
       <MemoryRouter initialEntries={["/stock-research"]}>
         <Routes>
@@ -147,14 +143,14 @@ describe("AgentTaskSetupPage", () => {
     );
 
     fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
-    fireEvent.click(screen.getByRole("button", { name: "高级能力配置" }));
-    fireEvent.click(screen.getByRole("button", { name: "选择质量分析 Skill" }));
-    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "研究策略" })).toHaveValue("12"));
+    fireEvent.change(screen.getByRole("combobox", { name: "研究策略" }), { target: { value: "custom" } });
+    if (selection === "preset") fireEvent.change(screen.getByRole("combobox", { name: "研究策略" }), { target: { value: "12" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "定时分析" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "定时分析" }));
 
     expect(screen.getByTestId("schedule-navigation-state")).toHaveTextContent('"stock":"600519.SH"');
-    expect(screen.getByTestId("schedule-navigation-state")).toHaveTextContent('"skillIds":["quality"]');
+    expect(screen.getByTestId("schedule-navigation-state")).toHaveTextContent(selection === "custom" ? '"skillIds":["quality"]' : '"skillIds":[]');
   });
 
   it("hands screening conditions to the central scheduler", async () => {
@@ -203,16 +199,57 @@ describe("AgentTaskSetupPage", () => {
     expect(screen.getByRole("textbox", { name: "行业范围（可选）" })).toHaveValue("金融");
   });
 
-  it("keeps the mobile capability drawer modal and restores trigger focus", async () => {
+  it("shows preset contents instead of a second Skill selector", async () => {
+    api.getVersion.mockResolvedValue({ screeningPolicy: { market: "cn" }, decisionPolicy: { packageParameters: { skills: ["growth_quality"] } } });
+    render(<MemoryRouter><AgentTaskSetupPage mode="research" /></MemoryRouter>);
+    expect(await screen.findByText("包含 Skill：growth_quality")).toBeVisible();
+    expect(screen.queryByRole("group", { name: "组合策略 Skill" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "高级能力配置" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("submits preset skills through the version without leaking hidden custom selections", async () => {
+    render(<MemoryRouter><AgentTaskSetupPage mode="research" /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "研究策略" })).toHaveValue("12"));
+    fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: "研究策略" }), { target: { value: "custom" } });
+    expect(await screen.findByRole("button", { name: /^质量分析/ })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.change(screen.getByRole("combobox", { name: "研究策略" }), { target: { value: "12" } });
+    expect(screen.queryByRole("group", { name: "组合策略 Skill" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "运行单股分析" }));
+    await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
+      config: { strategyVersionId: 12 }, capabilities: expect.objectContaining({ skillIds: [] }),
+    })));
+  });
+
+  it("restores custom choices and blocks an empty custom combination", async () => {
+    const first = render(<MemoryRouter><AgentTaskSetupPage mode="research" /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "研究策略" })).toHaveValue("12"));
+    fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: "研究策略" }), { target: { value: "custom" } });
+    fireEvent.click(await screen.findByRole("button", { name: /^质量分析/ }));
+    expect(screen.getByRole("button", { name: "运行单股分析" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "定时分析" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /^质量分析/ }));
+    first.unmount();
+    render(<MemoryRouter><AgentTaskSetupPage mode="research" /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "研究策略" })).toHaveValue("custom"));
+    expect(screen.getByRole("button", { name: /^质量分析/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("separates screening rules from optional custom candidate research", async () => {
     render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
-
-    const trigger = screen.getByRole("button", { name: "高级能力配置" });
-    fireEvent.click(trigger);
-    expect(screen.getByRole("dialog", { name: "配置本次任务能力" })).toBeInTheDocument();
-
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("dialog", { name: "配置本次任务能力" })).not.toBeInTheDocument();
-    await waitFor(() => expect(trigger).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "筛选策略" })).toHaveValue("13"));
+    expect(screen.queryByRole("combobox", { name: "候选深研策略" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "候选深研数量" }), { target: { value: "1" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "候选深研策略" }), { target: { value: "custom" } });
+    expect(await screen.findByRole("button", { name: /^质量分析/ })).toBeVisible();
+    fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "寻找成长公司" } });
+    fireEvent.click(screen.getByRole("button", { name: "运行选股任务" }));
+    await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.objectContaining({ strategyVersionId: 13, deepResearchVersionId: 12, deepResearchCount: 1 }),
+      capabilities: expect.objectContaining({ skillIds: ["quality"] }),
+    })));
   });
 
   it.each(["research", "screening"] as const)("keeps %s running when switching pages during submission", async (kind) => {

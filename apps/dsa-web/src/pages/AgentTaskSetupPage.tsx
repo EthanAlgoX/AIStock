@@ -15,10 +15,11 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { workspaceApi, type WorkspaceRun, type WorkspaceSkill } from "../api/workspace";
 import { useWorkspaceRun } from "../hooks/useWorkspaceRun";
-import { strategyWorkspaceApi, type StrategySummary } from "../api/strategyWorkspace";
+import { strategyWorkspaceApi } from "../api/strategyWorkspace";
 import WorkflowArtifact from "../components/agent/WorkflowArtifact";
 import { visibleWorkspaceArtifacts, workspaceRunLabel } from "../utils/workspaceOutcome";
 import AgentCapabilityPanel from "../components/agent/AgentCapabilityPanel";
+import ResearchStrategySelector, { type ResearchStrategyOption } from "../components/agent/ResearchStrategySelector";
 import { AppPage, PageHeader } from "../components/common";
 import { useStockIndex } from "../hooks/useStockIndex";
 import {
@@ -46,6 +47,7 @@ type PersistedTaskWorkspace = {
   deepResearchCount?: string;
   deepResearchVersionId?: string;
   runId?: string;
+  customResearch?: boolean;
 };
 
 const TASK_DRAFT_KEYS: Record<WorkspaceMode, string> = {
@@ -93,13 +95,13 @@ const COPY = {
   research: {
     eyebrow: "Agent research task",
     title: "个股分析",
-    description: "先选择市场和股票，再配置本次任务使用的 Skill、内置工具、MCP 服务、数据源与专家。提交后由 Agent 组织分析流程。",
+    description: "选择股票与研究策略，再按需邀请专家。预设策略已包含研究方法，自定义组合时才选择 Skill。",
     action: "运行单股分析",
   },
   screening: {
     eyebrow: "Agent screening task",
     title: "选股",
-    description: "先确定市场和筛选目标，再配置本次任务能力。Agent 将把自然语言目标组织成选股任务。",
+    description: "选择筛选策略，按需深研候选股票。筛选规则负责候选排名，Agent 与专家负责研究和解读。",
     action: "运行选股任务",
   },
 } as const;
@@ -124,14 +126,14 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
   const [candidateCount, setCandidateCount] = useState(initialWorkspace.candidateCount);
   const [deepResearchCount, setDeepResearchCount] = useState(initialWorkspace.deepResearchCount || "0");
   const [deepResearchVersionId, setDeepResearchVersionId] = useState(initialWorkspace.deepResearchVersionId || "");
+  const [customRequested, setCustomRequested] = useState(initialWorkspace.customResearch ?? initialWorkspace.capabilities.skillIds.length > 0);
   const [skills, setSkills] = useState<WorkspaceSkill[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState("");
   const [capabilities, setCapabilities] = useState<AgentCapabilityBindings>(initialWorkspace.capabilities);
-  const [capabilityPanelOpen, setCapabilityPanelOpen] = useState(false);
   const { activeRun, runError, submitting, restoring, busy, startRun } = useWorkspaceRun(mode, !embedded);
   const showRunPreview = Boolean(activeRun || submitting || runError);
-  const [workflows, setWorkflows] = useState<Array<StrategySummary & { market: string }>>([]);
+  const [workflows, setWorkflows] = useState<ResearchStrategyOption[]>([]);
   const [preferredVersionId, setStrategyVersionId] = useState(initialWorkspace.strategyVersionId || "");
   const [workflowsLoading, setWorkflowsLoading] = useState(true);
   const compatibleWorkflows = workflows.filter((item) => item.market.toUpperCase() === market && item.currentStrategyPurpose === (mode === "research" ? "research_report" : "candidate_screening"));
@@ -140,8 +142,6 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
   const strategyVersionId = String((compatibleWorkflows.find((item) => String(item.currentPublishedVersionId) === preferredVersionId)
     || compatibleWorkflows.find((item) => item.name === (mode === "research" ? "单股研究 · A股配置" : "多因子选股 · A股配置")) || compatibleWorkflows[0])?.currentPublishedVersionId || "");
   const [workflowError, setWorkflowError] = useState("");
-  const capabilityTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const capabilityDialogRef = useRef<HTMLDivElement | null>(null);
   const stockIndex = useStockIndex(mode === "research");
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -162,6 +162,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
     setDeepResearchVersionId(String(task.config.deepResearchVersionId || ""));
     setStrategyVersionId(task.config.strategyVersionId ? String(task.config.strategyVersionId) : "");
     setCapabilities(task.capabilities);
+    setCustomRequested(task.capabilities.skillIds.length > 0);
     if (mode === "research" && stock) {
       setQuery(stock);
       setSelectedStock({ canonicalCode: stock, displayCode: stock, nameZh: String(task.subject.stockName || stock), market: task.market === "GLOBAL" ? "CN" : task.market, assetType: "stock", active: true });
@@ -169,8 +170,8 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
   }
 
   useEffect(() => {
-    persistTaskWorkspace(mode, { market, query, selectedStock, objective, industry, candidateCount, capabilities, strategyVersionId, deepResearchCount, deepResearchVersionId: researchVersionId, runId: activeRun?.id });
-  }, [mode, market, query, selectedStock, objective, industry, candidateCount, capabilities, strategyVersionId, deepResearchCount, researchVersionId, activeRun?.id]);
+    persistTaskWorkspace(mode, { market, query, selectedStock, objective, industry, candidateCount, capabilities, strategyVersionId, deepResearchCount, deepResearchVersionId: researchVersionId, customResearch: customRequested, runId: activeRun?.id });
+  }, [mode, market, query, selectedStock, objective, industry, candidateCount, capabilities, strategyVersionId, deepResearchCount, researchVersionId, customRequested, activeRun?.id]);
 
   useEffect(() => {
     let active = true;
@@ -179,9 +180,12 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
       const available = items.filter((item) => item.productRole !== "kernel"
         && item.currentPublishedVersionId && item.kernelExecutionStatus === "ready"
         && (item.currentStrategyPurpose === "research_report" || (mode === "screening" && item.currentStrategyPurpose === "candidate_screening")));
-      const configured = await Promise.all(available.map(async (item) => ({ ...item,
-        market: (await strategyWorkspaceApi.getVersion(item.currentPublishedVersionId!)).screeningPolicy?.market || "",
-      })));
+      const configured = await Promise.all(available.map(async (item) => {
+        const version = await strategyWorkspaceApi.getVersion(item.currentPublishedVersionId!);
+        const parameters = version.decisionPolicy?.packageParameters;
+        const fixedSkills = parameters && typeof parameters === "object" && "skills" in parameters ? parameters.skills : [];
+        return { ...item, market: version.screeningPolicy?.market || "", fixedSkillIds: Array.isArray(fixedSkills) ? fixedSkills.filter((id): id is string => typeof id === "string") : [] };
+      }));
       if (active) setWorkflows(configured);
     }).catch(() => { if (active) setWorkflowError("策略目录读取失败，请刷新后重试。"); })
       .finally(() => { if (active) setWorkflowsLoading(false); });
@@ -227,58 +231,6 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
     };
   }, [mode]);
 
-  useEffect(() => {
-    if (!capabilityPanelOpen) return;
-    const dialog = capabilityDialogRef.current;
-    const trigger = capabilityTriggerRef.current;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const focusableSelector = [
-      "button:not([disabled])",
-      "a[href]",
-      "input:not([disabled])",
-      "select:not([disabled])",
-      "textarea:not([disabled])",
-      '[tabindex]:not([tabindex="-1"])',
-    ].join(",");
-    const focusFirstControl = window.requestAnimationFrame(() => {
-      const firstControl = dialog?.querySelector<HTMLElement>(focusableSelector);
-      (firstControl || dialog)?.focus();
-    });
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setCapabilityPanelOpen(false);
-        return;
-      }
-      if (event.key !== "Tab" || !dialog) return;
-      const controls = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector));
-      if (controls.length === 0) {
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-      const first = controls[0];
-      const last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.cancelAnimationFrame(focusFirstControl);
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-      window.requestAnimationFrame(() => trigger?.focus());
-    };
-  }, [capabilityPanelOpen]);
-
   const suggestions = useMemo(() => {
     if (mode !== "research") return [];
     const keyword = query.trim().toLocaleLowerCase();
@@ -293,9 +245,14 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
       .slice(0, 8);
   }, [market, mode, query, stockIndex.index]);
 
-  const capabilityCount = countAgentCapabilities(capabilities);
+  const skillVersionId = mode === "research" ? strategyVersionId : Number(deepResearchCount) > 0 ? researchVersionId : "";
+  const fixedSkillIds = workflows.find((item) => String(item.currentPublishedVersionId) === skillVersionId)?.fixedSkillIds || [];
+  const customResearch = Boolean(skillVersionId) && customRequested && fixedSkillIds.length === 0;
+  const effectiveCapabilities = { ...capabilities, skillIds: customResearch ? capabilities.skillIds : [] };
+  const capabilityCount = countAgentCapabilities({ ...effectiveCapabilities, skillIds: fixedSkillIds.length ? fixedSkillIds : effectiveCapabilities.skillIds });
   const canRun = Boolean(strategyVersionId) && !workflowsLoading && !workflowError
     && (mode !== "screening" || deepResearchCount === "0" || Boolean(researchVersionId))
+    && (!customResearch || (!skillsLoading && !skillsError && capabilities.skillIds.length > 0 && capabilities.skillIds.length <= 3))
     && (mode === "research" ? Boolean(selectedStock) : Boolean(objective.trim()));
   const selectionReady = mode === "research" ? Boolean(selectedStock) : Boolean(objective.trim());
 
@@ -323,6 +280,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
       strategyVersionId,
       deepResearchCount,
       deepResearchVersionId: researchVersionId,
+      customResearch: customRequested,
       runId: activeRun?.id,
     });
     const marketLabel = MARKETS.find((item) => item.id === market)?.label || market;
@@ -341,7 +299,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
         strategyVersionId: strategyVersionId ? Number(strategyVersionId) : undefined,
         deepResearchCount: mode === "screening" ? Number(deepResearchCount) : 0,
         deepResearchVersionId: mode === "screening" && Number(deepResearchCount) ? Number(researchVersionId) : undefined,
-        capabilities: { ...capabilities, toolIds: [...new Set([...capabilities.toolIds, mode === "research" ? "run_stock_research" : "run_stock_screening", ...(mode === "screening" && Number(deepResearchCount) ? ["run_stock_research"] : [])])] },
+        capabilities: { ...effectiveCapabilities, toolIds: [...new Set([...capabilities.toolIds, mode === "research" ? "run_stock_research" : "run_stock_screening", ...(mode === "screening" && Number(deepResearchCount) ? ["run_stock_research"] : [])])] },
       },
     };
     navigate(`/schedules?type=${mode}`, { state });
@@ -366,7 +324,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
           ...(strategyVersionId ? { strategyVersionId: Number(strategyVersionId) } : {}),
           ...(mode === "screening" && Number(deepResearchCount) ? { deepResearchCount: Number(deepResearchCount), deepResearchVersionId: Number(researchVersionId) } : {}),
         },
-        capabilities: { ...capabilities, toolIds: [...new Set([...capabilities.toolIds, mode === "research" ? "run_stock_research" : "run_stock_screening", ...(mode === "screening" && Number(deepResearchCount) ? ["run_stock_research"] : [])])] },
+        capabilities: { ...effectiveCapabilities, toolIds: [...new Set([...capabilities.toolIds, mode === "research" ? "run_stock_research" : "run_stock_screening", ...(mode === "screening" && Number(deepResearchCount) ? ["run_stock_research"] : [])])] },
       });
       const run = await workspaceApi.runTask(task.id);
       setRestoredRunId(run.id);
@@ -375,9 +333,19 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
     }, "任务启动未确认，请检查 Agent 状态和能力配置，并查看运行记录。");
   };
 
-  const renderCapabilityPanel = (className: string, onClose?: () => void) => (
+  const renderResearchStrategy = (label: string, options: ResearchStrategyOption[], versionId: string, setVersion: (id: string) => void) => (
+    <ResearchStrategySelector label={label} options={options} versionId={versionId} custom={customResearch}
+      onChange={(id, custom) => { setVersion(id); setCustomRequested(custom); }}
+      skills={skills} selectedSkillIds={capabilities.skillIds}
+      onToggleSkill={(id) => setCapabilities((current) => ({ ...current, skillIds: toggleValue(current.skillIds, id) }))}
+      loading={workflowsLoading} skillsLoading={skillsLoading} skillsError={skillsError} />
+  );
+
+  const renderCapabilityPanel = (className: string) => (
     <AgentCapabilityPanel
       scopeLabel="任务"
+      presentation="inline"
+      showSkills={false}
       skills={skills}
       selectedSkillIds={capabilities.skillIds}
       onToggleSkill={(id) => setCapabilities((current) => ({ ...current, skillIds: toggleValue(current.skillIds, id) }))}
@@ -392,7 +360,6 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
       onToggleExpert={(id) => setCapabilities((current) => ({ ...current, expertIds: toggleValue(current.expertIds, id) }))}
       selectedExpertTeamIds={capabilities.expertTeamIds}
       onToggleExpertTeam={(id) => setCapabilities((current) => ({ ...current, expertTeamIds: toggleValue(current.expertTeamIds, id) }))}
-      onClose={onClose}
       className={className}
     />
   );
@@ -411,7 +378,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
         {[
           { label: "选择范围", ready: true },
           { label: mode === "research" ? "选择股票" : "描述筛选目标", ready: selectionReady },
-          { label: "配置能力", ready: canRun },
+          { label: "策略与协作", ready: canRun },
           { label: "生成成果", ready: showRunPreview },
         ].map((step, index) => (
           <li key={step.label} className="flex items-center gap-3 bg-card px-4 py-3">
@@ -477,33 +444,31 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
           )}
 
           <section className="px-5 py-5 sm:px-6" aria-labelledby={`${mode}-run-heading`}>
-            {mode === "screening" && <div className="mb-5 space-y-3">
-              <label className="block text-sm font-medium">候选深研数量<select value={deepResearchCount} onChange={(event) => setDeepResearchCount(event.target.value)} className="mt-2 block h-10 w-full rounded-lg border border-border bg-background px-3">{[0, 1, 2, 3].map((count) => <option key={count} value={count}>{count ? `按原始排名深研前 ${count} 只` : "仅筛选与解读"}</option>)}</select></label>
-              {Number(deepResearchCount) > 0 && <label className="block text-sm font-medium">候选研究方法<select value={researchVersionId} onChange={(event) => setDeepResearchVersionId(event.target.value)} className="mt-2 block h-10 w-full rounded-lg border border-border bg-background px-3">{!researchVersionId && <option value="">当前市场无可用研究流程</option>}{researchWorkflows.map((item) => <option key={item.id} value={item.currentPublishedVersionId!}>{item.name}</option>)}</select></label>}
-              <p className="text-xs leading-5 text-secondary-text">深研会额外调用数据和模型，最多 3 只；逐股报告归入本次选股，不改写原排名。失败的候选保留原因。</p>
-            </div>}
-            <label className="mb-5 block text-sm font-medium text-foreground">
-              研究流程
-              <select value={strategyVersionId} onChange={(event) => {
-                const value = event.target.value;
-                setStrategyVersionId(value);
-                if (value) setCapabilities((current) => ({ ...current, toolIds: [...new Set([...current.toolIds, mode === "research" ? "run_stock_research" : "run_stock_screening"])] }));
-              }} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary">
-                {!strategyVersionId && <option value="">{workflowsLoading ? "正在读取正式报告流程…" : "当前市场没有可用的正式报告流程"}</option>}
-                {compatibleWorkflows.map((item) => <option key={item.id} value={item.currentPublishedVersionId!}>{item.name} · v{item.currentPublishedVersionNumber}</option>)}
-              </select>
-              {mode === "screening" && <p className="mt-3 text-sm font-normal leading-6 text-foreground">{compatibleWorkflows.find((item) => String(item.currentPublishedVersionId) === strategyVersionId)?.description}</p>}
-              <span className="mt-2 block text-xs font-normal leading-5 text-secondary-text">选择正式策略后，先执行数据与代码分析，再由 Agent 和所选专家解读同一份结果。选股的市场、筛选条件及数量使用策略中保存的配置；单股内核使用平台数据路由。本页目标作为解读要求，所选 MCP 用于补充证据。</span>
-              {workflowError && <span role="alert" className="mt-1 block text-xs text-warning">{workflowError}</span>}
-              {!workflowsLoading && !strategyVersionId && !workflowError && <span role="alert" className="mt-2 block text-sm text-warning">当前市场尚无已发布的{mode === "research" ? "单股研究" : "选股"}流程，无法生成正式报告。请切换到有可用流程的市场；开放式讨论可前往主 Agent，不会在这里自动替代报告。</span>}
-            </label>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mb-6 space-y-5">
+              {mode === "research" ? renderResearchStrategy("研究策略", compatibleWorkflows, strategyVersionId, setStrategyVersionId) : <>
+                <label className="block text-sm font-medium text-foreground">筛选策略
+                  <select aria-label="筛选策略" value={strategyVersionId} disabled={workflowsLoading || !compatibleWorkflows.length} onChange={(event) => setStrategyVersionId(event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm outline-none focus:border-primary">
+                    {!strategyVersionId && <option value="">当前市场暂无可用筛选策略</option>}
+                    {compatibleWorkflows.map((item) => <option key={item.id} value={item.currentPublishedVersionId!}>{item.name} · v{item.currentPublishedVersionNumber}</option>)}
+                  </select>
+                </label>
+                <p className="text-sm leading-6 text-secondary-text">{compatibleWorkflows.find((item) => String(item.currentPublishedVersionId) === strategyVersionId)?.description} 筛选策略决定股票池、过滤条件、排序和候选数量；Skill 不会替代这些规则。</p>
+                <label className="block text-sm font-medium">候选深研数量<select value={deepResearchCount} onChange={(event) => setDeepResearchCount(event.target.value)} className="mt-2 block h-10 w-full rounded-lg border border-border bg-background px-3">{[0, 1, 2, 3].map((count) => <option key={count} value={count}>{count ? `按原始排名深研前 ${count} 只` : "仅筛选与解读"}</option>)}</select></label>
+                {Number(deepResearchCount) > 0 && renderResearchStrategy("候选深研策略", researchWorkflows, researchVersionId, setDeepResearchVersionId)}
+                <p className="text-sm leading-6 text-secondary-text">候选深研负责逐股生成研究报告，与前面的筛选规则分工不同。额外调用数据和模型，最多 3 只；不改写原排名。</p>
+              </>}
+              {customResearch && !capabilities.skillIds.length && <p role="status" className="text-sm text-warning">请至少选择一个 Skill，或切回预设研究策略。</p>}
+              <p className="text-sm leading-6 text-secondary-text">系统负责取数、计算与报告保存，Agent 按策略研究并组织解读和专家评审。所选 MCP 用于补充证据，不替换内核数据路由。</p>
+              {workflowError && <p role="alert" className="text-sm text-warning">{workflowError}</p>}
+              {!workflowsLoading && !strategyVersionId && !workflowError && <p role="alert" className="text-sm text-warning">当前市场尚无已发布的{mode === "research" ? "单股研究" : "选股"}流程，无法生成正式报告。请切换市场；开放式讨论可前往主 Agent。</p>}
+            </div>
+            <div className="flex flex-col gap-4">
               <div>
-                <div className="flex items-center gap-2"><Network className="h-4 w-4 text-primary" /><h2 id={`${mode}-run-heading`} className="text-base font-semibold text-foreground">任务能力</h2></div>
-                <p className="mt-1 text-sm text-secondary-text">已选择 {capabilityCount} 项能力{skillsLoading ? "，正在读取 Skill" : ""}。按当前预设运行；如需更换工具或专家，可展开高级配置。</p>
+                <div className="flex items-center gap-2"><Network className="h-4 w-4 text-primary" /><h2 id={`${mode}-run-heading`} className="text-base font-semibold text-foreground">专家协作与数据工具</h2></div>
+                <p className="mt-1 text-sm text-secondary-text">已选择 {capabilityCount} 项能力{skillsLoading ? "，正在读取 Skill" : ""}。可选专家或专家团进行独立评审；工具、MCP 和数据源按需展开。</p>
                 {skillsError ? <p role="alert" className="mt-1 text-xs text-warning">{skillsError}</p> : null}
               </div>
-              <button ref={capabilityTriggerRef} type="button" className="btn-secondary inline-flex items-center justify-center gap-2" onClick={() => setCapabilityPanelOpen(true)}><SlidersHorizontal className="h-4 w-4" />高级能力配置</button>
+              {renderCapabilityPanel("mt-4 w-full")}
             </div>
 
             <div className="mt-5 flex flex-col gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
@@ -540,11 +505,6 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
 
       </div>
 
-      {capabilityPanelOpen ? (
-        <div className="fixed inset-0 z-50 bg-black/45 p-3" role="presentation" onClick={() => setCapabilityPanelOpen(false)}>
-          <div ref={capabilityDialogRef} tabIndex={-1} className="ml-auto h-full w-fit outline-none" role="dialog" aria-modal="true" aria-label="配置本次任务能力" onClick={(event) => event.stopPropagation()}>{renderCapabilityPanel("h-full w-[min(21rem,calc(100vw-1.5rem))]", () => setCapabilityPanelOpen(false))}</div>
-        </div>
-      ) : null}
       {embedded && runError ? <p role="alert" className="text-sm text-danger">{runError}</p> : null}
     </Container>
   );

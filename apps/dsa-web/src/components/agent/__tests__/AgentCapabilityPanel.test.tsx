@@ -19,6 +19,44 @@ describe("AgentCapabilityPanel", () => {
     apiMocks.getCapabilities.mockResolvedValue(workspaceCatalogFixture);
   });
 
+  const inlineProps = {
+    presentation: "inline" as const,
+    skills: [{ id: "quality", name: "盈利质量", description: "检查现金流与利润" }],
+    selectedSkillIds: [], onToggleSkill: vi.fn(), skillLimitReached: false,
+    selectedToolIds: [], onToggleTool: vi.fn(),
+    selectedDataSourceIds: [], onToggleDataSource: vi.fn(),
+    selectedMcpIds: [], onToggleMcp: vi.fn(),
+    selectedExpertIds: [], onToggleExpert: vi.fn(),
+    selectedExpertTeamIds: [], onToggleExpertTeam: vi.fn(),
+  };
+
+  it("exposes skills and expert choices inline while keeping infrastructure collapsed", async () => {
+    render(<MemoryRouter><AgentCapabilityPanel {...inlineProps} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: /^盈利质量/ }));
+    expect(inlineProps.onToggleSkill).toHaveBeenCalledWith("quality");
+    fireEvent.click(await screen.findByRole("button", { name: /^沃伦·巴菲特/ }));
+    expect(inlineProps.onToggleExpert).toHaveBeenCalledWith(-1001);
+    fireEvent.click(screen.getByRole("button", { name: /长期价值评审团/ }));
+    expect(inlineProps.onToggleExpertTeam).toHaveBeenCalledWith(-2001);
+    expect(screen.getByRole("button", { name: /内置工具/ })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("hides duplicate skills when the task owns its strategy selector", async () => {
+    render(<MemoryRouter><AgentCapabilityPanel {...inlineProps} showSkills={false} /></MemoryRouter>);
+    expect(screen.queryByRole("button", { name: /Skills/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^盈利质量/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /^沃伦·巴菲特/ })).toBeVisible();
+  });
+
+  it("retries the capability catalog without closing inline configuration", async () => {
+    apiMocks.getCapabilities.mockRejectedValueOnce(new Error("offline"));
+    render(<MemoryRouter><AgentCapabilityPanel {...inlineProps} /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "重试读取" }));
+    expect(await screen.findByRole("button", { name: /^沃伦·巴菲特/ })).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("shows registered capability categories and keeps MCP state honest", async () => {
     const onToggleSkill = vi.fn();
     const onToggleTool = vi.fn();
@@ -50,9 +88,9 @@ describe("AgentCapabilityPanel", () => {
     fireEvent.click(dataSection);
     expect(await screen.findByRole("button", { name: /行情数据/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^专家\d/ }));
-    expect(screen.getByRole("button", { name: /沃伦·巴菲特/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^沃伦·巴菲特/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /基本面专家/ })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /沃伦·巴菲特/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^沃伦·巴菲特/ }));
     expect(onToggleExpert).toHaveBeenCalledWith(-1001);
     fireEvent.click(screen.getByRole("button", { name: /专家团/ }));
     expect(screen.getByRole("button", { name: /长期价值评审团/ })).toBeInTheDocument();

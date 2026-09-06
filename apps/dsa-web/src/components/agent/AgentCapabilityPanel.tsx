@@ -42,6 +42,8 @@ type CapabilityPanelProps = {
   onToggleExpertTeam: (teamId: number) => void;
   onClose?: () => void;
   className?: string;
+  presentation?: "sidebar" | "inline";
+  showSkills?: boolean;
 };
 
 type SectionKey = "skills" | "tools" | "mcp" | "data" | "experts" | "teams";
@@ -55,13 +57,14 @@ const sectionMeta: Record<SectionKey, { title: string; icon: typeof Sparkles }> 
   teams: { title: "专家团", icon: Users },
 };
 
-function CapabilityButton({
+export function CapabilityButton({
   active,
   disabled,
   title,
   description,
   statusLabel,
   onClick,
+  comfortable = false,
 }: {
   active: boolean;
   disabled?: boolean;
@@ -69,6 +72,7 @@ function CapabilityButton({
   description?: string | null;
   statusLabel?: string;
   onClick: () => void;
+  comfortable?: boolean;
 }) {
   return (
     <button
@@ -92,11 +96,11 @@ function CapabilityButton({
         {active ? <Check className="h-3 w-3" /> : null}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="flex items-center justify-between gap-2 text-xs font-medium">
-          <span className="truncate">{title}</span>
+        <span className={cn("flex items-center justify-between gap-2 font-medium", comfortable ? "text-sm" : "text-xs")}>
+          <span className={comfortable ? "break-words" : "truncate"}>{title}</span>
           {statusLabel ? <span className="shrink-0 text-[9px] font-normal text-muted-text">{statusLabel}</span> : null}
         </span>
-        {description ? <span className="mt-0.5 line-clamp-2 block text-[11px] leading-4 text-muted-text">{description}</span> : null}
+        {description ? <span className={cn("mt-1 block", comfortable ? "text-sm leading-6 text-secondary-text" : "line-clamp-2 text-[11px] leading-4 text-muted-text")}>{description}</span> : null}
       </span>
     </button>
   );
@@ -120,17 +124,21 @@ export default function AgentCapabilityPanel({
   onToggleExpertTeam,
   onClose,
   className,
+  presentation = "sidebar",
+  showSkills = true,
 }: CapabilityPanelProps) {
+  const inline = presentation === "inline";
   const [dataSources, setDataSources] = useState<WorkspaceDataSource[]>([]);
   const [tools, setTools] = useState<WorkspaceTool[]>([]);
   const [mcpConnections, setMcpConnections] = useState<WorkspaceMcpServer[]>([]);
   const [experts, setExperts] = useState<WorkspaceExpert[]>([]);
   const [teams, setTeams] = useState<WorkspaceExpertTeam[]>([]);
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(
-    new Set(),
+    new Set(inline ? ["skills", "experts", "teams"] : []),
   );
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -150,7 +158,7 @@ export default function AgentCapabilityPanel({
     return () => {
       active = false;
     };
-  }, []);
+  }, [retry]);
 
   const boundCount = selectedToolIds.length + selectedDataSourceIds.length + selectedMcpIds.length + selectedExpertIds.length + selectedExpertTeamIds.length;
   const readyDataSources = useMemo(() => dataSources.filter((source) => source.selectable), [dataSources]);
@@ -171,7 +179,8 @@ export default function AgentCapabilityPanel({
   };
 
   return (
-    <aside className={cn("flex h-full w-[19rem] shrink-0 flex-col overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card", className)} aria-label={`本次${scopeLabel}能力`}>
+    <aside className={cn(inline ? "w-full min-w-0" : "flex h-full w-[19rem] shrink-0 flex-col overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card", className)} aria-label={`本次${scopeLabel}能力`}>
+      {!inline && <>
       <div className="border-b border-border/70 px-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -206,9 +215,11 @@ export default function AgentCapabilityPanel({
           ))}
         </div>
       </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-        {(Object.keys(sectionMeta) as SectionKey[]).map((key) => {
+      </>}
+      {inline && <p className="mb-3 text-sm leading-6 text-secondary-text">{showSkills ? "Skill 决定研究方法，专家提供独立观点。最多选择 3 个 Skill。" : "研究方法由上方策略统一确定；这里选择独立评审的专家或专家团，以及补充证据所需的工具。"}</p>}
+      {inline && loading && <p role="status" className="mb-3 text-sm text-muted-text">正在读取 Agent 能力目录…</p>}
+      <div className={inline ? "min-w-0" : "min-h-0 flex-1 overflow-y-auto px-2 py-2"}>
+        {(inline ? ["skills", "experts", "teams", "tools", "mcp", "data"] as SectionKey[] : Object.keys(sectionMeta) as SectionKey[]).filter((key) => showSkills || key !== "skills").map((key) => {
           const { title, icon: Icon } = sectionMeta[key];
           const open = openSections.has(key);
           const count = key === "skills" ? skills.length : key === "tools" ? tools.length : key === "mcp" ? mcpConnections.length : key === "data" ? readyDataSources.length : key === "experts" ? experts.length : key === "teams" ? teams.length : 0;
@@ -224,10 +235,11 @@ export default function AgentCapabilityPanel({
               </button>
 
               {open ? (
-                <div className="space-y-1 pb-3">
+                <div className={cn("pb-3", inline ? "grid gap-2 sm:grid-cols-2" : "space-y-1")}>
                   {key === "skills" ? (
                     skills.length ? skills.map((skill) => (
                       <CapabilityButton
+                        comfortable={inline}
                         key={skill.id}
                         active={selectedSkillIds.includes(skill.id)}
                         disabled={!selectedSkillIds.includes(skill.id) && skillLimitReached}
@@ -242,6 +254,7 @@ export default function AgentCapabilityPanel({
                   {key === "tools" ? (
                     tools.length ? tools.map((tool) => (
                         <CapabilityButton
+                        comfortable={inline}
                           key={tool.id}
                           active={selectedToolIds.includes(tool.id)}
                           title={tool.name}
@@ -255,6 +268,7 @@ export default function AgentCapabilityPanel({
                   {key === "mcp" ? (
                     mcpConnections.length ? mcpConnections.map((connection) => (
                       <CapabilityButton
+                        comfortable={inline}
                         key={connection.id}
                         active={selectedMcpIds.includes(connection.id)}
                         title={connection.name}
@@ -268,6 +282,7 @@ export default function AgentCapabilityPanel({
                   {key === "data" ? (
                     loading ? <p className="px-3 py-2 text-[11px] text-muted-text">正在读取数据源…</p> : readyDataSources.length ? readyDataSources.slice(0, 8).map((source) => (
                       <CapabilityButton
+                        comfortable={inline}
                         key={source.sourceId}
                         active={selectedDataSourceIds.includes(source.sourceId)}
                         title={source.name}
@@ -281,6 +296,7 @@ export default function AgentCapabilityPanel({
                   {key === "experts" ? (
                     experts.map((expert) => (
                       <CapabilityButton
+                        comfortable={inline}
                         key={expert.id}
                         active={selectedExpertIds.includes(expert.id)}
                         title={expert.name}
@@ -290,10 +306,12 @@ export default function AgentCapabilityPanel({
                       />
                     ))
                   ) : null}
+                  {key === "experts" && !loading && !loadFailed && experts.length === 0 && <p className="px-3 py-2 text-sm text-muted-text">暂无启用的专家。</p>}
 
                   {key === "teams" ? (
                     teams.map((team) => (
                       <CapabilityButton
+                        comfortable={inline}
                         key={team.id}
                         active={selectedExpertTeamIds.includes(team.id)}
                         title={team.name}
@@ -303,13 +321,14 @@ export default function AgentCapabilityPanel({
                       />
                     ))
                   ) : null}
+                  {key === "teams" && !loading && !loadFailed && teams.length === 0 && <p className="px-3 py-2 text-sm text-muted-text">暂无启用的专家团。</p>}
                 </div>
               ) : null}
             </section>
           );
         })}
 
-        {loadFailed ? <p className="mx-2 my-3 rounded-[8px] border border-warning/25 bg-warning/5 px-3 py-2 text-[11px] leading-4 text-warning">能力目录读取失败，请关闭面板后重试。</p> : null}
+        {loadFailed ? <div role="alert" className="my-3 text-sm text-warning">能力目录读取失败。<button type="button" className="ml-2 underline" onClick={() => { setLoading(true); setLoadFailed(false); setRetry((value) => value + 1); }}>重试读取</button></div> : null}
       </div>
 
       <div className="border-t border-border/70 px-4 py-3">

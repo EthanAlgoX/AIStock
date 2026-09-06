@@ -24,7 +24,8 @@ const api = vi.hoisted(() => ({
 
 vi.mock("../../api/workspace", () => ({ workspaceApi: api }));
 
-vi.mock("../../components/agent/AgentCapabilityPanel", () => ({
+vi.mock("../../components/agent/AgentCapabilityPanel", async () => ({
+  ...await vi.importActual("../../components/agent/AgentCapabilityPanel"),
   default: ({ onToggleExpert, className, skills, selectedExpertIds }: { onToggleExpert: (id: number) => void; className?: string; skills: unknown[]; selectedExpertIds: number[] }) => (
     <aside aria-label="本次任务能力" className={className}>
       <span>{`skills:${skills.length}`}</span><span>{`experts:${selectedExpertIds.length}`}</span>
@@ -73,6 +74,9 @@ describe("TradingWorkspacePage", () => {
     expect(screen.queryByRole("textbox", { name: "策略名称" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "新建模拟运行" }));
     await screen.findByText("skills:2");
+    expect(screen.getByRole("button", { name: "选择巴菲特专家" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "配置策略能力" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     const startButton = screen.getByRole("button", { name: "启动模拟运行" });
     expect(startButton).toBeDisabled();
     fillStrategy();

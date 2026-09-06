@@ -5,7 +5,6 @@ import {
   Play,
   Save,
   ShieldCheck,
-  SlidersHorizontal,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { workspaceApi, type WorkspaceRun, type WorkspaceSkill, type WorkspaceTask } from "../api/workspace";
 import { useWorkspaceRun } from "../hooks/useWorkspaceRun";
 import AgentCapabilityPanel from "../components/agent/AgentCapabilityPanel";
+import { StrategySkillPicker } from "../components/agent/ResearchStrategySelector";
 import {
   countAgentCapabilities,
   EMPTY_AGENT_CAPABILITIES,
@@ -68,13 +68,10 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState("");
   const [capabilities, setCapabilities] = useState<AgentCapabilityBindings>(EMPTY_AGENT_CAPABILITIES);
-  const [capabilityPanelOpen, setCapabilityPanelOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savedTask, setSavedTask] = useState<WorkspaceTask | null>(null);
   const { activeRun, runError, submitting, restoring, busy, startRun: submitRun } = useWorkspaceRun("trading", false);
   const [runtimeError, setRuntimeError] = useState("");
-  const capabilityTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const capabilityDialogRef = useRef<HTMLDivElement | null>(null);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -123,56 +120,6 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!capabilityPanelOpen) return;
-    const dialog = capabilityDialogRef.current;
-    const trigger = capabilityTriggerRef.current;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const focusableSelector = [
-      "button:not([disabled])",
-      "a[href]",
-      "input:not([disabled])",
-      "select:not([disabled])",
-      "textarea:not([disabled])",
-      '[tabindex]:not([tabindex="-1"])',
-    ].join(",");
-    const focusFirstControl = window.requestAnimationFrame(() => {
-      const firstControl = dialog?.querySelector<HTMLElement>(focusableSelector);
-      (firstControl || dialog)?.focus();
-    });
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setCapabilityPanelOpen(false);
-        return;
-      }
-      if (event.key !== "Tab" || !dialog) return;
-      const controls = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector));
-      if (!controls.length) {
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-      const first = controls[0];
-      const last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.cancelAnimationFrame(focusFirstControl);
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-      window.requestAnimationFrame(() => trigger?.focus());
-    };
-  }, [capabilityPanelOpen]);
 
   const capabilityCount = countAgentCapabilities(capabilities);
   const strategyReady = Boolean(draft.name.trim() && draft.objective.trim());
@@ -249,9 +196,11 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
     navigate("/schedules?type=trading", { state });
   };
 
-  const renderCapabilityPanel = (className: string, onClose?: () => void) => (
+  const renderCapabilityPanel = (className: string) => (
     <AgentCapabilityPanel
       scopeLabel="任务"
+      presentation="inline"
+      showSkills={false}
       skills={skills}
       selectedSkillIds={capabilities.skillIds}
       onToggleSkill={(id) => setCapabilities((current) => ({ ...current, skillIds: toggleValue(current.skillIds, id) }))}
@@ -266,7 +215,6 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
       onToggleExpert={(id) => setCapabilities((current) => ({ ...current, expertIds: toggleValue(current.expertIds, id) }))}
       selectedExpertTeamIds={capabilities.expertTeamIds}
       onToggleExpertTeam={(id) => setCapabilities((current) => ({ ...current, expertTeamIds: toggleValue(current.expertTeamIds, id) }))}
-      onClose={onClose}
       className={className}
     />
   );
@@ -287,7 +235,7 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
         ))}
       </ol>
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_304px]">
+      <div className="grid items-start gap-5">
         <div className="space-y-5">
           <div className="overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card">
             <section className="border-b border-border/70 px-5 py-5 sm:px-6" aria-labelledby="trading-definition-heading">
@@ -330,10 +278,15 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
               <label className="mt-4 flex items-start gap-3 rounded-[10px] border border-border bg-background px-4 py-3 text-sm text-foreground"><input type="checkbox" checked={draft.requireApproval} onChange={(event) => updateDraft("requireApproval", event.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" /><span><span className="font-medium">模拟交易提案进入人工确认</span><span className="mt-1 block text-xs leading-5 text-muted-text">即使后端接通，也先生成提案，不自动提交真实订单。</span></span></label>
             </section>
 
+            <section className="border-b border-border/70 px-5 py-5 sm:px-6" aria-labelledby="trading-skills-heading">
+              <h2 id="trading-skills-heading" className="text-base font-semibold text-foreground">交易策略 Skill（可选）</h2>
+              <p className="mt-1 text-sm leading-6 text-secondary-text">交易逻辑与所选 Skill 共同组成这份自定义策略，用于研究信号和生成模拟提案；不另选执行流程，也不改变上方硬性风险边界。</p>
+              <StrategySkillPicker skills={skills} selectedIds={capabilities.skillIds} onToggle={(id) => { setCapabilities((current) => ({ ...current, skillIds: toggleValue(current.skillIds, id) })); setSaved(false); }} loading={skillsLoading} error={skillsError} />
+            </section>
             <section className="px-5 py-5 sm:px-6" aria-labelledby="trading-capability-heading">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div><h2 id="trading-capability-heading" className="text-base font-semibold text-foreground">策略能力</h2><p className="mt-1 text-sm text-secondary-text">已选择 {capabilityCount} 项能力{skillsLoading ? "，正在读取 Skill" : ""}。专家可以参与信号复核和交易提案评审。</p>{skillsError ? <p role="alert" className="mt-1 text-xs text-warning">{skillsError}</p> : null}</div>
-                <button ref={capabilityTriggerRef} type="button" className="btn-secondary inline-flex items-center justify-center gap-2 xl:hidden" onClick={() => setCapabilityPanelOpen(true)}><SlidersHorizontal className="h-4 w-4" />配置策略能力</button>
+              <div className="flex flex-col gap-4">
+                <div><h2 id="trading-capability-heading" className="text-base font-semibold text-foreground">专家协作与数据工具</h2><p className="mt-1 text-sm text-secondary-text">已选择 {capabilityCount} 项能力。专家可以参与信号复核和交易提案评审。</p></div>
+                {renderCapabilityPanel("mt-4 w-full")}
               </div>
               <div className="mt-5 flex flex-col gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
                 <p className="flex items-start gap-2 text-xs leading-5 text-muted-text"><Database className="mt-0.5 h-3.5 w-3.5 shrink-0" />策略定义和能力绑定会保存到后端；每次模拟运行都会冻结独立快照。</p>
@@ -346,14 +299,8 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
           {runError || runtimeError ? <p role="alert" className="text-sm text-danger">{runError || runtimeError}</p> : null}
         </div>
 
-        {renderCapabilityPanel("hidden h-[calc(100vh-10rem)] w-full xl:sticky xl:top-6 xl:flex")}
       </div>
 
-      {capabilityPanelOpen ? (
-        <div className="fixed inset-0 z-50 bg-black/45 p-3 xl:hidden" role="presentation" onClick={() => setCapabilityPanelOpen(false)}>
-          <div ref={capabilityDialogRef} tabIndex={-1} className="ml-auto h-full w-fit outline-none" role="dialog" aria-modal="true" aria-label="配置交易策略能力" onClick={(event) => event.stopPropagation()}>{renderCapabilityPanel("h-full w-[min(21rem,calc(100vw-1.5rem))]", () => setCapabilityPanelOpen(false))}</div>
-        </div>
-      ) : null}
     </div>
   );
 }
