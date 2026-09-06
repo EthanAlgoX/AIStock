@@ -42,6 +42,7 @@ from src.services.screening.snapshot import fetch_snapshot_with_fallback
 from src.services.screening.strategy import load_all_strategies
 
 logger = logging.getLogger(__name__)
+SUPPORTED_MARKETS = ("cn", "us")
 
 
 def screen(
@@ -108,8 +109,8 @@ def screen(
     if config is None:
         config = Config.from_env()
 
-    if market not in ("cn", "us"):
-        raise ValueError(f"Unsupported market: {market!r} (supported: cn, us)")
+    if market not in SUPPORTED_MARKETS:
+        raise ValueError(f"Unsupported market: {market!r} (supported: {', '.join(SUPPORTED_MARKETS)})")
 
     run_id = uuid.uuid4().hex[:12]
     degradation: list[str] = []
@@ -526,6 +527,8 @@ def screen(
     return ScreenResult(
         strategy=strategy,
         market=market,
+        strategy_display_name=strat.display_name,
+        strategy_description=strat.description,
         strategy_version=strat.version,
         strategy_category=strat.category,
         snapshot_count=snapshot_count,

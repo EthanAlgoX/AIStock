@@ -57,6 +57,34 @@ def _task_payload(kind="screening", **overrides):
     return value
 
 
+def test_restart_closes_observed_active_stage(workspace):
+    task = workspace.create_task(_task_payload())
+    with patch("src.services.workspace_service._WORKERS"):
+        run = workspace.create_run(task["id"])
+    workspace._set_run_stage(run["id"], "agent", "Agent 研究", "running")
+    assert workspace.reconcile_interrupted_runs() == 1
+    restored = workspace.get_run(run["id"])
+    assert restored["status"] == "failed"
+    assert restored["errorCode"] == "runtime_restarted"
+    assert restored["resultSummary"]["stages"][0]["status"] == "failed"
+    assert restored["resultSummary"]["stages"][0]["completedAt"]
+
+
+def test_legacy_trade_aliases_produce_report_and_server_owned_execution_boundary(workspace):
+    task = workspace.create_task(_task_payload(kind="trading", config={"executionMode": "paper"}))
+    result = SimpleNamespace(success=True, content='{"TradeProposal":{"proposals":[{"ticker":"000333","side":"BUY","shares":1700}]},"RiskAssessment":{"approved":true},"PaperTradingRun":{"simulatedFillsCreated":99}}',
+                             backend="test", model="test", tool_calls_log=[], error_code=None, error=None)
+    with patch("src.services.workspace_service._WORKERS", _ImmediateExecutor()), patch.object(workspace, "_call_agent", return_value=result):
+        run = workspace.create_run(task["id"])
+    assert run["outcome"]["status"] == "proposal"
+    artifacts = {a["type"]: a["content"] for a in run["artifacts"]}
+    assert artifacts["TradeProposal"]["actions"][0]["symbol"] == "000333"
+    assert artifacts["RiskAssessment"]["proposalRiskEvaluated"] is False
+    assert artifacts["PaperTradingRun"]["simulatedFillsCreated"] == 0
+    assert workspace.get_run(run["id"])["outcome"] == run["outcome"]
+    assert workspace.list_runs()[0]["outcome"] == run["outcome"]
+
+
 def test_capability_registry_persists_custom_skills_and_allowlist(workspace):
     catalog = workspace.capability_catalog()
     assert catalog["skills"]
@@ -226,11 +254,44 @@ def test_run_freezes_context_and_persists_structured_artifacts(workspace):
 
     assert run["status"] == "completed"
     assert run["dataSnapshot"]["sourceIds"] == ["system_market_data"]
-    assert run["dataSnapshot"]["quality"]["status"] == "ready"
+    assert run["dataSnapshot"]["quality"]["status"] == "unverified"
+    assert run["resultSummary"]["stages"][0]["status"] == "completed"
     assert run["taskSnapshot"]["runContext"]["dataSnapshotId"] == run["dataSnapshotId"]
     assert run["taskSnapshot"]["capabilitySnapshot"]["dataSources"][0]["id"] == "system_market_data"
     assert run["artifacts"][0]["type"] == "ResearchReport"
     assert run["artifacts"][0]["content"]["conclusion"] == "继续研究"
+    assert run["outcome"]["status"] == "unverified"
+    assert workspace.list_runs()[0]["outcome"] == run["outcome"]
+
+
+def test_unstructured_screening_is_preserved_once_without_fabricated_contracts(workspace):
+    task = workspace.create_task(_task_payload())
+    result = SimpleNamespace(success=True, content="本次无法扫描，没有执行筛选。", backend="litellm", model="test", tool_calls_log=[])
+    with patch("src.services.workspace_service._WORKERS", _ImmediateExecutor()), patch.object(workspace, "_call_agent", return_value=result):
+        run = workspace.create_run(task["id"])
+    assert [a["type"] for a in run["artifacts"]] == ["AgentResponse"]
+    assert run["resultSummary"]["artifactTypes"] == ["AgentResponse"]
+    assert run["outcome"]["status"] == "unverified"
+
+
+def test_legacy_blocked_result_matches_list_and_detail(workspace):
+    task = workspace.create_task(_task_payload())
+    result = SimpleNamespace(success=True, content='{"CandidateList":{"status":"not_executed","candidates":[]}}', backend="litellm", model="test", tool_calls_log=[])
+    with patch("src.services.workspace_service._WORKERS", _ImmediateExecutor()), patch.object(workspace, "_call_agent", return_value=result):
+        run = workspace.create_run(task["id"])
+    assert run["status"] == "completed"  # Execution enum remains compatible.
+    assert run["outcome"]["status"] == "blocked"
+    assert workspace.list_runs()[0]["outcome"] == run["outcome"]
+
+
+def test_unsupported_screening_market_is_rejected_before_creating_run(workspace):
+    task = workspace.create_task(_task_payload(market="HK", capabilities=_empty_bindings(toolIds=["screen_stock_universe"])))
+    with patch("src.services.workspace_service._WORKERS") as workers:
+        with pytest.raises(WorkspaceError) as error:
+            workspace.create_run(task["id"])
+    assert error.value.code == "screening_invalid_market"
+    workers.submit.assert_not_called()
+    assert workspace.list_runs() == []
 
 
 def test_trading_run_is_proposal_only_and_never_fabricates_fills(workspace):

@@ -17,9 +17,9 @@ import {
   workspaceApi,
   type WorkspaceExpert,
   type WorkspaceExpertTeam,
-  type WorkspaceRun,
   type WorkspaceSkill,
 } from "../api/workspace";
+import { useWorkspaceRun } from "../hooks/useWorkspaceRun";
 import AgentCapabilityPanel from "../components/agent/AgentCapabilityPanel";
 import { AppPage, PageHeader } from "../components/common";
 import { countAgentCapabilities, type AgentCapabilityBindings } from "../types/capabilities";
@@ -45,9 +45,7 @@ const TOPIC_TYPES: Array<{ id: TopicType; label: string; hint: string }> = [
 ];
 
 const REVIEW_STAGES = [
-  { label: "独立观点", description: "各专家只读取公共证据，先独立形成观点。" },
-  { label: "分歧提取", description: "主 Agent 对齐事实、假设与关键冲突。" },
-  { label: "交叉质疑", description: "专家针对最强反证修订自己的判断。" },
+  { label: "独立观点", description: "各专家围绕同一议题独立形成观点，标注实际使用的证据与时点。" },
   { label: "主 Agent 汇总", description: "输出共识、分歧、置信度和失效条件。" },
 ];
 
@@ -59,7 +57,6 @@ export default function ExpertReviewPage() {
   const [mode, setMode] = useState<ReviewMode>("single");
   const [topicType, setTopicType] = useState<TopicType>("stock");
   const [topic, setTopic] = useState("");
-  const [rounds, setRounds] = useState("2");
   const [skills, setSkills] = useState<WorkspaceSkill[]>([]);
   const [skillError, setSkillError] = useState("");
   const [capabilities, setCapabilities] = useState<AgentCapabilityBindings>(EMPTY_CAPABILITIES);
@@ -68,8 +65,16 @@ export default function ExpertReviewPage() {
   const [messageDraft, setMessageDraft] = useState("");
   const [expertCatalog, setExpertCatalog] = useState<WorkspaceExpert[]>([]);
   const [expertTeams, setExpertTeams] = useState<WorkspaceExpertTeam[]>([]);
-  const [activeRun, setActiveRun] = useState<WorkspaceRun | null>(null);
-  const [runError, setRunError] = useState("");
+  const { activeRun, runError, submitting, restoring, busy, startRun } = useWorkspaceRun("expert_review");
+  const [restoredRunId, setRestoredRunId] = useState<string | null>(null);
+  if (activeRun && restoredRunId !== activeRun.id) {
+    setRestoredRunId(activeRun.id);
+    const task = activeRun.taskSnapshot;
+    setMode(task.config.mode === "group" ? "group" : "single");
+    setTopicType((task.subject.topicType as TopicType) || "stock");
+    setTopic(task.objective);
+    setCapabilities(task.capabilities);
+  }
   const capabilityTriggerRef = useRef<HTMLButtonElement | null>(null);
   const capabilityDialogRef = useRef<HTMLDivElement | null>(null);
 
@@ -98,17 +103,6 @@ export default function ExpertReviewPage() {
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!activeRun || !["queued", "running"].includes(activeRun.status)) return;
-    let active = true;
-    const timer = window.setInterval(() => {
-      void workspaceApi.getRun(activeRun.id).then((nextRun) => {
-        if (active) setActiveRun(nextRun);
-      }).catch(() => active && setRunError("评审状态刷新失败，可前往任务与运行页面继续查看。"));
-    }, 1500);
-    return () => { active = false; window.clearInterval(timer); };
-  }, [activeRun]);
 
   useEffect(() => {
     if (!capabilityPanelOpen) return;
@@ -218,27 +212,26 @@ export default function ExpertReviewPage() {
 
   const startReview = async (followUp?: string) => {
     const objective = followUp?.trim() ? `${topic.trim()}\n\n追问：${followUp.trim()}` : topic.trim();
-    if (!canStart || !objective) return;
+    if (!canStart || !objective || busy) return;
     setReviewStarted(true);
-    setRunError("");
-    try {
+    await startRun(async () => {
       const task = await workspaceApi.createTask({
         kind: "expert_review",
         name: `${mode === "single" ? "专家单聊" : "专家群聊"} · ${objective.slice(0, 32)}`,
         market: "GLOBAL",
         objective,
         subject: { topicType },
-        config: { mode, crossExaminationRounds: Number(rounds) },
+        config: { mode, reviewProtocol: "independent_then_synthesis" },
         capabilities: {
           ...capabilities,
           expertTeamIds: mode === "single" ? [] : capabilities.expertTeamIds,
         },
       });
-      setActiveRun(await workspaceApi.runTask(task.id));
+      const run = await workspaceApi.runTask(task.id);
+      setRestoredRunId(run.id);
       setMessageDraft("");
-    } catch {
-      setRunError("专家评审未能启动，请检查 Agent 状态和能力配置。 ");
-    }
+      return run;
+    }, "专家评审启动未确认，请检查 Agent 状态和运行记录。");
   };
 
   const reviewText = activeRun?.artifacts.find((artifact) => artifact.type === "ExpertReview")?.text;
@@ -275,7 +268,7 @@ export default function ExpertReviewPage() {
       <PageHeader
         eyebrow="Expert review"
         title="专家评审"
-        description="让一个专家 Agent 深入回答，或让多个独立 Persona 围绕同一份证据交叉质疑，再由主 Agent 汇总结论。"
+        description="围绕研究议题获取独立专家意见，再由主 Agent 比较证据、假设与分歧。"
         actions={<Link to="/capabilities/experts" className="btn-secondary">管理专家配置</Link>}
       />
 
@@ -379,12 +372,11 @@ export default function ExpertReviewPage() {
                     </div>
                   </fieldset>
 
-                  <div className="grid gap-4 sm:grid-cols-[1fr_11rem]">
+                  <div className="grid gap-4">
                     <div className="rounded-[10px] border border-border bg-background px-4 py-3">
                       <p className="text-xs font-medium text-foreground">公共证据协议</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-text">所有专家读取同一数据快照，先独立判断，避免前序观点污染；主 Agent 最后汇总而不是多数投票。</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-text">专家共享议题及已提供的研究成果，独立判断后由主 Agent 比较证据、假设与分歧。不进行多轮交叉质疑；各自补充的数据需注明来源和时点。</p>
                     </div>
-                    <label className="text-xs font-medium text-foreground">交叉质疑轮数<select value={rounds} onChange={(event) => setRounds(event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"><option value="2">2 轮</option><option value="3">3 轮</option></select></label>
                   </div>
                 </div>
               )}
@@ -397,7 +389,7 @@ export default function ExpertReviewPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button ref={capabilityTriggerRef} type="button" className="btn-secondary inline-flex items-center gap-2 xl:hidden" onClick={() => setCapabilityPanelOpen(true)}><SlidersHorizontal className="h-4 w-4" />配置 Agent 工具</button>
-                  <button type="button" disabled={!canStart || ["queued", "running"].includes(activeRun?.status || "")} onClick={() => void startReview()} className="btn-primary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45"><Play className="h-4 w-4" />{mode === "single" ? "运行专家单聊" : "运行群聊评审"}</button>
+                  <button type="button" disabled={!canStart || busy} onClick={() => void startReview()} className="btn-primary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45"><Play className="h-4 w-4" />{restoring ? "恢复运行状态…" : submitting ? "正在提交…" : mode === "single" ? "运行专家单聊" : "运行群聊评审"}</button>
                 </div>
               </div>
               {!canStart ? <p className="text-xs text-muted-text">{!topic.trim() ? "填写共同议题后即可创建。" : mode === "group" ? "群聊至少需要两位专家。" : "请选择一位专家。"}</p> : null}
@@ -406,15 +398,16 @@ export default function ExpertReviewPage() {
 
           <section className="overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card" aria-labelledby="review-room-heading">
             <div className="flex flex-col gap-3 border-b border-border/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <div><h2 id="review-room-heading" className="font-semibold text-foreground">{mode === "single" ? "专家会话" : "评审房间"}</h2><p className="mt-1 text-xs text-secondary-text">{reviewStarted ? "评审已创建为独立 Run；专家意见和最终结论会保存为 Artifact。" : "完成上方配置后，在这里继续咨询或查看辩论阶段。"}</p></div>
+              <div><h2 id="review-room-heading" className="font-semibold text-foreground">{mode === "single" ? "专家会话" : "评审房间"}</h2><p className="mt-1 text-xs text-secondary-text">{reviewStarted ? "评审已创建为独立运行；已生成的专家意见和汇总会保存为研究成果。" : "完成上方配置后，在这里查看专家意见与主持汇总。"}</p></div>
               {activeRun ? <span className={`inline-flex items-center gap-2 text-xs font-medium ${activeRun.status === "completed" ? "text-success" : activeRun.status === "failed" ? "text-danger" : "text-warning"}`}><span className="h-2 w-2 rounded-full bg-current" />{activeRun.status}</span> : null}
             </div>
 
-            {!reviewStarted ? (
+            {activeRun ? <Link className="mx-5 mt-3 inline-block text-xs text-primary" to={`/runs/${activeRun.id}`}>后台任务 · 切换页面不会中断 · 查看运行详情</Link> : null}
+            {!reviewStarted && !activeRun && !submitting && !runError ? (
               <div className="flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
                 {mode === "single" ? <Bot className="h-8 w-8 text-muted-text" /> : <MessagesSquare className="h-8 w-8 text-muted-text" />}
                 <p className="mt-4 font-medium text-foreground">还没有创建评审</p>
-                <p className="mt-2 max-w-lg text-sm leading-6 text-secondary-text">运行后，每条结论会绑定专家 Prompt 版本、能力清单和公共数据快照，不预填虚构观点。</p>
+                <p className="mt-2 max-w-lg text-sm leading-6 text-secondary-text">运行后，每条结论会绑定专家 Prompt 版本、能力清单和任务上下文标识，不预填虚构观点。</p>
               </div>
             ) : mode === "single" && singleExpert ? (
               <div>
@@ -429,7 +422,7 @@ export default function ExpertReviewPage() {
                   {activeRun?.errorMessage ? <p className="text-sm text-danger">{activeRun.errorMessage}</p> : null}
                 </div>
                 <div className="border-t border-border/70 px-5 py-4 sm:px-6">
-                  <div className="flex gap-2"><textarea aria-label="继续询问专家" value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} placeholder={`继续询问${singleExpert.name}…`} className="min-h-12 flex-1 resize-none rounded-[10px] border border-border bg-background px-3 py-3 text-sm text-foreground outline-none focus:border-primary" /><button type="button" aria-label="发送给专家" disabled={!messageDraft.trim() || ["queued", "running"].includes(activeRun?.status || "")} onClick={() => void startReview(messageDraft)} className="btn-primary self-end px-4 disabled:cursor-not-allowed disabled:opacity-45"><Send className="h-4 w-4" /></button></div>
+                  <div className="flex gap-2"><textarea aria-label="继续询问专家" value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} placeholder={`继续询问${singleExpert.name}…`} className="min-h-12 flex-1 resize-none rounded-[10px] border border-border bg-background px-3 py-3 text-sm text-foreground outline-none focus:border-primary" /><button type="button" aria-label="发送给专家" disabled={!messageDraft.trim() || busy} onClick={() => void startReview(messageDraft)} className="btn-primary self-end px-4 disabled:cursor-not-allowed disabled:opacity-45"><Send className="h-4 w-4" /></button></div>
                 </div>
               </div>
             ) : (
@@ -437,14 +430,14 @@ export default function ExpertReviewPage() {
                 <aside className="bg-background px-5 py-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-text">参会视角 · {selectedTeamMembers.length}</p>
                   <div className="mt-4 space-y-3">{selectedTeamMembers.map((expert) => <div key={expert.id} className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-primary/10 text-primary"><Bot className="h-3.5 w-3.5" /></span><div><p className="text-sm font-medium text-foreground">{expert.name}</p><p className="text-[10px] text-muted-text">独立 Persona Agent</p></div></div>)}</div>
-                  <div className="mt-5 border-t border-border/70 pt-4"><p className="flex items-center gap-2 text-xs font-medium text-foreground"><Database className="h-3.5 w-3.5 text-primary" />公共数据快照</p><p className="mt-2 break-all font-mono text-[10px] text-secondary-text">{activeRun?.dataSnapshotId || "运行后创建"}</p></div>
+                  <div className="mt-5 border-t border-border/70 pt-4"><p className="flex items-center gap-2 text-xs font-medium text-foreground"><Database className="h-3.5 w-3.5 text-primary" />任务上下文标识</p><p className="mt-2 break-all font-mono text-[10px] text-secondary-text">{activeRun?.dataSnapshotId || "运行后创建"}</p></div>
                 </aside>
                 <div className="bg-card px-5 py-5 sm:px-6">
                   <div className="rounded-[10px] border border-border bg-background px-4 py-3"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">评审议题</p><p className="mt-2 text-sm leading-6 text-foreground">{topic}</p></div>
-                  <ol className="mt-5 space-y-0">{REVIEW_STAGES.map((stage, index) => <li key={stage.label} className="relative flex gap-4 pb-5 last:pb-0"><span className="relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-xs font-semibold text-muted-text">{index + 1}</span>{index < REVIEW_STAGES.length - 1 ? <span className="absolute bottom-0 left-[13px] top-7 w-px bg-border" /> : null}<div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-foreground">{stage.label}</p><span className={`text-[10px] ${activeRun?.status === "completed" ? "text-success" : "text-warning"}`}>{activeRun?.status === "completed" ? "已完成" : "运行中"}</span></div><p className="mt-1 text-xs leading-5 text-secondary-text">{stage.description}</p></div></li>)}</ol>
+                  <ol className="mt-5 space-y-0">{REVIEW_STAGES.map((stage, index) => <li key={stage.label} className="relative flex gap-4 pb-5 last:pb-0"><span className="relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-xs font-semibold text-muted-text">{index + 1}</span>{index < REVIEW_STAGES.length - 1 ? <span className="absolute bottom-0 left-[13px] top-7 w-px bg-border" /> : null}<div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-foreground">{stage.label}</p><span className={`text-[10px] ${activeRun?.status === "completed" ? "text-success" : "text-warning"}`}>{activeRun?.artifacts.some((artifact) => artifact.type === (index === 0 ? "ExpertOpinion" : "ExpertReview")) ? "已有保存成果" : "尚无保存成果"}</span></div><p className="mt-1 text-xs leading-5 text-secondary-text">{stage.description}</p></div></li>)}</ol>
                   {reviewText ? <div className="mt-5 whitespace-pre-wrap border-t border-border/70 pt-4 text-sm leading-7 text-foreground">{reviewText}</div> : null}
                   {runError || activeRun?.errorMessage ? <p role="alert" className="mt-4 text-xs text-danger">{runError || activeRun?.errorMessage}</p> : null}
-                  <p className="mt-5 border-t border-border/70 pt-4 text-xs leading-5 text-muted-text">按 {rounds} 轮交叉质疑协议组织；最终汇总比较证据质量和假设强度，不采用多数投票。</p>
+                  <p className="mt-5 border-t border-border/70 pt-4 text-xs leading-5 text-muted-text">当前协议为独立评审后统一汇总，不执行多轮交叉质疑。最终比较证据质量和假设强度，不采用多数投票。</p>
                 </div>
               </div>
             )}

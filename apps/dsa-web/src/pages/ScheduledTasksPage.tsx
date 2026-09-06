@@ -50,6 +50,9 @@ type ScheduleDraft = {
   objective: string;
   industry: string;
   candidateCount: string;
+  strategyVersionId?: number;
+  deepResearchCount?: number;
+  deepResearchVersionId?: number;
   strategyRef: string;
   strategyName: string;
   scheduleMode: ScheduleMode;
@@ -197,6 +200,9 @@ const getInitialDraft = (search: string, prefill?: ScheduledTaskPrefill): Schedu
     objective: prefill?.objective || "",
     industry: prefill?.industry || "",
     candidateCount: prefill?.candidateCount || "20",
+    strategyVersionId: prefill?.strategyVersionId,
+    deepResearchCount: prefill?.deepResearchCount,
+    deepResearchVersionId: prefill?.deepResearchVersionId,
     strategyRef: prefill?.strategyRef || "",
     strategyName: prefill?.strategyName || "",
     scheduleMode: prefill?.scheduleMode || "daily",
@@ -223,6 +229,7 @@ const getScheduleSummary = (plan: { kind: ScheduledPlanKind; scheduleMode: Sched
 
 const getTargetSummary = (plan: ScheduledTaskPlan) => {
   const market = getMarket(plan.market).label;
+  if (plan.strategyVersionId && ["research", "screening"].includes(plan.kind)) return `${market} · ${plan.kind === "research" ? plan.stockName || plan.stock : "按策略配置筛选"} · 策略版本 #${plan.strategyVersionId}`;
   if (plan.kind === "research") return `${market} · ${plan.stockName ? `${plan.stockName} (${plan.stock})` : plan.stock}`;
   if (plan.kind === "screening") return `${market} · ${plan.industry?.trim() || "全行业"} · Top ${plan.candidateCount}`;
   if (plan.kind === "market_analysis") return `${market} · ${plan.objective}`;
@@ -270,6 +277,9 @@ export default function ScheduledTasksPage() {
             objective: task?.objective || "",
             industry: String(subject.industry || ""),
             candidateCount: String(config.candidateCount || "20"),
+            strategyVersionId: typeof config.strategyVersionId === "number" ? config.strategyVersionId : undefined,
+            deepResearchCount: typeof config.deepResearchCount === "number" ? config.deepResearchCount : undefined,
+            deepResearchVersionId: typeof config.deepResearchVersionId === "number" ? config.deepResearchVersionId : undefined,
             strategyRef: task?.kind === "trading" ? task.id : "",
             strategyName: task?.kind === "trading" ? task.name : "",
             scheduleMode: schedule.scheduleMode,
@@ -367,7 +377,11 @@ export default function ScheduledTasksPage() {
           market: draft.market,
           objective: draft.objective.trim() || `定时分析 ${draft.stock}`,
           subject: draft.kind === "research" ? { stock: draft.stock, stockName: draft.stockName } : { industry: draft.industry.trim() || null },
-          config: draft.kind === "screening" ? { candidateCount: Number(draft.candidateCount) } : {},
+          config: {
+            ...(draft.kind === "screening" ? { candidateCount: Number(draft.candidateCount) } : {}),
+            ...(["research", "screening"].includes(draft.kind) && draft.strategyVersionId ? { strategyVersionId: draft.strategyVersionId } : {}),
+            ...(draft.kind === "screening" && draft.deepResearchCount ? { deepResearchCount: draft.deepResearchCount, deepResearchVersionId: draft.deepResearchVersionId } : {}),
+          },
           capabilities: draft.capabilities,
         });
       if (!task) throw new Error("trading_task_missing");

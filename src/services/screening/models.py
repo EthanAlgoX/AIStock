@@ -235,6 +235,8 @@ class ScreenResult:
     result_variant_rotated_slots: int = 0
     saved_path: str = ""
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    strategy_display_name: str = ""
+    strategy_description: str = ""
 
 
 @dataclass

@@ -1,9 +1,22 @@
 import { describe, expect, test } from 'vitest';
 
-import { buildChatFollowUpContext } from '../chatFollowUp';
+import { buildChatFollowUpContext, buildWorkspaceFollowUpContext } from '../chatFollowUp';
+import { workspaceRunFixture, workspaceTaskFixture } from '../../testWorkspaceFixtures';
 import type { AnalysisReport } from '../../types/analysis';
 
 describe('chat follow-up context', () => {
+  test('preserves source run and outcome with bounded, explicitly truncated evidence', () => {
+    const run = workspaceRunFixture(workspaceTaskFixture({ subject: { stock: '600519', stockName: '贵州茅台' } }), {
+      outcome: { status: 'blocked', message: '缺少来源' },
+      artifacts: [{ id: 'report', type: 'ResearchReport', title: '报告', content: {}, text: 'a'.repeat(26000), version: 1, createdAt: '2026-09-07' }],
+    });
+    const context = buildWorkspaceFollowUpContext(run);
+    expect(context.stock_code).toBe('600519');
+    expect(context.previous_analysis_summary).toMatchObject({
+      sourceRunId: run.id, outcome: run.outcome,
+      artifacts: [{ id: 'report', truncated: true, excerpt: 'a'.repeat(24000) }],
+    });
+  });
   test('includes market_structure_context in snake_case for history follow-up', () => {
     const report = {
       meta: {

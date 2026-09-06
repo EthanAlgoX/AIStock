@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ChevronDown, History, Network, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, History, Network, Plus, SlidersHorizontal } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { agentApi } from '../api/agent';
 import { workspaceApi } from '../api/workspace';
@@ -20,6 +20,7 @@ import { downloadSession, formatSessionAsMarkdown } from '../utils/chatExport';
 import type { ChatFollowUpContext } from '../utils/chatFollowUp';
 import {
   buildFollowUpPrompt,
+  buildWorkspaceFollowUpContext,
   parseFollowUpRecordId,
   resolveChatFollowUpContext,
   sanitizeFollowUpStockCode,
@@ -791,6 +792,8 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
   }, [selectedSkillIds, setSelectedSkillIds]);
 
   const handleStartNewChat = useCallback(() => {
+    followUpHydrationTokenRef.current += 1;
+    setIsFollowUpContextLoading(false);
     followUpContextRef.current = null;
     setActiveStockContext(null);
     setActiveStockCode(null);
@@ -804,6 +807,8 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
       setSidebarOpen(false);
       return;
     }
+    followUpHydrationTokenRef.current += 1;
+    setIsFollowUpContextLoading(false);
     followUpContextRef.current = null;
     setActiveStockContext(null);
     setActiveStockCode(null);
@@ -829,6 +834,28 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
 
   // Handle follow-up from report page: ?stock=600519&name=贵州茅台&recordId=xxx
   useEffect(() => {
+    const runId = searchParams.get('runId');
+    if (runId && /^[a-zA-Z0-9_-]{1,64}$/.test(runId)) {
+      const hydrationToken = ++followUpHydrationTokenRef.current;
+      followUpContextRef.current = null;
+      setIsFollowUpContextLoading(true);
+      void workspaceApi.getRun(runId).then((run) => {
+        if (!isMountedRef.current || followUpHydrationTokenRef.current !== hydrationToken) return;
+        const context = buildWorkspaceFollowUpContext(run);
+        followUpContextRef.current = context;
+        setActiveStockCode(context.stock_code || null);
+        setActiveStockContext(context.stock_code ? context : null);
+        setInput(`请基于「${run.taskSnapshot.name}」这份已有报告解释关键结论、证据缺口和风险，不重新运行分析。报告：/runs/${run.id}`);
+      }).catch(() => {
+        if (isMountedRef.current && followUpHydrationTokenRef.current === hydrationToken) {
+          setSendToast({ type: 'error', message: '报告读取失败，未附加研究上下文。请返回报告重试。' });
+        }
+      }).finally(() => {
+        if (isMountedRef.current && followUpHydrationTokenRef.current === hydrationToken) setIsFollowUpContextLoading(false);
+      });
+      setSearchParams({}, { replace: true });
+      return;
+    }
     const stock = sanitizeFollowUpStockCode(searchParams.get('stock'));
     const name = sanitizeFollowUpStockName(searchParams.get('name'));
     const recordId = parseFollowUpRecordId(searchParams.get('recordId'));
@@ -1128,32 +1155,21 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
 
   const sidebarContent = (
     <>
-      <div className="flex items-center justify-between border-b border-white/5 bg-white/2 p-3.5">
-        <h2 className="text-sm font-semibold text-cyan uppercase tracking-[0.2em] flex items-center gap-2">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          历史对话
-        </h2>
-        <button
+      <div className="border-b border-border/75 p-3">
+        <div className="mb-3 flex items-center gap-2 px-1">
+          <History className="h-4 w-4 text-muted-text" aria-hidden="true" />
+          <h2 className="text-sm font-semibold text-foreground">对话</h2>
+        </div>
+        <Button
+          variant="action-primary"
+          size="sm"
           onClick={handleStartNewChat}
-          className="rounded-lg p-1.5 text-muted-text transition-all hover:bg-white/10 hover:text-foreground"
+          className="w-full justify-start"
           aria-label="开启新对话"
         >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 4v16m8-8H4"
-            />
-          </svg>
-        </button>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          新建对话
+        </Button>
       </div>
       <ScrollArea testId="chat-session-list-scroll" viewportClassName="p-3">
         {sessionsLoading ? (
@@ -1238,7 +1254,12 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
       data-testid="chat-workspace"
       className="flex h-[calc(100dvh-7.5rem)] w-full min-w-0 gap-4 overflow-hidden lg:h-[calc(100dvh-4rem)]"
     >
-      {/* Conversation history is secondary context and opens on demand. */}
+      {/* Desktop keeps conversation management in sight; mobile uses the same rail as a drawer. */}
+      {!sidebarOpen ? (
+        <aside className="hidden h-full w-72 shrink-0 flex-col overflow-hidden border border-border/80 bg-card shadow-soft-card lg:flex">
+          {sidebarContent}
+        </aside>
+      ) : null}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40"
@@ -1246,7 +1267,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
         >
           <div className="page-drawer-overlay absolute inset-0" />
           <div
-            className="absolute bottom-0 left-0 top-0 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col overflow-hidden border-r border-border bg-card shadow-2xl lg:top-16"
+            className="absolute bottom-0 left-0 top-0 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col overflow-hidden border-r border-border bg-card shadow-2xl lg:hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {sidebarContent}
@@ -1300,7 +1321,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="-ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-border bg-background text-secondary-text transition-colors hover:border-primary/30 hover:text-foreground"
+                className="-ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-border bg-background text-secondary-text transition-colors hover:border-primary/30 hover:text-foreground lg:hidden"
                 aria-label="历史对话"
               >
                 <History className="h-4 w-4" aria-hidden="true" />

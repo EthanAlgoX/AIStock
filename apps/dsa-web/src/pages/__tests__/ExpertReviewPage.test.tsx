@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { workspaceCatalogFixture, workspaceRunFixture, workspaceTaskFixture } from "../../testWorkspaceFixtures";
 import ExpertReviewPage from "../ExpertReviewPage";
+import { useWorkspaceRunStore } from "../../stores/workspaceRunStore";
 
 const api = vi.hoisted(() => ({
   getCapabilities: vi.fn(),
   createTask: vi.fn(),
   runTask: vi.fn(),
   getRun: vi.fn(),
+  listRuns: vi.fn(),
 }));
 
 vi.mock("../../api/workspace", () => ({ workspaceApi: api }));
@@ -23,6 +25,8 @@ vi.mock("../../components/agent/AgentCapabilityPanel", () => ({
 describe("ExpertReviewPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useWorkspaceRunStore.setState({ runs: {} });
+    api.listRuns.mockResolvedValue([]);
     api.getCapabilities.mockResolvedValue(workspaceCatalogFixture);
     const task = workspaceTaskFixture({ id: "review-task", kind: "expert_review", market: "GLOBAL" });
     const run = workspaceRunFixture(task, {
@@ -71,13 +75,31 @@ describe("ExpertReviewPage", () => {
     await waitFor(() => expect(api.createTask).toHaveBeenCalled());
     const payload = api.createTask.mock.calls[0][0];
     expect(payload.capabilities.expertIds).toEqual([-1002, -1003, -1004]);
-    expect(screen.getByText("公共数据快照")).toBeInTheDocument();
+    expect(screen.getByText("任务上下文标识")).toBeInTheDocument();
     expect(screen.getByText("独立观点")).toBeInTheDocument();
-    expect(screen.getByText("交叉质疑")).toBeInTheDocument();
+    expect(screen.queryByText("交叉质疑")).not.toBeInTheDocument();
+    expect(payload.config).toEqual({ mode: "group", reviewProtocol: "independent_then_synthesis" });
+    expect(screen.queryByRole("combobox", { name: "交叉质疑轮数" })).not.toBeInTheDocument();
     expect(screen.getByText("主 Agent 汇总")).toBeInTheDocument();
     const participantList = screen.getByText("参会视角 · 3").closest("aside");
     expect(participantList).not.toBeNull();
     expect(within(participantList!).queryByText("沃伦·巴菲特")).not.toBeInTheDocument();
     expect(within(participantList!).getByText("凯西·伍德")).toBeInTheDocument();
+  });
+
+  it("restores the expert review room, task configuration, and report from the backend", async () => {
+    const task = workspaceTaskFixture({ kind: "expert_review", objective: "已提交的专家议题", config: { mode: "group", crossExaminationRounds: 3 }, capabilities: workspaceCatalogFixture.defaults.expert_review });
+    const run = workspaceRunFixture(task, { status: "running", completedAt: null });
+    api.listRuns.mockResolvedValue([run]);
+    api.getRun.mockResolvedValue(run);
+    const first = render(<MemoryRouter><ExpertReviewPage /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "评审房间" })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("已提交的专家议题")).toBeInTheDocument();
+    expect(screen.getByText("任务上下文标识")).toBeInTheDocument();
+    first.unmount();
+    api.getRun.mockResolvedValue({ ...run, status: "completed", artifacts: [{ id: "review", type: "ExpertReview", title: "专家报告", content: {}, text: "离开页面期间完成的评审", version: 1, createdAt: run.createdAt }] });
+    render(<MemoryRouter><ExpertReviewPage /></MemoryRouter>);
+    expect(await screen.findByText("离开页面期间完成的评审")).toBeInTheDocument();
+    expect(api.runTask).not.toHaveBeenCalled();
   });
 });

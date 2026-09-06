@@ -7,7 +7,7 @@ import { UiLanguageProvider } from '../../contexts/UiLanguageContext';
 import { historyApi } from '../../api/history';
 import type { Message, ProgressStep } from '../../stores/agentChatStore';
 import { UI_LANGUAGE_STORAGE_KEY } from '../../utils/uiLanguage';
-import { workspaceCatalogFixture } from '../../testWorkspaceFixtures';
+import { workspaceCatalogFixture, workspaceRunFixture, workspaceTaskFixture } from '../../testWorkspaceFixtures';
 import ChatPage from '../ChatPage';
 import { extractStockCodeFromMessage, extractStockCodesFromMessage } from '../../utils/chatStockCode';
 
@@ -25,6 +25,7 @@ const {
   mockGetSkills,
   mockGetStatus,
   mockGetCapabilities,
+  mockGetRun,
   mockDeleteChatSession,
   mockSendChat,
   mockGetSystemConfig,
@@ -39,6 +40,7 @@ const {
   mockGetSkills: vi.fn(),
   mockGetStatus: vi.fn(),
   mockGetCapabilities: vi.fn(),
+  mockGetRun: vi.fn(),
   mockDeleteChatSession: vi.fn(),
   mockSendChat: vi.fn(),
   mockGetSystemConfig: vi.fn(),
@@ -103,6 +105,7 @@ vi.mock('../../api/agent', () => ({
 
 vi.mock('../../api/workspace', () => ({
   workspaceApi: {
+    getRun: mockGetRun,
     getCapabilities: mockGetCapabilities,
   },
 }));
@@ -271,6 +274,31 @@ beforeEach(() => {
 });
 
 describe('ChatPage', () => {
+  it('loads a workspace report for follow-up without automatically running analysis', async () => {
+    const run = workspaceRunFixture(workspaceTaskFixture({ subject: { stock: '600519', stockName: '贵州茅台' }, name: '已有研究' }), {
+      id: 'research-run', outcome: { status: 'unverified', message: '待核实' },
+      artifacts: [{ id: 'report', type: 'ResearchReport', title: '报告', content: { conclusion: '保留观察' }, version: 1, createdAt: '2026-09-07' }],
+    });
+    mockGetRun.mockResolvedValue(run);
+    render(<MemoryRouter initialEntries={['/overview?runId=research-run']}><ChatPage /></MemoryRouter>);
+    await screen.findByDisplayValue(/请基于「已有研究」/);
+    expect(mockStartStream).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByPlaceholderText(/分析 600519/), { target: { value: '证据有哪些缺口？' } });
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+    await waitFor(() => expect(mockStartStream).toHaveBeenCalledWith(expect.objectContaining({
+      context: expect.objectContaining({ previous_analysis_summary: expect.objectContaining({ sourceRunId: 'research-run', outcome: run.outcome }) }),
+    }), expect.anything()));
+  });
+
+  it('does not hydrate a stale report into a new conversation', async () => {
+    const deferred = createDeferred<ReturnType<typeof workspaceRunFixture>>();
+    mockGetRun.mockReturnValue(deferred.promise);
+    render(<MemoryRouter initialEntries={['/overview?runId=late-run']}><ChatPage /></MemoryRouter>);
+    await waitFor(() => expect(mockGetRun).toHaveBeenCalledWith('late-run'));
+    fireEvent.click(screen.getAllByRole('button', { name: '开启新对话' })[0]);
+    await act(async () => deferred.resolve(workspaceRunFixture(workspaceTaskFixture({ name: '过期报告' }))));
+    expect(screen.queryByDisplayValue(/过期报告/)).not.toBeInTheDocument();
+  });
   it('lets the user stop an active Codex analysis from the existing Chat composer', async () => {
     mockGetStatus.mockResolvedValueOnce({
       backend: 'codex_app_server',
@@ -616,6 +644,18 @@ describe('ChatPage', () => {
     expect(screen.getByTestId('chat-session-list-scroll')).toBeInTheDocument();
     expect(mockLoadInitialSession).toHaveBeenCalled();
     expect(mockClearCompletionBadge).toHaveBeenCalled();
+  });
+
+  it('keeps new chat and saved sessions visible in the desktop conversation rail', async () => {
+    render(
+      <MemoryRouter initialEntries={['/chat']}>
+        <ChatPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('button', { name: '开启新对话' })).toBeInTheDocument();
+    expect(screen.getByTestId('chat-session-list-scroll')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /切换到对话 请简要分析 600519/ })).toBeInTheDocument();
   });
 
   it('loads and saves the global context compression setting from the chat input area', async () => {

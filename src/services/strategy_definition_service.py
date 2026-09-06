@@ -279,7 +279,7 @@ class StrategyDefinitionService:
             return [self._strategy_summary(session, row) for row in session.execute(statement).scalars().all()]
 
     def ensure_daily_product_strategies(self) -> list[dict[str, Any]]:
-        """Create the three starter kernels and one usable configuration each.
+        """Create starter kernels and usable configurations, including screening rules.
 
         This is an explicit bootstrap operation used by the Strategy Center
         API.  It deliberately does not run a report or screening task.  Each
@@ -499,7 +499,40 @@ class StrategyDefinitionService:
                 self.DAILY_SCREENING_STRATEGY_NAME: "多因子选股 · A股配置",
                 self.DAILY_TRADING_STRATEGY_NAME: "研究决策 · A股日线配置",
             }
-            for preset in presets:
+            # Reuse the shipped screening rules and the same execution kernel.
+            # Each rule gets an immutable configuration, not a parallel Agent.
+            from src.services.screening.config import Config as ScreeningConfig
+            from src.services.screening.strategy import load_all_strategies
+
+            screening_rules = load_all_strategies(ScreeningConfig().strategies_dir)
+            screening_preset = next(p for p in presets if p["purpose"] == "candidate_screening")
+            configurations = list(presets)
+            research_preset = next(p for p in presets if p["purpose"] == "research_report")
+            for label, skill_ids in (
+                ("成长质量研究", ["growth_quality"]),
+                ("事件驱动研究", ["event_driven"]),
+                ("趋势量价研究", ["bull_trend", "volume_breakout", "shrink_pullback"]),
+                ("预期重估研究", ["expectation_repricing"]),
+            ):
+                configurations.append({
+                    **research_preset,
+                    "configurationName": f"{label} · A股配置",
+                    "configurationDescription": f"使用 {label} 方法准备分析并生成正式报告，明确证据、反例与失效条件。",
+                    "configurationParameters": {"skills": skill_ids},
+                })
+            for rule in screening_rules.values():
+                if rule.name == "dual_low" or not rule.screening.enabled or "cn" not in rule.screening.market_scope:
+                    continue
+                configurations.append({
+                    **screening_preset,
+                    "configurationName": f"{rule.display_name} · A股配置",
+                    "configurationDescription": rule.description,
+                    "configurationPolicy": {
+                        "strategy": rule.name, "market": "cn",
+                        "maxCandidates": rule.screening.max_output,
+                    },
+                })
+            for preset in configurations:
                 kernel_strategy = session.execute(select(SimulationStrategyRecord).where(
                     SimulationStrategyRecord.name == preset["name"],
                     SimulationStrategyRecord.archived_at.is_(None),
@@ -510,7 +543,7 @@ class StrategyDefinitionService:
                 )
                 if not kernel_strategy or not kernel_version:
                     continue
-                configuration_name = configuration_names[preset["name"]]
+                configuration_name = preset.get("configurationName") or configuration_names[preset["name"]]
                 configured_strategy = session.execute(select(SimulationStrategyRecord).where(
                     SimulationStrategyRecord.name == configuration_name,
                 )).scalar_one_or_none()
@@ -559,6 +592,17 @@ class StrategyDefinitionService:
                 configured_risk_policy = self._load(kernel_version.risk_policy_json)
                 configured_objective = kernel_version.objective
                 configured_description = f"基于“{preset['name']}”内核的 A 股运行配置。"
+                if preset.get("configurationParameters"):
+                    configured_decision_policy = {
+                        **configured_decision_policy,
+                        "packageParameters": preset["configurationParameters"],
+                    }
+                    configured_description = preset["configurationDescription"]
+                    configured_objective = f"{configured_description}。{kernel_version.objective}"
+                if preset.get("configurationPolicy"):
+                    configured_screening_policy = preset["configurationPolicy"]
+                    configured_description = preset["configurationDescription"]
+                    configured_objective = f"{configured_description}。{kernel_version.objective}"
                 if starter_symbols:
                     configured_market_scope = {
                         "universeMode": "fixed",

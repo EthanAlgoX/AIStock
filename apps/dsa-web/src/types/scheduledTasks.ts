@@ -19,6 +19,9 @@ export type ScheduledTaskPrefill = {
   objective?: string;
   industry?: string;
   candidateCount?: string;
+  strategyVersionId?: number;
+  deepResearchCount?: number;
+  deepResearchVersionId?: number;
   strategyRef?: string;
   strategyName?: string;
   scheduleMode?: "daily" | "interval";

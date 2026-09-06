@@ -1264,8 +1264,8 @@ export const MarketIntelligenceSection = () => {
         </section>
       ) : null}
 
-      <div className="grid border-x border-b border-border bg-card xl:grid-cols-[minmax(0,1.5fr)_minmax(19rem,0.75fr)]">
-        <div className="min-w-0 border-b border-border xl:border-b-0 xl:border-r">
+      <div className="border-x border-b border-border bg-card">
+        <div className="min-w-0 border-b border-border">
           {(loadState === 'loading' || loadState === 'idle') && !hasStructuredData ? (
             <div className="flex min-h-[24rem] items-center justify-center px-6 text-sm text-muted-text" role="status"><RefreshCw className="mr-2 h-4 w-4 animate-spin" />正在读取 {marketLabel} 已保存快照…</div>
           ) : loadState === 'error' && !hasStructuredData ? (
@@ -1298,8 +1298,6 @@ export const MarketIntelligenceSection = () => {
                   </div>
                 </div>
               ) : null}
-
-              {visibleWidgets.has('subscriptions') ? <AnalysisSubscriptions subscriptions={subscriptions} /> : null}
 
               {hasIndexRow ? (
                 <div className={cn('grid', visibleWidgets.has('indices') && visibleWidgets.has('breadth') && 'md:grid-cols-2')}>
@@ -1345,7 +1343,11 @@ export const MarketIntelligenceSection = () => {
           ) : null}
         </div>
 
-        <aside className="min-w-0 px-5 py-6 sm:px-7" aria-label="市场情报数据状态">
+        {visibleWidgets.has('subscriptions') ? <AnalysisSubscriptions subscriptions={subscriptions} /> : null}
+
+        <details className="min-w-0 px-5 py-6 sm:px-7" aria-label="市场情报数据状态">
+          <summary className="cursor-pointer text-sm font-medium text-secondary-text">数据来源与同步状态 · 展开查看</summary>
+          <div className="mt-5">
           <div className="flex items-center gap-2"><Database className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-foreground">数据状态</h2></div>
           <p className="mt-2 text-xs leading-5 text-muted-text">目录状态表示提供方已配置；只有同步记录和快照时间能够证明本次页面实际取得了数据。</p>
 
@@ -1400,7 +1402,8 @@ export const MarketIntelligenceSection = () => {
           <Link to="/capabilities/data" className="mt-5 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-primary hover:underline">管理数据源<ArrowRight className="h-4 w-4" /></Link>
           <Link to="/runs" className="mt-1 flex min-h-10 items-center gap-2 text-sm font-medium text-secondary-text hover:text-foreground">查看任务运行记录<ArrowRight className="h-4 w-4" /></Link>
           <p className="mt-4 border-t border-border pt-4 text-xs leading-5 text-muted-text">“生成最新复盘”会创建 Agent 后台任务并保存结论；“刷新数据”会重新请求实时市场快照，并同步读取报告、资讯和来源状态。</p>
-        </aside>
+          </div>
+        </details>
       </div>
     </section>
   );

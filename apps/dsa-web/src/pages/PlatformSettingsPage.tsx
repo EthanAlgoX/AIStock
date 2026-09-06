@@ -103,8 +103,8 @@ const PlatformSettingsPage: React.FC = () => {
           eyebrow={isZh ? '平台治理' : 'Platform governance'}
           title={isZh ? '平台设置' : 'Platform settings'}
           description={isZh
-            ? '这里只管理会真实影响策略验证与运行的平台能力。股票池、旧 Agent、旧回测和每日分析调度不再混入当前设置。'
-            : 'Only settings that affect strategy validation and runs are shown here. Legacy stock lists, agents, backtests, and daily schedules are excluded.'}
+            ? '管理平台运行与通知设置。模型、Skill、工具和 MCP 在能力中心配置，定时计划在任务与运行中管理。'
+            : 'Manage platform runtime and notifications. Configure models, skills, tools and MCP in Capabilities, and schedules in Tasks & Runs.'}
           actions={activeTab === 'system' ? (
             <div className="flex items-center gap-2">
               <Button type="button" variant="secondary" onClick={resetDraft} disabled={isLoading || isSaving || !hasDirty}>
@@ -121,14 +121,14 @@ const PlatformSettingsPage: React.FC = () => {
 
         <InlineAlert
           variant="info"
-          title={isZh ? '数据连接在数据中心管理' : 'Data connections live in Data Center'}
+          title={isZh ? '数据连接在能力中心管理' : 'Data connections live in Capabilities'}
           message={isZh
-            ? 'K 线、新闻和其他策略数据源统一在数据中心配置；策略中心会按市场和依赖自动匹配可用来源。'
-            : 'Configure market, news, and other strategy data sources in Data Center. Strategy Center resolves compatible sources from market and dependency declarations.'}
+            ? '行情、新闻和宏观数据源统一在能力中心配置；实际可用性以健康检测和每次运行的取数结果为准。'
+            : 'Configure market, news and macro sources in Capabilities. Health checks and each run’s fetched results determine actual availability.'}
           action={(
-            <Link className="btn-secondary inline-flex items-center gap-2" to="/data-sources">
+            <Link className="btn-secondary inline-flex items-center gap-2" to="/capabilities/data">
               <Database className="h-4 w-4" aria-hidden="true" />
-              {isZh ? '打开数据中心' : 'Open Data Center'}
+              {isZh ? '管理数据源' : 'Manage data sources'}
             </Link>
           )}
         />

@@ -259,18 +259,35 @@ class StrategyDefinitionServiceTest(unittest.TestCase):
             StrategyContinuousRunService(self.service.db).start(research["id"], 300)
 
         self.assertNotEqual(research["agentWorkflowVersionId"], screening["agentWorkflowVersionId"])
-        self.assertEqual(
-            {item["name"] for item in self.service.list_strategies()},
+        self.assertTrue(
             {
                 "单股研究策略", "多因子选股策略", "研究决策基线",
                 "单股研究 · A股配置", "多因子选股 · A股配置", "研究决策 · A股日线配置",
-            },
+            }.issubset(
+                {item["name"] for item in self.service.list_strategies()},
+            ),
         )
         complete = {
             item["name"]: item for item in self.service.list_strategies()
             if item["productRole"] == "configured"
         }
-        self.assertEqual(set(complete), {"单股研究 · A股配置", "多因子选股 · A股配置", "研究决策 · A股日线配置"})
+        self.assertEqual(len(complete), 16)
+        from src.services.screening.config import Config as ScreeningConfig
+        from src.services.screening.strategy import load_all_strategies
+        rules = load_all_strategies(ScreeningConfig().strategies_dir)
+        versions = [self.service.get_version(item["currentPublishedVersionId"])
+                    for item in complete.values() if item["currentStrategyPurpose"] == "candidate_screening"]
+        self.assertEqual({v["screeningPolicy"]["strategy"] for v in versions}, set(rules))
+        self.assertEqual(len(versions), 10)
+        for version in versions:
+            policy = version["screeningPolicy"]
+            self.assertEqual(policy["market"], "cn")
+            self.assertEqual(policy["maxCandidates"], 3 if policy["strategy"] == "dual_low"
+                             else rules[policy["strategy"]].screening.max_output)
+        self.assertEqual({item["id"]: item["currentPublishedVersionId"] for item in complete.values()}, {
+            item["id"]: item["currentPublishedVersionId"] for item in self.service.list_strategies()
+            if item["productRole"] == "configured"
+        })
         self.assertTrue(all(item["lifecycleStatus"] == "published" for item in complete.values()))
         self.assertTrue(all(item["kernelExecutionStatus"] == "ready" for item in complete.values()))
 

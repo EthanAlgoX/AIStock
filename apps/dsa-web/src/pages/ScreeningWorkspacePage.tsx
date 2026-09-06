@@ -1,5 +1,5 @@
-import AgentTaskSetupPage from "./AgentTaskSetupPage";
+import ResearchReportsWorkspace from "./ResearchReportsWorkspace";
 
 export default function ScreeningWorkspacePage() {
-  return <AgentTaskSetupPage mode="screening" />;
+  return <ResearchReportsWorkspace mode="screening" />;
 }

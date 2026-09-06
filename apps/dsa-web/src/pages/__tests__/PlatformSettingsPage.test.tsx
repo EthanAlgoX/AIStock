@@ -84,7 +84,7 @@ describe('PlatformSettingsPage', () => {
 
     expect(screen.getByRole('heading', { name: '平台设置' })).toBeInTheDocument();
     expect(screen.getByText('模型后端状态')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /打开数据中心/ })).toHaveAttribute('href', '/data-sources');
+    expect(screen.getByRole('link', { name: /管理数据源/ })).toHaveAttribute('href', '/capabilities/data');
     expect(screen.queryByText('Agent 设置')).not.toBeInTheDocument();
     expect(screen.queryByText('回测设置')).not.toBeInTheDocument();
     expect(screen.queryByText('每日调度')).not.toBeInTheDocument();

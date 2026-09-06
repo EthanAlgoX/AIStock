@@ -1,5 +1,5 @@
-import AgentTaskSetupPage from "./AgentTaskSetupPage";
+import ResearchReportsWorkspace from "./ResearchReportsWorkspace";
 
 export default function StockAnalysisPage() {
-  return <AgentTaskSetupPage mode="research" />;
+  return <ResearchReportsWorkspace mode="research" />;
 }

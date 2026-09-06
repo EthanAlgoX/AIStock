@@ -61,6 +61,7 @@ class AnalysisService:
         query_source: str = "api",
         portfolio_context: Optional[Dict[str, Any]] = None,
         report_language: Optional[str] = None,
+        agent_mode: Optional[bool] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         执行股票分析
@@ -101,6 +102,9 @@ class AnalysisService:
             
             # 获取配置
             config = get_config()
+            if agent_mode is not None:
+                config = copy.copy(config)
+                config.agent_mode = agent_mode
             normalized_report_language = normalize_report_language(report_language, default="")
             if normalized_report_language:
                 config = copy.copy(config)

@@ -4613,6 +4613,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         limit: int = 50,
         session_prefix: Optional[str] = None,
         extra_session_ids: Optional[List[str]] = None,
+        exclude_internal: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         获取聊天会话列表（从 conversation_messages 聚合）
@@ -4652,6 +4653,10 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 conditions.append(ConversationMessage.session_id.in_(exact_ids))
             if conditions:
                 base = base.where(or_(*conditions))
+            if exclude_internal:
+                # Workspace-created sessions have a reserved namespace. Filter
+                # before LIMIT so internal work cannot crowd out user history.
+                base = base.where(~ConversationMessage.session_id.startswith("workspace-"))
             stmt = (
                 base
                 .group_by(ConversationMessage.session_id)

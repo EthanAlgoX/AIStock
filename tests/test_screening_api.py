@@ -2504,6 +2504,8 @@ class ScreeningOpportunitiesApiTestCase(unittest.TestCase):
                     "strategy": "dual_low",
                     "market": "cn",
                     "snapshot_count": 100,
+                    "strategy_display_name": "稳健价值",
+                    "strategy_description": "真实规则说明",
                     "snapshot_source": "em_datacenter",
                     "after_filter_count": 5,
                     "llm_ranked": True,
@@ -2567,6 +2569,8 @@ class ScreeningOpportunitiesApiTestCase(unittest.TestCase):
         self.assertEqual(fake_module.screen.call_args.kwargs["context"]["llm"]["model"], "")
         self.assertEqual(payload["run_id"], "run123")
         self.assertEqual(payload["snapshot_count"], 100)
+        self.assertEqual(payload["strategy_display_name"], "稳健价值")
+        self.assertEqual(payload["strategy_description"], "真实规则说明")
         self.assertEqual(payload["snapshot_source"], "em_datacenter")
         self.assertEqual(payload["after_filter_count"], 5)
         self.assertEqual(payload["llm_ranked"], True)

@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { workspaceCatalogFixture, workspaceRunFixture, workspaceTaskFixture } from "../../testWorkspaceFixtures";
 import AgentTaskSetupPage from "../AgentTaskSetupPage";
+import { useWorkspaceRunStore } from "../../stores/workspaceRunStore";
 
 const ScheduleDestination = () => {
   const location = useLocation();
@@ -15,11 +16,15 @@ const api = vi.hoisted(() => ({
   createTask: vi.fn(),
   runTask: vi.fn(),
   getRun: vi.fn(),
+  listRuns: vi.fn(),
+  listStrategies: vi.fn(),
+  getVersion: vi.fn(),
 }));
 
 vi.mock("../../api/workspace", () => ({
   workspaceApi: api,
 }));
+vi.mock("../../api/strategyWorkspace", () => ({ strategyWorkspaceApi: { listStrategies: api.listStrategies, getVersion: api.getVersion } }));
 
 vi.mock("../../hooks/useStockIndex", () => ({
   useStockIndex: () => ({
@@ -44,9 +49,27 @@ vi.mock("../../components/agent/AgentCapabilityPanel", () => ({
 }));
 
 describe("AgentTaskSetupPage", () => {
+  it("binds candidate research budget and the research tool to the submitted screening task", async () => {
+    render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
+    fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "比较成长质量" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "候选深研数量" }), { target: { value: "2" } });
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "候选研究方法" })).toHaveValue("12"));
+    fireEvent.click(screen.getByRole("button", { name: "运行选股任务" }));
+    await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.objectContaining({ strategyVersionId: 13, deepResearchCount: 2, deepResearchVersionId: 12 }),
+      capabilities: expect.objectContaining({ toolIds: expect.arrayContaining(["run_stock_screening", "run_stock_research"]) }),
+    })));
+  });
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+    useWorkspaceRunStore.setState({ runs: {} });
+    api.listRuns.mockResolvedValue([]);
+    api.listStrategies.mockResolvedValue([
+      { id: 1, name: "单股研究 · A股配置", productRole: "configured", currentPublishedVersionId: 12, currentPublishedVersionNumber: 1, kernelExecutionStatus: "ready", currentStrategyPurpose: "research_report" },
+      { id: 2, name: "选股 · A股配置", productRole: "configured", currentPublishedVersionId: 13, currentPublishedVersionNumber: 1, kernelExecutionStatus: "ready", currentStrategyPurpose: "candidate_screening" },
+    ]);
+    api.getVersion.mockResolvedValue({ screeningPolicy: { market: "cn" } });
     api.getCapabilities.mockResolvedValue({
       ...workspaceCatalogFixture,
       skills: [{ ...workspaceCatalogFixture.skills[0], name: "质量分析" }],
@@ -70,34 +93,50 @@ describe("AgentTaskSetupPage", () => {
 
     expect(screen.getByRole("heading", { name: "个股分析" })).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "向主 Agent 描述任务" })).not.toBeInTheDocument();
-    const runButton = screen.getByRole("button", { name: "运行单股分析" });
+    const runButton = await screen.findByRole("button", { name: "运行单股分析" });
     expect(runButton).toBeDisabled();
 
     fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
+    fireEvent.click(screen.getByRole("button", { name: "高级能力配置" }));
     fireEvent.click(screen.getByRole("button", { name: "选择质量分析 Skill" }));
-    expect(runButton).toBeEnabled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(runButton).toBeEnabled());
     fireEvent.click(runButton);
 
-    expect(await screen.findByText("任务 已完成")).toBeInTheDocument();
-    expect(screen.getByText("贵州茅台研究报告")).toBeInTheDocument();
+    expect(await screen.findByText("任务 运行结束 · 成果待核实")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "贵州茅台研究报告" })).toBeInTheDocument();
   });
 
-  it("uses market and natural-language conditions for a screening task", () => {
+  it("binds the published workflow and its execution capability to the task", async () => {
+    api.listStrategies.mockResolvedValue([{ id: 1, name: "单股研究 · A股配置", productRole: "configured", currentPublishedVersionId: 12, currentPublishedVersionNumber: 1, kernelExecutionStatus: "ready", currentStrategyPurpose: "research_report" }]);
+    render(<MemoryRouter><AgentTaskSetupPage mode="research" /></MemoryRouter>);
+    await screen.findByRole("option", { name: "单股研究 · A股配置 · v1" });
+    expect(screen.getByRole("combobox", { name: /研究流程/ })).toHaveValue("12");
+    fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
+    fireEvent.click(screen.getByRole("button", { name: "运行单股分析" }));
+    await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
+      config: { strategyVersionId: 12 },
+      capabilities: expect.objectContaining({ toolIds: expect.arrayContaining(["run_stock_research"]) }),
+    })));
+  });
+
+  it("blocks unsupported markets before creating a screening task", async () => {
     render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
 
     expect(screen.getByRole("heading", { name: "选股" })).toBeInTheDocument();
-    const runButton = screen.getByRole("button", { name: "运行选股任务" });
+    const runButton = await screen.findByRole("button", { name: "运行选股任务" });
     expect(runButton).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: /港股/ }));
     fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "高股息低估值" } });
     fireEvent.change(screen.getByRole("textbox", { name: "行业范围（可选）" }), { target: { value: "金融" } });
-    expect(runButton).toBeEnabled();
+    await screen.findByText(/当前市场尚无已发布的选股流程/);
+    expect(runButton).toBeDisabled();
     fireEvent.click(runButton);
 
-    expect(screen.getByText(/港股 · 金融 · Top 20/)).toBeInTheDocument();
+    expect(api.createTask).not.toHaveBeenCalled();
   });
 
-  it("hands the selected stock and Agent capabilities to the central scheduler", () => {
+  it("hands the selected stock and Agent capabilities to the central scheduler", async () => {
     render(
       <MemoryRouter initialEntries={["/stock-research"]}>
         <Routes>
@@ -108,14 +147,17 @@ describe("AgentTaskSetupPage", () => {
     );
 
     fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
+    fireEvent.click(screen.getByRole("button", { name: "高级能力配置" }));
     fireEvent.click(screen.getByRole("button", { name: "选择质量分析 Skill" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "定时分析" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "定时分析" }));
 
     expect(screen.getByTestId("schedule-navigation-state")).toHaveTextContent('"stock":"600519.SH"');
     expect(screen.getByTestId("schedule-navigation-state")).toHaveTextContent('"skillIds":["quality"]');
   });
 
-  it("hands screening conditions to the central scheduler", () => {
+  it("hands screening conditions to the central scheduler", async () => {
     render(
       <MemoryRouter initialEntries={["/screening"]}>
         <Routes>
@@ -127,6 +169,7 @@ describe("AgentTaskSetupPage", () => {
 
     fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "高股息低估值" } });
     fireEvent.change(screen.getByRole("textbox", { name: "行业范围（可选）" }), { target: { value: "金融" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "定时更新" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "定时更新" }));
 
     expect(screen.getByTestId("schedule-navigation-state")).toHaveTextContent('"objective":"高股息低估值"');
@@ -163,12 +206,80 @@ describe("AgentTaskSetupPage", () => {
   it("keeps the mobile capability drawer modal and restores trigger focus", async () => {
     render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
 
-    const trigger = screen.getByRole("button", { name: "配置本次任务" });
+    const trigger = screen.getByRole("button", { name: "高级能力配置" });
     fireEvent.click(trigger);
     expect(screen.getByRole("dialog", { name: "配置本次任务能力" })).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "配置本次任务能力" })).not.toBeInTheDocument();
     await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it.each(["research", "screening"] as const)("keeps %s running when switching pages during submission", async (kind) => {
+    const task = workspaceTaskFixture({ kind, objective: "检查长期盈利质量", subject: { stock: "600519.SH", stockName: "贵州茅台" } });
+    const run = workspaceRunFixture(task, { id: `pending-${kind}`, status: "running", completedAt: null });
+    let resolve!: (value: typeof run) => void;
+    api.createTask.mockResolvedValue(task);
+    api.runTask.mockImplementation(() => new Promise<typeof run>((done) => { resolve = done; }));
+    api.getRun.mockResolvedValue(run);
+    render(<MemoryRouter initialEntries={[`/${kind}`]}>
+      <Link to="/research">切到个股</Link><Link to="/screening">切到选股</Link>
+      <Routes>
+        <Route path="/research" element={<AgentTaskSetupPage key="research" mode="research" />} />
+        <Route path="/screening" element={<AgentTaskSetupPage key="screening" mode="screening" />} />
+      </Routes>
+    </MemoryRouter>);
+    const button = await screen.findByRole("button", { name: kind === "research" ? "运行单股分析" : "运行选股任务" });
+    if (kind === "research") fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
+    else fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: task.objective } });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+    await waitFor(() => expect(api.runTask).toHaveBeenCalledTimes(1));
+    const away = kind === "research" ? "切到选股" : "切到个股";
+    const back = kind === "research" ? "切到个股" : "切到选股";
+    fireEvent.click(screen.getByRole("link", { name: away }));
+    expect(screen.queryByText("正在创建任务")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: back }));
+    expect(screen.getByRole("button", { name: "正在提交…" })).toBeDisabled();
+    await act(async () => { resolve(run); });
+    expect(await screen.findByText("任务 运行中")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看本次运行详情" })).toHaveAttribute("href", `/runs/${run.id}`);
+    fireEvent.click(screen.getByRole("link", { name: away }));
+    api.getRun.mockResolvedValue({ ...run, status: "completed", artifacts: [{ id: "result", type: "ResearchReport", title: "切页后的报告", content: { conclusion: "已保存" }, version: 1, createdAt: run.createdAt }] });
+    fireEvent.click(screen.getByRole("link", { name: back }));
+    expect(await screen.findByText("任务 运行结束 · 成果待核实")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "切页后的报告" })).toBeInTheDocument();
+    expect(api.runTask).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps an edited next-task draft without changing the restored run summary", async () => {
+    const task = workspaceTaskFixture({ kind: "screening", name: "原选股任务", objective: "原条件" });
+    const run = workspaceRunFixture(task);
+    api.listRuns.mockResolvedValue([run]);
+    api.getRun.mockResolvedValue(run);
+    const first = render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
+    await screen.findByText("任务 运行结束 · 成果待核实");
+    fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "下一次要用的新条件" } });
+    first.unmount();
+    render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
+    expect(screen.getByRole("textbox", { name: "选股条件" })).toHaveValue("下一次要用的新条件");
+    expect(screen.getByText(/原选股任务/)).toBeInTheDocument();
+  });
+
+  it("does not navigate back when a submission finishes after leaving the configuration page", async () => {
+    const onRunStarted = vi.fn();
+    const run = workspaceRunFixture(workspaceTaskFixture({ kind: "research" }), { status: "running" });
+    let resolve!: (value: typeof run) => void;
+    api.runTask.mockImplementation(() => new Promise<typeof run>((done) => { resolve = done; }));
+    const view = render(<MemoryRouter><AgentTaskSetupPage mode="research" onRunStarted={onRunStarted} /></MemoryRouter>);
+    const button = await screen.findByRole("button", { name: "运行单股分析" });
+    fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+    await waitFor(() => expect(api.runTask).toHaveBeenCalledTimes(1));
+    view.unmount();
+    await act(async () => { resolve(run); });
+    expect(onRunStarted).not.toHaveBeenCalled();
+    expect(useWorkspaceRunStore.getState().runs.research?.run?.id).toBe(run.id);
   });
 });

@@ -8,6 +8,21 @@ from src.services.agent_chat_session_service import AgentChatSessionService
 from src.storage import DatabaseManager
 
 
+def test_internal_workspace_sessions_do_not_crowd_out_user_history(tmp_path):
+    DatabaseManager.reset_instance()
+    db = DatabaseManager(db_url=f"sqlite:///{tmp_path / 'sessions.db'}")
+    try:
+        service = AgentChatSessionService(db)
+        db.save_conversation_message("user-session", "user", "研究股票")
+        for index in range(5):
+            db.save_conversation_message(f"workspace-{index}", "user", "内部任务 Prompt")
+        assert [s["session_id"] for s in service.list_sessions(1, None)] == ["user-session"]
+        assert len(db.get_chat_sessions()) == 6  # Nothing deleted.
+        assert service.get_session_detail("workspace-0", limit=10).messages
+    finally:
+        DatabaseManager.reset_instance()
+
+
 def test_skill_selection_distinguishes_inherit_clear_and_explicit() -> None:
     db = DatabaseManager(db_url="sqlite:///:memory:")
     service = AgentChatSessionService(db)

@@ -5,15 +5,11 @@ import { Link, useParams } from "react-router-dom";
 import { workspaceApi, type WorkspaceArtifact, type WorkspaceRun } from "../api/workspace";
 import { AppPage, PageHeader } from "../components/common";
 import { ReportMarkdownBody } from "../components/report/ReportMarkdownBody";
+import WorkflowArtifact from "../components/agent/WorkflowArtifact";
+import RunStages from "../components/agent/RunStages";
 import { cn } from "../utils/cn";
 
-const STATUS_LABEL: Record<WorkspaceRun["status"], string> = {
-  queued: "排队中",
-  running: "运行中",
-  completed: "已完成",
-  failed: "失败",
-  cancelled: "已取消",
-};
+import { visibleWorkspaceArtifacts, workspaceRunLabel, workspaceRunTone } from "../utils/workspaceOutcome";
 
 const formatTime = (value?: string | null) => {
   if (!value) return "—";
@@ -40,6 +36,7 @@ export default function TaskRunDetailPage() {
   const [run, setRun] = useState<WorkspaceRun | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const runStatus = run?.status;
 
   useEffect(() => {
     let active = true;
@@ -54,6 +51,17 @@ export default function TaskRunDetailPage() {
     return () => { active = false; };
   }, [runId]);
 
+  useEffect(() => {
+    if (!runStatus || !["queued", "running"].includes(runStatus)) return;
+    let active = true;
+    const timer = window.setInterval(() => {
+      void workspaceApi.getRun(runId).then((value) => {
+        if (active) setRun(value);
+      }).catch(() => { /* Keep the saved report visible and retry next interval. */ });
+    }, 2000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [runId, runStatus]);
+
   if (loading) {
     return <AppPage className="flex min-h-[32rem] items-center justify-center"><p className="flex items-center gap-2 text-sm text-muted-text"><LoaderCircle className="h-4 w-4 animate-spin" />正在读取完整成果…</p></AppPage>;
   }
@@ -66,7 +74,7 @@ export default function TaskRunDetailPage() {
     );
   }
 
-  const statusTone = run.status === "completed" ? "text-success" : run.status === "failed" ? "text-danger" : run.status === "running" || run.status === "queued" ? "text-warning" : "text-muted-text";
+  const statusTone = workspaceRunTone(run);
 
   return (
     <AppPage className="space-y-6 pb-20" data-testid="task-run-detail-page">
@@ -74,16 +82,18 @@ export default function TaskRunDetailPage() {
         eyebrow="Run and artifact"
         title={run.taskSnapshot?.name || "运行详情"}
         description="查看这次运行冻结的任务、数据快照和完整成果。市场看板只引用这里的摘要，不复制或截断正式报告。"
-        actions={<Link to="/runs" className="btn-secondary inline-flex items-center gap-2"><ArrowLeft className="h-4 w-4" />返回任务与运行</Link>}
+        actions={<div className="flex flex-wrap gap-2"><Link to={`/overview?runId=${encodeURIComponent(run.id)}`} className="btn-secondary">继续问 Agent</Link><Link to="/runs" className="btn-secondary inline-flex items-center gap-2"><ArrowLeft className="h-4 w-4" />返回任务与运行</Link></div>}
       />
 
       <section className="grid gap-px overflow-hidden rounded-[12px] border border-border bg-border sm:grid-cols-4" aria-label="运行信息">
-        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">运行状态</p><p className={cn("mt-2 text-sm font-semibold", statusTone)}>{STATUS_LABEL[run.status]}</p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">运行状态</p><p className={cn("mt-2 text-sm font-semibold", statusTone)}>{workspaceRunLabel(run)}</p></div>
         <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">任务类型</p><p className="mt-2 text-sm font-semibold text-foreground">{run.kind}</p></div>
-        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">触发方式</p><p className="mt-2 text-sm font-semibold text-foreground">{run.triggerType === "schedule" ? "定时任务" : "手动运行"}</p></div>
-        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">完成时间</p><p className="mt-2 text-sm font-semibold text-foreground">{formatTime(run.completedAt || run.startedAt || run.createdAt)}</p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">触发方式</p><p className="mt-2 text-sm font-semibold text-foreground">{run.triggerType === "schedule" ? "定时任务" : run.triggerType === "agent_tool" ? "主 Agent" : "手动运行"}</p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">完成时间</p><p className="mt-2 text-sm font-semibold text-foreground">{run.completedAt ? formatTime(run.completedAt) : "尚未完成"}</p></div>
       </section>
 
+      <RunStages run={run} />
+      {run.outcome && <p role="status" className={`text-sm leading-6 ${statusTone}`}>{run.outcome.message}</p>}
       {run.errorMessage ? <p role="alert" className="rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">{run.errorMessage}</p> : null}
 
       <section className="overflow-hidden rounded-[12px] border border-border bg-card" aria-labelledby="run-context-title">
@@ -100,7 +110,10 @@ export default function TaskRunDetailPage() {
           <div><h2 id="artifacts-title" className="text-base font-semibold text-foreground">完整成果</h2><p className="mt-1 text-xs text-muted-text">共 {run.artifacts.length} 个 Artifact，按本次运行顺序展示。</p></div>
           <FileCheck2 className="h-5 w-5 text-primary" />
         </div>
-        {run.artifacts.length ? <div className="divide-y divide-border">{run.artifacts.map((artifact) => {
+        {run.artifacts.length ? <div className="divide-y divide-border">{visibleWorkspaceArtifacts(run.artifacts).map((artifact) => {
+          if (["ResearchReport", "CandidateList", "ScreenSpec", "AgentResponse", "ResearchInterpretation", "TradeProposal", "RiskAssessment", "PaperTradingRun"].includes(artifact.type) || (artifact.content && typeof artifact.content === "object" && "workflowVersionId" in artifact.content)) {
+            return <WorkflowArtifact key={artifact.id} artifact={artifact} />;
+          }
           const markdown = artifactText(artifact);
           return (
             <article key={artifact.id} className="py-6">

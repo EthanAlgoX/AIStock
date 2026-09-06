@@ -29,7 +29,11 @@ def run(context: dict[str, Any]) -> dict[str, Any]:
         "strategyVersion": context.get("strategyVersion"),
         "asOf": context.get("asOf") or datetime.now(timezone.utc).isoformat(),
         "result": result,
-        "dataCoverage": context.get("dataCoverage") or {},
+        "dataCoverage": {
+            key: {**value, "configured": value.get("available"), "available": None, "verification": "see_screening_result"}
+            for key, value in (context.get("dataCoverage") or {}).items()
+        },
         "warnings": list(context.get("warnings") or []) + list(result.get("warnings") or []),
-        "evidenceRefs": [],
+        "evidenceRefs": ([{"type": "screening_history", "runId": result["run_id"]}]
+                         if result.get("run_id") else []),
     }

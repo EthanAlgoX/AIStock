@@ -203,6 +203,8 @@ def get_tool_registry():
     from src.agent.tools.market_tools import ALL_MARKET_TOOLS
     from src.agent.tools.backtest_tools import ALL_BACKTEST_TOOLS
     from src.agent.tools.screening_tools import ALL_SCREENING_TOOLS
+    from src.agent.tools.workflow_tools import ALL_WORKFLOW_TOOLS
+    from src.agent.tools.decision_review_tools import ALL_DECISION_REVIEW_TOOLS
 
     registry = ToolRegistry()
     tools = (
@@ -212,6 +214,8 @@ def get_tool_registry():
         + ALL_MARKET_TOOLS
         + ALL_BACKTEST_TOOLS
         + ALL_SCREENING_TOOLS
+        + ALL_WORKFLOW_TOOLS
+        + ALL_DECISION_REVIEW_TOOLS
     )
     for tool_fn in tools:
         registry.register(tool_fn)

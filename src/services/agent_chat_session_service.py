@@ -87,6 +87,7 @@ class AgentChatSessionService:
             limit=limit,
             session_prefix=user_id,
             extra_session_ids=[user_id] if user_id else None,
+            exclude_internal=True,
         )
 
     def get_session_detail(

@@ -33,7 +33,7 @@ from src.config import Config, get_configured_llm_models, normalize_llm_channel_
 from src.services.screening import REFERENCE_PROJECT, REFERENCE_REVISION, __version__ as SCREENING_VERSION
 from src.services.screening import hotspot as screening_hotspot
 from src.services.screening.config import Config as ScreeningPipelineConfig
-from src.services.screening.pipeline import screen as run_screening_pipeline
+from src.services.screening.pipeline import SUPPORTED_MARKETS, screen as run_screening_pipeline
 from src.services.screening.source_guard import parse_source_timeout_seconds
 from src.services.screening.strategy import list_strategies as load_screening_strategies
 from src.storage import DatabaseManager
@@ -891,6 +891,7 @@ class ScreeningService:
         engine_status, available, diagnostics = _get_screening_status_snapshot()
         payload = {
             "enabled": bool(self.config.screening_enabled),
+            "supported_markets": engine_status.get("supported_markets", []),
             "available": available,
             "engine": engine_status.get("engine") or "builtin",
             "contract_version": engine_status.get("contract_version"),
@@ -1279,6 +1280,8 @@ class ScreeningService:
             "candidate_count": len(selected),
             "run_id": raw_data.get("run_id") or uuid.uuid4().hex,
             "strategy": raw_data.get("strategy") or strategy,
+            "strategy_display_name": raw_data.get("strategy_display_name") or "",
+            "strategy_description": raw_data.get("strategy_description") or "",
             "market": raw_data.get("market") or market,
             "snapshot_count": raw_data.get("snapshot_count"),
             "snapshot_source": raw_data.get("snapshot_source") or "",
@@ -1579,6 +1582,7 @@ def _call_screening_status() -> Dict[str, Any]:
     return {
         "available": True,
         "engine": "builtin",
+        "supported_markets": list(SUPPORTED_MARKETS),
         "version": SCREENING_VERSION,
         "contract_version": SCREENING_CONTRACT_VERSION,
         "strategy_count": strategy_count,
