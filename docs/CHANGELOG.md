@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [测试] Web Playwright smoke 对齐首次认证确认密码、当前工作区抽屉导航与无模型可用性契约，避免认证请求未发出或旧定位导致超时。
 - [新功能] 市场情报新增工作区持久化看板与分析订阅：个股/选股定时任务可发布最新 Artifact 摘要，宏观与产业分析可在市场页配置 Agent 能力和每日运行，资讯支持按真实来源与关键词筛选，并可跳转完整 Run 详情。
 - [修复] 市场情报新增按市场读取的轻量实时快照接口；切换 A 股、港股或美股即可显示真实指数与宏观观测，不再要求先存在该市场的历史 Agent 复盘，并在页面明确展示已就绪的通用与区域宏观 Skill。
 - [新功能] 市场情报接入改造后的全球、A 股、港股和美股宏观 Agent Skill，新增只读 `get_macro_indicators` Tool、免密钥 ApocData 中国 GDP/CPI/PPI/PMI 与可选 FRED 官方宏观序列；第三方脚本不会绕过工作区强隔离网关。
