@@ -37,35 +37,28 @@ import AgentCapabilityPanel from '../components/agent/AgentCapabilityPanel';
 import { AgentWorkspacePanel } from '../components/agent/AgentWorkspacePanel';
 import ChoiceList from '../components/common/ChoiceList';
 import { collaborationChoices, useInlineExpertChat } from '../hooks/useInlineExpertChat';
+import { buildPersonalizedQuickQuestions } from '../utils/personalizedQuickQuestions';
 
 // Quick question examples shown on empty state
 type ActiveStockContext = Pick<ChatFollowUpContext, 'stock_code' | 'stock_name'>;
 
 export type AgentWorkspaceMode = 'general' | 'trading';
 
-const WORKSPACE_COPY: Record<AgentWorkspaceMode, {
+const WORKSPACE_COPY: Record<AgentWorkspaceMode, Record<'zh' | 'en', {
   title: string;
   subtitle: string;
   taskTypeLabel: string;
   emptyTitle: string;
   emptyDescription: string;
   placeholder: string;
-}> = {
+}>> = {
   general: {
-    title: '投研助理',
-    subtitle: '统一理解目标、调用能力并沉淀决策成果',
-    taskTypeLabel: '自然语言任务',
-    emptyTitle: '描述目标，Agent 负责组织工作',
-    emptyDescription: '从研究一家公司、筛选候选股票或完善策略想法开始。任务启动后，系统会绑定当前上下文，并在完成时形成可追溯成果。',
-    placeholder: '输入目标，例如：分析 600519',
+    zh: { title: '投研助理', subtitle: '统一理解目标、调用能力并沉淀决策成果', taskTypeLabel: '自然语言任务', emptyTitle: '描述目标，Agent 负责组织工作', emptyDescription: '从研究一家公司、筛选候选股票或完善策略想法开始。任务启动后，系统会绑定当前上下文，并在完成时形成可追溯成果。', placeholder: '输入目标，例如：分析 600519' },
+    en: { title: 'Research assistant', subtitle: 'Understand goals, orchestrate capabilities, and retain decision-ready outputs', taskTypeLabel: 'Natural-language task', emptyTitle: 'Describe your goal — the Agent organizes the work', emptyDescription: 'Start by researching a company, screening candidates, or developing a strategy idea. Each completed task retains its context and traceable output.', placeholder: 'Describe a goal, for example: analyze 600519' },
   },
   trading: {
-    title: '投研助理 · 交易推演',
-    subtitle: '围绕持仓、信号和风险约束形成可复核的交易提案',
-    taskTypeLabel: '交易决策',
-    emptyTitle: '描述你的交易目标与约束',
-    emptyDescription: '输入账户范围、标的、持仓目标和风险边界。Agent 可以调用当前会话能力生成交易提案，但不会绕过风险检查或审批。',
-    placeholder: '输入交易目标，例如：基于当前持仓生成 600519 的调仓提案',
+    zh: { title: '投研助理 · 交易推演', subtitle: '围绕持仓、信号和风险约束形成可复核的交易提案', taskTypeLabel: '交易决策', emptyTitle: '描述你的交易目标与约束', emptyDescription: '输入账户范围、标的、持仓目标和风险边界。Agent 可以调用当前会话能力生成交易提案，但不会绕过风险检查或审批。', placeholder: '输入交易目标，例如：基于当前持仓生成 600519 的调仓提案' },
+    en: { title: 'Research assistant · Trade simulation', subtitle: 'Form reviewable proposals from positions, signals, and risk limits', taskTypeLabel: 'Trading decision', emptyTitle: 'Describe your trading objective and constraints', emptyDescription: 'Provide the account scope, symbol, position objective, and risk limits. The Agent can draft a proposal but cannot bypass risk checks or approval.', placeholder: 'Describe a trading goal, for example: rebalance 600519' },
   },
 };
 
@@ -105,14 +98,15 @@ const toggleArrayValue = <T,>(items: T[], value: T): T[] => (
 const QUICK_QUESTIONS: Array<{
   label: string;
   skill: string;
+  labelEn: string;
   stockContext?: ActiveStockContext;
 }> = [
-  { label: '用缠论分析茅台', skill: 'chan_theory', stockContext: { stock_code: '600519', stock_name: '贵州茅台' } },
-  { label: '波浪理论看宁德时代', skill: 'wave_theory', stockContext: { stock_code: '300750', stock_name: '宁德时代' } },
-  { label: '分析比亚迪趋势', skill: 'bull_trend', stockContext: { stock_code: '002594', stock_name: '比亚迪' } },
-  { label: '用箱体震荡分析 A 股中芯国际 688981', skill: 'box_oscillation', stockContext: { stock_code: '688981', stock_name: '中芯国际' } },
-  { label: '分析腾讯 hk00700', skill: 'bull_trend', stockContext: { stock_code: 'HK00700', stock_name: '腾讯控股' } },
-  { label: '用情绪周期分析东方财富', skill: 'emotion_cycle', stockContext: { stock_code: '300059', stock_name: '东方财富' } },
+  { label: '用缠论分析茅台', labelEn: 'Analyze Kweichow Moutai with Chan theory', skill: 'chan_theory', stockContext: { stock_code: '600519', stock_name: '贵州茅台' } },
+  { label: '波浪理论看宁德时代', labelEn: 'Map CATL with Elliott-wave theory', skill: 'wave_theory', stockContext: { stock_code: '300750', stock_name: '宁德时代' } },
+  { label: '分析比亚迪趋势', labelEn: 'Review BYD’s trend', skill: 'bull_trend', stockContext: { stock_code: '002594', stock_name: '比亚迪' } },
+  { label: '用箱体震荡分析 A 股中芯国际 688981', labelEn: 'Identify SMIC’s range and breakout levels', skill: 'box_oscillation', stockContext: { stock_code: '688981', stock_name: '中芯国际' } },
+  { label: '分析腾讯 hk00700', labelEn: 'Review Tencent’s trend', skill: 'bull_trend', stockContext: { stock_code: 'HK00700', stock_name: '腾讯控股' } },
+  { label: '用情绪周期分析东方财富', labelEn: 'Assess Eastmoney’s sentiment cycle', skill: 'emotion_cycle', stockContext: { stock_code: '300059', stock_name: '东方财富' } },
 ];
 
 const MAX_SELECTED_SKILLS = 3;
@@ -274,8 +268,8 @@ const restoreActiveStockContextFromMessages = (messages: Message[]): ActiveStock
 };
 
 const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: boolean }> = ({ workspace = 'general', defaultDiscussion = false }) => {
-  const { t } = useUiLanguage();
-  const workspaceCopy = WORKSPACE_COPY[workspace];
+  const { t, localize, language } = useUiLanguage();
+  const workspaceCopy = WORKSPACE_COPY[workspace][language];
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const discussionMode = searchParams.get('mode') === 'discussion';
@@ -314,7 +308,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
   const [runElapsedSeconds, setRunElapsedSeconds] = useState(0);
   const runtimeOwnsStockContext = agentStatus?.backend === 'codex_app_server' || agentStatus?.backend === 'external_runtime';
   const { index: stockIndex } = useStockIndex(
-    runtimeOwnsStockContext,
+    runtimeOwnsStockContext || workspace === 'general',
   );
   const watchlistMessageTimerRef = useRef<number | null>(null);
   const copyResetTimerRef = useRef<Partial<Record<string, number>>>({});
@@ -348,8 +342,8 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
 
   // Set page title
   useEffect(() => {
-    document.title = '投研助理 - LLM TradeBot';
-  }, []);
+    document.title = `${workspaceCopy.title} - LLM TradeBot`;
+  }, [workspaceCopy.title]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -745,8 +739,17 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
     ],
   );
 
-  const availableSkillIds = new Set(skills.map((skill) => skill.id));
-  const quickQuestions = QUICK_QUESTIONS.filter((question) => availableSkillIds.has(question.skill));
+  const availableSkillIds = React.useMemo(() => new Set(skills.map((skill) => skill.id)), [skills]);
+  const defaultQuickQuestions = QUICK_QUESTIONS.filter((question) => availableSkillIds.has(question.skill));
+  const personalizedQuickQuestions = React.useMemo(() => buildPersonalizedQuickQuestions({
+    sessions,
+    messages,
+    stockIndex,
+    availableSkillIds,
+    language,
+  }), [availableSkillIds, language, messages, sessions, stockIndex]);
+  const quickQuestions = personalizedQuickQuestions.length > 0 ? personalizedQuickQuestions : defaultQuickQuestions.map((question) => ({ ...question, label: language === 'en' ? question.labelEn : question.label }));
+  const showingPersonalizedQuickQuestions = personalizedQuickQuestions.length > 0;
   const workspaceStarters = workspace === 'general' ? [] : WORKSPACE_STARTERS[workspace];
   const selectedSkillIdSet = new Set(selectedSkillIds);
   const skillLimitReached = selectedSkillIds.length >= MAX_SELECTED_SKILLS;
@@ -1007,7 +1010,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
     }
   };
 
-  const handleQuickQuestion = (q: (typeof QUICK_QUESTIONS)[0]) => {
+  const handleQuickQuestion = (q: Pick<(typeof QUICK_QUESTIONS)[0], 'label' | 'skill' | 'stockContext'>) => {
     setSelectedSkillIds([q.skill]);
     handleSend(q.label, [q.skill], q.stockContext);
   };
@@ -1186,17 +1189,17 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
       <div className="border-b border-border/75 p-3">
         <div className="mb-3 flex items-center gap-2 px-1">
           <History className="h-4 w-4 text-muted-text" aria-hidden="true" />
-          <h2 className="text-sm font-semibold text-foreground">对话</h2>
+          <h2 className="text-sm font-semibold text-foreground">{localize('对话', 'Conversations')}</h2>
         </div>
         <Button
           variant="action-primary"
           size="sm"
           onClick={handleStartNewChat}
           className="w-full justify-start"
-          aria-label="开启新对话"
+          aria-label={localize('开启新对话', 'Start a new conversation')}
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
-          新建对话
+          {localize('新建对话', 'New conversation')}
         </Button>
       </div>
       <ScrollArea testId="chat-session-list-scroll" viewportClassName="p-3">
@@ -1204,14 +1207,14 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
           <DashboardStateBlock
             loading
             compact
-            title="加载对话中..."
+            title={localize('加载对话中...', 'Loading conversations…')}
             className="rounded-2xl border border-dashed border-border/50 bg-surface/30"
           />
         ) : sessions.length === 0 ? (
           <DashboardStateBlock
             compact
-            title="暂无历史对话"
-            description="开始提问后，这里会保留会话记录。"
+            title={localize('暂无历史对话', 'No previous conversations')}
+            description={localize('开始提问后，这里会保留会话记录。', 'Your conversations will appear here after your first question.')}
             className="rounded-2xl border border-dashed border-border/50 bg-surface/30"
           />
         ) : (
@@ -1222,7 +1225,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                   type="button"
                   onClick={() => handleSwitchSession(s.session_id)}
                   className={`session-item ${s.session_id === sessionId ? 'active' : ''}`}
-                  aria-label={`切换到对话 ${s.title}`}
+                  aria-label={localize(`切换到对话 ${s.title}`, `Open conversation: ${s.title}`)}
                   aria-current={s.session_id === sessionId ? 'page' : undefined}
                 >
                   <div className="indicator" />
@@ -1230,13 +1233,13 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                     <span className="title">{s.title}</span>
                     <div className="mt-0.5 flex items-center gap-2">
                       <span className="meta">
-                        {s.message_count} 条对话
+                        {localize(`${s.message_count} 条对话`, `${s.message_count} messages`)}
                       </span>
                       {s.last_active && (
                         <>
                           <span className="separator" />
                           <span className="meta">
-                            {new Date(s.last_active).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+                            {new Date(s.last_active).toLocaleDateString(language === 'en' ? 'en-US' : 'zh-CN', { month: 'short', day: 'numeric' })}
                           </span>
                         </>
                       )}
@@ -1249,7 +1252,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                   onClick={() => {
                     setDeleteConfirmId(s.session_id);
                   }}
-                  aria-label={`删除对话 ${s.title}`}
+                  aria-label={localize(`删除对话 ${s.title}`, `Delete conversation: ${s.title}`)}
                 >
                   <svg
                     className="w-3.5 h-3.5"
@@ -1306,10 +1309,10 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
       {/* Delete confirmation dialog */}
       <ConfirmDialog
         isOpen={Boolean(deleteConfirmId)}
-        title="删除对话"
-        message="删除后，该对话将不可恢复，确认删除吗？"
-        confirmText="删除"
-        cancelText="取消"
+        title={localize('删除对话', 'Delete conversation')}
+        message={localize('删除后，该对话将不可恢复，确认删除吗？', 'This conversation cannot be recovered after deletion. Continue?')}
+        confirmText={localize('删除', 'Delete')}
+        cancelText={localize('取消', 'Cancel')}
         isDanger
         onConfirm={confirmDelete}
         onCancel={() => setDeleteConfirmId(null)}
@@ -1351,7 +1354,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
               <button
                 onClick={() => setSidebarOpen(true)}
                 className="-ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-border bg-background text-secondary-text transition-colors hover:border-primary/30 hover:text-foreground lg:hidden"
-                aria-label="历史对话"
+                aria-label={localize('历史对话', 'Conversation history')}
               >
                 <History className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -1363,7 +1366,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                     agentAvailable ? 'border-success/25 bg-success/5 text-success' : 'border-border bg-background text-muted-text',
                   )}>
                     <span className={cn('h-1.5 w-1.5 rounded-full', agentAvailable ? 'bg-success' : 'bg-muted-text')} />
-                    {agentStatusChecking ? '检查中' : agentAvailable ? '可用' : '不可用'}
+                    {agentStatusChecking ? localize('检查中', 'Checking') : agentAvailable ? localize('可用', 'Available') : localize('不可用', 'Unavailable')}
                   </span>
                   {agentStatus && agentStatus.backend !== 'external_runtime' ? (
                 <Badge
@@ -1387,10 +1390,10 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                 size="sm"
                 onClick={() => setCapabilityPanelOpen(true)}
                 className="xl:hidden"
-                aria-label="打开本次会话能力"
+                aria-label={localize('打开本次会话能力', 'Open session capabilities')}
               >
                 <Network className="h-4 w-4" aria-hidden="true" />
-                <span>能力</span>
+                <span>{localize('能力', 'Capabilities')}</span>
               </Button>
               {messages.length > 0 ? (
                 <>
@@ -1546,7 +1549,11 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                     </svg>
                   )}
                   action={(
-                    <div className="flex max-w-xl flex-wrap justify-center gap-2">
+                    <div className="flex max-w-xl flex-col items-center gap-3">
+                      {workspace === 'general' && showingPersonalizedQuickQuestions ? (
+                        <p className="text-xs font-medium text-muted-text">{localize('根据你最近关注的股票生成', 'Based on stocks you recently researched')}</p>
+                      ) : null}
+                      <div className="flex flex-wrap justify-center gap-2">
                       {workspace === 'general' ? quickQuestions.map((q, i) => (
                         <button key={i} onClick={() => handleQuickQuestion(q)} disabled={!agentAvailable} className="quick-question-btn disabled:cursor-not-allowed disabled:opacity-60">
                           {q.label}
@@ -1556,6 +1563,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                           {prompt}
                         </button>
                       ))}
+                      </div>
                     </div>
                   )}
                 />
@@ -1919,16 +1927,16 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
               </div>
             )}
 
-              <section aria-label="对话专家设置" className="grid grid-cols-2 items-start gap-3">
-                <ChoiceList label="选择专家" placement="above" multiple limit={6}
+              <section aria-label={localize('对话专家设置', 'Conversation expert settings')} className="grid grid-cols-2 items-start gap-3">
+                <ChoiceList label={localize('选择专家', 'Choose experts')} placement="above" multiple limit={6}
                   loading={!expertChat.catalog && !expertChat.error} disabled={loading || expertChat.pending}
-                  placeholder="不选专家 · 直接对话"
+                  placeholder={localize('不选专家 · 直接对话', 'No experts · direct chat')}
                   items={(expertChat.catalog?.experts || []).filter((expert) => expert.enabled).map((expert) => ({ id: String(expert.id), name: expert.name, description: expert.style }))}
                   selectedIds={expertChat.selection.expertIds.map(String)}
                   onSelect={(id) => expertChat.update({ expertIds: toggleArrayValue(expertChat.selection.expertIds, Number(id)) })} />
-                <ChoiceList label="协作方式" placement="above" items={collaborationChoices}
+                <ChoiceList label={localize('协作方式', 'Collaboration mode')} placement="above" items={collaborationChoices}
                   disabled={!expertChat.enabled || loading || expertChat.pending}
-                  selectedIds={expertChat.enabled ? [expertChat.selection.mode] : []} placeholder="普通对话"
+                  selectedIds={expertChat.enabled ? [expertChat.selection.mode] : []} placeholder={localize('普通对话', 'Direct chat')}
                   onSelect={(mode) => expertChat.update({ mode })} />
               </section>
               {expertChat.enabled && <button type="button" disabled={loading || expertChat.pending} className="text-xs text-primary hover:underline" onClick={() => expertChat.update({ expertIds: [] })}>取消专家选择，使用普通对话</button>}
@@ -1970,7 +1978,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                     isLoading={loading || expertChat.pending}
                     className="btn-primary flex-shrink-0"
                   >
-                    发送
+                    {localize('发送', 'Send')}
                   </Button>
                 )}
               </div>

@@ -66,6 +66,7 @@ describe("Shell", () => {
     expect(screen.getAllByRole("link", { name: "交易推演" })).toHaveLength(2);
     expect(screen.getByTestId("chat-completion-badge")).toBeInTheDocument();
     expect(screen.getByTestId("mobile-chat-completion-badge")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "切换界面语言" })).toBeInTheDocument();
   });
 
   it("opens the utility drawer from the header", () => {

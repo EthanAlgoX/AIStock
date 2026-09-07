@@ -19,6 +19,7 @@ import type { UiTextKey } from "../../i18n/uiText";
 import { cn } from "../../utils/cn";
 import { StatusDot } from "../common/StatusDot";
 import { Tooltip } from "../common/Tooltip";
+import { UiLanguageToggle } from "../i18n/UiLanguageToggle";
 
 type ShellHeaderProps = {
   onOpenMenu: () => void;
@@ -214,6 +215,12 @@ export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
             );
           })}
         </nav>
+
+        <UiLanguageToggle
+          wrapperClassName="shrink-0"
+          triggerClassName="inline-flex h-11 items-center gap-1.5 rounded-[10px] border border-border bg-background px-2.5 text-xs text-secondary-text transition-colors hover:border-primary/35 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45"
+          iconClassName="h-4 w-4"
+        />
 
         <Tooltip content={localize("工作区与设置", "Workspace and settings")} side="bottom">
           <button

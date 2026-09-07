@@ -28,7 +28,7 @@ export const UiLanguageToggle: React.FC<UiLanguageToggleProps> = ({
   const nextLanguage = language === 'zh' ? 'en' : 'zh';
   const isNavVariant = variant === 'nav';
   const isRailVariant = variant === 'rail';
-  const label = language === 'zh' ? t('language.uiLanguage') : t('language.current');
+  const label = language === 'zh' ? t('language.short.en') : t('language.short.zh');
 
   return (
     <div className={cn('relative', isRailVariant ? 'w-full' : '', wrapperClassName)}>
@@ -55,7 +55,7 @@ export const UiLanguageToggle: React.FC<UiLanguageToggleProps> = ({
         ) : isNavVariant ? (
           collapsed ? null : <span className="truncate text-[1.02rem] font-medium">{label}</span>
         ) : (
-          <span className="hidden sm:inline">{label}</span>
+          <span className="font-medium">{label}</span>
         )}
       </button>
     </div>
