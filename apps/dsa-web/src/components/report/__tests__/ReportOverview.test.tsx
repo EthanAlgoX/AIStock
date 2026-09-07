@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ReportOverview } from '../ReportOverview';
+import { UiLanguageProvider } from '../../../contexts/UiLanguageContext';
 
 const baseMeta = {
   queryId: 'q-1',
@@ -49,12 +50,14 @@ describe('ReportOverview', () => {
     expect(screen.getByLabelText('日线未完成')).toBeInTheDocument();
   });
 
-  it('renders English final market phase and partial-bar labels', () => {
+  it('uses English UI labels even for a saved Chinese report', () => {
+    localStorage.setItem('dsa.uiLanguage', 'en');
     render(
+      <UiLanguageProvider>
       <ReportOverview
         meta={{
           ...baseMeta,
-          reportLanguage: 'en',
+          reportLanguage: 'zh',
           marketPhaseSummary: {
             market: 'us',
             phase: 'postmarket',
@@ -72,11 +75,14 @@ describe('ReportOverview', () => {
           },
         }}
         summary={baseSummary}
-      />,
+      />
+      </UiLanguageProvider>,
     );
+    localStorage.removeItem('dsa.uiLanguage');
 
     expect(screen.getByLabelText('Market phase: US · Post-market')).toBeInTheDocument();
     expect(screen.getByLabelText('Partial bar')).toBeInTheDocument();
+    expect(screen.getByText(baseSummary.analysisSummary)).toBeInTheDocument();
   });
 
   it('renders unknown final phase without partial-bar label', () => {

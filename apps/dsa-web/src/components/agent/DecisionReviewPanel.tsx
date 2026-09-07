@@ -1,3 +1,4 @@
+import { useUiLanguage } from "../../contexts/UiLanguageContext";
 import { useEffect, useState } from "react";
 import { decisionSignalsApi } from "../../api/decisionSignals";
 import type { DecisionProfile, DecisionSignalItem, DecisionSignalOutcomeItem } from "../../types/decisionSignals";
@@ -5,6 +6,7 @@ import { DecisionSignalDetails } from "../decision-signals/DecisionSignalDisplay
 
 /** Existing report-derived signals, not invented executions of workspace proposals. */
 export default function DecisionReviewPanel() {
+  const { translate: tx } = useUiLanguage();
   const [items, setItems] = useState<DecisionSignalItem[]>([]);
   const [selectedId, setSelectedId] = useState<number>();
   const [outcomes, setOutcomes] = useState<DecisionSignalOutcomeItem[]>([]);
@@ -55,14 +57,14 @@ export default function DecisionReviewPanel() {
     } catch { setError("风险偏好评估未完成，报告可能缺少必要快照或触发策略护栏；未获下单许可。"); }
     finally { setBusy(false); }
   };
-  return <section className="space-y-4 border-t border-border py-5" aria-label="交易信号跟踪与复盘">
-    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">交易信号跟踪与复盘</h2><button type="button" className="btn-secondary" disabled={busy} onClick={() => setRevision((value) => value + 1)}>刷新信号</button></div>
-    <p className="max-w-prose text-sm leading-6 text-secondary-text">最近 20 条报告衍生信号，与模拟提案分开保存。可查看来源、有效期、风险与后续表现；信号状态不代表已通过账户风控。</p>
-    {loading && <p role="status">正在读取信号…</p>}
-    {error && <p role="alert" className="text-sm text-warning">{error}</p>}
-    {notice && <p role="status" className="text-sm">{notice}</p>}
-    {!loading && !error && !items.length && <p className="text-sm text-secondary-text">暂无研究信号。完成包含有效决策信息的单股报告后，再来查看；自由文本提案不会自动变成已验证信号。</p>}
-    {items.length > 0 && <label className="block text-sm">选择研究信号<select disabled={busy} value={selectedId || ""} onChange={(event) => setSelectedId(Number(event.target.value))} className="mt-2 block h-10 w-full rounded-lg border border-border bg-background px-3">{items.map((item) => <option key={item.id} value={item.id}>{item.stockName || item.stockCode} · {item.createdAt} · #{item.id}</option>)}</select></label>}
-    {selected && <><DecisionSignalDetails item={selected} outcomes={outcomes} /><div className="flex flex-wrap items-end gap-3"><label className="text-sm">风险偏好<select disabled={busy} value={profile} onChange={(event) => setProfile(event.target.value as DecisionProfile)} className="mt-2 block h-10 rounded-lg border border-border bg-background px-3"><option value="conservative">保守</option><option value="balanced">均衡</option><option value="aggressive">激进</option></select></label><button type="button" className="btn-secondary" disabled={busy || !selected.sourceReportId} onClick={() => void reassess()}>保存风险偏好评估</button><button type="button" className="btn-secondary" disabled={busy} onClick={() => void evaluate()}>更新后验评估</button></div></>}
+  return <section className="space-y-4 border-t border-border py-5" aria-label={tx("交易信号跟踪与复盘")}>
+    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">{tx("交易信号跟踪与复盘")}</h2><button type="button" className="btn-secondary" disabled={busy} onClick={() => setRevision((value) => value + 1)}>{tx("刷新信号")}</button></div>
+    <p className="max-w-prose text-sm leading-6 text-secondary-text">{tx("最近 20 条报告衍生信号，与模拟提案分开保存。可查看来源、有效期、风险与后续表现；信号状态不代表已通过账户风控。")}</p>
+    {loading && <p role="status">{tx("正在读取信号…")}</p>}
+    {error && <p role="alert" className="text-sm text-warning">{tx(error)}</p>}
+    {notice && <p role="status" className="text-sm">{tx(notice)}</p>}
+    {!loading && !error && !items.length && <p className="text-sm text-secondary-text">{tx("暂无研究信号。完成包含有效决策信息的单股报告后，再来查看；自由文本提案不会自动变成已验证信号。")}</p>}
+    {items.length > 0 && <label className="block text-sm">{tx("选择研究信号")}<select disabled={busy} value={selectedId || ""} onChange={(event) => setSelectedId(Number(event.target.value))} className="mt-2 block h-10 w-full rounded-lg border border-border bg-background px-3">{items.map((item) => <option key={item.id} value={item.id}>{item.stockName || item.stockCode} · {item.createdAt} · #{item.id}</option>)}</select></label>}
+    {selected && <><DecisionSignalDetails item={selected} outcomes={outcomes} /><div className="flex flex-wrap items-end gap-3"><label className="text-sm">{tx("风险偏好")}<select disabled={busy} value={profile} onChange={(event) => setProfile(event.target.value as DecisionProfile)} className="mt-2 block h-10 rounded-lg border border-border bg-background px-3"><option value="conservative">{tx("保守")}</option><option value="balanced">{tx("均衡")}</option><option value="aggressive">{tx("激进")}</option></select></label><button type="button" className="btn-secondary" disabled={busy || !selected.sourceReportId} onClick={() => void reassess()}>{tx("保存风险偏好评估")}</button><button type="button" className="btn-secondary" disabled={busy} onClick={() => void evaluate()}>{tx("更新后验评估")}</button></div></>}
   </section>;
 }

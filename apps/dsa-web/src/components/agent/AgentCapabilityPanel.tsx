@@ -1,3 +1,4 @@
+import { useUiLanguage } from "../../contexts/UiLanguageContext";
 import { useEffect, useMemo, useState } from "react";
 import {
   Bot,
@@ -74,6 +75,7 @@ export function CapabilityButton({
   onClick: () => void;
   comfortable?: boolean;
 }) {
+  const { translate: tx } = useUiLanguage();
   return (
     <button
       type="button"
@@ -97,10 +99,10 @@ export function CapabilityButton({
       </span>
       <span className="min-w-0 flex-1">
         <span className={cn("flex items-center justify-between gap-2 font-medium", comfortable ? "text-sm" : "text-xs")}>
-          <span className={comfortable ? "break-words" : "truncate"}>{title}</span>
-          {statusLabel ? <span className="shrink-0 text-[9px] font-normal text-muted-text">{statusLabel}</span> : null}
+          <span className={comfortable ? "break-words" : "truncate"}>{tx(title)}</span>
+          {statusLabel ? <span className="shrink-0 text-[9px] font-normal text-muted-text">{statusLabel ? tx(statusLabel) : ""}</span> : null}
         </span>
-        {description ? <span className={cn("mt-1 block", comfortable ? "text-sm leading-6 text-secondary-text" : "line-clamp-2 text-[11px] leading-4 text-muted-text")}>{description}</span> : null}
+        {description ? <span className={cn("mt-1 block", comfortable ? "text-sm leading-6 text-secondary-text" : "line-clamp-2 text-[11px] leading-4 text-muted-text")}>{tx(description)}</span> : null}
       </span>
     </button>
   );
@@ -128,6 +130,7 @@ export default function AgentCapabilityPanel({
   showSkills = true,
   showExperts = true,
 }: CapabilityPanelProps) {
+  const { translate: tx } = useUiLanguage();
   const inline = presentation === "inline";
   const [dataSources, setDataSources] = useState<WorkspaceDataSource[]>([]);
   const [tools, setTools] = useState<WorkspaceTool[]>([]);
@@ -194,45 +197,44 @@ export default function AgentCapabilityPanel({
   };
 
   return (
-    <aside className={cn(inline ? "w-full min-w-0" : "flex h-full w-[19rem] shrink-0 flex-col overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card", className)} aria-label={`本次${scopeLabel}能力`}>
+    <aside className={cn(inline ? "w-full min-w-0" : "flex h-full w-[19rem] shrink-0 flex-col overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card", className)} aria-label={tx("本次{0}能力", tx(scopeLabel))}>
       {!inline && <>
       <div className="border-b border-border/70 px-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
               <Network className="h-4 w-4 text-primary" aria-hidden="true" />
-              <h2 className="text-sm font-semibold text-foreground">本次{scopeLabel}能力</h2>
+              <h2 className="text-sm font-semibold text-foreground">{tx("本次")}{tx(scopeLabel)}{tx("能力")}</h2>
             </div>
             <p className="mt-1 text-[11px] leading-4 text-muted-text">
-              由工作区注册表提供，按任务最小化挂载。
-            </p>
+              {tx("由工作区注册表提供，按任务最小化挂载。")}</p>
           </div>
           {onClose ? (
-            <button type="button" onClick={onClose} className="rounded-md p-1 text-muted-text hover:bg-hover hover:text-foreground" aria-label={`关闭${scopeLabel}能力`}>
+            <button type="button" onClick={onClose} className="rounded-md p-1 text-muted-text hover:bg-hover hover:text-foreground" aria-label={tx("关闭{0}能力", tx(scopeLabel))}>
               <X className="h-4 w-4" />
             </button>
           ) : null}
         </div>
         <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-[9px] border border-border bg-border text-[11px]">
           <div className="bg-background px-3 py-2">
-            <span className="block text-muted-text">Skill 已选择</span>
-            <span className="mt-0.5 block font-semibold text-foreground">{selectedSkillIds.length} 项</span>
+            <span className="block text-muted-text">{tx("Skill 已选择")}</span>
+            <span className="mt-0.5 block font-semibold text-foreground">{selectedSkillIds.length} {" "}{tx("项")}</span>
           </div>
           <div className="bg-background px-3 py-2">
-            <span className="block text-muted-text">能力已绑定</span>
-            <span className="mt-0.5 block font-semibold text-foreground">{boundCount} 项</span>
+            <span className="block text-muted-text">{tx("能力已绑定")}</span>
+            <span className="mt-0.5 block font-semibold text-foreground">{boundCount} {" "}{tx("项")}</span>
           </div>
         </div>
-        <p className="mt-3 text-[10px] text-muted-text">目标权限模型</p>
-        <div className="mt-1.5 flex flex-wrap gap-1.5" aria-label="主 Agent 目标权限模型">
+        <p className="mt-3 text-[10px] text-muted-text">{tx("目标权限模型")}</p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5" aria-label={tx("主 Agent 目标权限模型")}>
           {["READ", "COMPUTE", "PROPOSE"].map((permission) => (
             <span key={permission} className="rounded border border-border px-1.5 py-0.5 font-mono text-[9px] text-muted-text">{permission}</span>
           ))}
         </div>
       </div>
       </>}
-      {inline && <p className="mb-3 text-sm leading-6 text-secondary-text">{showSkills ? "Skill 决定研究方法，专家提供独立观点。最多选择 3 个 Skill。" : "研究方法由上方策略统一确定；这里选择独立评审的专家，以及补充证据所需的工具。"}</p>}
-      {inline && loading && <p role="status" className="mb-3 text-sm text-muted-text">正在读取 Agent 能力目录…</p>}
+      {inline && <p className="mb-3 text-sm leading-6 text-secondary-text">{showSkills ? tx("Skill 决定研究方法，专家提供独立观点。最多选择 3 个 Skill。") : tx("研究方法由上方策略统一确定；这里选择独立评审的专家，以及补充证据所需的工具。")}</p>}
+      {inline && loading && <p role="status" className="mb-3 text-sm text-muted-text">{tx("正在读取 Agent 能力目录…")}</p>}
       <div className={inline ? "grid min-w-0 items-start gap-x-4 sm:grid-cols-2" : "min-h-0 flex-1 overflow-y-auto px-2 py-2"}>
         {(inline ? ["skills", "experts", "tools", "mcp", "data"] as SectionKey[] : Object.keys(sectionMeta) as SectionKey[]).filter((key) => (showSkills || key !== "skills") && (showExperts || key !== "experts")).map((key) => {
           const { title, icon: Icon } = sectionMeta[key];
@@ -241,9 +243,9 @@ export default function AgentCapabilityPanel({
           if (inline) {
             const choices = inlineChoices[key];
             return <div key={key} className="py-2">
-              <ChoiceList label={title} multiple limit={key === "skills" ? 3 : undefined} items={choices.items} selectedIds={choices.ids} onSelect={choices.toggle} loading={key !== "skills" && loading} disabled={key !== "skills" && loadFailed} placeholder="未选择 · 按需添加" emptyText={`暂无可用${title}`} />
-              {key === "mcp" && !loading && !loadFailed && !choices.items.length && <Link to="/capabilities/mcp" className="mt-1 inline-block text-xs text-primary hover:underline">配置 MCP 连接</Link>}
-              {key === "tools" && !loading && !loadFailed && !choices.items.length && <Link to="/capabilities/tools" className="mt-1 inline-block text-xs text-primary hover:underline">配置工具白名单</Link>}
+              <ChoiceList label={tx(title)} multiple limit={key === "skills" ? 3 : undefined} items={choices.items} selectedIds={choices.ids} onSelect={choices.toggle} loading={key !== "skills" && loading} disabled={key !== "skills" && loadFailed} placeholder={tx("未选择 · 按需添加")} emptyText={tx("暂无可用{0}", tx(title))} />
+              {key === "mcp" && !loading && !loadFailed && !choices.items.length && <Link to="/capabilities/mcp" className="mt-1 inline-block text-xs text-primary hover:underline">{tx("配置 MCP 连接")}</Link>}
+              {key === "tools" && !loading && !loadFailed && !choices.items.length && <Link to="/capabilities/tools" className="mt-1 inline-block text-xs text-primary hover:underline">{tx("配置工具白名单")}</Link>}
             </div>;
           }
           return (
@@ -251,7 +253,7 @@ export default function AgentCapabilityPanel({
               <button type="button" onClick={() => toggleSection(key)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 px-2 py-3 text-left">
                 <span className="flex items-center gap-2 text-xs font-semibold text-foreground">
                   <Icon className="h-3.5 w-3.5 text-secondary-text" aria-hidden="true" />
-                  {title}
+                  {tx(title)}
                   <span className="font-normal text-muted-text">{count}</span>
                 </span>
                 <ChevronDown className={cn("h-3.5 w-3.5 text-muted-text transition-transform", open && "rotate-180")} aria-hidden="true" />
@@ -268,10 +270,10 @@ export default function AgentCapabilityPanel({
                         disabled={!selectedSkillIds.includes(skill.id) && skillLimitReached}
                         title={skill.name}
                         description={skill.description}
-                        statusLabel="已接通"
+                        statusLabel={tx("已接通")}
                         onClick={() => onToggleSkill(skill.id)}
                       />
-                    )) : <p className="px-3 py-2 text-[11px] leading-4 text-muted-text">暂无可用 Skill。</p>
+                    )) : <p className="px-3 py-2 text-[11px] leading-4 text-muted-text">{tx("暂无可用 Skill。")}</p>
                   ) : null}
 
                   {key === "tools" ? (
@@ -282,10 +284,10 @@ export default function AgentCapabilityPanel({
                           active={selectedToolIds.includes(tool.id)}
                           title={tool.name}
                           description={tool.description}
-                          statusLabel="已接通"
+                          statusLabel={tx("已接通")}
                           onClick={() => onToggleTool(tool.id)}
                         />
-                      )) : <div className="px-3 py-2 text-[11px] leading-4 text-muted-text"><p>工作区没有启用金融内置工具。</p><Link to="/capabilities/tools" className="mt-2 inline-flex font-medium text-primary hover:underline">配置工具白名单</Link></div>
+                      )) : <div className="px-3 py-2 text-[11px] leading-4 text-muted-text"><p>{tx("工作区没有启用金融内置工具。")}</p><Link to="/capabilities/tools" className="mt-2 inline-flex font-medium text-primary hover:underline">{tx("配置工具白名单")}</Link></div>
                   ) : null}
 
                   {key === "mcp" ? (
@@ -296,14 +298,14 @@ export default function AgentCapabilityPanel({
                         active={selectedMcpIds.includes(connection.id)}
                         title={connection.name}
                         description={`${connection.transport} · ${connection.location}`}
-                        statusLabel="已连接"
+                        statusLabel={tx("已连接")}
                         onClick={() => onToggleMcp(connection.id)}
                       />
-                    )) : <div className="px-3 py-2 text-[11px] leading-4 text-muted-text"><p>还没有启用的 MCP 连接。</p><Link to="/capabilities/mcp" className="mt-2 inline-flex font-medium text-primary hover:underline">打开 MCP 配置</Link></div>
+                    )) : <div className="px-3 py-2 text-[11px] leading-4 text-muted-text"><p>{tx("还没有启用的 MCP 连接。")}</p><Link to="/capabilities/mcp" className="mt-2 inline-flex font-medium text-primary hover:underline">{tx("打开 MCP 配置")}</Link></div>
                   ) : null}
 
                   {key === "data" ? (
-                    loading ? <p className="px-3 py-2 text-[11px] text-muted-text">正在读取数据源…</p> : readyDataSources.length ? readyDataSources.slice(0, 8).map((source) => (
+                    loading ? <p className="px-3 py-2 text-[11px] text-muted-text">{tx("正在读取数据源…")}</p> : readyDataSources.length ? readyDataSources.slice(0, 8).map((source) => (
                       <CapabilityButton
                         comfortable={inline}
                         key={source.sourceId}
@@ -313,7 +315,7 @@ export default function AgentCapabilityPanel({
                         statusLabel={dataSourceStatusLabel(source)}
                         onClick={() => onToggleDataSource(source.sourceId)}
                       />
-                    )) : <p className="px-3 py-2 text-[11px] leading-4 text-muted-text">暂无可绑定的数据源。</p>
+                    )) : <p className="px-3 py-2 text-[11px] leading-4 text-muted-text">{tx("暂无可绑定的数据源。")}</p>
                   ) : null}
 
                   {key === "experts" ? (
@@ -324,12 +326,12 @@ export default function AgentCapabilityPanel({
                         active={effectiveExpertIds.includes(expert.id)}
                         title={expert.name}
                         description={`${expert.style} · ${expert.description}`}
-                        statusLabel={expert.builtIn ? "平台预置" : "自定义 Prompt"}
+                        statusLabel={expert.builtIn ? tx("平台预置") : tx("自定义 Prompt")}
                         onClick={() => toggleExpert(expert.id)}
                       />
                     ))
                   ) : null}
-                  {key === "experts" && !loading && !loadFailed && experts.length === 0 && <p className="px-3 py-2 text-sm text-muted-text">暂无启用的专家。</p>}
+                  {key === "experts" && !loading && !loadFailed && experts.length === 0 && <p className="px-3 py-2 text-sm text-muted-text">{tx("暂无启用的专家。")}</p>}
 
                 </div>
               ) : null}
@@ -337,11 +339,11 @@ export default function AgentCapabilityPanel({
           );
         })}
 
-        {loadFailed ? <div role="alert" className="my-3 text-sm text-warning sm:col-span-2">能力目录读取失败。<button type="button" className="ml-2 underline" onClick={() => { setLoading(true); setLoadFailed(false); setRetry((value) => value + 1); }}>重试读取</button></div> : null}
+        {loadFailed ? <div role="alert" className="my-3 text-sm text-warning sm:col-span-2">{tx("能力目录读取失败。")}<button type="button" className="ml-2 underline" onClick={() => { setLoading(true); setLoadFailed(false); setRetry((value) => value + 1); }}>{tx("重试读取")}</button></div> : null}
       </div>
 
       <div className="border-t border-border/70 px-4 py-3">
-        <p className="text-[10px] leading-4 text-muted-text">所选能力会随会话或任务提交；运行记录会冻结能力清单与数据快照。</p>
+        <p className="text-[10px] leading-4 text-muted-text">{tx("所选能力会随会话或任务提交；运行记录会冻结能力清单与数据快照。")}</p>
       </div>
     </aside>
   );

@@ -5,6 +5,12 @@ import ResearchReportsWorkspace from "../ResearchReportsWorkspace";
 import { useWorkspaceRunStore } from "../../stores/workspaceRunStore";
 import { workspaceRunFixture, workspaceTaskFixture } from "../../testWorkspaceFixtures";
 import type { WorkspaceRun } from "../../api/workspace";
+import { UiLanguageProvider, useUiLanguage } from "../../contexts/UiLanguageContext";
+
+function LanguageSwitch() {
+  const { setLanguage } = useUiLanguage();
+  return <><button onClick={() => setLanguage("en")}>English</button><button onClick={() => setLanguage("zh")}>Chinese</button></>;
+}
 
 const api = vi.hoisted(() => ({ listRuns: vi.fn(), getRun: vi.fn() }));
 vi.mock("../../components/agent/DefaultTaskLauncher", () => ({ default: () => null }));
@@ -18,6 +24,23 @@ const run = (id: string, name: string) => workspaceRunFixture(workspaceTaskFixtu
 
 describe("report-first research workspace", () => {
   beforeEach(() => { vi.resetAllMocks(); useWorkspaceRunStore.setState({ runs: {} }); });
+
+  it.each(["research", "screening", "trading"] as const)("updates %s report controls immediately and preserves language after remount", async (mode) => {
+    localStorage.setItem("dsa.uiLanguage", "zh");
+    api.listRuns.mockResolvedValue([]);
+    const view = render(<UiLanguageProvider><MemoryRouter><LanguageSwitch /><ResearchReportsWorkspace mode={mode} /></MemoryRouter></UiLanguageProvider>);
+    await screen.findByText(mode === "trading" ? "尚无模拟运行记录。" : "尚无历史分析。");
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    expect(view.container.textContent).not.toMatch(/[\u3400-\u9fff]/);
+    const title = mode === "research" ? "Stock research" : mode === "screening" ? "Strategy screening" : "Trade simulation";
+    expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
+    view.unmount();
+    render(<UiLanguageProvider><MemoryRouter><LanguageSwitch /><ResearchReportsWorkspace mode={mode} /></MemoryRouter></UiLanguageProvider>);
+    expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Chinese" }));
+    expect(screen.getByRole("heading", { name: mode === "research" ? "个股研究" : mode === "screening" ? "策略选股" : "交易推演" })).toBeInTheDocument();
+    localStorage.removeItem("dsa.uiLanguage");
+  });
 
   it("opens the canonical formal report from an old task link and groups history without deleting it", async () => {
     const original = { ...run("old", "比亚迪 个股分析"), primaryReportRunId: "formal" };

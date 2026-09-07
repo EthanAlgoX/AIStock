@@ -6,6 +6,7 @@ import ResearchReportsWorkspace from "../../../pages/ResearchReportsWorkspace";
 import { EMPTY_RUN_STATE, useWorkspaceRunStore } from "../../../stores/workspaceRunStore";
 import { workspaceRunFixture, workspaceTaskFixture } from "../../../testWorkspaceFixtures";
 import type { DefaultTaskPlan } from "../../../api/workspace";
+import { UiLanguageProvider } from "../../../contexts/UiLanguageContext";
 
 const api = vi.hoisted(() => ({ getDefaultTaskPlan: vi.fn(), createTask: vi.fn(), runTask: vi.fn(), listRuns: vi.fn(), getRun: vi.fn() }));
 vi.mock("../../../api/workspace", () => ({ workspaceApi: api }));
@@ -17,6 +18,20 @@ const makePlan = (kind: "research" | "screening" | "trading", stock = "688981.SH
 });
 
 describe("default task entry", () => {
+  it("translates plan labels and expert names without changing the submitted task", async () => {
+    localStorage.setItem("dsa.uiLanguage", "en");
+    useWorkspaceRunStore.setState({ runs: { research: { ...EMPTY_RUN_STATE, restoring: false } } });
+    const plan = { ...makePlan("research"), strategyName: "单股研究 · A股配置", teamName: "段永平、沃伦·巴菲特", reasons: ["使用当前选择的股票，不替换为其他标的。"], notice: "使用真实数据与模型，可能产生调用费用。" };
+    api.getDefaultTaskPlan.mockResolvedValue(plan);
+    const view = render(<UiLanguageProvider><DefaultTaskLauncher kind="research" /></UiLanguageProvider>);
+    const button = screen.getByRole("button", { name: "Run default plan" });
+    await waitFor(() => expect(button).toBeEnabled());
+    expect(screen.getByText(/Duan Yongping, Warren Buffett/)).toBeInTheDocument();
+    expect(view.container.textContent).not.toMatch(/[\u3400-\u9fff]/);
+    fireEvent.click(button);
+    await waitFor(() => expect(api.createTask).toHaveBeenCalledExactlyOnceWith(plan.task));
+    localStorage.removeItem("dsa.uiLanguage");
+  });
   beforeEach(() => {
     vi.resetAllMocks();
     localStorage.clear();

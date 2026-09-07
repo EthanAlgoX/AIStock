@@ -7,7 +7,7 @@ import type {
 import { Badge, Button, Card, ScoreGauge } from '../common';
 import { formatDateTime } from '../../utils/format';
 import { getMarketPhaseSummaryLabel, getPartialBarLabel } from '../../utils/marketPhase';
-import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
+import { getReportText } from '../../utils/reportLanguage';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
 import { ShareImageButton } from './ShareImageButton';
 
@@ -168,8 +168,7 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
   details,
   watchlist,
 }) => {
-  const { t } = useUiLanguage();
-  const reportLanguage = normalizeReportLanguage(meta.reportLanguage);
+  const { t, language: reportLanguage } = useUiLanguage();
   const text = getReportText(reportLanguage);
   const marketPhaseLabel = getMarketPhaseSummaryLabel(meta.marketPhaseSummary, reportLanguage);
   const partialBarLabel = meta.marketPhaseSummary?.isPartialBar === true

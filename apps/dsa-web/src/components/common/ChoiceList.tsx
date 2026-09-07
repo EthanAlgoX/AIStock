@@ -21,7 +21,11 @@ export default function ChoiceList({ label, items, selectedIds, onSelect, multip
   disabled?: boolean;
   placement?: "inline" | "above";
 }) {
-  const { localize } = useUiLanguage();
+  const { localize, translate: tx } = useUiLanguage();
+  label = tx(label);
+  placeholder = tx(placeholder);
+  emptyText = tx(emptyText);
+  items = items.map((item) => ({ ...item, name: tx(item.name), description: item.description ? tx(item.description) : undefined, badge: item.badge ? tx(item.badge) : undefined }));
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const focusSearch = useCallback((node: HTMLInputElement | null) => { node?.focus(); }, []);
@@ -59,7 +63,7 @@ export default function ChoiceList({ label, items, selectedIds, onSelect, multip
           <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-secondary-text" />
           <input ref={focusSearch} type="search" aria-label={localize(`搜索${label}`, `Search ${label}`)} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={localize('搜索名称或说明', 'Search names or descriptions')} className="h-9 w-full rounded-md border border-border bg-card pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary" />
         </div>
-        <div role={multiple ? "group" : "radiogroup"} aria-label={`${label}选项`} className="max-h-64 overflow-y-auto overscroll-contain divide-y divide-border/50 px-2">
+        <div role={multiple ? "group" : "radiogroup"} aria-label={localize(`${label}选项`, `${label} options`)} className="max-h-64 overflow-y-auto overscroll-contain divide-y divide-border/50 px-2">
           {filtered.map((item) => {
             const checked = selectedIds.includes(item.id);
             const blocked = disabled || Boolean(error) || item.disabled || (!checked && multiple && Boolean(limit && selectedIds.length >= limit));
@@ -79,6 +83,6 @@ export default function ChoiceList({ label, items, selectedIds, onSelect, multip
         </div>
       </div>}
     </div>
-    {error && <p role="alert" className="mt-2 text-sm text-warning">{error}</p>}
+    {error && <p role="alert" className="mt-2 text-sm text-warning">{tx(error)}</p>}
   </div>;
 }

@@ -7,7 +7,8 @@ import { ReportDetails } from './ReportDetails';
 import { ReportDiagnostics } from './ReportDiagnostics';
 import { AnalysisContextSummary } from './AnalysisContextSummary';
 import { MarketReviewReportView } from './MarketReviewReportView';
-import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
+import { getReportText } from '../../utils/reportLanguage';
+import { useUiLanguage } from '../../contexts/UiLanguageContext';
 
 interface ReportSummaryProps {
   data: AnalysisResult | AnalysisReport;
@@ -39,7 +40,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   const diagnosticSummary = 'diagnosticSummary' in data ? data.diagnosticSummary : undefined;
 
   const { meta, summary, strategy, details } = report;
-  const reportLanguage = normalizeReportLanguage(meta.reportLanguage);
+  const { language: reportLanguage } = useUiLanguage();
   const text = getReportText(reportLanguage);
   const modelUsed = (meta.modelUsed || '').trim();
   const shouldShowModel = Boolean(

@@ -120,7 +120,7 @@ Open the Web workspace at <http://127.0.0.1:8000> and API documentation at <http
 2. Ask a question in **Research assistant**, or open **Stock research** and run the default plan. Default plans still require the relevant model, published strategy, and tools to be available.
 3. Read the saved report. To compare perspectives, start an **Expert roundtable**, choose experts and a collaboration mode, and submit a topic.
 
-The header includes a persistent Chinese/English language selector. Translation coverage is still incomplete on some pages, and saved conversations and reports retain their original language.
+The header includes a persistent Chinese/English language selector. The main workspaces, research configuration, default plans, and report controls follow this setting. Saved report prose, user-defined names, and source news retain their original language; switching the interface does not translate or rewrite research data.
 
 For frontend development, run `npm run dev` under `apps/dsa-web` alongside the backend. Vite defaults to <http://127.0.0.1:5173> and proxies `/api` to port 8000; set `DSA_WEB_API_PROXY_TARGET` if the backend address differs.
 

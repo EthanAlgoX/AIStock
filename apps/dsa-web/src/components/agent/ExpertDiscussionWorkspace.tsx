@@ -1,3 +1,4 @@
+import { useUiLanguage } from "../../contexts/UiLanguageContext";
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -52,6 +53,7 @@ export default function ExpertDiscussionWorkspace({
   onDirect?: () => void;
   initialTopic?: string;
 }) {
+  const { translate: tx } = useUiLanguage();
   const [params, setParams] = useSearchParams();
   const {
     activeRun,
@@ -327,77 +329,75 @@ export default function ExpertDiscussionWorkspace({
   const canFollow = !!selected && !isRunActive(selected ?? null) && selected.artifacts.length > 0;
   const composerDisabled = busy || !protocolReady || !catalog || (!creating && !canFollow) || (editable && (members.length < 2 || members.length > 6));
   const historyList = <div className="flex h-full flex-col gap-3 p-4">
-    <h2 className="text-sm font-semibold">讨论历史</h2>
-    <button type="button" className="btn-secondary" onClick={newDiscussion}>新建讨论</button>
-    <input aria-label="搜索讨论" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索议题" className="h-11 w-full border border-border px-3 text-sm" />
+    <h2 className="text-sm font-semibold">{tx("讨论历史")}</h2>
+    <button type="button" className="btn-secondary" onClick={newDiscussion}>{tx("新建讨论")}</button>
+    <input aria-label={tx("搜索讨论")} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tx("搜索议题")} className="h-11 w-full border border-border px-3 text-sm" />
     <div className="min-h-0 flex-1 overflow-y-auto">
       {history.filter((r) => !parentIds.has(r.id) && r.taskSnapshot.name.toLowerCase().includes(query.toLowerCase())).map((run) => <button type="button" key={run.id} aria-pressed={selectedId === run.id} onClick={() => { setEditing(false); setFollowUp(""); select(run.id); }} className={`mb-1 w-full rounded-lg border px-3 py-3 text-left ${selectedId === run.id ? "border-primary/40 bg-primary/10" : "border-transparent hover:bg-hover"}`}>
-        <span className="block break-words text-sm font-medium">{run.taskSnapshot.name}</span><span className="mt-2 block text-xs text-secondary-text">{statusNames[run.status]} · {new Date(run.createdAt).toLocaleDateString()}</span>
+        <span className="block break-words text-sm font-medium">{run.taskSnapshot.name}</span><span className="mt-2 block text-xs text-secondary-text">{tx(statusNames[run.status])} · {new Date(run.createdAt).toLocaleDateString()}</span>
       </button>)}
-      {!history.length && <p className="text-sm leading-6 text-secondary-text">发送消息后，群聊与每轮报告会保存在这里。</p>}
+      {!history.length && <p className="text-sm leading-6 text-secondary-text">{tx("发送消息后，群聊与每轮报告会保存在这里。")}</p>}
     </div>
   </div>;
   return <div data-testid="expert-discussion-workspace" className="flex h-[calc(100dvh-7.5rem)] min-w-0 lg:h-[calc(100dvh-4rem)]">
-    <aside aria-label="讨论历史" className="hidden w-64 shrink-0 border-r border-border bg-background lg:block">{historyList}</aside>
-    <Drawer isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title="历史群聊" side="left" width="max-w-sm">{historyList}</Drawer>
-    <section aria-label="专家群聊" className="flex min-w-0 flex-1 flex-col bg-background">
+    <aside aria-label={tx("讨论历史")} className="hidden w-64 shrink-0 border-r border-border bg-background lg:block">{historyList}</aside>
+    <Drawer isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title={tx("历史群聊")} side="left" width="max-w-sm">{historyList}</Drawer>
+    <section aria-label={tx("专家群聊")} className="flex min-w-0 flex-1 flex-col bg-background">
       <header className="shrink-0 border-b border-border bg-card px-4 py-3 md:px-6">
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0"><h1 className="text-base font-semibold text-foreground">专家圆桌</h1><p className="mt-1 truncate text-xs text-secondary-text">{creating ? "新圆桌 · 选择专家后发送话题" : selected?.taskSnapshot.name || "正在恢复群聊…"}</p></div>
+          <div className="min-w-0"><h1 className="text-base font-semibold text-foreground">{tx("专家圆桌")}</h1><p className="mt-1 truncate text-xs text-secondary-text">{creating ? tx("新圆桌 · 选择专家后发送话题") : selected?.taskSnapshot.name || tx("正在恢复群聊…")}</p></div>
           <div className="flex shrink-0 gap-2">
-            <span className="lg:hidden"><button type="button" className="btn-secondary" onClick={() => setHistoryOpen(true)}>历史</button></span>
-            {selected && !isRunActive(selected ?? null) && <button type="button" className="btn-secondary" onClick={() => configureFrom(selected)}>调整下轮配置</button>}
-            {onDirect && <button type="button" className="btn-secondary" onClick={onDirect}>直接对话</button>}
+            <span className="lg:hidden"><button type="button" className="btn-secondary" onClick={() => setHistoryOpen(true)}>{tx("历史")}</button></span>
+            {selected && !isRunActive(selected ?? null) && <button type="button" className="btn-secondary" onClick={() => configureFrom(selected)}>{tx("调整下轮配置")}</button>}
+            {onDirect && <button type="button" className="btn-secondary" onClick={onDirect}>{tx("直接对话")}</button>}
           </div>
         </div>
-        <section aria-label="当前专家团" className="mt-3">
+        <section aria-label={tx("当前专家团")} className="mt-3">
           {editable ? <div className="grid grid-cols-2 items-start gap-3">
-            <ChoiceList label="选择专家" multiple limit={6} items={experts.map((e) => ({ id: String(e.id), name: e.name, description: e.style }))} selectedIds={memberIds.map(String)} onSelect={(id) => setCapabilities((c) => ({ ...c, expertTeamIds: [], expertIds: toggle(memberIds, Number(id)) }))} />
-            <ChoiceList label="协作模式" items={[
-              { id: "pipeline", name: "流水线", description: "主持人分工，专家执行，汇总成果" },
-              { id: "debate", name: "辩论式", description: "独立观点，质询反驳，总结共识与分歧" },
-              { id: "voting", name: "投票式", description: "独立报告，三位评审投票，按计票总结" },
+            <ChoiceList label={tx("选择专家")} multiple limit={6} items={experts.map((e) => ({ id: String(e.id), name: e.name, description: e.style }))} selectedIds={memberIds.map(String)} onSelect={(id) => setCapabilities((c) => ({ ...c, expertTeamIds: [], expertIds: toggle(memberIds, Number(id)) }))} />
+            <ChoiceList label={tx("协作模式")} items={[
+              { id: "pipeline", name: tx("流水线"), description: tx("主持人分工，专家执行，汇总成果") },
+              { id: "debate", name: tx("辩论式"), description: tx("独立观点，质询反驳，总结共识与分歧") },
+              { id: "voting", name: tx("投票式"), description: tx("独立报告，三位评审投票，按计票总结") },
             ]} selectedIds={[collaborationMode]} onSelect={setCollaborationMode} loading={!catalog} />
-          </div> : <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-secondary-text"><span>主持人 + {displayedMembers.length} 位专家 · {modeNames[currentMode] || currentMode}</span><ul aria-label="专家团成员" className="flex flex-wrap gap-3">{displayedMembers.map((expert) => <li key={expert.id}>{expert.name}</li>)}</ul></div>}
+          </div> : <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-secondary-text"><span>{tx("主持人 +")}{" "}{displayedMembers.length} {" "}{tx("位专家 ·")}{" "}{tx(modeNames[currentMode] || currentMode)}</span><ul aria-label={tx("专家团成员")} className="flex flex-wrap gap-3">{displayedMembers.map((expert) => <li key={expert.id}>{tx(expert.name)}</li>)}</ul></div>}
         </section>
       </header>
-      {(error || runError) && <div role="alert" className="bg-card px-4 py-2 text-sm text-danger">{error || runError}<button className="ml-3 text-primary" onClick={() => setRetry((n) => n + 1)}>重试</button></div>}
-      <div ref={viewport} onScroll={() => { const el = viewport.current; if (el) nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 md:px-8" aria-label="群聊消息">
+      {(error || runError) && <div role="alert" className="bg-card px-4 py-2 text-sm text-danger">{error || runError}<button className="ml-3 text-primary" onClick={() => setRetry((n) => n + 1)}>{tx("重试")}</button></div>}
+      <div ref={viewport} onScroll={() => { const el = viewport.current; if (el) nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 md:px-8" aria-label={tx("群聊消息")}>
         <div className="w-full min-w-0 space-y-8">
-          {creating ? <div className="py-8 text-center"><h2 className="text-lg font-semibold">向专家们发一条消息</h2><p className="mx-auto mt-3 max-w-md text-sm leading-7 text-secondary-text">主持人组织讨论，专家回应彼此观点。每轮结束后，报告会作为一条成果消息保留在群里。</p></div> : thread.rounds.map((round) => <div key={round.id} className="space-y-4"><p className="text-center text-xs text-secondary-text">{new Date(round.createdAt).toLocaleString()} · {statusNames[round.status]} · {modeNames[String(round.taskSnapshot.config.collaborationMode || "debate")]}</p><DiscussionTimeline run={round} />{round.errorMessage && <p role="alert" className="text-sm text-danger">{round.errorMessage}</p>}{round.outcome?.status === "partial" && <p className="text-sm text-warning">{round.outcome.message}</p>}</div>)}
-          {thread.error && <p role="alert" className="text-sm text-danger">{thread.error}<button type="button" className="ml-2 text-primary" onClick={thread.retry}>重试历史</button></p>}
-          {!creating && !selected && <p role="status">正在读取讨论…</p>}
+          {creating ? <div className="py-8 text-center"><h2 className="text-lg font-semibold">{tx("向专家们发一条消息")}</h2><p className="mx-auto mt-3 max-w-md text-sm leading-7 text-secondary-text">{tx("主持人组织讨论，专家回应彼此观点。每轮结束后，报告会作为一条成果消息保留在群里。")}</p></div> : thread.rounds.map((round) => <div key={round.id} className="space-y-4"><p className="text-center text-xs text-secondary-text">{new Date(round.createdAt).toLocaleString()} · {tx(statusNames[round.status])} · {tx(modeNames[String(round.taskSnapshot.config.collaborationMode || "debate")])}</p><DiscussionTimeline run={round} />{round.errorMessage && <p role="alert" className="text-sm text-danger">{tx(round.errorMessage)}</p>}{round.outcome?.status === "partial" && <p className="text-sm text-warning">{tx(round.outcome.message)}</p>}</div>)}
+          {thread.error && <p role="alert" className="text-sm text-danger">{thread.error}<button type="button" className="ml-2 text-primary" onClick={thread.retry}>{tx("重试历史")}</button></p>}
+          {!creating && !selected && <p role="status">{tx("正在读取讨论…")}</p>}
         </div>
       </div>
       <footer className="shrink-0 border-t border-border bg-card px-4 py-3 md:px-6">
         <div className="w-full min-w-0">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-secondary-text">
-            <span>{editing ? "配置仅对下一轮生效，历史发言与配置不变。" : isRunActive(selected ?? null) ? "后台讨论中 · 切换页面不会中断" : "主持人协调 · 专家独立发言 · 最终报告单独保存"}</span>
-            <div className="flex gap-3">{editable && <button type="button" className="min-h-8 text-primary" onClick={() => setSettingsOpen(true)}>研究能力授权</button>}{selected && <Link to={embedded ? `/expert-review?run=${selected.id}` : `/runs/${selected.id}`} className="min-h-8 text-primary">{embedded ? "查看完整讨论" : "运行详情"}</Link>}<button type="button" className="min-h-8 text-primary" onClick={() => { nearBottom.current = true; if (viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight; }}>最新消息</button></div>
+            <span>{editing ? tx("配置仅对下一轮生效，历史发言与配置不变。") : isRunActive(selected ?? null) ? tx("后台讨论中 · 切换页面不会中断") : tx("主持人协调 · 专家独立发言 · 最终报告单独保存")}</span>
+            <div className="flex gap-3">{editable && <button type="button" className="min-h-8 text-primary" onClick={() => setSettingsOpen(true)}>{tx("研究能力授权")}</button>}{selected && <Link to={embedded ? `/expert-review?run=${selected.id}` : `/runs/${selected.id}`} className="min-h-8 text-primary">{embedded ? tx("查看完整讨论") : tx("运行详情")}</Link>}<button type="button" className="min-h-8 text-primary" onClick={() => { nearBottom.current = true; if (viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight; }}>{tx("最新消息")}</button></div>
           </div>
-          {sourceId && <p className="mb-2 text-xs text-secondary-text">引用报告：{source?.taskSnapshot.name || "正在读取…"}</p>}
+          {sourceId && <p className="mb-2 text-xs text-secondary-text">{tx("引用报告：")}{source?.taskSnapshot.name || tx("正在读取…")}</p>}
           <form onSubmit={(e) => { e.preventDefault(); if (!composerDisabled) void submit(creating ? undefined : selected); }} className="flex items-end gap-3">
-            <label className="min-w-0 flex-1"><span className="sr-only">{creating ? "讨论议题" : "继续追问"}</span><textarea aria-label={creating ? "讨论议题" : "继续追问"} value={creating ? topic : followUp} onChange={(e) => creating ? setTopic(e.target.value) : setFollowUp(e.target.value)} placeholder={creating ? "发消息，例如：请讨论中芯国际的投资逻辑与风险" : "继续向群里发消息，发起下一轮讨论…"} className="block min-h-20 max-h-40 w-full resize-y rounded-xl border border-border bg-background px-4 py-3 text-sm leading-6" /></label>
-            {isRunActive(selected ?? null) ? <button type="button" className="btn-secondary" onClick={() => { if (selected) void workspaceApi.cancelRun(selected.id).catch(() => setError("停止请求未确认，请刷新运行状态后重试。")); }}>停止讨论</button> : <button type="submit" className="btn-primary" disabled={composerDisabled || !(creating ? topic : followUp).trim() || Boolean(sourceId && source?.id !== sourceId)}>{restoring ? "恢复中…" : submitting ? "提交中…" : creating ? "开始讨论" : "发送追问"}</button>}
+            <label className="min-w-0 flex-1"><span className="sr-only">{creating ? tx("讨论议题") : tx("继续追问")}</span><textarea aria-label={creating ? tx("讨论议题") : tx("继续追问")} value={creating ? topic : followUp} onChange={(e) => creating ? setTopic(e.target.value) : setFollowUp(e.target.value)} placeholder={creating ? tx("发消息，例如：请讨论中芯国际的投资逻辑与风险") : tx("继续向群里发消息，发起下一轮讨论…")} className="block min-h-20 max-h-40 w-full resize-y rounded-xl border border-border bg-background px-4 py-3 text-sm leading-6" /></label>
+            {isRunActive(selected ?? null) ? <button type="button" className="btn-secondary" onClick={() => { if (selected) void workspaceApi.cancelRun(selected.id).catch(() => setError(tx("停止请求未确认，请刷新运行状态后重试。"))); }}>{tx("停止讨论")}</button> : <button type="submit" className="btn-primary" disabled={composerDisabled || !(creating ? topic : followUp).trim() || Boolean(sourceId && source?.id !== sourceId)}>{restoring ? tx("恢复中…") : submitting ? tx("提交中…") : creating ? tx("开始讨论") : tx("发送追问")}</button>}
           </form>
-          {editable && members.length < 2 && catalog && <p className="mt-2 text-xs text-warning">请至少选择两位专家。</p>}
-          {catalog && !protocolReady && <p role="alert" className="mt-2 text-xs text-warning">后端尚未支持当前协作模式，请刷新或检查服务版本。</p>}
+          {editable && members.length < 2 && catalog && <p className="mt-2 text-xs text-warning">{tx("请至少选择两位专家。")}</p>}
+          {catalog && !protocolReady && <p role="alert" className="mt-2 text-xs text-warning">{tx("后端尚未支持当前协作模式，请刷新或检查服务版本。")}</p>}
         </div>
       </footer>
     </section>
-    <Drawer isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="研究能力授权" width="max-w-2xl">
+    <Drawer isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title={tx("研究能力授权")} width="max-w-2xl">
               <details className="border-y border-border py-3">
                 <summary className="cursor-pointer text-sm font-medium">
-                  研究能力授权 · Skill、工具与数据源
-                </summary>
+                  {tx("研究能力授权 · Skill、工具与数据源")}</summary>
                 <p className="my-3 text-sm text-secondary-text">
-                  先选择本次授权能力，再为每位专家分配子集。未自定义的专家继承公共配置；配置随讨论保存。
-                </p>
+                  {tx("先选择本次授权能力，再为每位专家分配子集。未自定义的专家继承公共配置；配置随讨论保存。")}</p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {keys.map((key) => (
                     <ChoiceList
                       key={key}
-                      label={`公共${labels[key]}`}
+                      label={tx("公共{0}", tx(labels[key]))}
                       items={choices[key]}
                       multiple
                       limit={key === "skillIds" ? 3 : undefined}
@@ -428,10 +428,10 @@ export default function ExpertDiscussionWorkspace({
                     className="mt-4 border-t border-border pt-3"
                   >
                     <summary className="cursor-pointer text-sm">
-                      {expert.name} ·{" "}
+                      {tx(expert.name)} ·{" "}
                       {profiles[String(expert.id)]
-                        ? "独立配置"
-                        : "继承公共配置"}
+                        ? tx("独立配置")
+                        : tx("继承公共配置")}
                     </summary>
                     <p className="my-3 text-sm text-secondary-text">
                       {expert.description}
@@ -440,7 +440,7 @@ export default function ExpertDiscussionWorkspace({
                       {keys.map((key) => (
                         <ChoiceList
                           key={key}
-                          label={`${expert.name} · ${labels[key]}`}
+                          label={`${tx(expert.name)} · ${tx(labels[key])}`}
                           multiple
                           limit={key === "skillIds" ? 3 : undefined}
                           items={choices[key].filter((c) =>
@@ -481,8 +481,7 @@ export default function ExpertDiscussionWorkspace({
                         )
                       }
                     >
-                      恢复公共配置
-                    </button>
+                      {tx("恢复公共配置")}</button>
                   </details>
                 ))}
               </details>

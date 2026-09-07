@@ -1,3 +1,4 @@
+import { useUiLanguage } from "../contexts/UiLanguageContext";
 import {
   ArrowRight,
   CalendarClock,
@@ -117,6 +118,7 @@ const toggleValue = <T,>(items: T[], value: T) => (
 );
 
 export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarted }: { mode: WorkspaceMode; embedded?: boolean; onRunStarted?: (run: WorkspaceRun) => void }) {
+  const { translate: tx, language } = useUiLanguage();
   const copy = COPY[mode];
   const navigate = useNavigate();
   const initialWorkspace = useMemo(() => readTaskWorkspace(mode), [mode]);
@@ -266,7 +268,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
 
   const selectStock = (stock: StockIndexItem) => {
     setSelectedStock(stock);
-    setQuery(`${stock.nameZh || stock.nameEn || stock.displayCode} · ${stock.displayCode}`);
+    setQuery(`${language === "en" ? stock.nameEn || stock.displayCode : stock.nameZh || stock.nameEn || stock.displayCode} · ${stock.displayCode}`);
   };
 
   const scheduleCurrentTask = () => {
@@ -340,7 +342,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
       onChange={(id, custom) => { setVersion(id); setCustomRequested(custom); }}
       skills={skills} selectedSkillIds={capabilities.skillIds}
       onToggleSkill={(id) => setCapabilities((current) => ({ ...current, skillIds: toggleValue(current.skillIds, id) }))}
-      loading={workflowsLoading} skillsLoading={skillsLoading} skillsError={skillsError} />
+      loading={workflowsLoading} skillsLoading={skillsLoading} skillsError={tx(skillsError)} />
   );
 
   const renderCapabilityPanel = (className: string) => (
@@ -371,17 +373,17 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
     <Container className="space-y-6 pb-6" data-testid={`${mode}-task-workspace`}>
       {!embedded && <PageHeader
         eyebrow={copy.eyebrow}
-        title={copy.title}
-        description={copy.description}
-        actions={<Link to="/capabilities/skills" className="btn-secondary inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" />管理工作区能力</Link>}
+        title={tx(copy.title)}
+        description={tx(copy.description)}
+        actions={<Link to="/capabilities/skills" className="btn-secondary inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" />{tx("管理工作区能力")}</Link>}
       />}
 
-      <ol className="grid gap-px overflow-hidden rounded-[12px] border border-border bg-border sm:grid-cols-4" aria-label={`${copy.title}操作流程`}>
+      <ol className="grid gap-px overflow-hidden rounded-[12px] border border-border bg-border sm:grid-cols-4" aria-label={tx("{0}操作流程", tx(copy.title))}>
         {[
-          { label: "选择范围", ready: true },
-          { label: mode === "research" ? "选择股票" : "描述筛选目标", ready: selectionReady },
-          { label: "策略与协作", ready: canRun },
-          { label: "生成成果", ready: showRunPreview },
+          { label: tx("选择范围"), ready: true },
+          { label: mode === "research" ? tx("选择股票") : tx("描述筛选目标"), ready: selectionReady },
+          { label: tx("策略与协作"), ready: canRun },
+          { label: tx("生成成果"), ready: showRunPreview },
         ].map((step, index) => (
           <li key={step.label} className="flex items-center gap-3 bg-card px-4 py-3">
             <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold", step.ready ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-text")}>
@@ -396,12 +398,12 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
       <div className="grid items-start gap-5">
         <div className="overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card">
           <section className="border-b border-border/70 px-5 py-5 sm:px-6" aria-labelledby={`${mode}-market-heading`}>
-            <h2 id={`${mode}-market-heading`} className="text-base font-semibold text-foreground">选择市场</h2>
-            <p className="mt-1 text-sm text-secondary-text">市场决定可选股票范围与默认数据路由。</p>
+            <h2 id={`${mode}-market-heading`} className="text-base font-semibold text-foreground">{tx("选择市场")}</h2>
+            <p className="mt-1 text-sm text-secondary-text">{tx("市场决定可选股票范围与默认数据路由。")}</p>
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
               {MARKETS.map((item) => (
                 <button key={item.id} type="button" aria-pressed={market === item.id} onClick={() => changeMarket(item.id)} className={cn("flex min-h-16 items-center justify-between rounded-[10px] border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40", market === item.id ? "border-primary/35 bg-primary/10" : "border-border bg-background hover:border-primary/25 hover:bg-hover/40")}>
-                  <span><span className="block text-sm font-semibold text-foreground">{item.label}</span><span className="mt-1 block text-xs text-muted-text">{item.description}</span></span>
+                  <span><span className="block text-sm font-semibold text-foreground">{tx(item.label)}</span><span className="mt-1 block text-xs text-muted-text">{tx(item.description)}</span></span>
                   {market === item.id ? <Check className="h-4 w-4 text-primary" /> : null}
                 </button>
               ))}
@@ -410,102 +412,102 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
 
           {mode === "research" ? (
             <section className="border-b border-border/70 px-5 py-5 sm:px-6" aria-labelledby="stock-selection-heading">
-              <h2 id="stock-selection-heading" className="text-base font-semibold text-foreground">选择股票</h2>
-              <p className="mt-1 text-sm text-secondary-text">搜索代码、名称或拼音，从当前市场中选择一只股票。</p>
+              <h2 id="stock-selection-heading" className="text-base font-semibold text-foreground">{tx("选择股票")}</h2>
+              <p className="mt-1 text-sm text-secondary-text">{tx("搜索代码、名称或拼音，从当前市场中选择一只股票。")}</p>
               <label className="relative mt-4 block">
                 <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-text" />
-                <input aria-label="搜索股票" value={query} onChange={(event) => { setQuery(event.target.value); setSelectedStock(null); }} placeholder={stockIndex.loading ? "正在加载股票目录…" : "输入股票代码或名称"} className="h-10 w-full rounded-[9px] border border-border bg-background pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary" />
+                <input aria-label={tx("搜索股票")} value={query} onChange={(event) => { setQuery(event.target.value); setSelectedStock(null); }} placeholder={stockIndex.loading ? tx("正在加载股票目录…") : tx("输入股票代码或名称")} className="h-10 w-full rounded-[9px] border border-border bg-background pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary" />
               </label>
-              {stockIndex.error ? <p className="mt-2 flex items-center gap-2 text-xs text-warning"><CircleAlert className="h-3.5 w-3.5" />股票目录使用了降级数据，搜索范围可能有限。</p> : null}
+              {stockIndex.error ? <p className="mt-2 flex items-center gap-2 text-xs text-warning"><CircleAlert className="h-3.5 w-3.5" />{tx("股票目录使用了降级数据，搜索范围可能有限。")}</p> : null}
               {!selectedStock ? (
-                <div className="mt-3 divide-y divide-border/60 overflow-hidden rounded-[10px] border border-border" role="listbox" aria-label="股票搜索结果">
-                  {stockIndex.loading ? <p className="flex items-center gap-2 px-4 py-6 text-sm text-secondary-text"><LoaderCircle className="h-4 w-4 animate-spin" />正在读取股票目录…</p> : suggestions.length ? suggestions.map((stock) => (
+                <div className="mt-3 divide-y divide-border/60 overflow-hidden rounded-[10px] border border-border" role="listbox" aria-label={tx("股票搜索结果")}>
+                  {stockIndex.loading ? <p className="flex items-center gap-2 px-4 py-6 text-sm text-secondary-text"><LoaderCircle className="h-4 w-4 animate-spin" />{tx("正在读取股票目录…")}</p> : suggestions.length ? suggestions.map((stock) => (
                     <button key={stock.canonicalCode} type="button" role="option" aria-selected="false" onClick={() => selectStock(stock)} className="flex w-full items-center justify-between gap-4 bg-background px-4 py-3 text-left transition-colors hover:bg-hover/60">
-                      <span className="min-w-0"><span className="block truncate text-sm font-medium text-foreground">{stock.nameZh || stock.nameEn || stock.displayCode}</span><span className="mt-0.5 block text-xs text-muted-text">{stock.canonicalCode}</span></span>
+                      <span className="min-w-0"><span className="block truncate text-sm font-medium text-foreground">{language === "en" ? stock.nameEn || stock.displayCode : stock.nameZh || stock.nameEn || stock.displayCode}</span><span className="mt-0.5 block text-xs text-muted-text">{stock.canonicalCode}</span></span>
                       <ArrowRight className="h-4 w-4 shrink-0 text-muted-text" />
                     </button>
-                  )) : <p className="px-4 py-6 text-center text-sm text-muted-text">当前市场没有匹配股票。</p>}
+                  )) : <p className="px-4 py-6 text-center text-sm text-muted-text">{tx("当前市场没有匹配股票。")}</p>}
                 </div>
               ) : (
                 <div className="mt-3 flex items-center justify-between gap-4 rounded-[10px] border border-success/25 bg-success/5 px-4 py-3">
-                  <span><span className="block text-sm font-medium text-foreground">{selectedStock.nameZh || selectedStock.nameEn}</span><span className="mt-0.5 block text-xs text-muted-text">{selectedStock.canonicalCode}</span></span>
-                  <span className="text-xs font-medium text-success">已选择</span>
+                  <span><span className="block text-sm font-medium text-foreground">{language === "en" ? selectedStock.nameEn || selectedStock.canonicalCode : selectedStock.nameZh || selectedStock.nameEn}</span><span className="mt-0.5 block text-xs text-muted-text">{selectedStock.canonicalCode}</span></span>
+                  <span className="text-xs font-medium text-success">{tx("已选择")}{" "}</span>
                 </div>
               )}
-              <label className="mt-4 block text-sm font-medium text-foreground">关注问题（可选）<textarea value={objective} onChange={(event) => setObjective(event.target.value)} placeholder="例如：重点分析盈利质量、估值风险和未来两个季度的催化因素" className="mt-2 min-h-24 w-full resize-y rounded-[9px] border border-border bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none focus:border-primary" /></label>
+              <label className="mt-4 block text-sm font-medium text-foreground">{tx("关注问题（可选）")}<textarea value={objective} onChange={(event) => setObjective(event.target.value)} placeholder={tx("例如：重点分析盈利质量、估值风险和未来两个季度的催化因素")} className="mt-2 min-h-24 w-full resize-y rounded-[9px] border border-border bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none focus:border-primary" /></label>
             </section>
           ) : (
             <section className="border-b border-border/70 px-5 py-5 sm:px-6" aria-labelledby="screening-objective-heading">
-              <h2 id="screening-objective-heading" className="text-base font-semibold text-foreground">描述筛选目标</h2>
-              <p className="mt-1 text-sm text-secondary-text">先用自然语言表达目标。Agent 按可用能力研究，实际候选与未验证条件会在结果中说明。</p>
-              <label className="mt-4 block text-sm font-medium text-foreground">选股条件<textarea value={objective} onChange={(event) => setObjective(event.target.value)} placeholder="例如：寻找盈利持续增长、估值处于行业中位数以下、近期无重大利空的半导体公司" className="mt-2 min-h-32 w-full resize-y rounded-[9px] border border-border bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none focus:border-primary" /></label>
+              <h2 id="screening-objective-heading" className="text-base font-semibold text-foreground">{tx("描述筛选目标")}</h2>
+              <p className="mt-1 text-sm text-secondary-text">{tx("先用自然语言表达目标。Agent 按可用能力研究，实际候选与未验证条件会在结果中说明。")}</p>
+              <label className="mt-4 block text-sm font-medium text-foreground">{tx("选股条件")}<textarea value={objective} onChange={(event) => setObjective(event.target.value)} placeholder={tx("例如：寻找盈利持续增长、估值处于行业中位数以下、近期无重大利空的半导体公司")} className="mt-2 min-h-32 w-full resize-y rounded-[9px] border border-border bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none focus:border-primary" /></label>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <label className="block text-sm font-medium text-foreground">行业范围（可选）<input value={industry} onChange={(event) => setIndustry(event.target.value)} placeholder="例如：半导体" className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
-                <label className="block text-sm font-medium text-foreground">候选数量{strategyVersionId ? <p className="mt-2 text-sm font-normal text-secondary-text">使用正式策略中保存的数量</p> : <select value={candidateCount} onChange={(event) => setCandidateCount(event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"><option value="10">10 只</option><option value="20">20 只</option><option value="50">50 只</option></select>}</label>
+                <label className="block text-sm font-medium text-foreground">{tx("行业范围（可选）")}<input value={industry} onChange={(event) => setIndustry(event.target.value)} placeholder={tx("例如：半导体")} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
+                <label className="block text-sm font-medium text-foreground">{tx("候选数量")}{strategyVersionId ? <p className="mt-2 text-sm font-normal text-secondary-text">{tx("使用正式策略中保存的数量")}</p> : <select value={candidateCount} onChange={(event) => setCandidateCount(event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"><option value="10">{tx("10 只")}</option><option value="20">{tx("20 只")}</option><option value="50">{tx("50 只")}</option></select>}</label>
               </div>
             </section>
           )}
 
           <section className="px-5 py-5 sm:px-6" aria-labelledby={`${mode}-run-heading`}>
             <div className="mb-6 space-y-5">
-              {mode === "research" ? renderResearchStrategy("研究策略", compatibleWorkflows, strategyVersionId, setStrategyVersionId) : <>
-                <ChoiceList label="筛选策略" selectedIds={strategyVersionId ? [strategyVersionId] : []} onSelect={setStrategyVersionId}
+              {mode === "research" ? renderResearchStrategy(tx("研究策略"), compatibleWorkflows, strategyVersionId, setStrategyVersionId) : <>
+                <ChoiceList label={tx("筛选策略")} selectedIds={strategyVersionId ? [strategyVersionId] : []} onSelect={setStrategyVersionId}
                   items={compatibleWorkflows.map((item) => ({ id: String(item.currentPublishedVersionId), name: item.name, description: item.description, badge: `v${item.currentPublishedVersionNumber}` }))}
-                  loading={workflowsLoading} disabled={!compatibleWorkflows.length} placeholder="当前市场暂无可用筛选策略" />
-                <p className="text-sm leading-6 text-secondary-text">{compatibleWorkflows.find((item) => String(item.currentPublishedVersionId) === strategyVersionId)?.description} 筛选策略决定股票池、过滤条件、排序和候选数量；Skill 不会替代这些规则。</p>
-                <label className="block text-sm font-medium">候选深研数量<select value={deepResearchCount} onChange={(event) => setDeepResearchCount(event.target.value)} className="mt-2 block h-10 w-full rounded-lg border border-border bg-background px-3">{[0, 1, 2, 3].map((count) => <option key={count} value={count}>{count ? `按原始排名深研前 ${count} 只` : "仅筛选与解读"}</option>)}</select></label>
-                {Number(deepResearchCount) > 0 && renderResearchStrategy("候选深研策略", researchWorkflows, researchVersionId, setDeepResearchVersionId)}
-                <p className="text-sm leading-6 text-secondary-text">候选深研负责逐股生成研究报告，与前面的筛选规则分工不同。额外调用数据和模型，最多 3 只；不改写原排名。</p>
+                  loading={workflowsLoading} disabled={!compatibleWorkflows.length} placeholder={tx("当前市场暂无可用筛选策略")} />
+                <p className="text-sm leading-6 text-secondary-text">{tx(compatibleWorkflows.find((item) => String(item.currentPublishedVersionId) === strategyVersionId)?.description || "")} {" "}{tx("筛选策略决定股票池、过滤条件、排序和候选数量；Skill 不会替代这些规则。")}</p>
+                <label className="block text-sm font-medium">{tx("候选深研数量")}<select value={deepResearchCount} onChange={(event) => setDeepResearchCount(event.target.value)} className="mt-2 block h-10 w-full rounded-lg border border-border bg-background px-3">{[0, 1, 2, 3].map((count) => <option key={count} value={count}>{count ? tx("按原始排名深研前 {0} 只", String(count)) : tx("仅筛选与解读")}</option>)}</select></label>
+                {Number(deepResearchCount) > 0 && renderResearchStrategy(tx("候选深研策略"), researchWorkflows, researchVersionId, setDeepResearchVersionId)}
+                <p className="text-sm leading-6 text-secondary-text">{tx("候选深研负责逐股生成研究报告，与前面的筛选规则分工不同。额外调用数据和模型，最多 3 只；不改写原排名。")}</p>
               </>}
-              {customResearch && !capabilities.skillIds.length && <p role="status" className="text-sm text-warning">请至少选择一个 Skill，或切回预设研究策略。</p>}
-              <p className="text-sm leading-6 text-secondary-text">系统负责取数、计算与报告保存，Agent 按策略研究并组织解读和专家评审。所选 MCP 用于补充证据，不替换内核数据路由。</p>
-              {workflowError && <p role="alert" className="text-sm text-warning">{workflowError}</p>}
-              {!workflowsLoading && !strategyVersionId && !workflowError && <p role="alert" className="text-sm text-warning">当前市场尚无已发布的{mode === "research" ? "单股研究" : "选股"}流程，无法生成正式报告。请切换市场；开放式讨论可前往主 Agent。</p>}
+              {customResearch && !capabilities.skillIds.length && <p role="status" className="text-sm text-warning">{tx("请至少选择一个 Skill，或切回预设研究策略。")}</p>}
+              <p className="text-sm leading-6 text-secondary-text">{tx("系统负责取数、计算与报告保存，Agent 按策略研究并组织解读和专家评审。所选 MCP 用于补充证据，不替换内核数据路由。")}</p>
+              {workflowError && <p role="alert" className="text-sm text-warning">{tx(workflowError)}</p>}
+              {!workflowsLoading && !strategyVersionId && !workflowError && <p role="alert" className="text-sm text-warning">{tx("当前市场尚无已发布的")}{mode === "research" ? tx("单股研究") : tx("选股")}{tx("流程，无法生成正式报告。请切换市场；开放式讨论可前往主 Agent。")}</p>}
             </div>
             <div className="flex flex-col gap-4">
               <div>
-                <div className="flex items-center gap-2"><Network className="h-4 w-4 text-primary" /><h2 id={`${mode}-run-heading`} className="text-base font-semibold text-foreground">专家协作与数据工具</h2></div>
-                <p className="mt-1 text-sm text-secondary-text">已选择 {capabilityCount} 项能力{skillsLoading ? "，正在读取 Skill" : ""}。可选专家或专家团进行独立评审；工具、MCP 和数据源按需展开。</p>
-                {skillsError ? <p role="alert" className="mt-1 text-xs text-warning">{skillsError}</p> : null}
+                <div className="flex items-center gap-2"><Network className="h-4 w-4 text-primary" /><h2 id={`${mode}-run-heading`} className="text-base font-semibold text-foreground">{tx("专家协作与数据工具")}</h2></div>
+                <p className="mt-1 text-sm text-secondary-text">{tx("已选择")}{" "}{capabilityCount} {" "}{tx("项能力")}{skillsLoading ? tx("，正在读取 Skill") : ""}{tx("。可选专家或专家团进行独立评审；工具、MCP 和数据源按需展开。")}</p>
+                {skillsError ? <p role="alert" className="mt-1 text-xs text-warning">{tx(skillsError)}</p> : null}
               </div>
               {renderCapabilityPanel("mt-4 w-full")}
             </div>
 
             <div className="mt-5 flex flex-col gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-2 text-xs leading-5 text-muted-text"><Database className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>运行时会冻结任务、能力清单和数据快照，并保存报告与原始说明。</span></div>
+              <div className="flex items-start gap-2 text-xs leading-5 text-muted-text"><Database className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{tx("运行时会冻结任务、能力清单和数据快照，并保存报告与原始说明。")}</span></div>
               <div className="flex flex-wrap justify-end gap-2">
-                <button type="button" disabled={!canRun} onClick={scheduleCurrentTask} className="btn-secondary inline-flex shrink-0 items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-45"><CalendarClock className="h-4 w-4" />{mode === "research" ? "定时分析" : "定时更新"}</button>
-                <button type="button" disabled={!canRun || busy} onClick={() => void runCurrentTask()} className="btn-primary inline-flex shrink-0 items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-45"><Play className="h-4 w-4" />{restoring ? "恢复运行状态…" : submitting ? "正在提交…" : busy ? "运行中…" : copy.action}</button>
+                <button type="button" disabled={!canRun} onClick={scheduleCurrentTask} className="btn-secondary inline-flex shrink-0 items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-45"><CalendarClock className="h-4 w-4" />{mode === "research" ? tx("定时分析") : tx("定时更新")}</button>
+                <button type="button" disabled={!canRun || busy} onClick={() => void runCurrentTask()} className="btn-primary inline-flex shrink-0 items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-45"><Play className="h-4 w-4" />{restoring ? tx("恢复运行状态…") : submitting ? tx("正在提交…") : busy ? tx("运行中…") : tx(copy.action)}</button>
               </div>
             </div>
           </section>
 
           {showRunPreview && !embedded ? (
             <section aria-live="polite" className="border-t border-warning/25 bg-warning/5 px-5 py-4 sm:px-6">
-              <p className="text-sm font-semibold text-foreground">{submitting ? "正在创建任务" : activeRun ? `任务 ${workspaceRunLabel(activeRun)}` : restoring ? "正在恢复运行状态" : "任务启动未确认"}</p>
+              <p className="text-sm font-semibold text-foreground">{submitting ? tx("正在创建任务") : activeRun ? tx("任务 {0}", String(workspaceRunLabel(activeRun))) : restoring ? tx("正在恢复运行状态") : tx("任务启动未确认")}</p>
               <p className="mt-1 text-sm leading-6 text-secondary-text">
                 {activeRun ? activeRun.taskSnapshot.name : mode === "research"
-                  ? `${MARKETS.find((item) => item.id === market)?.label} · ${selectedStock?.nameZh || selectedStock?.canonicalCode} · ${capabilityCount || "通用"} 项能力`
-                  : strategyVersionId ? `正式策略版本 #${strategyVersionId} · 按策略配置筛选 · ${capabilityCount} 项能力`
-                    : `${MARKETS.find((item) => item.id === market)?.label} · ${industry.trim() || "全行业"} · Top ${candidateCount} · ${capabilityCount || "通用"} 项能力`}
-                。{activeRun ? "任务在后台执行，切换页面不会中断。" : "正在与后台确认任务状态。"}
+                  ? tx("{0} · {1} · {2} 项能力", tx(MARKETS.find((item) => item.id === market)?.label || market), String(selectedStock?.nameZh || selectedStock?.canonicalCode), String(capabilityCount || tx("通用")))
+                  : strategyVersionId ? tx("正式策略版本 #{0} · 按策略配置筛选 · {1} 项能力", String(strategyVersionId), String(capabilityCount))
+                    : tx("{0} · {1} · Top {2} · {3} 项能力", tx(MARKETS.find((item) => item.id === market)?.label || market), String(industry.trim() || tx("全行业")), String(candidateCount), String(capabilityCount || tx("通用")))}
+                。{activeRun ? tx("任务在后台执行，切换页面不会中断。") : tx("正在与后台确认任务状态。")}
               </p>
-              {activeRun ? <Link className="mt-2 inline-block text-xs text-primary" to={`/runs/${activeRun.id}`}>查看本次运行详情</Link> : null}
+              {activeRun ? <Link className="mt-2 inline-block text-xs text-primary" to={`/runs/${activeRun.id}`}>{tx("查看本次运行详情")}</Link> : null}
               <div className="mt-4 grid gap-px overflow-hidden rounded-[10px] border border-border bg-border sm:grid-cols-3">
-                <div className="bg-card px-4 py-3"><span className="text-[11px] text-muted-text">任务定义</span><p className="mt-1 text-xs font-medium text-foreground">{activeRun ? `Task · ${activeRun.taskId.slice(0, 8)}` : "正在保存"}</p></div>
-                <div className="bg-card px-4 py-3"><span className="text-[11px] text-muted-text">数据上下文</span><p className="mt-1 text-xs font-medium text-foreground">{activeRun?.dataSnapshotId ? `Snapshot · ${activeRun.dataSnapshotId.slice(0, 8)}` : "正在创建"}</p></div>
-                <div className="bg-card px-4 py-3"><span className="text-[11px] text-muted-text">预期成果</span><p className="mt-1 text-xs font-medium text-foreground">{mode === "research" ? "ResearchReport" : "ScreenSpec · CandidateList"}</p></div>
+                <div className="bg-card px-4 py-3"><span className="text-[11px] text-muted-text">{tx("任务定义")}</span><p className="mt-1 text-xs font-medium text-foreground">{activeRun ? `Task · ${activeRun.taskId.slice(0, 8)}` : tx("正在保存")}</p></div>
+                <div className="bg-card px-4 py-3"><span className="text-[11px] text-muted-text">{tx("数据上下文")}</span><p className="mt-1 text-xs font-medium text-foreground">{activeRun?.dataSnapshotId ? `Snapshot · ${activeRun.dataSnapshotId.slice(0, 8)}` : tx("正在创建")}</p></div>
+                <div className="bg-card px-4 py-3"><span className="text-[11px] text-muted-text">{tx("预期成果")}</span><p className="mt-1 text-xs font-medium text-foreground">{mode === "research" ? "ResearchReport" : "ScreenSpec · CandidateList"}</p></div>
               </div>
               {runError || activeRun?.errorMessage ? <p role="alert" className="mt-3 text-xs text-danger">{runError || activeRun?.errorMessage}</p> : null}
               {activeRun?.artifacts?.length ? <div className="mt-4 space-y-3">{visibleWorkspaceArtifacts(activeRun.artifacts).map((artifact) => <WorkflowArtifact key={artifact.id} artifact={artifact} />)}</div> : null}
-              <Link to="/runs" className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">查看任务与运行 <ArrowRight className="h-3.5 w-3.5" /></Link>
+              <Link to="/runs" className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">{tx("查看任务与运行")}{" "}<ArrowRight className="h-3.5 w-3.5" /></Link>
             </section>
           ) : null}
         </div>
 
       </div>
 
-      {embedded && runError ? <p role="alert" className="text-sm text-danger">{runError}</p> : null}
+      {embedded && runError ? <p role="alert" className="text-sm text-danger">{tx(runError)}</p> : null}
     </Container>
   );
 }

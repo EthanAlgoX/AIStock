@@ -1,4 +1,5 @@
 import type React from "react";
+import { useEffect } from "react";
 import {
   BarChart3,
   Boxes,
@@ -162,6 +163,8 @@ export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
   const location = useLocation();
   const { t, localize } = useUiLanguage();
   const currentTitle = ROUTE_TITLES.find(({ prefix }) => location.pathname.startsWith(prefix));
+  const pageTitle = currentTitle ? t(currentTitle.labelKey) : "InvestCrew";
+  useEffect(() => { document.title = `${pageTitle} - InvestCrew`; }, [pageTitle]);
 
   return (
     <header className="sticky top-0 z-40 shrink-0 border-b border-border/75 bg-card">
@@ -209,7 +212,7 @@ export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
                   )}
                 >
                   <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-                  <span className="hidden text-xs font-medium xl:inline">{t(item.labelKey)}</span>
+                  <span className="hidden text-xs font-medium min-[1800px]:inline">{t(item.labelKey)}</span>
                 </NavLink>
               </Tooltip>
             );

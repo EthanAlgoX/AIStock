@@ -118,13 +118,13 @@ describe('UiLanguageContext', () => {
     );
 
     const toggle = screen.getByRole('button', { name: '切换界面语言' });
-    expect(screen.getByText('界面语言')).toBeInTheDocument();
+    expect(toggle).toHaveTextContent('EN');
 
     fireEvent.click(toggle);
 
     expect(localStorage.getItem(UI_LANGUAGE_STORAGE_KEY)).toBe('en');
     expect(screen.getByRole('button', { name: 'Switch UI language' })).toBeInTheDocument();
-    expect(screen.getByText('English')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Switch UI language' })).toHaveTextContent('中');
   });
 
   it('updates page-local product copy from the same global language state', () => {

@@ -1,3 +1,4 @@
+import { useUiLanguage } from "../../contexts/UiLanguageContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -265,11 +266,11 @@ const resolveOverview = (
   return result ? clampText(result) : '本次市场复盘没有生成可展示的摘要，请查看完整报告或重新生成。';
 };
 
-const formatDateTime = (value?: string | null, includeYear = false): string => {
-  if (!value) return '时间未知';
+const formatDateTimeForLanguage = (language: string, value?: string | null, includeYear = false): string => {
+  if (!value) return language === 'en' ? 'Unknown time' : '时间未知';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'zh-CN', {
     ...(includeYear ? { year: 'numeric' as const } : {}),
     month: 'numeric',
     day: 'numeric',
@@ -320,18 +321,19 @@ const mergeSources = (...groups: IntelligenceSource[][]): IntelligenceSource[] =
 };
 
 const IndexPerformance = ({ indices }: { indices: MarketReviewIndex[] }) => {
+  const { translate: tx } = useUiLanguage();
   const visible = indices.slice(0, 6);
   const maximum = Math.max(1, ...visible.map((index) => Math.abs(toFiniteNumber(index.changePct) || 0)));
-  if (!visible.length) return <p className="py-6 text-sm text-muted-text">本次复盘没有结构化指数数据。</p>;
+  if (!visible.length) return <p className="py-6 text-sm text-muted-text">{tx("本次复盘没有结构化指数数据。")}</p>;
 
   return (
-    <div className="space-y-4" aria-label="指数表现">
+    <div className="space-y-4" aria-label={tx("指数表现")}>
       {visible.map((index) => {
         const change = toFiniteNumber(index.changePct);
         const tone = change === null || change === 0 ? 'neutral' : change > 0 ? 'positive' : 'negative';
         const width = change === null ? 0 : Math.max(4, Math.abs(change) / maximum * 100);
         return (
-          <div key={`${index.code}-${index.name}`} className="grid grid-cols-[minmax(5rem,1fr)_4rem] items-center gap-x-4 gap-y-1.5">
+          <div key={`${index.code}-${tx(index.name)}`} className="grid grid-cols-[minmax(5rem,1fr)_4rem] items-center gap-x-4 gap-y-1.5">
             <div className="flex min-w-0 items-baseline justify-between gap-3">
               <span className="truncate text-sm font-medium text-foreground">{index.name}</span>
               <span className="shrink-0 text-xs tabular-nums text-muted-text">
@@ -352,28 +354,30 @@ const IndexPerformance = ({ indices }: { indices: MarketReviewIndex[] }) => {
   );
 };
 
-const SectorList = ({ title, items, positive }: { title: string; items: SectorRankingItem[]; positive: boolean }) => (
+const SectorList = ({ title, items, positive }: { title: string; items: SectorRankingItem[]; positive: boolean }) => { const { translate: tx } = useUiLanguage(); return (
   <div className="min-w-0">
-    <p className="mb-3 text-xs font-medium text-muted-text">{title}</p>
+    <p className="mb-3 text-xs font-medium text-muted-text">{tx(title)}</p>
     {items.length ? (
       <div className="space-y-2.5">
         {items.slice(0, 5).map((item, index) => (
-          <div key={`${item.name}-${index}`} className="flex items-center justify-between gap-3 text-sm">
+          <div key={`${tx(item.name)}-${index}`} className="flex items-center justify-between gap-3 text-sm">
             <span className="min-w-0 truncate text-secondary-text">{item.name}</span>
             <span className={cn('shrink-0 font-medium tabular-nums', positive ? 'text-success' : 'text-danger')}>{formatPercent(item.changePct)}</span>
           </div>
         ))}
       </div>
-    ) : <p className="text-sm text-muted-text">暂无排行数据</p>}
+    ) : <p className="text-sm text-muted-text">{tx("暂无排行数据")}</p>}
   </div>
-);
+); };
 
 const IntelligenceList = ({ items, state }: { items: IntelligenceItem[]; state: LoadState }) => {
+  const { translate: tx, language } = useUiLanguage();
+  const formatDateTime = (value?: string | null, includeYear = false) => formatDateTimeForLanguage(language, value, includeYear);
   if (state === 'loading' || state === 'idle') {
-    return <p className="flex items-center gap-2 py-6 text-sm text-muted-text" role="status"><LoaderCircle className="h-4 w-4 animate-spin" />正在读取已抓取资讯…</p>;
+    return <p className="flex items-center gap-2 py-6 text-sm text-muted-text" role="status"><LoaderCircle className="h-4 w-4 animate-spin" />{tx("正在读取已抓取资讯…")}</p>;
   }
-  if (state === 'error') return <p className="py-6 text-sm text-muted-text">资讯服务暂时不可用，市场快照仍可正常查看。</p>;
-  if (!items.length) return <p className="py-6 text-sm text-muted-text">当前市场暂无已抓取资讯。可以在数据源页面检查资讯源的同步状态。</p>;
+  if (state === 'error') return <p className="py-6 text-sm text-muted-text">{tx("资讯服务暂时不可用，市场快照仍可正常查看。")}</p>;
+  if (!items.length) return <p className="py-6 text-sm text-muted-text">{tx("当前市场暂无已抓取资讯。可以在数据源页面检查资讯源的同步状态。")}</p>;
 
   return (
     <div className="divide-y divide-border">
@@ -390,7 +394,7 @@ const IntelligenceList = ({ items, state }: { items: IntelligenceItem[]; state: 
             {hasExternalUrl ? <a href={news.url} target="_blank" rel="noreferrer" className="flex items-start gap-2 hover:text-primary">{title}</a> : <div className="flex items-start gap-2">{title}</div>}
             {news.summary ? <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-secondary-text">{news.summary}</p> : null}
             <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-text">
-              <span>{news.sourceName || news.source || '来源未标注'}</span>
+              <span>{news.sourceName || news.source || tx("来源未标注")}</span>
               <span aria-hidden="true">·</span>
               <span>{formatDateTime(news.publishedAt || news.fetchedAt)}</span>
               <span className="rounded-full bg-muted px-2 py-0.5">{String(news.market || 'global').toUpperCase()}</span>
@@ -403,12 +407,13 @@ const IntelligenceList = ({ items, state }: { items: IntelligenceItem[]; state: 
 };
 
 const FeedStatus = ({ source }: { source: IntelligenceSource }) => {
+  const { translate: tx } = useUiLanguage();
   const succeeded = source.lastStatus === 'success';
   const failed = Boolean(source.lastStatus && !succeeded);
   return (
     <span className={cn('inline-flex items-center gap-1.5 text-[11px] font-medium', succeeded && 'text-success', failed && 'text-danger', !source.lastStatus && 'text-muted-text')}>
       <span className={cn('h-1.5 w-1.5 rounded-full', succeeded && 'bg-success', failed && 'bg-danger', !source.lastStatus && 'bg-muted-text')} aria-hidden="true" />
-      {succeeded ? '最近同步成功' : failed ? '最近同步失败' : '尚未同步'}
+      {succeeded ? tx("最近同步成功") : failed ? tx("最近同步失败") : tx("尚未同步")}
     </span>
   );
 };
@@ -422,15 +427,17 @@ const RUN_STATUS_LABEL: Record<string, string> = {
 };
 
 const AnalysisSubscriptions = ({ subscriptions }: { subscriptions: MarketSubscription[] }) => {
+  const { translate: tx, language } = useUiLanguage();
+  const formatDateTime = (value?: string | null, includeYear = false) => formatDateTimeForLanguage(language, value, includeYear);
   const visible = subscriptions.filter((item) => item.enabled);
   return (
     <section className="border-t border-border px-5 py-6 sm:px-7" aria-labelledby="market-subscriptions-title">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 id="market-subscriptions-title" className="text-sm font-semibold text-foreground">分析订阅</h2>
-          <p className="mt-1 text-xs leading-5 text-muted-text">这里只显示任务摘要；完整内容保存在对应 Run 和 Artifact 中。</p>
+          <h2 id="market-subscriptions-title" className="text-sm font-semibold text-foreground">{tx("分析订阅")}</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-text">{tx("这里只显示任务摘要；完整内容保存在对应 Run 和 Artifact 中。")}</p>
         </div>
-        <Link to="/schedules" className="text-xs font-medium text-primary hover:underline">管理定时任务</Link>
+        <Link to="/schedules" className="text-xs font-medium text-primary hover:underline">{tx("管理定时任务")}</Link>
       </div>
       {visible.length ? (
         <div className="mt-5 divide-y divide-border border-y border-border">
@@ -448,26 +455,26 @@ const AnalysisSubscriptions = ({ subscriptions }: { subscriptions: MarketSubscri
                       <p className="text-sm font-semibold text-foreground">{subscription.title}</p>
                       {stock ? <span className="text-[11px] text-muted-text">{stock}</span> : null}
                       <span className={cn('text-[11px] font-medium', running && 'text-warning', failed && 'text-danger', !running && !failed && 'text-success')}>
-                        {RUN_STATUS_LABEL[latestRun?.status || ''] || (artifact ? '已有成果' : '等待首次运行')}
+                        {RUN_STATUS_LABEL[latestRun?.status || ''] || (artifact ? tx("已有成果") : tx("等待首次运行"))}
                       </span>
                     </div>
                     <p className="mt-2 max-w-[75ch] text-sm leading-6 text-secondary-text">
-                      {artifact?.summary.text || (running ? '新一轮分析正在运行，完成前继续保留上一份成功成果。' : failed ? latestRun?.errorMessage || '最近一次任务未完成，可在运行账本查看失败原因。' : '任务尚未产生可展示的成功成果。')}
+                      {artifact?.summary.text || (running ? tx("新一轮分析正在运行，完成前继续保留上一份成功成果。") : failed ? latestRun?.errorMessage || tx("最近一次任务未完成，可在运行账本查看失败原因。") : tx("任务尚未产生可展示的成功成果。"))}
                     </p>
-                    {artifact?.summary.risks?.length ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-warning">风险：{artifact.summary.risks.join('；')}</p> : null}
+                    {artifact?.summary.risks?.length ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-warning">{tx("风险：")}{artifact.summary.risks.join('；')}</p> : null}
                     <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-text">
-                      <span>{subscription.task?.kind === 'research' ? '个股分析' : subscription.task?.kind === 'screening' ? '选股' : subscription.task?.kind === 'market_analysis' ? '宏观分析' : subscription.task?.kind === 'industry_analysis' ? '产业分析' : 'Agent 任务'}</span>
-                      <span>成果时间 {formatDateTime(artifact?.createdAt)}</span>
-                      {artifact?.summary.confidence != null ? <span>置信度 {Math.round(artifact.summary.confidence * 100)}%</span> : null}
+                      <span>{subscription.task?.kind === 'research' ? tx("个股分析") : subscription.task?.kind === 'screening' ? tx("选股") : subscription.task?.kind === 'market_analysis' ? tx("宏观分析") : subscription.task?.kind === 'industry_analysis' ? tx("产业分析") : tx("Agent 任务")}</span>
+                      <span>{tx("成果时间")}{" "}{formatDateTime(artifact?.createdAt)}</span>
+                      {artifact?.summary.confidence != null ? <span>{tx("置信度")}{" "}{Math.round(artifact.summary.confidence * 100)}%</span> : null}
                     </div>
                   </div>
                   {artifact ? (
                     <Link to={`/runs/${artifact.runId}`} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 self-start text-xs font-medium text-primary hover:underline">
-                      查看完整成果 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                      {tx("查看完整成果")}<ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                     </Link>
                   ) : (
                     <Link to="/runs" className="inline-flex min-h-9 shrink-0 items-center gap-1.5 self-start text-xs font-medium text-secondary-text hover:text-foreground">
-                      查看运行 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                      {tx("查看运行")}<ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                     </Link>
                   )}
                 </div>
@@ -477,19 +484,19 @@ const AnalysisSubscriptions = ({ subscriptions }: { subscriptions: MarketSubscri
         </div>
       ) : (
         <div className="mt-5 flex min-h-28 flex-col items-center justify-center border-y border-border px-5 py-6 text-center">
-          <p className="text-sm font-medium text-foreground">还没有分析订阅</p>
-          <p className="mt-1 text-xs leading-5 text-muted-text">可在个股分析或选股页面创建定时任务，并选择展示到市场看板。</p>
+          <p className="text-sm font-medium text-foreground">{tx("还没有分析订阅")}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-text">{tx("可在个股分析或选股页面创建定时任务，并选择展示到市场看板。")}</p>
         </div>
       )}
     </section>
   );
 };
 
-const formatMacroValue = (indicator: MarketMacroIndicator): string => {
+const formatMacroValue = (indicator: MarketMacroIndicator, tx: (text: string) => string): string => {
   const value = toFiniteNumber(indicator.current);
   if (value === null) return '—';
   const digits = Math.abs(value) >= 100 ? 2 : 3;
-  return `${value.toLocaleString('zh-CN', { maximumFractionDigits: digits })}${indicator.unit ? ` ${indicator.unit}` : ''}`;
+  return `${value.toLocaleString('zh-CN', { maximumFractionDigits: digits })}${indicator.unit ? ` ${tx(indicator.unit)}` : ''}`;
 };
 
 const dataSourceState = (source: WorkspaceDataSource): { label: string; className: string } => {
@@ -535,6 +542,8 @@ const MacroMonitor = ({
   indices: MarketReviewIndex[];
   analysisSkills: string[];
 }) => {
+  const { translate: tx, language } = useUiLanguage();
+  const formatDateTime = (value?: string | null, includeYear = false) => formatDateTimeForLanguage(language, value, includeYear);
   const framework = MARKET_MACRO_FRAMEWORKS[market as 'cn' | 'hk' | 'us'];
   const observations = resolveMacroIndicators(macroIndicators, indices);
   const availableCount = COMMON_MACRO_CHECKLIST.filter((item) => observations.has(item.key)).length;
@@ -546,39 +555,39 @@ const MacroMonitor = ({
         <div className="max-w-[72ch]">
           <div className="flex items-center gap-2">
             <Globe2 className="h-4 w-4 text-primary" aria-hidden="true" />
-            <h2 id="macro-monitor-title" className="text-sm font-semibold text-foreground">宏观监控</h2>
+            <h2 id="macro-monitor-title" className="text-sm font-semibold text-foreground">{tx("宏观监控")}</h2>
           </div>
-          <p className="mt-2 text-xs leading-5 text-muted-text">共同变量用于观察全球资金价格、流动性、风险偏好和经济周期；市场专属变量用于解释当前市场的主要传导链。</p>
+          <p className="mt-2 text-xs leading-5 text-muted-text">{tx("共同变量用于观察全球资金价格、流动性、风险偏好和经济周期；市场专属变量用于解释当前市场的主要传导链。")}</p>
           {analysisSkills.length ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="已就绪的市场分析 Skill">
-              <span className="text-[11px] font-medium text-muted-text">复盘框架已就绪</span>
+            <div className="mt-3 flex flex-wrap items-center gap-2" aria-label={tx("已就绪的市场分析 Skill")}>
+              <span className="text-[11px] font-medium text-muted-text">{tx("复盘框架已就绪")}</span>
               {analysisSkills.map((skill) => <span key={skill} className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary">{skill}</span>)}
             </div>
           ) : null}
         </div>
-        <span className="shrink-0 rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-secondary-text">真实快照 {availableCount}/15</span>
+        <span className="shrink-0 rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-secondary-text">{tx("真实快照")}{" "}{availableCount}/15</span>
       </div>
 
       <div className="mt-5 grid border-y border-border lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <div className="border-b border-border py-5 lg:border-b-0 lg:border-r lg:pr-6">
-          <p className="text-xs font-semibold text-primary">当前市场传导链</p>
-          <p className="mt-2 text-base font-semibold leading-7 text-foreground">{framework.chain}</p>
-          <p className="mt-2 text-xs leading-5 text-secondary-text">{framework.summary}</p>
+          <p className="text-xs font-semibold text-primary">{tx("当前市场传导链")}</p>
+          <p className="mt-2 text-base font-semibold leading-7 text-foreground">{tx(framework.chain)}</p>
+          <p className="mt-2 text-xs leading-5 text-secondary-text">{tx(framework.summary)}</p>
           <div className="mt-5 divide-y divide-border border-t border-border">
             {framework.primary.map((driver) => (
-              <div key={driver.label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 py-3">
+              <div key={tx(driver.label)} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 py-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">{driver.label}</p>
-                  <p className="mt-1 text-xs leading-5 text-muted-text">{driver.rationale}</p>
+                  <p className="text-sm font-medium text-foreground">{tx(driver.label)}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-text">{tx(driver.rationale)}</p>
                 </div>
-                <span className="text-[11px] font-medium tabular-nums text-secondary-text">优先级 {driver.importance}/5</span>
+                <span className="text-[11px] font-medium tabular-nums text-secondary-text">{tx("优先级")}{" "}{driver.importance}/5</span>
               </div>
             ))}
           </div>
           <div className="mt-4">
-            <p className="text-[11px] font-medium text-muted-text">其他重点</p>
+            <p className="text-[11px] font-medium text-muted-text">{tx("其他重点")}</p>
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-2">
-              {framework.secondary.map((label) => <span key={label} className="text-xs text-secondary-text">{label}</span>)}
+              {framework.secondary.map((label) => <span key={tx(label)} className="text-xs text-secondary-text">{tx(label)}</span>)}
             </div>
           </div>
         </div>
@@ -586,12 +595,12 @@ const MacroMonitor = ({
         <div className="py-5 lg:pl-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold text-foreground">每日宏观检查表</p>
-              <p className="mt-1 text-[11px] leading-5 text-muted-text">未接入项只保留监控定义，不显示估算值。</p>
+              <p className="text-xs font-semibold text-foreground">{tx("每日宏观检查表")}</p>
+              <p className="mt-1 text-[11px] leading-5 text-muted-text">{tx("未接入项只保留监控定义，不显示估算值。")}</p>
             </div>
             <Activity className="h-4 w-4 shrink-0 text-muted-text" aria-hidden="true" />
           </div>
-          <div className="mt-4 grid border-t border-border md:grid-cols-2" aria-label="每日宏观检查表">
+          <div className="mt-4 grid border-t border-border md:grid-cols-2" aria-label={tx("每日宏观检查表")}>
             {COMMON_MACRO_CHECKLIST.map((item, index) => {
               const indicator = observations.get(item.key);
               const change = toFiniteNumber(indicator?.changePct);
@@ -603,18 +612,18 @@ const MacroMonitor = ({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <p className="text-sm font-medium text-foreground">{item.label}</p>
-                        <span className="text-[10px] text-muted-text">{item.category}</span>
+                        <p className="text-sm font-medium text-foreground">{tx(item.label)}</p>
+                        <span className="text-[10px] text-muted-text">{tx(item.category)}</span>
                       </div>
-                      <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-muted-text">{item.rationale}</p>
-                      {indicator ? <p className="mt-1 text-[10px] leading-4 text-muted-text">{indicator.source || '来源未标注'} · {formatDateTime(indicator.asOf)}</p> : null}
+                      <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-muted-text">{tx(item.rationale)}</p>
+                      {indicator ? <p className="mt-1 text-[10px] leading-4 text-muted-text">{tx(indicator.source || "来源未标注")} · {formatDateTime(indicator.asOf)}</p> : null}
                     </div>
                     {indicator ? (
                       <div className="shrink-0 text-right">
-                        <p className="text-xs font-semibold tabular-nums text-foreground">{formatMacroValue(indicator)}</p>
-                        <p className="mt-1 text-[10px] tabular-nums text-secondary-text">{indicator.changeLabel || '日变动'} {change === null ? '—' : formatPercent(change)}</p>
+                        <p className="text-xs font-semibold tabular-nums text-foreground">{formatMacroValue(indicator, tx)}</p>
+                        <p className="mt-1 text-[10px] tabular-nums text-secondary-text">{tx(indicator.changeLabel || "日变动")} {change === null ? '—' : formatPercent(change)}</p>
                       </div>
-                    ) : <span className="shrink-0 text-[10px] font-medium text-warning">待接入</span>}
+                    ) : <span className="shrink-0 text-[10px] font-medium text-warning">{tx("待接入")}</span>}
                   </div>
                 </div>
               );
@@ -622,7 +631,7 @@ const MacroMonitor = ({
           </div>
           {marketReleases.some((item) => observations.has(item.key)) ? (
             <div className="mt-5 border-t border-border pt-4">
-              <p className="text-xs font-semibold text-foreground">市场专属发布值</p>
+              <p className="text-xs font-semibold text-foreground">{tx("市场专属发布值")}</p>
               <div className="mt-3 grid gap-x-5 gap-y-3 sm:grid-cols-2">
                 {marketReleases.map((item) => {
                   const indicator = observations.get(item.key);
@@ -630,15 +639,15 @@ const MacroMonitor = ({
                   const change = toFiniteNumber(indicator.changePct);
                   return (
                     <div key={item.key} className="flex items-start justify-between gap-3 border-b border-border pb-3">
-                      <div className="min-w-0"><p className="text-sm font-medium text-foreground">{item.label}</p><p className="mt-1 text-[10px] text-muted-text">{indicator.source || '来源未标注'} · {formatDateTime(indicator.asOf)}</p></div>
-                      <div className="shrink-0 text-right"><p className="text-xs font-semibold tabular-nums text-foreground">{formatMacroValue(indicator)}</p><p className="mt-1 text-[10px] text-secondary-text">{indicator.changeLabel || '较前值'} {change === null ? '—' : formatPercent(change)}</p></div>
+                      <div className="min-w-0"><p className="text-sm font-medium text-foreground">{tx(item.label)}</p><p className="mt-1 text-[10px] text-muted-text">{tx(indicator.source || "来源未标注")} · {formatDateTime(indicator.asOf)}</p></div>
+                      <div className="shrink-0 text-right"><p className="text-xs font-semibold tabular-nums text-foreground">{formatMacroValue(indicator, tx)}</p><p className="mt-1 text-[10px] text-secondary-text">{tx(indicator.changeLabel || "较前值")} {change === null ? '—' : formatPercent(change)}</p></div>
                     </div>
                   );
                 })}
               </div>
             </div>
           ) : null}
-          <p className="mt-3 text-[11px] leading-5 text-muted-text">宏观观测由已配置的数据源随复盘保存。中国 GDP、CPI、PPI、PMI 可由免密钥公共接口提供；FRED 密钥可补充官方美债、实际利率、信用利差、通胀和就业序列。社融、房地产与政策预期仍保持待接入，不显示估算值。</p>
+          <p className="mt-3 text-[11px] leading-5 text-muted-text">{tx("宏观观测由已配置的数据源随复盘保存。中国 GDP、CPI、PPI、PMI 可由免密钥公共接口提供；FRED 密钥可补充官方美债、实际利率、信用利差、通胀和就业序列。社融、房地产与政策预期仍保持待接入，不显示估算值。")}</p>
         </div>
       </div>
     </section>
@@ -646,6 +655,8 @@ const MacroMonitor = ({
 };
 
 export const MarketIntelligenceSection = () => {
+  const { translate: tx, language } = useUiLanguage();
+  const formatDateTime = (value?: string | null, includeYear = false) => formatDateTimeForLanguage(language, value, includeYear);
   const initialLayout = useMemo(() => readDashboardLayout(), []);
   const [market, setMarket] = useState<MarketReviewRegion>(() => readMarket());
   const [loadState, setLoadState] = useState<LoadState>('idle');
@@ -1066,71 +1077,68 @@ export const MarketIntelligenceSection = () => {
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
             <BarChart3 className="h-4 w-4" aria-hidden="true" />Verified market workspace
           </div>
-          <h1 id="market-intelligence-title" className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">市场雷达</h1>
-          <p className="mt-2 max-w-[72ch] text-sm leading-6 text-secondary-text">切换市场即可读取真实指数与宏观快照，并结合已保存的 Agent 复盘和资讯服务数据。页面不会用示例行情填充空缺；每项内容都会标明数据时间与运行状态。</p>
+          <h1 id="market-intelligence-title" className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{tx("市场雷达")}</h1>
+          <p className="mt-2 max-w-[72ch] text-sm leading-6 text-secondary-text">{tx("切换市场即可读取真实指数与宏观快照，并结合已保存的 Agent 复盘和资讯服务数据。页面不会用示例行情填充空缺；每项内容都会标明数据时间与运行状态。")}</p>
         </div>
         <div className="flex flex-wrap gap-2 self-start lg:justify-end lg:self-auto">
           <button ref={editLayoutButtonRef} type="button" onClick={beginEditingLayout} aria-expanded={editingLayout} aria-controls="market-dashboard-editor" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 text-xs font-medium text-secondary-text transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />编辑展示
-          </button>
+            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />{tx("编辑展示")}</button>
           <button type="button" onClick={() => void load(market, true)} disabled={(loadState === 'loading' && snapshotState === 'loading') || generating} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 text-xs font-medium text-secondary-text transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-wait disabled:opacity-60">
-            <RefreshCw className={cn('h-3.5 w-3.5', (loadState === 'loading' || snapshotState === 'loading') && 'animate-spin')} aria-hidden="true" />刷新数据
-          </button>
+            <RefreshCw className={cn('h-3.5 w-3.5', (loadState === 'loading' || snapshotState === 'loading') && 'animate-spin')} aria-hidden="true" />{tx("刷新数据")}</button>
           <button type="button" onClick={() => void triggerRefresh()} disabled={generating} className="btn-primary inline-flex h-10 items-center gap-2 disabled:cursor-wait disabled:opacity-65">
             {generating ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
-            {refreshState === 'submitting' ? '正在提交…' : refreshState === 'running' ? `正在生成 ${refreshProgress}%` : '生成最新复盘'}
+            {refreshState === 'submitting' ? tx("正在提交…") : refreshState === 'running' ? tx("正在生成 {0}%", String(refreshProgress)) : tx("生成最新复盘")}
           </button>
         </div>
       </div>
 
       <div className="flex flex-col gap-3 border-x border-b border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="选择市场">
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label={tx("选择市场")}>
           {MARKET_OPTIONS.map((option) => (
             <button key={option.id} type="button" onClick={() => changeMarket(option.id)} aria-pressed={market === option.id} className={cn('min-h-9 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary', market === option.id ? 'bg-primary text-white' : 'bg-muted text-secondary-text hover:text-foreground')}>
-              {option.label}
+              {tx(option.label)}
             </button>
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-text">
-          <span className="inline-flex items-center gap-1.5"><Database className="h-3.5 w-3.5" />{compatibleProviders.length} 个可配置行情来源</span>
-          <span className="inline-flex items-center gap-1.5"><Globe2 className="h-3.5 w-3.5" />{compatibleMacroProviders.length} 个宏观来源</span>
-          <span className="inline-flex items-center gap-1.5"><Newspaper className="h-3.5 w-3.5" />{feedState === 'loading' ? '正在读取资讯源状态' : feedState === 'error' ? '资讯源状态不可用' : `${successfulFeeds}/${feedSources.length} 个资讯源同步成功`}</span>
+          <span className="inline-flex items-center gap-1.5"><Database className="h-3.5 w-3.5" />{compatibleProviders.length} {" "}{tx("个可配置行情来源")}</span>
+          <span className="inline-flex items-center gap-1.5"><Globe2 className="h-3.5 w-3.5" />{compatibleMacroProviders.length} {" "}{tx("个宏观来源")}</span>
+          <span className="inline-flex items-center gap-1.5"><Newspaper className="h-3.5 w-3.5" />{feedState === 'loading' ? tx("正在读取资讯源状态") : feedState === 'error' ? tx("资讯源状态不可用") : tx("{0}/{1} 个资讯源同步成功", String(successfulFeeds), String(feedSources.length))}</span>
         </div>
       </div>
 
       {refreshState === 'running' ? (
         <div className="border-x border-b border-primary/25 bg-primary/5 px-5 py-3 text-sm text-secondary-text sm:px-7" role="status" aria-live="polite">
-          <span className="font-medium text-foreground">正在生成 {marketLabel} 最新复盘。</span> 任务会调用已配置的数据源并保存新快照；生成期间继续展示上一份已保存结果。
-        </div>
+          <span className="font-medium text-foreground">{tx("正在生成")}{" "}{tx(marketLabel)} {" "}{tx("最新复盘。")}</span> {tx("任务会调用已配置的数据源并保存新快照；生成期间继续展示上一份已保存结果。")}</div>
       ) : null}
       {refreshState === 'completed' ? (
-        <div className="flex items-center gap-2 border-x border-b border-success/25 bg-success/5 px-5 py-3 text-sm text-success sm:px-7" role="status"><CheckCircle2 className="h-4 w-4" />最新复盘已经生成并载入。</div>
+        <div className="flex items-center gap-2 border-x border-b border-success/25 bg-success/5 px-5 py-3 text-sm text-success sm:px-7" role="status"><CheckCircle2 className="h-4 w-4" />{tx("最新复盘已经生成并载入。")}</div>
       ) : null}
       {refreshState === 'error' ? (
-        <div className="flex items-start gap-2 border-x border-b border-danger/25 bg-danger/5 px-5 py-3 text-sm text-danger sm:px-7" role="alert"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{refreshError}</span></div>
+        <div className="flex items-start gap-2 border-x border-b border-danger/25 bg-danger/5 px-5 py-3 text-sm text-danger sm:px-7" role="alert"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{tx(refreshError)}</span></div>
       ) : null}
       {snapshotState === 'error' ? (
-        <div className="flex items-start gap-2 border-x border-b border-warning/25 bg-warning/5 px-5 py-3 text-sm text-warning sm:px-7" role="status"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>实时指数与宏观快照暂时不可用；页面继续展示已保存复盘和资讯。</span></div>
+        <div className="flex items-start gap-2 border-x border-b border-warning/25 bg-warning/5 px-5 py-3 text-sm text-warning sm:px-7" role="status"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{tx("实时指数与宏观快照暂时不可用；页面继续展示已保存复盘和资讯。")}</span></div>
       ) : null}
 
       {editingLayout ? (
         <section id="market-dashboard-editor" className="border-x border-b border-border bg-card" aria-labelledby="market-dashboard-editor-title">
           <div className="flex flex-col gap-3 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div>
-              <h2 id="market-dashboard-editor-title" className="text-sm font-semibold text-foreground">编辑 {marketLabel} 市场看板</h2>
-              <p className="mt-1 text-xs leading-5 text-muted-text">管理展示结构、Agent 分析订阅和资讯范围；数据源连接仍由能力中心统一维护。</p>
+              <h2 id="market-dashboard-editor-title" className="text-sm font-semibold text-foreground">{tx("编辑")}{" "}{tx(marketLabel)} {" "}{tx("市场看板")}</h2>
+              <p className="mt-1 text-xs leading-5 text-muted-text">{tx("管理展示结构、Agent 分析订阅和资讯范围；数据源连接仍由能力中心统一维护。")}</p>
             </div>
-            <Link to="/capabilities/data" className="text-xs font-medium text-primary hover:underline">管理数据源</Link>
+            <Link to="/capabilities/data" className="text-xs font-medium text-primary hover:underline">{tx("管理数据源")}</Link>
           </div>
           <div className="border-b border-border px-5 sm:px-7">
-            <div className="flex gap-5 overflow-x-auto" role="tablist" aria-label="市场看板配置分类">
+            <div className="flex gap-5 overflow-x-auto" role="tablist" aria-label={tx("市场看板配置分类")}>
               {[
-                { id: 'layout' as const, label: '看板布局' },
-                { id: 'analysis' as const, label: `分析订阅 ${subscriptions.length}` },
-                { id: 'data' as const, label: '资讯订阅' },
+                { id: 'layout' as const, label: tx("看板布局") },
+                { id: 'analysis' as const, label: tx("分析订阅 {0}", String(subscriptions.length)) },
+                { id: 'data' as const, label: tx("资讯订阅") },
               ].map((tab) => (
                 <button key={tab.id} type="button" role="tab" aria-selected={editorTab === tab.id} onClick={() => setEditorTab(tab.id)} className={cn('min-h-11 shrink-0 border-b-2 text-xs font-medium', editorTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-secondary-text hover:text-foreground')}>
-                  {tab.label}
+                  {tx(tab.label)}
                 </button>
               ))}
             </div>
@@ -1138,18 +1146,18 @@ export const MarketIntelligenceSection = () => {
 
           {editorTab === 'layout' ? (
             <fieldset className="min-w-0 px-5 py-5 sm:px-7">
-              <legend className="text-xs font-semibold text-foreground">展示内容</legend>
-              <p className="mt-1 text-xs text-muted-text">已选择 {layoutDraft.widgetIds.length} 个模块，可分别为不同市场保存。</p>
+              <legend className="text-xs font-semibold text-foreground">{tx("展示内容")}</legend>
+              <p className="mt-1 text-xs text-muted-text">{tx("已选择")}{" "}{layoutDraft.widgetIds.length} {" "}{tx("个模块，可分别为不同市场保存。")}</p>
               <div className="mt-3 grid gap-x-8 border-y border-border md:grid-cols-2">
                 {WIDGET_OPTIONS.map((widget) => {
                   const selected = layoutDraft.widgetIds.includes(widget.id);
                   const lastSelected = selected && layoutDraft.widgetIds.length === 1;
                   return (
                     <label key={widget.id} className={cn('flex items-start gap-3 border-b border-border py-3.5 last:border-b-0 md:[&:nth-last-child(-n+2)]:border-b-0', lastSelected && 'cursor-not-allowed opacity-65')}>
-                      <input type="checkbox" checked={selected} disabled={lastSelected} onChange={() => setLayoutDraft((current) => ({ ...current, widgetIds: toggleItem(current.widgetIds, widget.id) }))} className="mt-0.5 h-4 w-4 accent-primary" aria-label={`显示 ${widget.label}`} />
+                      <input type="checkbox" checked={selected} disabled={lastSelected} onChange={() => setLayoutDraft((current) => ({ ...current, widgetIds: toggleItem(current.widgetIds, widget.id) }))} className="mt-0.5 h-4 w-4 accent-primary" aria-label={tx("显示 {0}", tx(widget.label))} />
                       <span className="min-w-0">
-                        <span className="block text-sm font-medium text-foreground">{widget.label}</span>
-                        <span className="mt-1 block text-xs leading-5 text-muted-text">{widget.description} · 数据来自 {widget.sourceHint}</span>
+                        <span className="block text-sm font-medium text-foreground">{tx(widget.label)}</span>
+                        <span className="mt-1 block text-xs leading-5 text-muted-text">{tx(widget.description)} {" "}{tx("· 数据来自")}{" "}{tx(widget.sourceHint)}</span>
                       </span>
                     </label>
                   );
@@ -1162,34 +1170,32 @@ export const MarketIntelligenceSection = () => {
             <div className="px-5 py-5 sm:px-7">
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                 <label className="text-xs font-semibold text-foreground">
-                  添加已有 Agent 任务
-                  <select value={selectedTaskId} onChange={(event) => setSelectedTaskId(event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm font-normal text-foreground outline-none focus:border-primary">
-                    <option value="">{availableSubscriptionTasks.length ? '选择个股分析或选股任务' : '当前市场没有可添加的任务'}</option>
+                  {tx("添加已有 Agent 任务")}<select value={selectedTaskId} onChange={(event) => setSelectedTaskId(event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm font-normal text-foreground outline-none focus:border-primary">
+                    <option value="">{availableSubscriptionTasks.length ? tx("选择个股分析或选股任务") : tx("当前市场没有可添加的任务")}</option>
                     {availableSubscriptionTasks.map((task) => <option key={task.id} value={task.id}>{task.name} · {subscriptionKindLabel(task.kind)}</option>)}
                   </select>
                 </label>
-                <button type="button" disabled={!selectedTaskId || dashboardSaving} onClick={() => void addTaskSubscription()} className="btn-secondary h-10 disabled:cursor-not-allowed disabled:opacity-55">添加订阅</button>
+                <button type="button" disabled={!selectedTaskId || dashboardSaving} onClick={() => void addTaskSubscription()} className="btn-secondary h-10 disabled:cursor-not-allowed disabled:opacity-55">{tx("添加订阅")}</button>
               </div>
-              <p className="mt-2 text-xs leading-5 text-muted-text">个股和选股任务在各自工作台中定义；市场宏观和产业分析可直接在这里创建。</p>
+              <p className="mt-2 text-xs leading-5 text-muted-text">{tx("个股和选股任务在各自工作台中定义；市场宏观和产业分析可直接在这里创建。")}</p>
 
               <div className="mt-4 border-t border-border pt-4">
                 <button type="button" onClick={() => { setAnalysisBuilderOpen((value) => !value); setAnalysisCapabilities(capabilityCatalog?.defaults[analysisKind] || EMPTY_AGENT_CAPABILITIES); }} className="inline-flex min-h-10 items-center gap-2 text-xs font-medium text-primary hover:underline" aria-expanded={analysisBuilderOpen}>
-                  <Plus className="h-3.5 w-3.5" />新建宏观或产业分析
-                </button>
+                  <Plus className="h-3.5 w-3.5" />{tx("新建宏观或产业分析")}</button>
                 {analysisBuilderOpen ? (
                   <div className="mt-3 rounded-[10px] border border-border bg-background px-4 py-4">
-                    <div className="inline-flex rounded-[8px] border border-border bg-card p-1" role="radiogroup" aria-label="分析类型">
-                      <button type="button" role="radio" aria-checked={analysisKind === 'market_analysis'} onClick={() => changeAnalysisKind('market_analysis')} className={cn('rounded-[6px] px-3 py-1.5 text-xs font-medium', analysisKind === 'market_analysis' ? 'bg-primary text-primary-foreground' : 'text-secondary-text')}>宏观分析</button>
-                      <button type="button" role="radio" aria-checked={analysisKind === 'industry_analysis'} onClick={() => changeAnalysisKind('industry_analysis')} className={cn('rounded-[6px] px-3 py-1.5 text-xs font-medium', analysisKind === 'industry_analysis' ? 'bg-primary text-primary-foreground' : 'text-secondary-text')}>产业分析</button>
+                    <div className="inline-flex rounded-[8px] border border-border bg-card p-1" role="radiogroup" aria-label={tx("分析类型")}>
+                      <button type="button" role="radio" aria-checked={analysisKind === 'market_analysis'} onClick={() => changeAnalysisKind('market_analysis')} className={cn('rounded-[6px] px-3 py-1.5 text-xs font-medium', analysisKind === 'market_analysis' ? 'bg-primary text-primary-foreground' : 'text-secondary-text')}>{tx("宏观分析")}</button>
+                      <button type="button" role="radio" aria-checked={analysisKind === 'industry_analysis'} onClick={() => changeAnalysisKind('industry_analysis')} className={cn('rounded-[6px] px-3 py-1.5 text-xs font-medium', analysisKind === 'industry_analysis' ? 'bg-primary text-primary-foreground' : 'text-secondary-text')}>{tx("产业分析")}</button>
                     </div>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      <label className="text-xs font-semibold text-foreground">分析名称<input value={analysisName} onChange={(event) => setAnalysisName(event.target.value)} placeholder={analysisKind === 'market_analysis' ? `${marketLabel}每日宏观分析` : '例如：半导体产业跟踪'} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-card px-3 text-sm font-normal text-foreground outline-none focus:border-primary" /></label>
-                      <label className="text-xs font-semibold text-foreground">每天运行时间<input type="time" value={analysisRunAt} onChange={(event) => setAnalysisRunAt(event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-card px-3 text-sm font-normal text-foreground outline-none focus:border-primary" /></label>
+                      <label className="text-xs font-semibold text-foreground">{tx("分析名称")}<input value={analysisName} onChange={(event) => setAnalysisName(event.target.value)} placeholder={analysisKind === 'market_analysis' ? tx("{0}每日宏观分析", tx(marketLabel)) : tx("例如：半导体产业跟踪")} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-card px-3 text-sm font-normal text-foreground outline-none focus:border-primary" /></label>
+                      <label className="text-xs font-semibold text-foreground">{tx("每天运行时间")}<input type="time" value={analysisRunAt} onChange={(event) => setAnalysisRunAt(event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-card px-3 text-sm font-normal text-foreground outline-none focus:border-primary" /></label>
                     </div>
-                    <label className="mt-4 block text-xs font-semibold text-foreground">{analysisKind === 'market_analysis' ? '分析目标' : '产业主题与关注目标'}<textarea value={analysisObjective} onChange={(event) => setAnalysisObjective(event.target.value)} placeholder={analysisKind === 'market_analysis' ? '跟踪影响当前市场的流动性、增长、通胀、汇率和风险偏好变化' : '例如：半导体产业链景气、政策、供需、估值与主要风险'} className="mt-2 min-h-24 w-full resize-y rounded-[9px] border border-border bg-card px-3 py-2.5 text-sm font-normal leading-6 text-foreground outline-none focus:border-primary" /></label>
+                    <label className="mt-4 block text-xs font-semibold text-foreground">{analysisKind === 'market_analysis' ? tx("分析目标") : tx("产业主题与关注目标")}<textarea value={analysisObjective} onChange={(event) => setAnalysisObjective(event.target.value)} placeholder={analysisKind === 'market_analysis' ? tx("跟踪影响当前市场的流动性、增长、通胀、汇率和风险偏好变化") : tx("例如：半导体产业链景气、政策、供需、估值与主要风险")} className="mt-2 min-h-24 w-full resize-y rounded-[9px] border border-border bg-card px-3 py-2.5 text-sm font-normal leading-6 text-foreground outline-none focus:border-primary" /></label>
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-                      <button type="button" onClick={() => setAnalysisCapabilityOpen((value) => !value)} className="btn-secondary">配置 Agent 能力 · {countAgentCapabilities(analysisCapabilities)} 项</button>
-                      <button type="button" disabled={dashboardSaving} onClick={() => void createAnalysisSubscription()} className="btn-primary inline-flex items-center gap-2 disabled:opacity-55">{dashboardSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}创建并订阅</button>
+                      <button type="button" onClick={() => setAnalysisCapabilityOpen((value) => !value)} className="btn-secondary">{tx("配置 Agent 能力 ·")}{" "}{countAgentCapabilities(analysisCapabilities)} {" "}{tx("项")}</button>
+                      <button type="button" disabled={dashboardSaving} onClick={() => void createAnalysisSubscription()} className="btn-primary inline-flex items-center gap-2 disabled:opacity-55">{dashboardSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{tx("创建并订阅")}</button>
                     </div>
                     {analysisCapabilityOpen ? (
                       <AgentCapabilityPanel
@@ -1219,11 +1225,11 @@ export const MarketIntelligenceSection = () => {
                   <div key={subscription.id} className="flex items-center justify-between gap-4 py-3.5">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-foreground">{subscription.title}</p>
-                      <p className="mt-1 text-xs text-muted-text">{subscriptionKindLabel(subscription.task?.kind)} · {subscription.schedules.length ? `${subscription.schedules.length} 个运行计划` : '仅手动运行'} · {subscription.latestArtifact ? '已有成果' : '等待成果'}</p>
+                      <p className="mt-1 text-xs text-muted-text">{subscriptionKindLabel(subscription.task?.kind)} · {subscription.schedules.length ? tx("{0} 个运行计划", String(subscription.schedules.length)) : tx("仅手动运行")} · {subscription.latestArtifact ? tx("已有成果") : tx("等待成果")}</p>
                     </div>
-                    <button type="button" disabled={dashboardSaving} onClick={() => void removeTaskSubscription(subscription.id)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] text-muted-text hover:bg-danger/10 hover:text-danger disabled:opacity-50" aria-label={`移除订阅 ${subscription.title}`}><Trash2 className="h-4 w-4" /></button>
+                    <button type="button" disabled={dashboardSaving} onClick={() => void removeTaskSubscription(subscription.id)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] text-muted-text hover:bg-danger/10 hover:text-danger disabled:opacity-50" aria-label={tx("移除订阅 {0}", String(subscription.title))}><Trash2 className="h-4 w-4" /></button>
                   </div>
-                )) : <p className="py-6 text-center text-sm text-muted-text">尚未订阅任何分析任务。</p>}
+                )) : <p className="py-6 text-center text-sm text-muted-text">{tx("尚未订阅任何分析任务。")}</p>}
               </div>
             </div>
           ) : null}
@@ -1231,34 +1237,34 @@ export const MarketIntelligenceSection = () => {
           {editorTab === 'data' ? (
             <div className="px-5 py-5 sm:px-7">
               <div>
-                <p className="text-xs font-semibold text-foreground">资讯来源</p>
-                <p className="mt-1 text-xs leading-5 text-muted-text">不选择时展示当前市场和全球全部启用资讯源；选择后只显示指定来源。</p>
+                <p className="text-xs font-semibold text-foreground">{tx("资讯来源")}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-text">{tx("不选择时展示当前市场和全球全部启用资讯源；选择后只显示指定来源。")}</p>
                 <div className="mt-3 grid gap-x-8 border-y border-border md:grid-cols-2">
                   {feedSources.map((source) => (
                     <label key={source.id} className="flex items-start gap-3 border-b border-border py-3 last:border-b-0 md:[&:nth-last-child(-n+2)]:border-b-0">
                       <input type="checkbox" checked={layoutDraft.newsSourceIds.includes(source.id)} onChange={() => toggleNewsSource(source.id)} className="mt-0.5 h-4 w-4 accent-primary" />
-                      <span className="min-w-0"><span className="block truncate text-sm font-medium text-foreground">{source.name}</span><span className="mt-1 block text-xs text-muted-text">{String(source.market).toUpperCase()} · {source.lastStatus === 'success' ? '最近同步成功' : source.lastStatus ? '最近同步异常' : '尚未同步'}</span></span>
+                      <span className="min-w-0"><span className="block truncate text-sm font-medium text-foreground">{tx(source.name)}</span><span className="mt-1 block text-xs text-muted-text">{String(source.market).toUpperCase()} · {source.lastStatus === 'success' ? tx("最近同步成功") : source.lastStatus ? tx("最近同步异常") : tx("尚未同步")}</span></span>
                     </label>
                   ))}
                 </div>
               </div>
               <div className="mt-5">
-                <p className="text-xs font-semibold text-foreground">关注关键词</p>
+                <p className="text-xs font-semibold text-foreground">{tx("关注关键词")}</p>
                 <div className="mt-2 flex gap-2">
-                  <input value={newsKeywordDraft} onChange={(event) => setNewsKeywordDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addNewsKeyword(); } }} maxLength={80} placeholder="例如：美联储、房地产、半导体" className="h-10 min-w-0 flex-1 rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" />
-                  <button type="button" onClick={addNewsKeyword} disabled={!newsKeywordDraft.trim() || layoutDraft.newsKeywords.length >= 20} className="btn-secondary h-10 disabled:opacity-55">添加</button>
+                  <input value={newsKeywordDraft} onChange={(event) => setNewsKeywordDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addNewsKeyword(); } }} maxLength={80} placeholder={tx("例如：美联储、房地产、半导体")} className="h-10 min-w-0 flex-1 rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" />
+                  <button type="button" onClick={addNewsKeyword} disabled={!newsKeywordDraft.trim() || layoutDraft.newsKeywords.length >= 20} className="btn-secondary h-10 disabled:opacity-55">{tx("添加")}</button>
                 </div>
-                {layoutDraft.newsKeywords.length ? <div className="mt-3 flex flex-wrap gap-2">{layoutDraft.newsKeywords.map((keyword) => <button key={keyword} type="button" onClick={() => setLayoutDraft((current) => ({ ...current, newsKeywords: current.newsKeywords.filter((item) => item !== keyword) }))} className="rounded-full border border-border bg-muted px-2.5 py-1 text-xs text-secondary-text hover:border-danger/30 hover:text-danger" aria-label={`移除关键词 ${keyword}`}>{keyword} ×</button>)}</div> : <p className="mt-2 text-xs text-muted-text">当前不限制关键词。</p>}
+                {layoutDraft.newsKeywords.length ? <div className="mt-3 flex flex-wrap gap-2">{layoutDraft.newsKeywords.map((keyword) => <button key={keyword} type="button" onClick={() => setLayoutDraft((current) => ({ ...current, newsKeywords: current.newsKeywords.filter((item) => item !== keyword) }))} className="rounded-full border border-border bg-muted px-2.5 py-1 text-xs text-secondary-text hover:border-danger/30 hover:text-danger" aria-label={tx("移除关键词 {0}", String(keyword))}>{keyword} ×</button>)}</div> : <p className="mt-2 text-xs text-muted-text">{tx("当前不限制关键词。")}</p>}
               </div>
             </div>
           ) : null}
 
-          {dashboardError ? <p role="alert" className="mx-5 mb-4 text-sm text-danger sm:mx-7">{dashboardError}</p> : null}
+          {dashboardError ? <p role="alert" className="mx-5 mb-4 text-sm text-danger sm:mx-7">{tx(dashboardError)}</p> : null}
           <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-            <button type="button" onClick={restoreDefaultLayout} className="inline-flex min-h-10 items-center gap-2 self-start text-xs font-medium text-secondary-text hover:text-foreground"><RotateCcw className="h-3.5 w-3.5" />恢复默认展示</button>
+            <button type="button" onClick={restoreDefaultLayout} className="inline-flex min-h-10 items-center gap-2 self-start text-xs font-medium text-secondary-text hover:text-foreground"><RotateCcw className="h-3.5 w-3.5" />{tx("恢复默认展示")}</button>
             <div className="flex gap-2 self-end">
-              <button type="button" onClick={closeLayoutEditor} className="btn-secondary">取消</button>
-              <button type="button" disabled={dashboardSaving} onClick={() => void applyLayout()} className="btn-primary inline-flex items-center gap-2 disabled:cursor-wait disabled:opacity-60">{dashboardSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}保存看板</button>
+              <button type="button" onClick={closeLayoutEditor} className="btn-secondary">{tx("取消")}</button>
+              <button type="button" disabled={dashboardSaving} onClick={() => void applyLayout()} className="btn-primary inline-flex items-center gap-2 disabled:cursor-wait disabled:opacity-60">{dashboardSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{tx("保存看板")}</button>
             </div>
           </div>
         </section>
@@ -1267,33 +1273,33 @@ export const MarketIntelligenceSection = () => {
       <div className="border-x border-b border-border bg-card">
         <div className="min-w-0 border-b border-border">
           {(loadState === 'loading' || loadState === 'idle') && !hasStructuredData ? (
-            <div className="flex min-h-[24rem] items-center justify-center px-6 text-sm text-muted-text" role="status"><RefreshCw className="mr-2 h-4 w-4 animate-spin" />正在读取 {marketLabel} 已保存快照…</div>
+            <div className="flex min-h-[24rem] items-center justify-center px-6 text-sm text-muted-text" role="status"><RefreshCw className="mr-2 h-4 w-4 animate-spin" />{tx("正在读取")}{" "}{tx(marketLabel)} {" "}{tx("已保存快照…")}</div>
           ) : loadState === 'error' && !hasStructuredData ? (
             <div className="flex min-h-[24rem] flex-col items-center justify-center px-6 text-center">
               <BarChart3 className="h-8 w-8 text-muted-text" />
-              <p className="mt-4 font-medium text-foreground">暂时无法读取市场复盘</p>
-              <p className="mt-2 max-w-md text-sm leading-6 text-secondary-text">已抓取资讯和数据源状态会独立显示。可以刷新状态，或生成一份新的市场复盘。</p>
+              <p className="mt-4 font-medium text-foreground">{tx("暂时无法读取市场复盘")}</p>
+              <p className="mt-2 max-w-md text-sm leading-6 text-secondary-text">{tx("已抓取资讯和数据源状态会独立显示。可以刷新状态，或生成一份新的市场复盘。")}</p>
             </div>
           ) : loadState === 'empty' && !hasStructuredData ? (
             <div className="flex min-h-[24rem] flex-col items-center justify-center px-6 text-center">
               <BarChart3 className="h-8 w-8 text-muted-text" />
-              <p className="mt-4 font-medium text-foreground">暂无 {marketLabel} 市场复盘</p>
-              <p className="mt-2 max-w-md text-sm leading-6 text-secondary-text">系统不会显示示例行情。点击“生成最新复盘”后，页面会调用真实数据链路并保存第一份快照。</p>
+              <p className="mt-4 font-medium text-foreground">{tx("暂无")}{" "}{tx(marketLabel)} {" "}{tx("市场复盘")}</p>
+              <p className="mt-2 max-w-md text-sm leading-6 text-secondary-text">{tx("系统不会显示示例行情。点击“生成最新复盘”后，页面会调用真实数据链路并保存第一份快照。")}</p>
             </div>
           ) : (
             <>
               {visibleWidgets.has('overview') ? (
                 <div className="border-b border-border px-5 py-5 sm:px-7">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={cn('rounded-full border px-2.5 py-1 text-[11px] font-semibold', snapshotIsRecent ? 'border-success/25 bg-success/5 text-success' : 'border-warning/25 bg-warning/5 text-warning')}>{snapshotIsRecent ? '近期快照' : '历史快照'}</span>
-                    <span className="inline-flex items-center gap-1 text-xs text-muted-text"><Clock3 className="h-3.5 w-3.5" />数据截至 {formatDateTime(snapshotTime, true)}</span>
-                    {ageHours !== null && ageHours > 48 ? <span className="text-xs text-warning">已超过 48 小时，请重新生成</span> : null}
+                    <span className={cn('rounded-full border px-2.5 py-1 text-[11px] font-semibold', snapshotIsRecent ? 'border-success/25 bg-success/5 text-success' : 'border-warning/25 bg-warning/5 text-warning')}>{snapshotIsRecent ? tx("近期快照") : tx("历史快照")}</span>
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-text"><Clock3 className="h-3.5 w-3.5" />{tx("数据截至")}{" "}{formatDateTime(snapshotTime, true)}</span>
+                    {ageHours !== null && ageHours > 48 ? <span className="text-xs text-warning">{tx("已超过 48 小时，请重新生成")}</span> : null}
                   </div>
                   <div className="mt-5 flex gap-3">
                     <Bot className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-primary">{persistedPayload ? 'Agent 市场摘要' : '实时市场快照'}</p>
-                      <p className="mt-2 max-w-[75ch] text-sm leading-7 text-foreground">{persistedPayload ? overview : `已取得 ${marketLabel} 的实时指数与宏观观测。当前尚无已保存的 Agent 深度复盘；可先查看下方数据，或点击“生成最新复盘”获得分析结论。`}</p>
+                      <p className="text-xs font-semibold text-primary">{persistedPayload ? tx("Agent 市场摘要") : tx("实时市场快照")}</p>
+                      <p className="mt-2 max-w-[75ch] text-sm leading-7 text-foreground">{persistedPayload ? overview : tx("已取得 {0} 的实时指数与宏观观测。当前尚无已保存的 Agent 深度复盘；可先查看下方数据，或点击“生成最新复盘”获得分析结论。", tx(marketLabel))}</p>
                     </div>
                   </div>
                 </div>
@@ -1303,27 +1309,27 @@ export const MarketIntelligenceSection = () => {
                 <div className={cn('grid', visibleWidgets.has('indices') && visibleWidgets.has('breadth') && 'md:grid-cols-2')}>
                   {visibleWidgets.has('indices') ? (
                     <div className={cn('border-b border-border px-5 py-6 sm:px-7', visibleWidgets.has('breadth') && 'md:border-b-0 md:border-r')}>
-                      <div className="mb-5 flex items-center justify-between gap-4"><h2 className="text-sm font-semibold text-foreground">主要指数</h2><span className="text-xs text-muted-text">涨跌幅</span></div>
+                      <div className="mb-5 flex items-center justify-between gap-4"><h2 className="text-sm font-semibold text-foreground">{tx("主要指数")}</h2><span className="text-xs text-muted-text">{tx("涨跌幅")}</span></div>
                       <IndexPerformance indices={indices} />
                     </div>
                   ) : null}
                   {visibleWidgets.has('breadth') ? (
                     <div className="px-5 py-6 sm:px-7">
-                      <h2 className="text-sm font-semibold text-foreground">市场宽度</h2>
+                      <h2 className="text-sm font-semibold text-foreground">{tx("市场宽度")}</h2>
                       {breadthTotal > 0 ? (
                         <>
-                          <div className="mt-5 flex h-2.5 overflow-hidden rounded-full bg-border/60" aria-label={`上涨 ${up}，下跌 ${down}，平盘 ${flat}`}><div className="bg-success" style={{ width: `${up / breadthTotal * 100}%` }} /><div className="bg-muted-text/50" style={{ width: `${flat / breadthTotal * 100}%` }} /><div className="bg-danger" style={{ width: `${down / breadthTotal * 100}%` }} /></div>
-                          <div className="mt-4 grid grid-cols-3 gap-3"><div><p className="text-xs text-muted-text">上涨</p><p className="mt-1 text-lg font-semibold tabular-nums text-success">{formatCount(up)}</p></div><div><p className="text-xs text-muted-text">平盘</p><p className="mt-1 text-lg font-semibold tabular-nums text-secondary-text">{formatCount(flat)}</p></div><div><p className="text-xs text-muted-text">下跌</p><p className="mt-1 text-lg font-semibold tabular-nums text-danger">{formatCount(down)}</p></div></div>
-                          <div className="mt-5 grid grid-cols-2 gap-3 border-t border-border pt-4 text-xs"><div><span className="text-muted-text">涨停</span><span className="ml-2 font-medium tabular-nums text-foreground">{formatCount(breadth?.limitUpCount)}</span></div><div><span className="text-muted-text">跌停</span><span className="ml-2 font-medium tabular-nums text-foreground">{formatCount(breadth?.limitDownCount)}</span></div><div className="col-span-2"><span className="text-muted-text">成交额</span><span className="ml-2 font-medium tabular-nums text-foreground">{formatCount(breadth?.totalAmount)} {breadth?.turnoverUnit || ''}</span></div></div>
+                          <div className="mt-5 flex h-2.5 overflow-hidden rounded-full bg-border/60" aria-label={tx("上涨 {0}，下跌 {1}，平盘 {2}", String(up), String(down), String(flat))}><div className="bg-success" style={{ width: `${up / breadthTotal * 100}%` }} /><div className="bg-muted-text/50" style={{ width: `${flat / breadthTotal * 100}%` }} /><div className="bg-danger" style={{ width: `${down / breadthTotal * 100}%` }} /></div>
+                          <div className="mt-4 grid grid-cols-3 gap-3"><div><p className="text-xs text-muted-text">{tx("上涨")}</p><p className="mt-1 text-lg font-semibold tabular-nums text-success">{formatCount(up)}</p></div><div><p className="text-xs text-muted-text">{tx("平盘")}</p><p className="mt-1 text-lg font-semibold tabular-nums text-secondary-text">{formatCount(flat)}</p></div><div><p className="text-xs text-muted-text">{tx("下跌")}</p><p className="mt-1 text-lg font-semibold tabular-nums text-danger">{formatCount(down)}</p></div></div>
+                          <div className="mt-5 grid grid-cols-2 gap-3 border-t border-border pt-4 text-xs"><div><span className="text-muted-text">{tx("涨停")}</span><span className="ml-2 font-medium tabular-nums text-foreground">{formatCount(breadth?.limitUpCount)}</span></div><div><span className="text-muted-text">{tx("跌停")}</span><span className="ml-2 font-medium tabular-nums text-foreground">{formatCount(breadth?.limitDownCount)}</span></div><div className="col-span-2"><span className="text-muted-text">{tx("成交额")}</span><span className="ml-2 font-medium tabular-nums text-foreground">{formatCount(breadth?.totalAmount)} {tx(breadth?.turnoverUnit || '')}</span></div></div>
                         </>
-                      ) : <p className="py-6 text-sm text-muted-text">该市场或本次复盘没有结构化市场宽度数据。</p>}
+                      ) : <p className="py-6 text-sm text-muted-text">{tx("该市场或本次复盘没有结构化市场宽度数据。")}</p>}
                     </div>
                   ) : null}
                 </div>
               ) : null}
 
               {visibleWidgets.has('sectors') ? (
-                <div className="grid gap-6 border-t border-border px-5 py-6 sm:grid-cols-2 sm:px-7"><SectorList title="领涨板块" items={payload?.sectors?.top || []} positive /><SectorList title="承压板块" items={payload?.sectors?.bottom || []} positive={false} /></div>
+                <div className="grid gap-6 border-t border-border px-5 py-6 sm:grid-cols-2 sm:px-7"><SectorList title={tx("领涨板块")} items={payload?.sectors?.top || []} positive /><SectorList title={tx("承压板块")} items={payload?.sectors?.bottom || []} positive={false} /></div>
               ) : null}
             </>
           )}
@@ -1335,8 +1341,8 @@ export const MarketIntelligenceSection = () => {
           {visibleWidgets.has('news') ? (
             <section className="border-t border-border px-5 py-6 sm:px-7" aria-labelledby="market-news-title">
               <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-                <div><h2 id="market-news-title" className="text-sm font-semibold text-foreground">最新市场资讯</h2><p className="mt-1 text-xs text-muted-text">来自情报服务已经抓取并保存的 {marketLabel} 与全球资讯，不使用页面示例数据。</p></div>
-                <span className="text-xs text-muted-text">近 14 天 · {displayedNewsItems.length} 条{layout.newsSourceIds.length || layout.newsKeywords.length ? ' · 已筛选' : ''}</span>
+                <div><h2 id="market-news-title" className="text-sm font-semibold text-foreground">{tx("最新市场资讯")}</h2><p className="mt-1 text-xs text-muted-text">{tx("来自情报服务已经抓取并保存的")}{" "}{tx(marketLabel)} {" "}{tx("与全球资讯，不使用页面示例数据。")}</p></div>
+                <span className="text-xs text-muted-text">{tx("近 14 天 ·")}{" "}{displayedNewsItems.length} {" "}{tx("条")}{layout.newsSourceIds.length || layout.newsKeywords.length ? tx(" · 已筛选") : ''}</span>
               </div>
               <IntelligenceList items={displayedNewsItems} state={newsState} />
             </section>
@@ -1345,63 +1351,63 @@ export const MarketIntelligenceSection = () => {
 
         {visibleWidgets.has('subscriptions') ? <AnalysisSubscriptions subscriptions={subscriptions} /> : null}
 
-        <details className="min-w-0 px-5 py-6 sm:px-7" aria-label="市场雷达数据状态">
-          <summary className="cursor-pointer text-sm font-medium text-secondary-text">数据来源与同步状态 · 展开查看</summary>
+        <details className="min-w-0 px-5 py-6 sm:px-7" aria-label={tx("市场雷达数据状态")}>
+          <summary className="cursor-pointer text-sm font-medium text-secondary-text">{tx("数据来源与同步状态 · 展开查看")}</summary>
           <div className="mt-5">
-          <div className="flex items-center gap-2"><Database className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-foreground">数据状态</h2></div>
-          <p className="mt-2 text-xs leading-5 text-muted-text">目录状态表示提供方已配置；只有同步记录和快照时间能够证明本次页面实际取得了数据。</p>
+          <div className="flex items-center gap-2"><Database className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-foreground">{tx("数据状态")}</h2></div>
+          <p className="mt-2 text-xs leading-5 text-muted-text">{tx("目录状态表示提供方已配置；只有同步记录和快照时间能够证明本次页面实际取得了数据。")}</p>
 
           <div className="mt-5 border-y border-border py-4">
-            <p className="text-xs font-semibold text-foreground">行情提供方目录</p>
-            {sourceUnavailable ? <p className="mt-3 text-xs text-danger">无法读取工作区数据源目录。</p> : compatibleProviders.length ? (
+            <p className="text-xs font-semibold text-foreground">{tx("行情提供方目录")}</p>
+            {sourceUnavailable ? <p className="mt-3 text-xs text-danger">{tx("无法读取工作区数据源目录。")}</p> : compatibleProviders.length ? (
               <div className="mt-3 space-y-3">
                 {compatibleProviders.slice(0, 6).map((source) => {
                   const state = dataSourceState(source);
                   return (
                     <div key={source.sourceId} className="min-w-0">
-                      <div className="flex items-center justify-between gap-3"><p className="truncate text-sm font-medium text-foreground">{source.name}</p><span className={cn('shrink-0 text-[11px]', state.className)}>{state.label}</span></div>
+                      <div className="flex items-center justify-between gap-3"><p className="truncate text-sm font-medium text-foreground">{tx(source.name)}</p><span className={cn('shrink-0 text-[11px]', state.className)}>{tx(state.label)}</span></div>
                       <p className="mt-1 truncate text-[11px] text-muted-text">{source.description || source.connectionKey}</p>
                     </div>
                   );
                 })}
               </div>
-            ) : <p className="mt-3 text-xs leading-5 text-muted-text">当前市场没有可配置的行情提供方。</p>}
+            ) : <p className="mt-3 text-xs leading-5 text-muted-text">{tx("当前市场没有可配置的行情提供方。")}</p>}
           </div>
 
           <div className="border-b border-border py-4">
-            <div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold text-foreground">宏观提供方目录</p><span className="text-[11px] text-muted-text">{compatibleMacroProviders.length} 项</span></div>
-            {sourceUnavailable ? <p className="mt-3 text-xs text-danger">无法读取宏观数据源目录。</p> : compatibleMacroProviders.length ? (
+            <div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold text-foreground">{tx("宏观提供方目录")}</p><span className="text-[11px] text-muted-text">{compatibleMacroProviders.length} {" "}{tx("项")}</span></div>
+            {sourceUnavailable ? <p className="mt-3 text-xs text-danger">{tx("无法读取宏观数据源目录。")}</p> : compatibleMacroProviders.length ? (
               <div className="mt-3 space-y-3">
                 {compatibleMacroProviders.map((source) => {
                   const state = dataSourceState(source);
                   return (
                     <div key={source.sourceId} className="min-w-0">
-                      <div className="flex items-center justify-between gap-3"><p className="truncate text-sm font-medium text-foreground">{source.name}</p><span className={cn('shrink-0 text-[11px]', state.className)}>{state.label}</span></div>
+                      <div className="flex items-center justify-between gap-3"><p className="truncate text-sm font-medium text-foreground">{tx(source.name)}</p><span className={cn('shrink-0 text-[11px]', state.className)}>{tx(state.label)}</span></div>
                       <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-text">{source.description || source.connectionKey}</p>
                     </div>
                   );
                 })}
               </div>
-            ) : <p className="mt-3 text-xs leading-5 text-muted-text">当前市场没有可选择的宏观提供方。</p>}
+            ) : <p className="mt-3 text-xs leading-5 text-muted-text">{tx("当前市场没有可选择的宏观提供方。")}</p>}
           </div>
 
           <div className="border-b border-border py-4">
-            <div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold text-foreground">资讯源同步</p><span className="text-[11px] text-muted-text">{feedSources.length} 项</span></div>
-            {feedState === 'loading' || feedState === 'idle' ? <p className="mt-3 flex items-center gap-2 text-xs text-muted-text"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />正在读取同步状态…</p> : feedState === 'error' ? <p className="mt-3 text-xs leading-5 text-danger">无法读取资讯源同步状态，已抓取资讯仍可独立查看。</p> : feedSources.length ? (
+            <div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold text-foreground">{tx("资讯源同步")}</p><span className="text-[11px] text-muted-text">{feedSources.length} {" "}{tx("项")}</span></div>
+            {feedState === 'loading' || feedState === 'idle' ? <p className="mt-3 flex items-center gap-2 text-xs text-muted-text"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />{tx("正在读取同步状态…")}</p> : feedState === 'error' ? <p className="mt-3 text-xs leading-5 text-danger">{tx("无法读取资讯源同步状态，已抓取资讯仍可独立查看。")}</p> : feedSources.length ? (
               <div className="mt-3 space-y-4">
                 {feedSources.slice(0, 6).map((source) => (
                   <div key={source.id} className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground" title={source.name}>{source.name}</p>
+                    <p className="truncate text-sm font-medium text-foreground" title={tx(source.name)}>{tx(source.name)}</p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1"><FeedStatus source={source} />{source.lastFetchedAt ? <span className="text-[11px] text-muted-text">{formatDateTime(source.lastFetchedAt)}</span> : null}</div>
                   </div>
                 ))}
               </div>
-            ) : <p className="mt-3 text-xs leading-5 text-muted-text">当前市场没有启用的资讯源。</p>}
+            ) : <p className="mt-3 text-xs leading-5 text-muted-text">{tx("当前市场没有启用的资讯源。")}</p>}
           </div>
 
-          <Link to="/capabilities/data" className="mt-5 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-primary hover:underline">管理数据源<ArrowRight className="h-4 w-4" /></Link>
-          <Link to="/runs" className="mt-1 flex min-h-10 items-center gap-2 text-sm font-medium text-secondary-text hover:text-foreground">查看任务运行记录<ArrowRight className="h-4 w-4" /></Link>
-          <p className="mt-4 border-t border-border pt-4 text-xs leading-5 text-muted-text">“生成最新复盘”会创建 Agent 后台任务并保存结论；“刷新数据”会重新请求实时市场快照，并同步读取报告、资讯和来源状态。</p>
+          <Link to="/capabilities/data" className="mt-5 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-primary hover:underline">{tx("管理数据源")}<ArrowRight className="h-4 w-4" /></Link>
+          <Link to="/runs" className="mt-1 flex min-h-10 items-center gap-2 text-sm font-medium text-secondary-text hover:text-foreground">{tx("查看任务运行记录")}<ArrowRight className="h-4 w-4" /></Link>
+          <p className="mt-4 border-t border-border pt-4 text-xs leading-5 text-muted-text">{tx("“生成最新复盘”会创建 Agent 后台任务并保存结论；“刷新数据”会重新请求实时市场快照，并同步读取报告、资讯和来源状态。")}</p>
           </div>
         </details>
       </div>
