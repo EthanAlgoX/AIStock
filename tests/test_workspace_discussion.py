@@ -166,6 +166,29 @@ def payload(**config):
                          config={"discussionProtocol": "cross_response_v1", **config})
 
 
+def test_new_personas_reach_independent_agents_and_frozen_snapshot(workspace):
+    data = payload()
+    data["capabilities"] = _empty_bindings(expertIds=[-1012, -1013])
+    expected = {expert_id: workspace.get_expert(expert_id)["prompt"] for expert_id in [-1012, -1013]}
+    sessions = []
+
+    def respond(suffix, prompt, task, *args):
+        if "-expert-" in suffix:
+            expert_id = next(expert_id for expert_id in expected if suffix.endswith(str(expert_id)))
+            assert expected[expert_id] in prompt
+            sessions.append(suffix)
+        return result('{"questions": []}' if "questions-" in suffix else "## 结论\n本角色的证据与风险。")
+
+    with patch("src.services.workspace_service._WORKERS", _ImmediateExecutor()), patch.object(workspace, "_call_agent", side_effect=respond):
+        run = workspace.create_run(workspace.create_task(data)["id"])
+    assert run["status"] == "completed"
+    assert len(set(sessions)) == 2
+    frozen = run["taskSnapshot"]["discussionSnapshot"]["members"]
+    assert {m["expert"]["id"]: m["expert"]["prompt"] for m in frozen} == expected
+    workspace.update_expert(-1012, {"prompt": "后续自定义"})
+    assert workspace.get_run(run["id"])["taskSnapshot"]["discussionSnapshot"]["members"] == frozen
+
+
 def agent(suffix, prompt, task, cancel, skills, instructions):
     if "questions-" in suffix:
         return result(json.dumps({"questions": [{"expertId": -1001, "question": "请回应另一位专家的现金流反例。"}]}))

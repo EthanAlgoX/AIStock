@@ -7,8 +7,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.services.workspace_service import WorkspaceError, WorkspaceService
-from src.storage import DatabaseManager
+from src.services.workspace_service import BUILTIN_EXPERTS, WorkspaceError, WorkspaceService
+from src.storage import DatabaseManager, WorkspaceExpertRecord
 
 
 class _ImmediateExecutor:
@@ -41,6 +41,51 @@ def _empty_bindings(**overrides):
     }
     value.update(overrides)
     return value
+
+
+def test_expanded_experts_have_distinct_lenses_and_stable_defaults(workspace):
+    experts = workspace.list_experts()
+    assert len(experts) == 14
+    assert [item["id"] for item in experts[:5]] == [-1005, -1004, -1003, -1002, -1001]
+    assert len({item["key"] for item in experts}) == 14
+    assert len({item["prompt"] for item in experts}) == 14
+    assert {item["name"] for item in experts} >= {
+        "查理·芒格", "李录", "彼得·林奇", "朱少醒", "谢治宇", "吉姆·柯林斯",
+        "李国飞", "彼得·德鲁克", "马克·米勒维尼", "杰西·利弗莫尔",
+    }
+    for expert in experts:
+        assert expert["prompt"] == expert["defaultPrompt"]
+        for requirement in ("不得冒充本人", "事实、推断与假设", "流水线", "辩论", "投票", "Schema", "不得绕过账户风控"):
+            assert requirement in expert["prompt"]
+    assert workspace.get_expert(-1013)["prompt"].find("VCP") >= 0
+    assert "不对所有公司套同一估值" in workspace.get_expert(-1007)["prompt"]
+    assert "不自动等于股票低估" in workspace.get_expert(-1010)["prompt"]
+
+
+def test_legacy_prompt_upgrade_is_exact_idempotent_and_preserves_customization(workspace):
+    workspace.list_experts()
+    with workspace.db.session_scope() as session:
+        for expert in BUILTIN_EXPERTS[:5]:
+            row = session.get(WorkspaceExpertRecord, expert["id"])
+            row.prompt = expert["legacyPrompt"]
+        row = session.get(WorkspaceExpertRecord, -1001)
+        row.enabled = False
+        row.name = "我的巴菲特"
+        row.version = 7
+        session.get(WorkspaceExpertRecord, -1002).prompt = "用户自定义风险清单"
+    upgraded = workspace.get_expert(-1001)
+    assert upgraded["prompt"] == upgraded["defaultPrompt"]
+    assert upgraded["version"] == 8
+    assert not upgraded["enabled"]
+    assert upgraded["name"] == "我的巴菲特"
+    assert workspace.get_expert(-1001)["version"] == 8
+    customized = workspace.get_expert(-1002)
+    assert customized["prompt"] == "用户自定义风险清单"
+    assert customized["prompt"] != customized["defaultPrompt"]
+    custom = workspace.create_expert({"name": "自建专家", "prompt": BUILTIN_EXPERTS[0]["legacyPrompt"]})
+    assert workspace.get_expert(custom["id"])["prompt"] == custom["prompt"]
+    restored = workspace.update_expert(-1002, {"prompt": customized["defaultPrompt"]})
+    assert restored["prompt"] == customized["defaultPrompt"]
 
 
 def _task_payload(kind="screening", **overrides):

@@ -24,6 +24,7 @@ from src.agent.capability_grants import (
     runtime_mcp_tool_name,
 )
 from src.config import get_config
+from src.services.expert_personas import build_expert_prompt
 from src.services.workspace_outcomes import business_outcome, valid_artifact, normalize_trade_proposal, report_artifacts
 from src.storage import (
     ConversationMessage,
@@ -180,6 +181,31 @@ BUILTIN_EXPERTS: tuple[dict[str, Any], ...] = (
     },
 )
 
+# Keep the shipped short prompts as exact migration baselines. User edits are
+# never inferred from a version number and are never replaced automatically.
+for _expert in BUILTIN_EXPERTS:
+    _expert["legacyPrompt"] = _expert["prompt"]
+    _expert["prompt"] = build_expert_prompt(_expert["key"], _expert["name"])
+
+BUILTIN_EXPERTS += tuple(
+    {
+        "id": expert_id, "key": key, "name": name, "style": style,
+        "description": description, "philosophy": philosophy, "focus": focus,
+        "prompt": build_expert_prompt(key, name),
+    }
+    for expert_id, key, name, style, description, philosophy, focus in (
+        (-1006, "li-lu", "李录", "深度价值与知识边界", "穿透商业与财务，审查竞争优势、安全边际和永久损失风险。", "理解企业、承认未知、以保守假设检验长期价值。", ["深度研究", "竞争优势", "知识边界", "永久损失"]),
+        (-1007, "peter-lynch", "彼得·林奇", "企业分类与合理价格成长", "按企业类型验证成长故事、财务质量与估值匹配。", "把可理解的投资故事变为可验证的经营指标。", ["企业分类", "成长验证", "PEG边界", "周期陷阱"]),
+        (-1008, "zhu-shaoxing", "朱少醒", "自下而上的优质成长", "研究内生成长、竞争地位、管理质量与估值约束。", "用盈利质量与持续跟踪检验企业成长。", ["内生成长", "盈利质量", "边际回报", "估值约束"]),
+        (-1009, "xie-zhiyu", "谢治宇", "企业性价比与均衡研究", "综合企业竞争力、盈利兑现和价格，审视组合相关性。", "不拘泥风格标签，比较企业的风险收益。", ["性价比", "盈利兑现", "组合相关性", "再平衡"]),
+        (-1010, "jim-collins", "吉姆·柯林斯", "组织卓越与飞轮", "以组织能力、经营飞轮和纪律检验企业持续卓越。", "让战略、人才与经济引擎形成可验证的正向作用。", ["刺猬理念", "第五级领导", "飞轮", "组织纪律"]),
+        (-1011, "li-guofei", "李国飞", "商业系统与认知迭代", "审查用户价值、竞争演化、反馈机制和认知盲区。", "用反事实与新证据持续更新商业判断。", ["商业系统", "用户价值", "竞争演化", "认知迭代"]),
+        (-1012, "peter-drucker", "彼得·德鲁克", "客户价值与管理有效性", "从使命、客户、成果与计划诊断管理和执行能力。", "用客户成果而非组织忙碌程度衡量有效性。", ["使命与客户", "管理有效性", "成果衡量", "执行责任"]),
+        (-1013, "mark-minervini", "马克·米勒维尼", "成长动量与波动收缩", "结合趋势、相对强度、盈利增长与量价结构制定条件化计划。", "先定义风险，再等待有证据的交易触发。", ["SEPA", "趋势模板", "VCP", "风险预算"]),
+        (-1014, "jesse-livermore", "杰西·利弗莫尔", "趋势确认与交易纪律", "用市场方向、关键价位和量价确认研究交易机会。", "等待确认、控制损失，不向亏损机械摊平。", ["趋势确认", "关键价位", "递进加仓", "退出纪律"]),
+    )
+)
+
 BUILTIN_TEAMS: tuple[dict[str, Any], ...] = (
     {"id": -2001, "key": "long-term-value", "name": "长期价值评审团", "description": "从生意质量、安全边际、能力圈和反向风险审查投资逻辑。", "member_ids": [-1001, -1002, -1003], "protocol": "独立分析 → 证据对齐 → 反向质疑 → 汇总共识、分歧与失效条件"},
     {"id": -2002, "key": "innovation-value-debate", "name": "创新与价值辩论组", "description": "让创新增长与价值风险视角围绕渗透率、估值和执行概率形成分歧。", "member_ids": [-1001, -1002, -1004, -1005], "protocol": "独立情景建模 → 假设交换 → 交叉反驳 → 生成冲突矩阵"},
@@ -243,7 +269,13 @@ class WorkspaceService:
     # Capability registry ----------------------------------------------------------
     def _seed_experts(self, session) -> None:
         for item in BUILTIN_EXPERTS:
-            if session.get(WorkspaceExpertRecord, item["id"]):
+            existing = session.get(WorkspaceExpertRecord, item["id"])
+            if existing:
+                if (existing.built_in and existing.expert_key == item["key"]
+                        and existing.prompt == item.get("legacyPrompt")):
+                    existing.prompt = item["prompt"]
+                    existing.version += 1
+                    existing.updated_at = utc_naive_now()
                 continue
             session.add(WorkspaceExpertRecord(
                 id=item["id"], expert_key=item["key"], name=item["name"], style=item["style"],
@@ -1028,7 +1060,12 @@ class WorkspaceService:
             self._seed_experts(session)
             rows = session.execute(select(WorkspaceExpertRecord).where(
                 WorkspaceExpertRecord.archived_at.is_(None),
-            ).order_by(desc(WorkspaceExpertRecord.built_in), WorkspaceExpertRecord.id)).scalars().all()
+            ).order_by(
+                desc(WorkspaceExpertRecord.built_in),
+                # Preserve the original five experts' order and default selections.
+                WorkspaceExpertRecord.id.not_in([item["id"] for item in BUILTIN_EXPERTS if "legacyPrompt" in item]),
+                WorkspaceExpertRecord.id,
+            )).scalars().all()
             return [self._expert_item(row) for row in rows]
 
     def get_expert(self, expert_id: int) -> dict[str, Any]:

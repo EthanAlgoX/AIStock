@@ -3,6 +3,12 @@ import { translateWorkspaceText } from './translateWorkspaceText';
 import { WORKSPACE_TEXT } from './workspaceText';
 
 describe('workspace UI translation', () => {
+  it('translates the expanded expert catalogue without changing custom names', () => {
+    for (const name of ['李录', '彼得·林奇', '朱少醒', '谢治宇', '吉姆·柯林斯', '李国飞', '彼得·德鲁克', '马克·米勒维尼', '杰西·利弗莫尔']) {
+      expect(translateWorkspaceText(name, 'en')).not.toMatch(/[\u3400-\u9fff]/);
+      expect(translateWorkspaceText(name, 'zh')).toBe(name);
+    }
+  });
   it('preserves unknown user text and report prose', () => {
     const report = '我自己的研究报告：先观察，再核实。';
     expect(translateWorkspaceText(report, 'en')).toBe(report);
