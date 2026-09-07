@@ -1278,7 +1278,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
 
   const selectedSkillSummary = selectedSkillIds.length > 0
     ? getSkillNames(selectedSkillIds).join('、')
-    : '通用分析';
+    : localize('通用分析', 'General analysis');
 
   return (
     <div
@@ -1321,7 +1321,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
       {capabilityPanelOpen ? (
         <div className="fixed inset-0 z-50" onClick={closeCapabilityPanel}>
           <div className="page-drawer-overlay absolute inset-0" />
-          <div className="absolute inset-y-0 right-0 p-3" role="dialog" aria-modal="true" aria-label="本次会话能力" onClick={(event) => event.stopPropagation()}>
+          <div className="absolute inset-y-0 right-0 p-3" role="dialog" aria-modal="true" aria-label={localize('本次会话能力', 'Session capabilities')} onClick={(event) => event.stopPropagation()}>
             <AgentCapabilityPanel
               skills={skills}
               selectedSkillIds={selectedSkillIds}
@@ -1397,13 +1397,13 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
               </Button>
               {messages.length > 0 ? (
                 <>
-                <Tooltip content="导出会话为 Markdown 文件">
+                <Tooltip content={localize('导出会话为 Markdown 文件', 'Export conversation as a Markdown file')}>
                   <span className="inline-flex">
                     <Button
                       variant="action-primary"
                       size="sm"
                       onClick={() => downloadSession(messages)}
-                      aria-label="导出会话为 Markdown 文件"
+                      aria-label={localize('导出会话为 Markdown 文件', 'Export conversation as a Markdown file')}
                     >
                       <svg
                         className="w-4 h-4"
@@ -1418,11 +1418,11 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                           d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                         />
                       </svg>
-                      <span className="hidden sm:inline">导出会话</span>
+                      <span className="hidden sm:inline">{localize('导出会话', 'Export')}</span>
                     </Button>
                   </span>
                 </Tooltip>
-                <Tooltip content="发送到已配置的通知机器人/邮箱">
+                <Tooltip content={localize('发送到已配置的通知机器人/邮箱', 'Send to configured notification channels')}>
                   <span className="inline-flex">
                     <Button
                       variant="action-primary"
@@ -1435,18 +1435,18 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                         try {
                           const content = formatSessionAsMarkdown(messages);
                           await agentApi.sendChat(content);
-                          showSendFeedback({ type: 'success', message: '已发送到通知渠道' }, 3000);
+                          showSendFeedback({ type: 'success', message: localize('已发送到通知渠道', 'Sent to notification channels') }, 3000);
                         } catch (err) {
                           const parsed = getParsedApiError(err);
                           showSendFeedback({
                             type: 'error',
-                            message: parsed.message || '发送失败',
+                            message: parsed.message || localize('发送失败', 'Send failed'),
                           }, 5000);
                         } finally {
                           setSending(false);
                         }
                       }}
-                      aria-label="发送到已配置的通知机器人/邮箱"
+                      aria-label={localize('发送到已配置的通知机器人/邮箱', 'Send to configured notification channels')}
                     >
                       {sending ? (
                         <svg
@@ -1483,7 +1483,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                           />
                         </svg>
                       )}
-                      <span className="hidden sm:inline">发送</span>
+                      <span className="hidden sm:inline">{localize('发送', 'Send')}</span>
                     </Button>
                   </span>
                 </Tooltip>
@@ -1783,8 +1783,8 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
               {isFollowUpContextLoading ? (
                 <InlineAlert
                   variant="info"
-                  title="追问上下文加载中"
-                  message="正在加载历史分析上下文；现在可直接发送追问。"
+                  title={localize('追问上下文加载中', 'Follow-up context loading')}
+                  message={localize('正在加载历史分析上下文；现在可直接发送追问。', 'Loading prior analysis context. You can send a follow-up now.')}
                   className="rounded-xl px-3 py-2 text-xs shadow-none"
                 />
               ) : null}
@@ -1804,21 +1804,21 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                     onChange={(event) => void updateContextCompressionEnabled(event.target.checked)}
                     className="chat-skill-checkbox"
                   />
-                  <span className="font-medium">上下文压缩</span>
-                  <span className="text-xs text-muted-text">节省长会话 token</span>
+                  <span className="font-medium">{localize('上下文压缩', 'Context compression')}</span>
+                  <span className="text-xs text-muted-text">{localize('节省长会话 token', 'Save tokens in long conversations')}</span>
                 </label>
                 <span className="text-xs text-muted-text">
                   {contextCompressionSaving
-                    ? '保存中...'
+                    ? localize('保存中...', 'Saving...')
                     : contextCompressionEnabled
-                      ? '已启用'
-                      : '未启用'}
+                      ? localize('已启用', 'Enabled')
+                      : localize('未启用', 'Disabled')}
                 </span>
               </div>
               {contextCompressionError ? (
                 <InlineAlert
                   variant="danger"
-                  title="上下文压缩设置未保存"
+                  title={localize('上下文压缩设置未保存', 'Context compression settings were not saved')}
                   message={contextCompressionError}
                   className="rounded-xl px-3 py-2 text-xs shadow-none"
                 />
@@ -1828,7 +1828,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                   <button
                     type="button"
                     className="home-surface-button flex h-9 w-full items-center justify-between gap-3 rounded-[10px] px-3 text-left text-sm text-foreground md:hidden"
-                    aria-label={mobileSkillPickerOpen ? '收起策略选择' : '展开策略选择'}
+                    aria-label={mobileSkillPickerOpen ? localize('收起策略选择', 'Collapse strategy selection') : localize('展开策略选择', 'Expand strategy selection')}
                     aria-expanded={mobileSkillPickerOpen}
                     aria-controls="chat-skill-picker-panel"
                     onClick={() => setMobileSkillPickerOpen((open) => !open)}
@@ -1869,7 +1869,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                       <span
                         className={`transition-colors text-sm ${selectedSkillIds.length === 0 ? 'text-foreground font-medium' : 'text-secondary-text group-hover:text-foreground'}`}
                       >
-                        通用分析
+                        {localize('通用分析', 'General analysis')}
                       </span>
                     </label>
                     {skills.map((s) => {
@@ -1919,7 +1919,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                   onClick={() => void handleToggleWatchlist(activeStockCode)}
                   className="text-[11px]"
                 >
-                  {stockInWatchlist(activeStockCode) ? '从自选删除' : '加入自选'}
+                  {stockInWatchlist(activeStockCode) ? localize('从自选删除', 'Remove from watchlist') : localize('加入自选', 'Add to watchlist')}
                 </Button>
                 {watchlistMessage && (
                   <span className="text-[11px] text-secondary-text animate-in fade-in">{watchlistMessage}</span>
@@ -1939,14 +1939,14 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                   selectedIds={expertChat.enabled ? [expertChat.selection.mode] : []} placeholder={localize('普通对话', 'Direct chat')}
                   onSelect={(mode) => expertChat.update({ mode })} />
               </section>
-              {expertChat.enabled && <button type="button" disabled={loading || expertChat.pending} className="text-xs text-primary hover:underline" onClick={() => expertChat.update({ expertIds: [] })}>取消专家选择，使用普通对话</button>}
+              {expertChat.enabled && <button type="button" disabled={loading || expertChat.pending} className="text-xs text-primary hover:underline" onClick={() => expertChat.update({ expertIds: [] })}>{localize('取消专家选择，使用普通对话', 'Clear experts and use direct chat')}</button>}
               {(expertChat.error || (expertChat.enabled && expertChat.runError)) && <div role="alert" className="text-xs text-warning">
                 {expertChat.error || expertChat.runError}
-                {!expertChat.catalog && <button type="button" onClick={expertChat.retry} className="ml-2 text-primary">重试目录</button>}
+                {!expertChat.catalog && <button type="button" onClick={expertChat.retry} className="ml-2 text-primary">{localize('重试目录', 'Retry catalog')}</button>}
               </div>}
               <div className="flex items-end gap-2">
                 <textarea
-                  aria-label="向投研助理描述任务"
+                  aria-label={localize('向投研助理描述任务', 'Describe a task for the research assistant')}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -1961,7 +1961,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                     t.style.height = `${Math.min(t.scrollHeight, 200)}px`;
                   }}
                 />
-                {expertChat.running ? <Button variant="danger-subtle" onClick={() => void expertChat.cancel()}>停止专家协作</Button> : loading && runtimeOwnsStockContext ? (
+                {expertChat.running ? <Button variant="danger-subtle" onClick={() => void expertChat.cancel()}>{localize('停止专家协作', 'Stop expert collaboration')}</Button> : loading && runtimeOwnsStockContext ? (
                   <Button
                     variant="danger-subtle"
                     onClick={stopStream}

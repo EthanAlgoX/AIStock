@@ -289,21 +289,21 @@ describe('ChatPage', () => {
   it('keeps expert selectors beside the composer without replacing the chat or navigating', async () => {
     const router = createMemoryRouter([{ path: '/overview', element: <ChatPage /> }], { initialEntries: ['/overview'] });
     render(<UiLanguageProvider><RouterProvider router={router} /></UiLanguageProvider>);
-    const input = await screen.findByRole('textbox', { name: '向投研助理描述任务' });
+    const input = await screen.findByRole('textbox', { name: /向投研助理描述任务|Describe a task for the research assistant/ });
     fireEvent.change(input, { target: { value: '保留我的输入' } });
     await waitFor(() => expect(screen.getByRole('button', { name: /选择专家|Choose experts/ })).toBeEnabled());
     expect(screen.getByRole('button', { name: /协作方式|Collaboration mode/ })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: /选择专家|Choose experts/ }));
     fireEvent.click(screen.getByRole('checkbox', { name: '沃伦·巴菲特' }));
     fireEvent.click(screen.getByRole('checkbox', { name: '查理·芒格' }));
-    fireEvent.click(screen.getByRole('button', { name: '完成' }));
+    fireEvent.click(screen.getByRole('button', { name: /完成|Done/ }));
     fireEvent.click(screen.getByRole('button', { name: /协作方式|Collaboration mode/ }));
-    fireEvent.click(screen.getByRole('radio', { name: '流水线' }));
+    fireEvent.click(screen.getByRole('radio', { name: /流水线|Pipeline/ }));
     expect(input).toHaveValue('保留我的输入');
     expect(router.state.location.pathname).toBe('/overview');
     expect(router.state.location.search).toBe('');
     expect(screen.queryByTestId('expert-discussion-workspace')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '取消专家选择，使用普通对话' }));
+    fireEvent.click(screen.getByRole('button', { name: /取消专家选择，使用普通对话|Clear experts and use direct chat/ }));
     expect(screen.getByRole('button', { name: /协作方式|Collaboration mode/ })).toBeDisabled();
     expect(input).toHaveValue('保留我的输入');
   });

@@ -124,7 +124,7 @@ export const buildPersonalizedQuickQuestions = ({
   return stocks.map((stock, index) => {
     const template = templates[index % templates.length];
     const displayName = language === 'en'
-      ? (stockIndex.find((item) => normalizeStockCode(item.canonicalCode) === stock.stock_code)?.nameEn || stock.stock_name || stock.stock_code)
+      ? (stockIndex.find((item) => normalizeStockCode(item.canonicalCode) === stock.stock_code)?.nameEn || stock.stock_code)
       : (stock.stock_name || stock.stock_code);
     return {
       label: language === 'en'
