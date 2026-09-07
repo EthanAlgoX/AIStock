@@ -1,26 +1,30 @@
 <div align="center">
 
-<img src="../apps/dsa-web/public/tradebot-mark.svg" alt="LLM TradeBot" width="76" height="76">
+<img src="../apps/dsa-web/public/tradebot-mark.svg" alt="InvestCrew" width="76" height="76">
 
-# LLM TradeBot
+# 投研團 · InvestCrew
 
-**以 Agent 為核心的股票研究、選股與受控交易實驗工作台**
+**以 Agent 為核心的投研工作台：從一個問題，到一份有據可查的報告**
 
-主 Agent · 金融能力 · 結構化任務 · 可追溯運行
+投研助理 · 專家圓桌 · 個股研究 · 策略選股 · 交易推演
 
 [English](../README.md) · [简体中文](README_ZH.md) · **繁體中文**
 
-<br>
-
-<img src="assets/readme/llm-tradebot-hero.jpg" alt="金融 Agent 編排經過治理的工具、資料與分析流程" width="100%">
-
 </div>
 
-> LLM TradeBot 面向 A 股、港股和美股，提供研究與模擬交易實驗能力。系統不會把模型輸出包裝成投資建議，也不允許 Agent 繞過確定性風控和執行邊界。
+> InvestCrew 面向 A 股、港股和美股，提供研究與模擬交易實驗能力。系統不會把模型輸出包裝成投資建議，也不允許 Agent 繞過確定性風控和執行邊界。
 
-## 產品模型
+專案原名 LLM TradeBot，現更名為「投研團 · InvestCrew」。GitHub 儲存庫改名完成前保留現有地址；下方複製命令會建立 `InvestCrew` 目錄。
 
-主 Agent 是統一互動與任務編排層。使用者先在工作區配置通用金融能力，再為每個任務掛載允許使用的子集；系統最終保存正式成果，而不只保留聊天文字。
+## 從提問開始，讓研究留下來
+
+向投研助理提出問題，邀請多位獨立專家一起研究，或直接執行個股、選股與交易策略。網站支援新增對話、歷史會話，以及將近期對話中識別到的股票與可用分析方法組合起來的快捷問題。
+
+個股研究、策略選股與交易推演以歷史目錄和報告閱讀區為主體，發起任務時再開啟設定。預設方案根據已有自選股或固定示範標的，透過規則匹配可用策略與能力，並展示匹配依據。結構化任務在背景執行，切換頁面或重新整理後可恢復狀態與成果，部分產出和失敗原因明確保留。
+
+## Agent 與策略如何配合
+
+Agent 是統一互動與任務編排層；策略定義研究目標和執行約束，Skill 提供具體分析方法。正式策略可包含確定性的資料準備、程式計算和 LLM 分析，由 Agent 透過受控工具呼叫。
 
 | 能力 | 負責內容 |
 | --- | --- |
@@ -28,21 +32,36 @@
 | **內建 Tool** | 具有輸入 Schema 的確定性查詢或計算 |
 | **MCP** | 連接外部工具、資源和系統 |
 | **資料來源** | 行情、基本面、新聞等事實輸入 |
-| **專家 / 專家團** | 基於 Persona 的獨立評審和結構化討論 |
+| **專家 Agent** | 按獨立角色進行分析、評審與協作 |
 
 每次結構化執行都會把任務定義和能力選擇凍結到 `Run`，關聯相應的 `DataSnapshot`，並保存一個或多個有類型的 `Artifact` 成果。
 
-## 主要工作台
+## 六個相互銜接的工作區
+
+網站預設開啟**投研助理**。桌面主導覽按下表排列；手機端的市場雷達放在工作區選單中。
 
 | 頁面 | 路由 | 功能 |
 | --- | --- | --- |
-| 主 Agent | `/overview` | 通用對話、目標理解與能力編排 |
-| 市場情報 | `/market-intelligence` | 使用已啟用資料來源生成可配置市場視圖 |
-| 個股分析 | `/stock-research` | 選擇市場和股票、配置能力並生成研究報告 |
-| 選股 | `/screening` | 定義選股目標並生成帶證據的候選清單 |
-| 交易 | `/trading` | 配置模擬策略並生成受控交易提案 |
+| 市場雷達 | `/market-intelligence` | 查看市場快照、資訊、總體經濟觀察與分析訂閱 |
+| 投研助理 | `/overview` | 日常問答、管理對話，按需邀請專家形成綜合報告 |
+| 專家圓桌 | `/expert-review` | 以持續群聊展示專家署名發言、相互回應與主持人總結 |
+| 個股研究 | `/stock-research` | 執行研究策略，閱讀結論、證據、風險與歷史報告 |
+| 策略選股 | `/screening` | 查看候選排名與入選依據，按需追加候選深入研究 |
+| 交易推演 | `/trading` | 研究模擬交易提案、風險評估與訊號後驗表現 |
 
-專家評審、排程任務、任務與運行記錄、模型用量和能力中心為上述工作台提供支援。舊上傳策略和策略實驗室不再屬於主產品鏈路。
+排程任務、執行記錄、模型用量、設定與能力中心為各工作區提供支援。市場涵蓋範圍取決於策略與資料來源；目前內建全市場篩選規則主要面向 A 股。
+
+## 獨立專家，三種協作方式
+
+每位專家都是獨立執行的 Agent，擁有自己的角色定義和允許使用的能力。主持人負責協調與彙總。使用者直接選擇專家，無需先建立命名小組。
+
+| 模式 | 運作方式 |
+| --- | --- |
+| 流水線 | 主持人拆分任務，專家分別完成分工，並按需參考前序成果 |
+| 辯論 | 專家獨立形成觀點，交叉質詢與回應，由主持人總結共識和未解決的分歧 |
+| 投票 | 專家獨立提交報告，由另外的評審 Agent 投票；主持人彙總計票與入選意見，或明確未選出結果 |
+
+投研助理側重最終報告；專家圓桌在群聊時間線展示已完成的發言、協調、反駁與投票記錄，支援同一會話繼續追問。這些是已儲存的協作訊息，不是模型內部思考的即時輸出。
 
 ## 安全與治理
 
@@ -53,18 +72,56 @@
 
 ## 快速開始
 
+環境要求：Python 3.10+、Node.js 20.19–26.x、npm 10+。以下命令適用於 macOS/Linux；Windows PowerShell 使用 `.venv\Scripts\Activate.ps1` 啟用虛擬環境。
+
 ```bash
-git clone https://github.com/EthanAlgoX/LLM-TradeBot.git
-cd LLM-TradeBot
+git clone https://github.com/EthanAlgoX/LLM-TradeBot.git InvestCrew
+cd InvestCrew
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-cd apps/dsa-web && npm ci && npm run build && cd ../..
+```
+
+已有 `.env` 時請保留原檔，對照範例補充設定，不要覆蓋。開始分析前，在 `.env` 或網站模型設定中配置模型服務。例如使用 DeepSeek 時，啟用並填寫 `DEEPSEEK_API_KEY`。預設 `AGENT_BACKEND=auto` 使用已設定的模型路由；Agent 任務需要支援工具呼叫的可用模型，網站啟動成功不代表分析已經可用。更多選項見[模型設定指南](LLM_CONFIG_GUIDE.md)；獨立 Agent 引擎為[可選接入](agent-runtime-integration.md)。
+
+```bash
+cd apps/dsa-web
+npm ci
+npm run build
+cd ../..
 python main.py --serve-only --host 127.0.0.1 --port 8000
 ```
 
-啟動後訪問 <http://127.0.0.1:8000>。更多資訊請參閱[文檔索引](INDEX.md)、[Agent 決策工作台](web-decision-workspace.md)與[完整配置指南](full-guide.md)。
+啟動後訪問 <http://127.0.0.1:8000>，API 文件位於 <http://127.0.0.1:8000/docs>。8000 為範例連接埠，可透過 `--port` 調整；前端建置產物由 Python 服務提供。
+
+1. 在**設定**檢查模型可用性，在**能力中心**查看已啟用的 Skill、專家與資料連接。
+2. 向**投研助理**提問，或在**個股研究**執行預設方案。預設方案仍需對應模型、正式策略與工具可用。
+3. 閱讀報告，或進入**專家圓桌**，選擇專家與協作方式後提交討論話題。
+
+頂部提供中英文切換並儲存語言偏好。目前部分頁面翻譯尚未完整涵蓋，歷史對話與報告保留生成時的原文。
+
+前端開發時保持後端執行，在 `apps/dsa-web` 執行 `npm run dev`。Vite 預設使用 <http://127.0.0.1:5173>，將 `/api` 代理到 8000 連接埠；後端地址不同時可設定 `DSA_WEB_API_PROXY_TARGET`。
+
+## 開發驗證
+
+```bash
+./scripts/ci_gate.sh
+
+cd apps/dsa-web
+npm run lint
+npm run build
+```
+
+## 文件入口
+
+- [文件索引](INDEX.md)
+- [工作台互動與版面](workspace-ui.md)
+- [Agent 決策工作台](web-decision-workspace.md)
+- [完整設定指南](full-guide.md)
+- [部署指南](DEPLOY.md)
+- [測試指南](testing.md)
+- [更新記錄](CHANGELOG.md)
 
 ## 授權與免責聲明
 

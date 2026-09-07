@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1800" height="900" viewBox="0 0 1800 900" role="img" aria-labelledby="title desc">
-  <title id="title">LLM TradeBot 端到端研究工作流</title>
+  <title id="title">InvestCrew 端到端研究工作流</title>
   <desc id="desc">策略包和数据目录进入契约检查；未通过时返回修正，通过后组合配置并冻结版本，再分流到历史验证与研究运行，最终归档证据。</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#07111f"/><stop offset="1" stop-color="#0a1930"/></linearGradient>

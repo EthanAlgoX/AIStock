@@ -53,7 +53,7 @@ class FinanceRssSearchProviderTestCase(unittest.TestCase):
         self.assertIn("site:reuters.com", kwargs["params"]["q"])
         self.assertIn("site:sec.gov", kwargs["params"]["q"])
         self.assertEqual(kwargs["params"]["hl"], "en-US")
-        self.assertIn("LLM-TradeBot", kwargs["headers"]["User-Agent"])
+        self.assertIn("InvestCrew", kwargs["headers"]["User-Agent"])
 
     def test_provider_uses_chinese_google_news_locale_for_chinese_query(self) -> None:
         response = MagicMock(status_code=200, content=RSS_FIXTURE)

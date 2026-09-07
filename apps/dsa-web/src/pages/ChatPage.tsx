@@ -342,7 +342,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
 
   // Set page title
   useEffect(() => {
-    document.title = `${workspaceCopy.title} - LLM TradeBot`;
+    document.title = `${workspaceCopy.title} - InvestCrew`;
   }, [workspaceCopy.title]);
 
   useEffect(() => {

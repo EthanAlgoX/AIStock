@@ -1,6 +1,6 @@
 # P3 开发 Loop Prompt：策略编辑与版本治理
 
-你正在开发 LLM TradeBot 的“策略实验室”P3 阶段。先阅读：
+你正在开发 InvestCrew 的“策略实验室”P3 阶段。先阅读：
 
 - `docs/strategy-lab-roadmap.md`
 - `docs/simulation-trading.md`

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1800" height="620" viewBox="0 0 1800 620" role="img" aria-labelledby="title desc">
-  <title id="title">LLM TradeBot 策略生命周期流程图</title>
+  <title id="title">InvestCrew 策略生命周期流程图</title>
   <desc id="desc">策略包接入后组合运行配置，冻结为不可变版本，分流到历史验证与持续研究运行，最终汇聚为可追溯证据。</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">

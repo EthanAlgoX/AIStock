@@ -506,7 +506,7 @@ class FinanceRssSearchProvider(BaseSearchProvider):
             self.SEARCH_ENDPOINT,
             headers={
                 "Accept": "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8",
-                "User-Agent": "LLM-TradeBot/1.0 (+finance research RSS)",
+                "User-Agent": "InvestCrew/1.0 (+finance research RSS)",
             },
             params=params,
             timeout=6,

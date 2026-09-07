@@ -169,19 +169,19 @@ export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
         <NavLink
           to="/overview"
           className="flex min-w-0 shrink-0 items-center gap-2.5 rounded-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45"
-          aria-label="LLM TradeBot"
+          aria-label={localize("投研团 · InvestCrew", "InvestCrew")}
         >
           <span className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-primary/25 bg-primary text-primary-foreground shadow-[0_6px_16px_hsl(var(--primary)/0.16)]">
             <BarChart3 className="h-5 w-5" aria-hidden="true" />
           </span>
           <span className="hidden text-sm font-semibold tracking-[-0.01em] text-foreground 2xl:block">
-            LLM TradeBot
+            {localize("投研团", "InvestCrew")}
           </span>
         </NavLink>
 
         <div className="min-w-0 flex-1 lg:hidden">
           <p className="truncate text-sm font-semibold text-foreground">
-            {currentTitle ? t(currentTitle.labelKey) : "LLM TradeBot"}
+            {currentTitle ? t(currentTitle.labelKey) : localize("投研团", "InvestCrew")}
           </p>
           <p className="truncate text-[11px] text-muted-text">
             {localize("Agent 驱动的投资决策工作台", "Agent-driven investment workspace")}

@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="apps/dsa-web/public/tradebot-mark.svg" alt="LLM TradeBot" width="76" height="76">
+<img src="apps/dsa-web/public/tradebot-mark.svg" alt="InvestCrew" width="76" height="76">
 
-# LLM TradeBot
+# InvestCrew
 
-**An Agent-first workspace for stock research, screening, and controlled trading experiments**
+**An Agent-first investment research workspace — from a question to an evidence-backed report**
 
-Main Agent · Financial capabilities · Structured tasks · Traceable runs
+Research assistant · Expert roundtable · Stock research · Strategy screening · Trade simulation
 
 [![CI](https://github.com/EthanAlgoX/LLM-TradeBot/actions/workflows/ci.yml/badge.svg)](https://github.com/EthanAlgoX/LLM-TradeBot/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -16,17 +16,52 @@ Main Agent · Financial capabilities · Structured tasks · Traceable runs
 
 **English** · [简体中文](docs/README_ZH.md) · [繁體中文](docs/README_CHT.md)
 
-<br>
-
-<img src="docs/assets/readme/llm-tradebot-hero.jpg" alt="A financial Agent coordinating governed tools, data, and analysis workflows" width="100%">
-
 </div>
 
-> LLM TradeBot is a financial decision workspace for mainland China, Hong Kong, and US equities. It supports research and paper-trading experiments; it does not present model output as investment advice or bypass deterministic risk and execution controls.
+> InvestCrew is a financial decision workspace for mainland China, Hong Kong, and US equities. It supports research and paper-trading experiments; it does not present model output as investment advice or bypass deterministic risk and execution controls.
 
-## Product model
+Previously named LLM TradeBot. The repository URL retains its existing name until the GitHub rename is completed; the clone command below creates an `InvestCrew` directory.
 
-The Main Agent is the common interaction and orchestration layer. Users configure reusable financial capabilities at workspace level, attach an allowed subset to each task, and receive durable results rather than chat text alone.
+## Start with a question, keep the research
+
+Ask a question in the Research assistant, invite independent experts to examine it, or run a focused research strategy. InvestCrew combines Agent reasoning with Skills, tools, MCP connections, and market data to produce reports you can revisit and discuss.
+
+- **Conversation first.** Create separate conversations, revisit history, and use suggested questions that combine available analysis methods with stocks recognized from recent conversations.
+- **Optional expert collaboration.** Select individual experts and their collaboration mode beside the message composer. Use the assistant for the final report or the roundtable to follow each participant's contributions.
+- **Reports first.** Stock research, screening, and trade simulation open around report history and a reading area. Configuration is available when starting a new task.
+- **A ready-to-run starting point.** Default plans use configured watchlists or fixed demonstration stocks and match available strategies and capabilities through rules. Review the selection rationale or customize the plan before running.
+- **Background execution.** Structured tasks continue when you change pages. Returning or refreshing restores their status and saved results; partial output and failures remain explicit.
+
+## Six connected workspaces
+
+The site opens in **Research assistant**. Desktop navigation follows the order below; mobile navigation places Market radar in the workspace menu.
+
+| Workspace | Route | What you can do |
+| --- | --- | --- |
+| Market radar | `/market-intelligence` | Follow market snapshots, news, macro observations, and published analysis subscriptions |
+| Research assistant | `/overview` | Ask questions, manage conversations, and optionally request an expert synthesis |
+| Expert roundtable | `/expert-review` | Discuss a topic in a persistent group conversation with named expert messages and a moderator's summary |
+| Stock research | `/stock-research` | Run a research strategy and read its conclusions, evidence, risks, and historical reports |
+| Strategy screening | `/screening` | Apply screening rules, review ranked candidates and their rationale, and optionally research candidates further |
+| Trade simulation | `/trading` | Explore paper-trading proposals, risk assessments, and signal evaluation results |
+
+Schedules, run history, model usage, settings, and the Capability Center support these workspaces. Market coverage depends on the selected strategy and available data; built-in full-market screening rules currently target A-shares.
+
+## Independent experts, three ways to collaborate
+
+Each selected expert runs as an independent Agent with its own role and permitted capabilities. A moderator coordinates the work and synthesizes the results. You select experts directly, without having to create a named panel first.
+
+| Mode | How it works |
+| --- | --- |
+| Pipeline | The moderator divides the task; experts complete their assigned parts, using earlier results where relevant |
+| Debate | Experts form independent views, challenge one another, and respond before the moderator summarizes agreement and unresolved differences |
+| Voting | Experts submit independent reports; separate reviewer Agents vote, and the moderator reports the tally and selected view, or an inconclusive outcome |
+
+The assistant emphasizes the final report. The roundtable exposes completed contributions, coordination, rebuttals, and voting records in a group-chat timeline, with follow-up questions in the same conversation. These are saved messages, not a live display of private model reasoning.
+
+## How Agents and strategies fit together
+
+The Agent is the common interaction and orchestration layer. A strategy defines the research objective and execution constraints; Skills supply the analysis methods. Published research and screening strategies can combine deterministic data preparation and calculations with LLM analysis, and the Agent invokes them through governed tools.
 
 | Capability | Responsibility |
 | --- | --- |
@@ -34,21 +69,9 @@ The Main Agent is the common interaction and orchestration layer. Users configur
 | **Built-in Tool** | Schema-defined, deterministic read or compute operations |
 | **MCP** | Connections to external tools, resources, and systems |
 | **Data source** | Market, fundamental, news, and other factual inputs |
-| **Expert / panel** | Persona-based independent reviews and structured deliberation |
+| **Expert Agent** | Independent role-specific analysis, review, and collaboration |
 
-Every structured execution freezes its task definition and capability selection into a `Run`, links the relevant `DataSnapshot`, and persists one or more typed `Artifact` results.
-
-## Main workspaces
-
-| Page | Route | Purpose |
-| --- | --- | --- |
-| Main Agent | `/overview` | General conversation, task interpretation, and capability orchestration |
-| Market Intelligence | `/market-intelligence` | Configurable market views backed by enabled data sources |
-| Stock Research | `/stock-research` | Select a market and stock, configure capabilities, and produce a report |
-| Screening | `/screening` | Define a screening objective and produce an evidence-backed candidate list |
-| Trading | `/trading` | Configure a paper strategy and produce controlled trade proposals |
-
-Expert review, scheduled tasks, task/run history, model usage, and the Capability Center support these five decision workspaces. Legacy upload-strategy and strategy-laboratory routes are no longer part of the primary product flow.
+Structured executions save the task definition, selected capabilities, data-source context, status, and report artifacts. The run ledger connects these records so that a finished execution can be distinguished from a successful, partial, empty, or blocked research outcome. See the [workspace architecture](docs/web-decision-workspace.md) for the detailed contracts.
 
 ## Safety and governance
 
@@ -60,17 +83,27 @@ Expert review, scheduled tasks, task/run history, model usage, and the Capabilit
 
 ## Quick start
 
-Requirements: Python 3.10+, Node.js 20.19+, and npm 10+.
+Requirements: Python 3.10+, Node.js 20.19–26.x, and npm 10+. The commands below use a macOS/Linux shell; on Windows PowerShell, activate the environment with `.venv\Scripts\Activate.ps1`.
+
+### 1. Install and prepare configuration
 
 ```bash
-git clone https://github.com/EthanAlgoX/LLM-TradeBot.git
-cd LLM-TradeBot
+git clone https://github.com/EthanAlgoX/LLM-TradeBot.git InvestCrew
+cd InvestCrew
 
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
+```
 
+If you already have a `.env`, keep it and compare it with the example rather than copying over it. Configure a model provider in `.env` before running analysis, or use the website's model settings after startup. For example, enable and fill `DEEPSEEK_API_KEY` for DeepSeek; provider-specific and multi-channel options are documented in the [configuration guide](docs/LLM_CONFIG_GUIDE.md) (Chinese).
+
+The default `AGENT_BACKEND=auto` uses the configured model route. Agent tasks need a working tool-calling model; starting the Web server alone does not make analysis available. A separate Agent runtime is optional: see [runtime integration](docs/agent-runtime-integration_EN.md).
+
+### 2. Build and launch
+
+```bash
 cd apps/dsa-web
 npm ci
 npm run build
@@ -79,9 +112,17 @@ cd ../..
 python main.py --serve-only --host 127.0.0.1 --port 8000
 ```
 
-Open the Web workspace at <http://127.0.0.1:8000> and API documentation at <http://127.0.0.1:8000/docs>.
+Open the Web workspace at <http://127.0.0.1:8000> and API documentation at <http://127.0.0.1:8000/docs>. Port 8000 is an example; change `--port` if it is occupied. The Web build is served by the Python application.
 
-For frontend development, run `npm run dev` under `apps/dsa-web`; Vite serves the app at <http://127.0.0.1:5173> and proxies `/api` to port 8000.
+### 3. Run your first analysis
+
+1. Check model availability in **Settings** and enabled Skills, experts, and data connections in the **Capability Center**.
+2. Ask a question in **Research assistant**, or open **Stock research** and run the default plan. Default plans still require the relevant model, published strategy, and tools to be available.
+3. Read the saved report. To compare perspectives, start an **Expert roundtable**, choose experts and a collaboration mode, and submit a topic.
+
+The header includes a persistent Chinese/English language selector. Translation coverage is still incomplete on some pages, and saved conversations and reports retain their original language.
+
+For frontend development, run `npm run dev` under `apps/dsa-web` alongside the backend. Vite defaults to <http://127.0.0.1:5173> and proxies `/api` to port 8000; set `DSA_WEB_API_PROXY_TARGET` if the backend address differs.
 
 ## Development checks
 
@@ -96,11 +137,13 @@ npm run build
 ## Documentation
 
 - [Documentation index](docs/INDEX_EN.md)
+- [Workspace interaction and layout](docs/workspace-ui.md) (Chinese)
 - [Agent decision workspace](docs/web-decision-workspace.md)
 - [Independent Agent engine integration](docs/agent-runtime-integration_EN.md)
 - [Full configuration guide](docs/full-guide_EN.md)
 - [Deployment guide](docs/DEPLOY_EN.md)
 - [Testing guide](docs/testing.md)
+- [Changelog](docs/CHANGELOG.md)
 
 ## License and disclaimer
 
