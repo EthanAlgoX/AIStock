@@ -14,6 +14,22 @@ import pandas as pd
 from src.core import trading_calendar
 
 
+class StockMarketAliasTestCase(unittest.TestCase):
+    def test_a_share_provider_aliases(self):
+        for code in ("688981", "688981.SH", "688981.SS", "300750.SZ", "920748.BJ",
+                     "SH688981", "SZ300750", "BJ920748", "SH.688981", "SS688981", " 688981.sh "):
+            with self.subTest(code=code):
+                self.assertEqual(trading_calendar.get_market_for_stock(code), "cn")
+
+    def test_other_markets_and_invalid_codes_keep_their_meaning(self):
+        for code, expected in (("00981.HK", "hk"), ("HK00981", "hk"), ("AAPL", "us"),
+                               ("BRK.B", "us"), ("7203.T", "jp"), ("005930.KS", "kr"),
+                               ("2330.TW", "tw"), ("688981.INVALID", None), ("68898.SH", None),
+                               ("SH68898", None), ("", None), (None, None)):
+            with self.subTest(code=code):
+                self.assertEqual(trading_calendar.get_market_for_stock(code), expected)
+
+
 class _FakeCalendar:
     def __init__(
         self,

@@ -21,6 +21,8 @@ const api = vi.hoisted(() => ({
   getVersion: vi.fn(),
 }));
 
+vi.mock("../../components/agent/DefaultTaskLauncher", () => ({ default: () => null }));
+
 vi.mock("../../api/workspace", () => ({
   workspaceApi: api,
 }));
@@ -45,12 +47,17 @@ vi.mock("../../components/agent/AgentCapabilityPanel", async () => ({
   default: ({ scopeLabel, className }: { scopeLabel: string; className?: string }) => <aside aria-label={`本次${scopeLabel}能力`} className={className} />,
 }));
 
+const chooseStrategy = (label: string, value: string) => {
+  fireEvent.click(screen.getByRole("button", { name: label }));
+  fireEvent.click(screen.getAllByRole("radio").find((item) => (item as HTMLInputElement).value === value)!);
+};
+
 describe("AgentTaskSetupPage", () => {
   it("binds candidate research budget and the research tool to the submitted screening task", async () => {
     render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
     fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "比较成长质量" } });
     fireEvent.change(screen.getByRole("combobox", { name: "候选深研数量" }), { target: { value: "2" } });
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "候选深研策略" })).toHaveValue("12"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "候选深研策略" })).toHaveValue("12"));
     fireEvent.click(screen.getByRole("button", { name: "运行选股任务" }));
     await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
       config: expect.objectContaining({ strategyVersionId: 13, deepResearchCount: 2, deepResearchVersionId: 12 }),
@@ -94,8 +101,8 @@ describe("AgentTaskSetupPage", () => {
     expect(runButton).toBeDisabled();
 
     fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "研究策略" })).toHaveValue("12"));
-    fireEvent.change(screen.getByRole("combobox", { name: "研究策略" }), { target: { value: "custom" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "研究策略" })).toHaveValue("12"));
+    chooseStrategy("研究策略", "custom");
     await waitFor(() => expect(runButton).toBeEnabled());
     fireEvent.click(runButton);
 
@@ -106,8 +113,8 @@ describe("AgentTaskSetupPage", () => {
   it("binds the published workflow and its execution capability to the task", async () => {
     api.listStrategies.mockResolvedValue([{ id: 1, name: "单股研究 · A股配置", productRole: "configured", currentPublishedVersionId: 12, currentPublishedVersionNumber: 1, kernelExecutionStatus: "ready", currentStrategyPurpose: "research_report" }]);
     render(<MemoryRouter><AgentTaskSetupPage mode="research" /></MemoryRouter>);
-    await screen.findByRole("option", { name: "单股研究 · A股配置 · v1" });
-    expect(screen.getByRole("combobox", { name: /研究策略/ })).toHaveValue("12");
+    await waitFor(() => expect(screen.getByRole("button", { name: "研究策略" })).toHaveValue("12"));
+    expect(screen.getByRole("button", { name: /研究策略/ })).toHaveValue("12");
     fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
     fireEvent.click(screen.getByRole("button", { name: "运行单股分析" }));
     await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
@@ -143,9 +150,9 @@ describe("AgentTaskSetupPage", () => {
     );
 
     fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "研究策略" })).toHaveValue("12"));
-    fireEvent.change(screen.getByRole("combobox", { name: "研究策略" }), { target: { value: "custom" } });
-    if (selection === "preset") fireEvent.change(screen.getByRole("combobox", { name: "研究策略" }), { target: { value: "12" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "研究策略" })).toHaveValue("12"));
+    chooseStrategy("研究策略", "custom");
+    if (selection === "preset") chooseStrategy("研究策略", "12");
     await waitFor(() => expect(screen.getByRole("button", { name: "定时分析" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "定时分析" }));
 
@@ -210,11 +217,12 @@ describe("AgentTaskSetupPage", () => {
 
   it("submits preset skills through the version without leaking hidden custom selections", async () => {
     render(<MemoryRouter><AgentTaskSetupPage mode="research" /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "研究策略" })).toHaveValue("12"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "研究策略" })).toHaveValue("12"));
     fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
-    fireEvent.change(screen.getByRole("combobox", { name: "研究策略" }), { target: { value: "custom" } });
-    expect(await screen.findByRole("button", { name: /^质量分析/ })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.change(screen.getByRole("combobox", { name: "研究策略" }), { target: { value: "12" } });
+    chooseStrategy("研究策略", "custom");
+    fireEvent.click(screen.getByRole("button", { name: "策略 Skill" }));
+    expect(await screen.findByRole("checkbox", { name: /^质量分析/ })).toBeChecked();
+    chooseStrategy("研究策略", "12");
     expect(screen.queryByRole("group", { name: "组合策略 Skill" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "运行单股分析" }));
     await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
@@ -224,26 +232,29 @@ describe("AgentTaskSetupPage", () => {
 
   it("restores custom choices and blocks an empty custom combination", async () => {
     const first = render(<MemoryRouter><AgentTaskSetupPage mode="research" /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "研究策略" })).toHaveValue("12"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "研究策略" })).toHaveValue("12"));
     fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
-    fireEvent.change(screen.getByRole("combobox", { name: "研究策略" }), { target: { value: "custom" } });
-    fireEvent.click(await screen.findByRole("button", { name: /^质量分析/ }));
+    chooseStrategy("研究策略", "custom");
+    fireEvent.click(screen.getByRole("button", { name: "策略 Skill" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: /^质量分析/ }));
     expect(screen.getByRole("button", { name: "运行单股分析" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "定时分析" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: /^质量分析/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /^质量分析/ }));
     first.unmount();
     render(<MemoryRouter><AgentTaskSetupPage mode="research" /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "研究策略" })).toHaveValue("custom"));
-    expect(screen.getByRole("button", { name: /^质量分析/ })).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(screen.getByRole("button", { name: "研究策略" })).toHaveValue("custom"));
+    fireEvent.click(screen.getByRole("button", { name: "策略 Skill" }));
+    expect(screen.getByRole("checkbox", { name: /^质量分析/ })).toBeChecked();
   });
 
   it("separates screening rules from optional custom candidate research", async () => {
     render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "筛选策略" })).toHaveValue("13"));
-    expect(screen.queryByRole("combobox", { name: "候选深研策略" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "筛选策略" })).toHaveValue("13"));
+    expect(screen.queryByRole("button", { name: "候选深研策略" })).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox", { name: "候选深研数量" }), { target: { value: "1" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "候选深研策略" }), { target: { value: "custom" } });
-    expect(await screen.findByRole("button", { name: /^质量分析/ })).toBeVisible();
+    chooseStrategy("候选深研策略", "custom");
+    fireEvent.click(screen.getByRole("button", { name: "策略 Skill" }));
+    expect(await screen.findByRole("checkbox", { name: /^质量分析/ })).toBeVisible();
     fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "寻找成长公司" } });
     fireEvent.click(screen.getByRole("button", { name: "运行选股任务" }));
     await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({

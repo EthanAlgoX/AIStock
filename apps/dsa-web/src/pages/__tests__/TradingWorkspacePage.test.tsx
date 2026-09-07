@@ -22,6 +22,8 @@ const api = vi.hoisted(() => ({
   cancelRun: vi.fn(),
 }));
 
+vi.mock("../../components/agent/DefaultTaskLauncher", () => ({ default: () => null }));
+
 vi.mock("../../api/workspace", () => ({ workspaceApi: api }));
 
 vi.mock("../../components/agent/AgentCapabilityPanel", async () => ({

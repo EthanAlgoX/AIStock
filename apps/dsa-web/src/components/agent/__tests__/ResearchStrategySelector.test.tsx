@@ -19,14 +19,16 @@ describe("ResearchStrategySelector", () => {
     render(<ResearchStrategySelector {...props} />);
     expect(screen.getByText("包含 Skill：盈利质量")).toBeVisible();
     expect(screen.queryByRole("button", { name: /趋势分析/ })).not.toBeInTheDocument();
-    fireEvent.change(screen.getByRole("combobox", { name: "研究策略" }), { target: { value: "custom" } });
+    fireEvent.click(screen.getByRole("button", { name: "研究策略" }));
+    fireEvent.click(screen.getByRole("radio", { name: "自定义组合 · 自选 Skill" }));
     expect(props.onChange).toHaveBeenCalledWith("12", true);
   });
 
   it("exposes custom choices only in custom mode and preserves the selection callback", () => {
     const { rerender } = render(<ResearchStrategySelector {...props} versionId="12" custom />);
-    expect(screen.getByRole("button", { name: /^趋势分析/ })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: /^盈利质量/ }));
+    fireEvent.click(screen.getByRole("button", { name: "策略 Skill" }));
+    expect(screen.getByRole("checkbox", { name: /^趋势分析/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: /^盈利质量/ }));
     expect(props.onToggleSkill).toHaveBeenCalledWith("quality");
     rerender(<ResearchStrategySelector {...props} />);
     expect(screen.queryByRole("group", { name: "组合策略 Skill" })).not.toBeInTheDocument();
@@ -34,14 +36,15 @@ describe("ResearchStrategySelector", () => {
 
   it("does not offer custom mode without a compatible base and blocks loading selection", () => {
     render(<ResearchStrategySelector {...props} options={[options[1]]} loading />);
-    expect(screen.getByRole("combobox")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "研究策略" })).toBeDisabled();
     expect(screen.queryByRole("option", { name: /自定义组合/ })).not.toBeInTheDocument();
   });
 
   it("enforces the three Skill limit while allowing deselection", () => {
     const skills = ["one", "two", "three", "four"].map((id) => ({ ...workspaceCatalogFixture.skills[0], id, name: id }));
     render(<StrategySkillPicker skills={skills} selectedIds={["one", "two", "three"]} onToggle={vi.fn()} />);
-    expect(screen.getByRole("button", { name: /^four/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /^one/ })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "策略 Skill" }));
+    expect(screen.getByRole("checkbox", { name: /^four/ })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: /^one/ })).toBeEnabled();
   });
 });

@@ -40,6 +40,18 @@ def workspace_client(workspace_service):
             yield client
 
 
+def test_default_plan_api_is_inspectable_and_creates_no_run(workspace_client, workspace_service):
+    response = workspace_client.get("/workspace/default-task-plan", params={"kind": "research", "stock": "688981.SH"})
+    assert response.status_code == 200
+    plan = response.json()
+    from data_provider.base import normalize_stock_code
+    assert normalize_stock_code(plan["task"]["subject"]["stock"]) == "688981"
+    assert plan["task"]["config"]["strategyVersionId"]
+    assert plan["expertCount"] == 4
+    assert workspace_service.list_runs() == []
+    assert workspace_client.get("/workspace/default-task-plan", params={"kind": "invalid"}).status_code == 422
+
+
 def test_workspace_capability_manifest_and_task_schedule_round_trip(workspace_client):
     catalog = workspace_client.get("/workspace/capabilities")
     assert catalog.status_code == 200

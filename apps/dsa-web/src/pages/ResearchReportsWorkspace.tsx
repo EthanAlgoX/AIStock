@@ -10,6 +10,7 @@ import { useWorkspaceRun } from "../hooks/useWorkspaceRun";
 import { isRunActive } from "../stores/workspaceRunStore";
 import AgentTaskSetupPage from "./AgentTaskSetupPage";
 import TradingTaskSetupPage from "./TradingTaskSetupPage";
+import DefaultTaskLauncher from "../components/agent/DefaultTaskLauncher";
 
 import { visibleWorkspaceArtifacts, workspaceRunLabel, workspaceRunTone } from "../utils/workspaceOutcome";
 const time = (value: string) => {
@@ -89,6 +90,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
     <PageHeader title={trading ? "交易" : mode === "research" ? "个股分析" : "选股"}
       description={trading ? "回看模拟交易提案、风险检查与执行记录；策略配置按需展开。" : mode === "research" ? "阅读研究结论、关键价位与风险，回看每一次个股分析。" : "回看筛选结果、候选依据与风险，比较每一次选股报告。"}
       actions={<button className="btn-primary inline-flex items-center gap-2" type="button" aria-expanded={configOpen} aria-controls="new-analysis-config" onClick={() => { setConfigVisited(true); setConfigOpen(!configOpen); }}>{configOpen ? <ChevronDown className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{configOpen ? trading ? "收起策略配置" : "收起分析配置" : newAction}</button>} />
+    {!configOpen && <DefaultTaskLauncher kind={mode} onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}
     {trading && <p className="flex items-start gap-2 text-sm leading-6 text-secondary-text"><ShieldCheck className="mt-1 h-4 w-4 shrink-0" />模拟盘 · 真实订单始终禁用。生成提案不等于已通过风险评估，也不等于已经成交。</p>}
     {(configOpen || (trading && configVisited)) && <section hidden={!configOpen} id="new-analysis-config" aria-label={trading ? "交易策略配置" : "新建分析配置"} className="border-b border-border pb-4">
       {mode === "trading" ? <TradingTaskSetupPage onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} /> : <AgentTaskSetupPage mode={mode} embedded onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}

@@ -43,6 +43,24 @@ def test_research_template_skills_reach_actual_analysis_entry(definitions):
     assert result["researchSkills"] == ["growth_quality"]
 
 
+@pytest.mark.parametrize("symbol", ["688981.SH", "300750.SZ", "920748.BJ", "688981.SS", "SH688981"])
+def test_frontend_stock_codes_reach_actual_analysis_entry(definitions, symbol):
+    version_id = next(item["versionId"] for item in list_research_workflows()["items"] if item["contract"] == "ResearchReport")
+    with patch("src.services.analysis_service.AnalysisService.analyze_stock", return_value={"report": {"summary": {"analysis_summary": "研究报告"}}}) as analyze:
+        result = execute_research_workflow(version_id, "research_report", {"symbol": symbol}, market="CN")
+    assert result["status"] == "success"
+    assert analyze.call_args.kwargs["stock_code"] == symbol
+
+
+@pytest.mark.parametrize("symbol", ["00981.HK", "HK00981", "AAPL", "688981.INVALID", "68898.SH", ""])
+def test_stock_alias_support_does_not_bypass_market_validation(definitions, symbol):
+    version_id = next(item["versionId"] for item in list_research_workflows()["items"] if item["contract"] == "ResearchReport")
+    with patch("src.services.analysis_service.AnalysisService.analyze_stock") as analyze:
+        with pytest.raises(ValueError, match="股票市场"):
+            execute_research_workflow(version_id, "research_report", {"symbol": symbol}, market="CN")
+    analyze.assert_not_called()
+
+
 def test_formal_research_method_also_controls_host_interpretation(definitions):
     growth = next(item for item in list_research_workflows()["items"] if "成长质量" in item["name"])
     service = WorkspaceService(definitions.db)

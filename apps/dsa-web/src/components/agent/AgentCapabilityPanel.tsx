@@ -23,6 +23,7 @@ import {
   type WorkspaceTool,
 } from "../../api/workspace";
 import { cn } from "../../utils/cn";
+import ChoiceList from "../common/ChoiceList";
 
 type CapabilityPanelProps = {
   scopeLabel?: "会话" | "任务";
@@ -178,6 +179,15 @@ export default function AgentCapabilityPanel({
     });
   };
 
+  const inlineChoices = {
+    skills: { items: skills.map((item) => ({ id: item.id, name: item.name, description: item.description })), ids: selectedSkillIds, toggle: onToggleSkill },
+    experts: { items: experts.map((item) => ({ id: String(item.id), name: item.name, description: `${item.style} · ${item.description}`, badge: item.builtIn ? "平台预置" : "自定义" })), ids: selectedExpertIds.map(String), toggle: (id: string) => onToggleExpert(Number(id)) },
+    teams: { items: teams.map((item) => ({ id: String(item.id), name: item.name, description: `${item.memberIds.map((id) => experts.find((expert) => expert.id === id)?.name).filter(Boolean).join("、")} · ${item.description}`, badge: "专家团" })), ids: selectedExpertTeamIds.map(String), toggle: (id: string) => onToggleExpertTeam(Number(id)) },
+    tools: { items: tools.map((item) => ({ id: item.id, name: item.name, description: item.description })), ids: selectedToolIds, toggle: onToggleTool },
+    mcp: { items: mcpConnections.map((item) => ({ id: item.id, name: item.name, description: `${item.transport} · ${item.location}`, badge: "已连接" })), ids: selectedMcpIds, toggle: onToggleMcp },
+    data: { items: readyDataSources.map((item) => ({ id: item.sourceId, name: item.name, description: item.description, badge: dataSourceStatusLabel(item) })), ids: selectedDataSourceIds, toggle: onToggleDataSource },
+  };
+
   return (
     <aside className={cn(inline ? "w-full min-w-0" : "flex h-full w-[19rem] shrink-0 flex-col overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card", className)} aria-label={`本次${scopeLabel}能力`}>
       {!inline && <>
@@ -218,11 +228,19 @@ export default function AgentCapabilityPanel({
       </>}
       {inline && <p className="mb-3 text-sm leading-6 text-secondary-text">{showSkills ? "Skill 决定研究方法，专家提供独立观点。最多选择 3 个 Skill。" : "研究方法由上方策略统一确定；这里选择独立评审的专家或专家团，以及补充证据所需的工具。"}</p>}
       {inline && loading && <p role="status" className="mb-3 text-sm text-muted-text">正在读取 Agent 能力目录…</p>}
-      <div className={inline ? "min-w-0" : "min-h-0 flex-1 overflow-y-auto px-2 py-2"}>
+      <div className={inline ? "grid min-w-0 items-start gap-x-4 sm:grid-cols-2" : "min-h-0 flex-1 overflow-y-auto px-2 py-2"}>
         {(inline ? ["skills", "experts", "teams", "tools", "mcp", "data"] as SectionKey[] : Object.keys(sectionMeta) as SectionKey[]).filter((key) => showSkills || key !== "skills").map((key) => {
           const { title, icon: Icon } = sectionMeta[key];
           const open = openSections.has(key);
           const count = key === "skills" ? skills.length : key === "tools" ? tools.length : key === "mcp" ? mcpConnections.length : key === "data" ? readyDataSources.length : key === "experts" ? experts.length : key === "teams" ? teams.length : 0;
+          if (inline) {
+            const choices = inlineChoices[key];
+            return <div key={key} className="py-2">
+              <ChoiceList label={title} multiple limit={key === "skills" ? 3 : undefined} items={choices.items} selectedIds={choices.ids} onSelect={choices.toggle} loading={key !== "skills" && loading} disabled={key !== "skills" && loadFailed} placeholder="未选择 · 按需添加" emptyText={`暂无可用${title}`} />
+              {key === "mcp" && !loading && !loadFailed && !choices.items.length && <Link to="/capabilities/mcp" className="mt-1 inline-block text-xs text-primary hover:underline">配置 MCP 连接</Link>}
+              {key === "tools" && !loading && !loadFailed && !choices.items.length && <Link to="/capabilities/tools" className="mt-1 inline-block text-xs text-primary hover:underline">配置工具白名单</Link>}
+            </div>;
+          }
           return (
             <section key={key} className="border-b border-border/60 last:border-b-0">
               <button type="button" onClick={() => toggleSection(key)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 px-2 py-3 text-left">
@@ -328,7 +346,7 @@ export default function AgentCapabilityPanel({
           );
         })}
 
-        {loadFailed ? <div role="alert" className="my-3 text-sm text-warning">能力目录读取失败。<button type="button" className="ml-2 underline" onClick={() => { setLoading(true); setLoadFailed(false); setRetry((value) => value + 1); }}>重试读取</button></div> : null}
+        {loadFailed ? <div role="alert" className="my-3 text-sm text-warning sm:col-span-2">能力目录读取失败。<button type="button" className="ml-2 underline" onClick={() => { setLoading(true); setLoadFailed(false); setRetry((value) => value + 1); }}>重试读取</button></div> : null}
       </div>
 
       <div className="border-t border-border/70 px-4 py-3">

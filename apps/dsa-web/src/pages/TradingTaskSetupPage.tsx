@@ -13,6 +13,7 @@ import { workspaceApi, type WorkspaceRun, type WorkspaceSkill, type WorkspaceTas
 import { useWorkspaceRun } from "../hooks/useWorkspaceRun";
 import AgentCapabilityPanel from "../components/agent/AgentCapabilityPanel";
 import { StrategySkillPicker } from "../components/agent/ResearchStrategySelector";
+import DefaultTaskLauncher from "../components/agent/DefaultTaskLauncher";
 import {
   countAgentCapabilities,
   EMPTY_AGENT_CAPABILITIES,
@@ -235,6 +236,7 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
         ))}
       </ol>
 
+      <DefaultTaskLauncher kind="trading" market={draft.market} onRunStarted={onRunStarted} />
       <div className="grid items-start gap-5">
         <div className="space-y-5">
           <div className="overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card">

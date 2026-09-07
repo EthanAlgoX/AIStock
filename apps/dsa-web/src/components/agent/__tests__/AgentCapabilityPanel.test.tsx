@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -30,13 +30,18 @@ describe("AgentCapabilityPanel", () => {
     selectedExpertTeamIds: [], onToggleExpertTeam: vi.fn(),
   };
 
-  it("exposes skills and expert choices inline while keeping infrastructure collapsed", async () => {
+  it("summarizes choices and opens searchable lists on demand", async () => {
     render(<MemoryRouter><AgentCapabilityPanel {...inlineProps} /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: /^盈利质量/ }));
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Skills" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /^盈利质量/ }));
     expect(inlineProps.onToggleSkill).toHaveBeenCalledWith("quality");
-    fireEvent.click(await screen.findByRole("button", { name: /^沃伦·巴菲特/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "专家" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "专家" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: /^沃伦·巴菲特/ }));
     expect(inlineProps.onToggleExpert).toHaveBeenCalledWith(-1001);
-    fireEvent.click(screen.getByRole("button", { name: /长期价值评审团/ }));
+    fireEvent.click(screen.getByRole("button", { name: "专家团" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /长期价值评审团/ }));
     expect(inlineProps.onToggleExpertTeam).toHaveBeenCalledWith(-2001);
     expect(screen.getByRole("button", { name: /内置工具/ })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -46,14 +51,18 @@ describe("AgentCapabilityPanel", () => {
     render(<MemoryRouter><AgentCapabilityPanel {...inlineProps} showSkills={false} /></MemoryRouter>);
     expect(screen.queryByRole("button", { name: /Skills/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^盈利质量/ })).not.toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /^沃伦·巴菲特/ })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("button", { name: "专家" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "专家" }));
+    expect(await screen.findByRole("checkbox", { name: /^沃伦·巴菲特/ })).toBeVisible();
   });
 
   it("retries the capability catalog without closing inline configuration", async () => {
     apiMocks.getCapabilities.mockRejectedValueOnce(new Error("offline"));
     render(<MemoryRouter><AgentCapabilityPanel {...inlineProps} /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "重试读取" }));
-    expect(await screen.findByRole("button", { name: /^沃伦·巴菲特/ })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("button", { name: "专家" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "专家" }));
+    expect(await screen.findByRole("checkbox", { name: /^沃伦·巴菲特/ })).toBeVisible();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 

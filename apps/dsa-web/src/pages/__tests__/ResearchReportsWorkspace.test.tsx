@@ -7,6 +7,8 @@ import { workspaceRunFixture, workspaceTaskFixture } from "../../testWorkspaceFi
 import type { WorkspaceRun } from "../../api/workspace";
 
 const api = vi.hoisted(() => ({ listRuns: vi.fn(), getRun: vi.fn() }));
+vi.mock("../../components/agent/DefaultTaskLauncher", () => ({ default: () => null }));
+
 vi.mock("../../api/workspace", () => ({ workspaceApi: api }));
 vi.mock("../AgentTaskSetupPage", () => ({ default: ({ onRunStarted }: { onRunStarted: (run: WorkspaceRun) => void }) => <div>市场与股票配置<button onClick={() => onRunStarted(workspaceRunFixture(workspaceTaskFixture({ kind: "research" }), { id: "new" }))}>提交测试分析</button></div> }));
 

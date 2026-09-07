@@ -84,6 +84,13 @@ def capability_catalog() -> dict[str, Any]:
     return _service().capability_catalog()
 
 
+@router.get("/default-task-plan")
+def get_default_task_plan(kind: str, market: str = "CN", stock: Optional[str] = None) -> dict[str, Any]:
+    from src.services.workspace_defaults import default_task_plan
+
+    return _call(lambda: default_task_plan(_service(), kind, market, stock))
+
+
 @router.get("/runtime-manifest")
 def runtime_manifest(request: Request) -> dict[str, Any]:
     """Describe the website-owned financial surface an external Agent may mount."""

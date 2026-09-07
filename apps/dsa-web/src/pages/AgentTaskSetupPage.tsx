@@ -21,6 +21,8 @@ import { visibleWorkspaceArtifacts, workspaceRunLabel } from "../utils/workspace
 import AgentCapabilityPanel from "../components/agent/AgentCapabilityPanel";
 import ResearchStrategySelector, { type ResearchStrategyOption } from "../components/agent/ResearchStrategySelector";
 import { AppPage, PageHeader } from "../components/common";
+import ChoiceList from "../components/common/ChoiceList";
+import DefaultTaskLauncher from "../components/agent/DefaultTaskLauncher";
 import { useStockIndex } from "../hooks/useStockIndex";
 import {
   countAgentCapabilities,
@@ -390,6 +392,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
         ))}
       </ol>
 
+      <DefaultTaskLauncher kind={mode} market={market} stock={mode === "research" ? selectedStock?.canonicalCode : undefined} onRunStarted={onRunStarted} />
       <div className="grid items-start gap-5">
         <div className="overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card">
           <section className="border-b border-border/70 px-5 py-5 sm:px-6" aria-labelledby={`${mode}-market-heading`}>
@@ -446,12 +449,9 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
           <section className="px-5 py-5 sm:px-6" aria-labelledby={`${mode}-run-heading`}>
             <div className="mb-6 space-y-5">
               {mode === "research" ? renderResearchStrategy("研究策略", compatibleWorkflows, strategyVersionId, setStrategyVersionId) : <>
-                <label className="block text-sm font-medium text-foreground">筛选策略
-                  <select aria-label="筛选策略" value={strategyVersionId} disabled={workflowsLoading || !compatibleWorkflows.length} onChange={(event) => setStrategyVersionId(event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm outline-none focus:border-primary">
-                    {!strategyVersionId && <option value="">当前市场暂无可用筛选策略</option>}
-                    {compatibleWorkflows.map((item) => <option key={item.id} value={item.currentPublishedVersionId!}>{item.name} · v{item.currentPublishedVersionNumber}</option>)}
-                  </select>
-                </label>
+                <ChoiceList label="筛选策略" selectedIds={strategyVersionId ? [strategyVersionId] : []} onSelect={setStrategyVersionId}
+                  items={compatibleWorkflows.map((item) => ({ id: String(item.currentPublishedVersionId), name: item.name, description: item.description, badge: `v${item.currentPublishedVersionNumber}` }))}
+                  loading={workflowsLoading} disabled={!compatibleWorkflows.length} placeholder="当前市场暂无可用筛选策略" />
                 <p className="text-sm leading-6 text-secondary-text">{compatibleWorkflows.find((item) => String(item.currentPublishedVersionId) === strategyVersionId)?.description} 筛选策略决定股票池、过滤条件、排序和候选数量；Skill 不会替代这些规则。</p>
                 <label className="block text-sm font-medium">候选深研数量<select value={deepResearchCount} onChange={(event) => setDeepResearchCount(event.target.value)} className="mt-2 block h-10 w-full rounded-lg border border-border bg-background px-3">{[0, 1, 2, 3].map((count) => <option key={count} value={count}>{count ? `按原始排名深研前 ${count} 只` : "仅筛选与解读"}</option>)}</select></label>
                 {Number(deepResearchCount) > 0 && renderResearchStrategy("候选深研策略", researchWorkflows, researchVersionId, setDeepResearchVersionId)}

@@ -142,8 +142,13 @@ def get_market_for_stock(code: str) -> Optional[str]:
     suffix_market = get_suffix_market(code)
     if suffix_market:
         return suffix_market
-    # A-share: 6-digit numeric
-    if code.isdigit() and len(code) == 6:
+    # Match the provider's A-share aliases (688981.SH, SH688981, etc.).
+    # Only accept six digits here; never reclassify malformed exchange aliases
+    # as HK/US symbols after removing their exchange marker.
+    from data_provider.base import normalize_stock_code
+
+    normalized = normalize_stock_code(code)
+    if normalized.isdigit() and len(normalized) == 6:
         return "cn"
     return None
 

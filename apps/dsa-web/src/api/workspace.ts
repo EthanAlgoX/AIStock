@@ -36,7 +36,20 @@ export type MarketDashboard = { market:WorkspaceTask["market"];widgetIds:MarketD
 
 const root = "/api/v1/workspace";
 
+export type DefaultTaskPlan = {
+  policyVersion: string;
+  task: Pick<WorkspaceTask, "kind" | "name" | "market" | "objective" | "subject" | "config" | "capabilities">;
+  strategyName: string;
+  skillNames: string[];
+  teamName: string;
+  expertCount: number;
+  reasons: string[];
+  warnings: string[];
+  notice: string;
+};
+
 export const workspaceApi = {
+  async getDefaultTaskPlan(kind: "research" | "screening" | "trading", market = "CN", stock?: string) { const { data } = await apiClient.get<DefaultTaskPlan>(`${root}/default-task-plan`, { params: { kind, market, stock } }); return data; },
   async getCapabilities() { const { data } = await apiClient.get<WorkspaceCapabilityCatalog>(`${root}/capabilities`); return data; },
   async listSkills() { const { data } = await apiClient.get<WorkspaceSkill[]>(`${root}/skills`); return data; },
   async createSkill(payload: Omit<WorkspaceSkill,"version"|"builtIn">) { const { data } = await apiClient.post<WorkspaceSkill>(`${root}/skills`, payload); return data; },
