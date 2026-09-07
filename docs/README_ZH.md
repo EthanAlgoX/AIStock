@@ -8,7 +8,7 @@
 
 投研助理 · 专家圆桌 · 个股研究 · 策略选股 · 交易推演
 
-[![CI](https://github.com/EthanAlgoX/LLM-TradeBot/actions/workflows/ci.yml/badge.svg)](https://github.com/EthanAlgoX/LLM-TradeBot/actions/workflows/ci.yml)
+[![CI](https://github.com/EthanAlgoX/InvestCrew/actions/workflows/ci.yml/badge.svg)](https://github.com/EthanAlgoX/InvestCrew/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111)](https://react.dev/)
@@ -20,7 +20,7 @@
 
 > InvestCrew 面向 A 股、港股和美股，提供研究与模拟交易实验能力。系统不会把模型输出包装成投资建议，也不允许 Agent 绕过确定性风控和执行边界。
 
-项目原名 LLM TradeBot，现更名为「投研团 · InvestCrew」。GitHub 仓库改名完成前保留现有地址；下方克隆命令会创建 `InvestCrew` 目录。
+项目原名 LLM TradeBot，现更名为「投研团 · InvestCrew」。GitHub 仓库已同步更名为 `EthanAlgoX/InvestCrew`。
 
 ## 从提问开始，让研究留下来
 
@@ -88,7 +88,7 @@ Agent 是统一交互与任务编排层；策略定义研究目标和执行约�
 ### 1. 安装并准备配置
 
 ```bash
-git clone https://github.com/EthanAlgoX/LLM-TradeBot.git InvestCrew
+git clone https://github.com/EthanAlgoX/InvestCrew.git InvestCrew
 cd InvestCrew
 
 python3 -m venv .venv

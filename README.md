@@ -8,7 +8,7 @@
 
 Research assistant · Expert roundtable · Stock research · Strategy screening · Trade simulation
 
-[![CI](https://github.com/EthanAlgoX/LLM-TradeBot/actions/workflows/ci.yml/badge.svg)](https://github.com/EthanAlgoX/LLM-TradeBot/actions/workflows/ci.yml)
+[![CI](https://github.com/EthanAlgoX/InvestCrew/actions/workflows/ci.yml/badge.svg)](https://github.com/EthanAlgoX/InvestCrew/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111)](https://react.dev/)
@@ -20,7 +20,7 @@ Research assistant · Expert roundtable · Stock research · Strategy screening 
 
 > InvestCrew is a financial decision workspace for mainland China, Hong Kong, and US equities. It supports research and paper-trading experiments; it does not present model output as investment advice or bypass deterministic risk and execution controls.
 
-Previously named LLM TradeBot. The repository URL retains its existing name until the GitHub rename is completed; the clone command below creates an `InvestCrew` directory.
+Previously named LLM TradeBot. The project and GitHub repository are now named InvestCrew.
 
 ## Start with a question, keep the research
 
@@ -88,7 +88,7 @@ Requirements: Python 3.10+, Node.js 20.19–26.x, and npm 10+. The commands belo
 ### 1. Install and prepare configuration
 
 ```bash
-git clone https://github.com/EthanAlgoX/LLM-TradeBot.git InvestCrew
+git clone https://github.com/EthanAlgoX/InvestCrew.git InvestCrew
 cd InvestCrew
 
 python3 -m venv .venv

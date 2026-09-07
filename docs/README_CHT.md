@@ -14,7 +14,7 @@
 
 > InvestCrew 面向 A 股、港股和美股，提供研究與模擬交易實驗能力。系統不會把模型輸出包裝成投資建議，也不允許 Agent 繞過確定性風控和執行邊界。
 
-專案原名 LLM TradeBot，現更名為「投研團 · InvestCrew」。GitHub 儲存庫改名完成前保留現有地址；下方複製命令會建立 `InvestCrew` 目錄。
+專案原名 LLM TradeBot，現更名為「投研團 · InvestCrew」。GitHub 儲存庫已同步更名為 `EthanAlgoX/InvestCrew`。
 
 ## 從提問開始，讓研究留下來
 
@@ -75,7 +75,7 @@ Agent 是統一互動與任務編排層；策略定義研究目標和執行約�
 環境要求：Python 3.10+、Node.js 20.19–26.x、npm 10+。以下命令適用於 macOS/Linux；Windows PowerShell 使用 `.venv\Scripts\Activate.ps1` 啟用虛擬環境。
 
 ```bash
-git clone https://github.com/EthanAlgoX/LLM-TradeBot.git InvestCrew
+git clone https://github.com/EthanAlgoX/InvestCrew.git InvestCrew
 cd InvestCrew
 python3 -m venv .venv
 source .venv/bin/activate

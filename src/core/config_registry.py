@@ -3899,7 +3899,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "docs": [
             {
                 "label": "独立 Agent 引擎 主 Agent Runtime 接入",
-                "href": "https://github.com/EthanAlgoX/LLM-TradeBot/blob/main/docs/agent-runtime-integration.md",
+                "href": "https://github.com/EthanAlgoX/InvestCrew/blob/main/docs/agent-runtime-integration.md",
             },
         ],
         "warning_codes": [],
@@ -3922,7 +3922,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "docs": [
             {
                 "label": "独立 Agent 引擎 主 Agent Runtime 接入",
-                "href": "https://github.com/EthanAlgoX/LLM-TradeBot/blob/main/docs/agent-runtime-integration.md",
+                "href": "https://github.com/EthanAlgoX/InvestCrew/blob/main/docs/agent-runtime-integration.md",
             },
         ],
         "warning_codes": [],
