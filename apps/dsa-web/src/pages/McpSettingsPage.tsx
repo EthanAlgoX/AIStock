@@ -116,7 +116,7 @@ export default function McpSettingsPage() {
         eyebrow="Capability registry"
         title="MCP 服务"
         description="管理为 Agent 提供外部 Tool、Resource 或 Prompt 的 MCP Server。内置 Tool 在独立工具页面治理，不与连接协议混为一类。"
-        actions={<Link to="/overview" className="btn-primary">返回主 Agent</Link>}
+        actions={<Link to="/overview" className="btn-primary">返回投研助理</Link>}
       />
       <CapabilityCenterNav />
 

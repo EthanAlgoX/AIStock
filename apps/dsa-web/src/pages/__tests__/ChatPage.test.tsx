@@ -9,6 +9,7 @@ import type { Message, ProgressStep } from '../../stores/agentChatStore';
 import { UI_LANGUAGE_STORAGE_KEY } from '../../utils/uiLanguage';
 import { workspaceCatalogFixture, workspaceRunFixture, workspaceTaskFixture } from '../../testWorkspaceFixtures';
 import ChatPage from '../ChatPage';
+import { useWorkspaceRunStore } from '../../stores/workspaceRunStore';
 import { extractStockCodeFromMessage, extractStockCodesFromMessage } from '../../utils/chatStockCode';
 
 function createDeferred<T>() {
@@ -26,6 +27,8 @@ const {
   mockGetStatus,
   mockGetCapabilities,
   mockGetRun,
+  mockCreateTask,
+  mockRunTask,
   mockDeleteChatSession,
   mockSendChat,
   mockGetSystemConfig,
@@ -41,6 +44,8 @@ const {
   mockGetStatus: vi.fn(),
   mockGetCapabilities: vi.fn(),
   mockGetRun: vi.fn(),
+  mockCreateTask: vi.fn(),
+  mockRunTask: vi.fn(),
   mockDeleteChatSession: vi.fn(),
   mockSendChat: vi.fn(),
   mockGetSystemConfig: vi.fn(),
@@ -65,6 +70,7 @@ const mockStartStream = vi.fn();
 const mockStopStream = vi.fn();
 const mockClearCompletionBadge = vi.fn();
 const mockStartNewChat = vi.fn();
+const mockRefreshMessages = vi.fn();
 
 const mockStoreState = {
   messages: [] as Message[],
@@ -87,6 +93,7 @@ const mockStoreState = {
   terminalStatus: null as 'cancelled' | 'timeout' | null,
   stopError: false,
   loadSessions: mockLoadSessions,
+  refreshMessages: mockRefreshMessages,
   loadInitialSession: mockLoadInitialSession,
   switchSession: mockSwitchSession,
   stopStream: mockStopStream,
@@ -105,8 +112,11 @@ vi.mock('../../api/agent', () => ({
 
 vi.mock('../../api/workspace', () => ({
   workspaceApi: {
+    listRuns: vi.fn().mockResolvedValue([]),
     getRun: mockGetRun,
     getCapabilities: mockGetCapabilities,
+    createTask: mockCreateTask,
+    runTask: mockRunTask,
   },
 }));
 
@@ -201,6 +211,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useWorkspaceRunStore.setState({ runs: {} });
   window.localStorage.clear();
   window.localStorage.removeItem(UI_LANGUAGE_STORAGE_KEY);
   mockGetStatus.mockReset();
@@ -274,13 +285,63 @@ beforeEach(() => {
 });
 
 describe('ChatPage', () => {
+  it('keeps expert selectors beside the composer without replacing the chat or navigating', async () => {
+    const router = createMemoryRouter([{ path: '/overview', element: <ChatPage /> }], { initialEntries: ['/overview'] });
+    render(<UiLanguageProvider><RouterProvider router={router} /></UiLanguageProvider>);
+    const input = await screen.findByRole('textbox', { name: '向投研助理描述任务' });
+    fireEvent.change(input, { target: { value: '保留我的输入' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: '选择专家' })).toBeEnabled());
+    expect(screen.getByRole('button', { name: '协作方式' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '选择专家' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '沃伦·巴菲特' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '查理·芒格' }));
+    fireEvent.click(screen.getByRole('button', { name: '完成' }));
+    fireEvent.click(screen.getByRole('button', { name: '协作方式' }));
+    fireEvent.click(screen.getByRole('radio', { name: '流水线' }));
+    expect(input).toHaveValue('保留我的输入');
+    expect(router.state.location.pathname).toBe('/overview');
+    expect(router.state.location.search).toBe('');
+    expect(screen.queryByTestId('expert-discussion-workspace')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '取消专家选择，使用普通对话' }));
+    expect(screen.getByRole('button', { name: '协作方式' })).toBeDisabled();
+    expect(input).toHaveValue('保留我的输入');
+  });
+
+  it('starts expert work in the current chat session and leaves the composer in place', async () => {
+    const task = workspaceTaskFixture({ kind: 'expert_review', config: { chatSessionId: 'session-1', collaborationMode: 'voting' } });
+    const run = workspaceRunFixture(task, { status: 'running', completedAt: null });
+    mockCreateTask.mockResolvedValue(task);
+    mockRunTask.mockResolvedValue(run);
+    mockGetRun.mockResolvedValue(run);
+    render(<MemoryRouter><ChatPage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByRole('button', { name: '选择专家' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: '选择专家' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '沃伦·巴菲特' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '查理·芒格' }));
+    fireEvent.click(screen.getByRole('button', { name: '完成' }));
+    fireEvent.click(screen.getByRole('button', { name: '协作方式' }));
+    fireEvent.click(screen.getByRole('radio', { name: '投票式' }));
+    fireEvent.change(screen.getByRole('textbox', { name: '向投研助理描述任务' }), { target: { value: '分析现金流风险' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: '发送' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+    await waitFor(() => expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({
+      objective: '分析现金流风险',
+      config: expect.objectContaining({ chatSessionId: 'session-1', collaborationMode: 'voting' }),
+      capabilities: expect.objectContaining({ expertIds: [-1001, -1002], expertTeamIds: [] }),
+    })));
+    expect(await screen.findByRole('button', { name: '停止专家协作' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: '向投研助理描述任务' })).toHaveValue('');
+    expect(mockStartStream).not.toHaveBeenCalled();
+    expect(mockRefreshMessages).toHaveBeenCalled();
+  });
+
   it('loads a workspace report for follow-up without automatically running analysis', async () => {
     const run = workspaceRunFixture(workspaceTaskFixture({ subject: { stock: '600519', stockName: '贵州茅台' }, name: '已有研究' }), {
       id: 'research-run', outcome: { status: 'unverified', message: '待核实' },
       artifacts: [{ id: 'report', type: 'ResearchReport', title: '报告', content: { conclusion: '保留观察' }, version: 1, createdAt: '2026-09-07' }],
     });
     mockGetRun.mockResolvedValue(run);
-    render(<MemoryRouter initialEntries={['/overview?runId=research-run']}><ChatPage /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={['/overview?runId=research-run']}><ChatPage defaultDiscussion /></MemoryRouter>);
     await screen.findByDisplayValue(/请基于「已有研究」/);
     expect(mockStartStream).not.toHaveBeenCalled();
     fireEvent.change(screen.getByPlaceholderText(/分析 600519/), { target: { value: '证据有哪些缺口？' } });
@@ -454,7 +515,7 @@ describe('ChatPage', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('heading', { name: '主 Agent' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '投研助理' })).toBeInTheDocument();
     expect(screen.getByText('统一理解目标、调用能力并沉淀决策成果')).toBeInTheDocument();
     expect(screen.getByText(/从研究一家公司、筛选候选股票或完善策略想法开始/)).toBeInTheDocument();
     expect(screen.queryByText(/Independent Agent Engine/i)).not.toBeInTheDocument();
@@ -785,7 +846,7 @@ describe('ChatPage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole('heading', { name: '主 Agent' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '投研助理' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '导出会话' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '发送到已配置的通知机器人/邮箱' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '历史对话' })).toBeInTheDocument();
@@ -2166,7 +2227,7 @@ describe('ChatPage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole('heading', { name: '主 Agent' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '投研助理' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/分析 600519/)).toHaveValue('');
     expect(historyApi.getDetail).not.toHaveBeenCalled();
   });

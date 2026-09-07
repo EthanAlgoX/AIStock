@@ -23,7 +23,7 @@ const categoryMeta: Record<string, {label:string;description:string}> = {
   data: { label: "行情与基础数据", description: "读取实时行情、历史价格与证券基础信息。" },
   analysis: { label: "确定性分析", description: "计算技术指标、趋势、量能与形态。" },
   search: { label: "研究与情报", description: "检索新闻、公告和综合研究证据。" },
-  market: { label: "市场情报", description: "读取指数、行业和市场结构数据。" },
+  market: { label: "市场雷达", description: "读取指数、行业和市场结构数据。" },
   screening: { label: "股票池筛选", description: "运行确定性筛选管线并返回真实候选清单。" },
   backtest: { label: "验证与回测", description: "读取可复现的策略和个股回测结果。" },
 };
@@ -81,7 +81,7 @@ export default function ToolSettingsPage() {
         eyebrow="Capability registry"
         title="内置工具"
         description="管理平台自带的金融 Tool Surface。Tool 是 Agent 可直接执行的函数；MCP 服务是外部能力的连接协议，两者分别治理。"
-        actions={<Link to="/overview" className="btn-primary">返回主 Agent</Link>}
+        actions={<Link to="/overview" className="btn-primary">返回投研助理</Link>}
       />
       <CapabilityCenterNav />
 

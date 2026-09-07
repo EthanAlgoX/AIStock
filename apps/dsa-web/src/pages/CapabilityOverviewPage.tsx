@@ -113,8 +113,8 @@ export default function CapabilityOverviewPage() {
       <PageHeader
         eyebrow="Capability registry"
         title="能力中心"
-        description="统一管理主 Agent 可以发现的工作方法、执行工具、外部连接、事实数据和专家视角；工作区启用不等于本次任务已经挂载。"
-        actions={<Link to="/overview" className="btn-primary">返回主 Agent</Link>}
+        description="统一管理投研助理可以发现的工作方法、执行工具、外部连接、事实数据和专家视角；工作区启用不等于本次任务已经挂载。"
+        actions={<Link to="/overview" className="btn-primary">返回投研助理</Link>}
       />
       <CapabilityCenterNav />
 

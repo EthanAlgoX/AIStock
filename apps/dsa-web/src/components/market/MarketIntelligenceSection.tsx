@@ -1066,7 +1066,7 @@ export const MarketIntelligenceSection = () => {
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
             <BarChart3 className="h-4 w-4" aria-hidden="true" />Verified market workspace
           </div>
-          <h1 id="market-intelligence-title" className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">市场情报</h1>
+          <h1 id="market-intelligence-title" className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">市场雷达</h1>
           <p className="mt-2 max-w-[72ch] text-sm leading-6 text-secondary-text">切换市场即可读取真实指数与宏观快照，并结合已保存的 Agent 复盘和资讯服务数据。页面不会用示例行情填充空缺；每项内容都会标明数据时间与运行状态。</p>
         </div>
         <div className="flex flex-wrap gap-2 self-start lg:justify-end lg:self-auto">
@@ -1345,7 +1345,7 @@ export const MarketIntelligenceSection = () => {
 
         {visibleWidgets.has('subscriptions') ? <AnalysisSubscriptions subscriptions={subscriptions} /> : null}
 
-        <details className="min-w-0 px-5 py-6 sm:px-7" aria-label="市场情报数据状态">
+        <details className="min-w-0 px-5 py-6 sm:px-7" aria-label="市场雷达数据状态">
           <summary className="cursor-pointer text-sm font-medium text-secondary-text">数据来源与同步状态 · 展开查看</summary>
           <div className="mt-5">
           <div className="flex items-center gap-2"><Database className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-foreground">数据状态</h2></div>

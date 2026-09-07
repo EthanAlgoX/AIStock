@@ -254,7 +254,7 @@ describe('MarketIntelligenceSection', () => {
     renderPage();
 
     expect(await screen.findByText('市场整体走强，成长板块领涨。')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 1, name: '市场情报' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: '市场雷达' })).toBeInTheDocument();
     expect(screen.getByText('上证指数')).toBeInTheDocument();
     expect(screen.getByText('+1.41%')).toBeInTheDocument();
     expect(screen.getByText('-0.62%')).toBeInTheDocument();

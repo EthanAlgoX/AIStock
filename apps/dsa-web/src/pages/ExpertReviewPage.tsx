@@ -11,7 +11,8 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import ExpertDiscussionWorkspace from "../components/agent/ExpertDiscussionWorkspace";
 
 import {
   workspaceApi,
@@ -54,6 +55,11 @@ const toggleValue = <T,>(items: T[], value: T) => (
 );
 
 export default function ExpertReviewPage() {
+  const [params] = useSearchParams();
+  return params.get("mode") === "single" ? <LegacyExpertReviewPage /> : <ExpertDiscussionWorkspace />;
+}
+
+function LegacyExpertReviewPage() {
   const [mode, setMode] = useState<ReviewMode>("single");
   const [topicType, setTopicType] = useState<TopicType>("stock");
   const [topic, setTopic] = useState("");
@@ -323,25 +329,10 @@ export default function ExpertReviewPage() {
                 </fieldset>
               ) : (
                 <div className="space-y-5">
-                  <fieldset>
-                    <legend className="text-sm font-semibold text-foreground">3. 快速选择专家团</legend>
-                    <p className="mt-1 text-xs leading-5 text-muted-text">预设只用于填充参会名单，之后仍可逐个增删专家。</p>
-                    <div className="mt-3 grid gap-2 lg:grid-cols-3">
-                      {expertTeams.map((team) => {
-                        const selected = capabilities.expertTeamIds.includes(team.id);
-                        return (
-                          <button key={team.id} type="button" aria-pressed={selected} onClick={() => applyGroupTeam(team.id)} className={cn("rounded-[10px] border px-4 py-3 text-left transition-colors", selected ? "border-primary/35 bg-primary/10" : "border-border bg-background hover:border-primary/25 hover:bg-hover/35")}>
-                            <span className="flex items-center justify-between gap-2"><span className="text-sm font-semibold text-foreground">{team.name}</span>{selected ? <Check className="h-4 w-4 text-primary" /> : null}</span>
-                            <span className="mt-2 block text-xs leading-5 text-secondary-text">{team.description}</span>
-                            <span className="mt-2 block text-[10px] text-muted-text">{team.memberIds.map((id) => expertCatalog.find((expert) => expert.id === id)?.name || id).join(" · ")}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </fieldset>
+
 
                   <fieldset aria-describedby="expert-selection-hint">
-                    <legend className="text-sm font-semibold text-foreground">4. 指定参会专家</legend>
+                    <legend className="text-sm font-semibold text-foreground">3. 指定参会专家</legend>
                     <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                       <p id="expert-selection-hint" className="text-xs leading-5 text-muted-text">当前已选 {selectedTeamMembers.length} 位。手动调整后将作为自定义组合运行。</p>
                       <div className="flex gap-2">

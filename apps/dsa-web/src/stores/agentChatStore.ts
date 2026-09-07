@@ -138,6 +138,7 @@ interface AgentChatActions {
   setCurrentRoute: (path: string) => void;
   clearCompletionBadge: () => void;
   loadSessions: () => Promise<void>;
+  refreshMessages: () => Promise<void>;
   loadInitialSession: () => Promise<void>;
   switchSession: (targetSessionId: string) => Promise<void>;
   startNewChat: () => void;
@@ -235,6 +236,20 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
       // Ignore
     } finally {
       set({ sessionsLoading: false });
+    }
+  },
+
+  refreshMessages: async () => {
+    const { sessionId, loading, messages } = get();
+    if (loading) return;
+    try {
+      const detail = await agentApi.getChatSessionMessages(sessionId);
+      if (get().sessionId !== sessionId || get().loading || get().messages !== messages) return;
+      set({ messages: detail.messages.map((m) => ({ id: m.id, role: m.role, content: m.content })) });
+      localStorage.setItem(STORAGE_KEY_SESSION, sessionId);
+      await get().loadSessions();
+    } catch (error) {
+      if (get().sessionId === sessionId) set({ chatError: getParsedApiError(error) });
     }
   },
 

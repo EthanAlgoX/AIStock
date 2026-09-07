@@ -35,6 +35,8 @@ import type { StockIndexItem } from '../types/stockIndex';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import AgentCapabilityPanel from '../components/agent/AgentCapabilityPanel';
 import { AgentWorkspacePanel } from '../components/agent/AgentWorkspacePanel';
+import ChoiceList from '../components/common/ChoiceList';
+import { collaborationChoices, useInlineExpertChat } from '../hooks/useInlineExpertChat';
 
 // Quick question examples shown on empty state
 type ActiveStockContext = Pick<ChatFollowUpContext, 'stock_code' | 'stock_name'>;
@@ -50,7 +52,7 @@ const WORKSPACE_COPY: Record<AgentWorkspaceMode, {
   placeholder: string;
 }> = {
   general: {
-    title: '主 Agent',
+    title: '投研助理',
     subtitle: '统一理解目标、调用能力并沉淀决策成果',
     taskTypeLabel: '自然语言任务',
     emptyTitle: '描述目标，Agent 负责组织工作',
@@ -58,7 +60,7 @@ const WORKSPACE_COPY: Record<AgentWorkspaceMode, {
     placeholder: '输入目标，例如：分析 600519',
   },
   trading: {
-    title: '主 Agent · 交易',
+    title: '投研助理 · 交易推演',
     subtitle: '围绕持仓、信号和风险约束形成可复核的交易提案',
     taskTypeLabel: '交易决策',
     emptyTitle: '描述你的交易目标与约束',
@@ -271,11 +273,12 @@ const restoreActiveStockContextFromMessages = (messages: Message[]): ActiveStock
   return restoredContext;
 };
 
-const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'general' }) => {
+const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: boolean }> = ({ workspace = 'general', defaultDiscussion = false }) => {
   const { t } = useUiLanguage();
   const workspaceCopy = WORKSPACE_COPY[workspace];
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const discussionMode = searchParams.get('mode') === 'discussion';
   const [input, setInput] = useState('');
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [defaultSkillIds, setDefaultSkillIds] = useState<string[]>([]);
@@ -345,7 +348,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
 
   // Set page title
   useEffect(() => {
-    document.title = '主 Agent - LLM TradeBot';
+    document.title = '投研助理 - LLM TradeBot';
   }, []);
 
   useEffect(() => {
@@ -436,6 +439,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
     startStream,
     clearCompletionBadge,
   } = useAgentChatStore();
+  const expertChat = useInlineExpertChat(sessionId);
   const selectedSkillIds = sessionSelectedSkillIds ?? defaultSkillIds;
   const capabilitySessionKey = sessionId || 'new-session';
   const capabilityPreview = capabilityPreviewBySession[capabilitySessionKey] ?? EMPTY_CAPABILITY_PREVIEW;
@@ -632,8 +636,8 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
               toolIds: defaults.toolIds,
               dataSourceIds: defaults.dataSourceIds,
               mcpIds: defaults.mcpIds,
-              expertIds: defaults.expertIds,
-              expertTeamIds: defaults.expertTeamIds,
+              expertIds: [],
+              expertTeamIds: [],
             },
           };
         });
@@ -834,6 +838,17 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
 
   // Handle follow-up from report page: ?stock=600519&name=贵州茅台&recordId=xxx
   useEffect(() => {
+    // Discussion owns its own run/source query parameters and must not be
+    // consumed by the legacy single-Agent report hydration effect.
+    if (discussionMode) {
+      const legacyRun = searchParams.get('run');
+      if (legacyRun && legacyRun !== 'new') setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set('runId', legacyRun); next.delete('run'); next.delete('mode');
+        return next;
+      });
+      return;
+    }
     const runId = searchParams.get('runId');
     if (runId && /^[a-zA-Z0-9_-]{1,64}$/.test(runId)) {
       const hydrationToken = ++followUpHydrationTokenRef.current;
@@ -853,7 +868,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
       }).finally(() => {
         if (isMountedRef.current && followUpHydrationTokenRef.current === hydrationToken) setIsFollowUpContextLoading(false);
       });
-      setSearchParams({}, { replace: true });
+      setSearchParams(defaultDiscussion ? { mode: 'direct' } : {}, { replace: true });
       return;
     }
     const stock = sanitizeFollowUpStockCode(searchParams.get('stock'));
@@ -861,7 +876,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
     const recordId = parseFollowUpRecordId(searchParams.get('recordId'));
 
     if (!stock) {
-      setSearchParams({}, { replace: true });
+      setSearchParams(defaultDiscussion ? { mode: 'direct' } : {}, { replace: true });
       return;
     }
 
@@ -893,8 +908,8 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
         setIsFollowUpContextLoading(false);
       }
     });
-    setSearchParams({}, { replace: true });
-  }, [searchParams, setSearchParams]);
+    setSearchParams(defaultDiscussion ? { mode: 'direct' } : {}, { replace: true });
+  }, [searchParams, setSearchParams, defaultDiscussion, discussionMode]);
 
   const handleSend = useCallback(
     async (
@@ -903,7 +918,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
       overrideStockContext?: ActiveStockContext,
     ) => {
       const msgText = (overrideMessage ?? input).trim();
-      if (!msgText || loading || !agentAvailable || !agentStatus) return;
+      if (!msgText || loading || expertChat.pending || !agentAvailable || !agentStatus) return;
       if (overrideMessage !== undefined) {
         setInput(msgText);
       }
@@ -946,11 +961,24 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
           toolIds: capabilityPreview.toolIds,
           mcpIds: capabilityPreview.mcpIds,
           dataSourceIds: capabilityPreview.dataSourceIds,
-          expertIds: capabilityPreview.expertIds,
-          expertTeamIds: capabilityPreview.expertTeamIds,
+          expertIds: [],
+          expertTeamIds: [],
         },
         context: contextForSend ?? undefined,
       };
+      if (expertChat.enabled) {
+        const source = followUpContextRef.current?.previous_analysis_summary;
+        const sourceRunId = source && typeof source === 'object' && 'sourceRunId' in source && typeof source.sourceRunId === 'string'
+          ? source.sourceRunId : undefined;
+        await expertChat.send(msgText, payload.capabilities, () => {
+          followUpHydrationTokenRef.current += 1;
+          followUpContextRef.current = null;
+          setIsFollowUpContextLoading(false);
+          setInput('');
+          requestScrollToBottom('smooth');
+        }, sourceRunId);
+        return;
+      }
       await startStream(payload, {
         skillNames: usedSkillNames,
         skillName: usedSkillNames.join('、'),
@@ -968,7 +996,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
         },
       });
     },
-    [activeStockContext, agentAvailable, agentStatus, capabilityPreview, getSkillNames, input, loading, normalizeSelectedSkillIds, requestScrollToBottom, runtimeOwnsStockContext, selectedSkillIds, sessionId, startStream, stockIndex],
+    [activeStockContext, agentAvailable, agentStatus, capabilityPreview, expertChat, getSkillNames, input, loading, normalizeSelectedSkillIds, requestScrollToBottom, runtimeOwnsStockContext, selectedSkillIds, sessionId, startStream, stockIndex],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1252,11 +1280,11 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
   return (
     <div
       data-testid="chat-workspace"
-      className="flex h-[calc(100dvh-7.5rem)] w-full min-w-0 gap-4 overflow-hidden lg:h-[calc(100dvh-4rem)]"
+      className="flex h-[calc(100dvh-7.5rem)] w-full min-w-0 overflow-hidden lg:h-[calc(100dvh-4rem)]"
     >
       {/* Desktop keeps conversation management in sight; mobile uses the same rail as a drawer. */}
       {!sidebarOpen ? (
-        <aside className="hidden h-full w-72 shrink-0 flex-col overflow-hidden border border-border/80 bg-card shadow-soft-card lg:flex">
+        <aside className="hidden h-full w-64 shrink-0 flex-col overflow-hidden border-r border-border/80 bg-background lg:flex">
           {sidebarContent}
         </aside>
       ) : null}
@@ -1303,6 +1331,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
               selectedMcpIds={capabilityPreview.mcpIds}
               onToggleMcp={updateMcpPreview}
               selectedExpertIds={capabilityPreview.expertIds}
+              showExperts={false}
               onToggleExpert={updateExpertPreview}
               selectedExpertTeamIds={capabilityPreview.expertTeamIds}
               onToggleExpertTeam={updateExpertTeamPreview}
@@ -1314,7 +1343,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
       ) : null}
 
       {/* Main Agent workspace */}
-      <div className="flex h-full min-w-0 flex-1 overflow-hidden border border-border/80 bg-card shadow-soft-card">
+      <div className="flex h-full min-w-0 flex-1 overflow-hidden bg-card">
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex-shrink-0 border-b border-border/75 px-4 py-3 md:px-5">
           <div className="flex items-center justify-between gap-2">
@@ -1328,9 +1357,9 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
               </button>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="truncate text-base font-semibold tracking-[-0.015em] text-foreground">{workspaceCopy.title}</h1>
+                  <h1 className="hidden shrink-0 text-base font-semibold tracking-[-0.015em] text-foreground sm:block">{workspaceCopy.title}</h1>
                   <span className={cn(
-                    'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium',
+                    'hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium sm:inline-flex',
                     agentAvailable ? 'border-success/25 bg-success/5 text-success' : 'border-border bg-background text-muted-text',
                   )}>
                     <span className={cn('h-1.5 w-1.5 rounded-full', agentAvailable ? 'bg-success' : 'bg-muted-text')} />
@@ -1340,6 +1369,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
                 <Badge
                   variant={agentStatus.backend === 'codex_app_server' ? 'warning' : 'history'}
                   size="sm"
+                  className="hidden shrink-0 whitespace-nowrap sm:inline-flex"
                 >
                   {t(agentStatus.backend === 'codex_app_server'
                     ? 'chat.codexBackendBadge'
@@ -1494,7 +1524,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
             viewportClassName="space-y-6 p-4 md:p-6"
             testId="chat-message-scroll"
           >
-            {messages.length === 0 && !loading ? (
+            {messages.length === 0 && !loading && !expertChat.running ? (
               <div className="flex h-full items-center justify-center px-2 py-10">
                 <EmptyState
                   title={workspaceCopy.emptyTitle}
@@ -1654,6 +1684,10 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
               </div>
             )}
 
+            {expertChat.running && expertChat.run && <div role="status" className="chat-bubble-ai max-w-3xl px-5 py-4">
+              <p className="text-sm font-medium">专家正在协作 · {expertChat.run.taskSnapshot.name}</p>
+              <p className="mt-2 text-xs text-secondary-text">在后台执行，切换页面不会中断。完成后报告会保存在本次对话。</p>
+            </div>}
             <div ref={messagesEndRef} />
           </ScrollArea>
 
@@ -1885,14 +1919,31 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
               </div>
             )}
 
+              <section aria-label="对话专家设置" className="grid grid-cols-2 items-start gap-3">
+                <ChoiceList label="选择专家" placement="above" multiple limit={6}
+                  loading={!expertChat.catalog && !expertChat.error} disabled={loading || expertChat.pending}
+                  placeholder="不选专家 · 直接对话"
+                  items={(expertChat.catalog?.experts || []).filter((expert) => expert.enabled).map((expert) => ({ id: String(expert.id), name: expert.name, description: expert.style }))}
+                  selectedIds={expertChat.selection.expertIds.map(String)}
+                  onSelect={(id) => expertChat.update({ expertIds: toggleArrayValue(expertChat.selection.expertIds, Number(id)) })} />
+                <ChoiceList label="协作方式" placement="above" items={collaborationChoices}
+                  disabled={!expertChat.enabled || loading || expertChat.pending}
+                  selectedIds={expertChat.enabled ? [expertChat.selection.mode] : []} placeholder="普通对话"
+                  onSelect={(mode) => expertChat.update({ mode })} />
+              </section>
+              {expertChat.enabled && <button type="button" disabled={loading || expertChat.pending} className="text-xs text-primary hover:underline" onClick={() => expertChat.update({ expertIds: [] })}>取消专家选择，使用普通对话</button>}
+              {(expertChat.error || (expertChat.enabled && expertChat.runError)) && <div role="alert" className="text-xs text-warning">
+                {expertChat.error || expertChat.runError}
+                {!expertChat.catalog && <button type="button" onClick={expertChat.retry} className="ml-2 text-primary">重试目录</button>}
+              </div>}
               <div className="flex items-end gap-2">
                 <textarea
-                  aria-label="向主 Agent 描述任务"
+                  aria-label="向投研助理描述任务"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={workspaceCopy.placeholder}
-                  disabled={loading || !agentAvailable}
+                  disabled={loading || expertChat.pending || !agentAvailable}
                   rows={1}
                   className="input-surface input-focus-glow min-h-[46px] max-h-[200px] flex-1 resize-none rounded-[10px] border bg-background px-4 py-3 text-sm transition-all focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                   style={{ height: 'auto' }}
@@ -1902,7 +1953,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
                     t.style.height = `${Math.min(t.scrollHeight, 200)}px`;
                   }}
                 />
-                {loading && runtimeOwnsStockContext ? (
+                {expertChat.running ? <Button variant="danger-subtle" onClick={() => void expertChat.cancel()}>停止专家协作</Button> : loading && runtimeOwnsStockContext ? (
                   <Button
                     variant="danger-subtle"
                     onClick={stopStream}
@@ -1915,8 +1966,8 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
                   <Button
                     variant="primary"
                     onClick={() => handleSend()}
-                    disabled={!input.trim() || loading || !agentAvailable}
-                    isLoading={loading}
+                    disabled={!input.trim() || loading || expertChat.pending || expertChat.blocked || !agentAvailable}
+                    isLoading={loading || expertChat.pending}
                     className="btn-primary flex-shrink-0"
                   >
                     发送
@@ -1936,8 +1987,8 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode }> = ({ workspace = 'g
           selectedToolCount={capabilityPreview.toolIds.length}
           selectedDataSourceCount={capabilityPreview.dataSourceIds.length}
           selectedMcpCount={capabilityPreview.mcpIds.length}
-          selectedExpertCount={capabilityPreview.expertIds.length}
-          selectedExpertTeamCount={capabilityPreview.expertTeamIds.length}
+          selectedExpertCount={expertChat.selection.expertIds.length}
+          selectedExpertTeamCount={0}
           activeStockCode={activeStockCode}
           hasConversation={messages.length > 0}
           isRunning={loading}

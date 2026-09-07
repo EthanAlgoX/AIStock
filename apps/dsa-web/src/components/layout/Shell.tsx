@@ -17,9 +17,10 @@ export const Shell: React.FC<ShellProps> = ({ children }) => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <a href="#workspace-content" className="skip-to-content">{localize("跳至主要内容", "Skip to content")}</a>
       <ShellHeader onOpenMenu={() => setMenuOpen(true)} />
 
-      <main className="min-h-0 min-w-0 flex-1 touch-pan-y pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
+      <main id="workspace-content" tabIndex={-1} className="min-h-0 min-w-0 flex-1 touch-pan-y pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
         {children ?? <Outlet />}
       </main>
 

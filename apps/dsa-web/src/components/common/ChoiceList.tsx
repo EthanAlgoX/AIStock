@@ -6,7 +6,7 @@ import { Tooltip } from "./Tooltip";
 export type ChoiceItem = { id: string; name: string; description?: string | null; badge?: string; disabled?: boolean };
 
 /** Compact disclosure with native radio/checkbox semantics and a bounded, searchable list. */
-export default function ChoiceList({ label, items, selectedIds, onSelect, multiple = false, limit, loading = false, error, emptyText = "暂无可选项", placeholder = "请选择", disabled = false }: {
+export default function ChoiceList({ label, items, selectedIds, onSelect, multiple = false, limit, loading = false, error, emptyText = "暂无可选项", placeholder = "请选择", disabled = false, placement = "inline" }: {
   label: string;
   items: ChoiceItem[];
   selectedIds: string[];
@@ -18,6 +18,7 @@ export default function ChoiceList({ label, items, selectedIds, onSelect, multip
   emptyText?: string;
   placeholder?: string;
   disabled?: boolean;
+  placement?: "inline" | "above";
 }) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -31,7 +32,7 @@ export default function ChoiceList({ label, items, selectedIds, onSelect, multip
   const filtered = available.filter((item) => `${item.name} ${item.description || ""}`.toLocaleLowerCase().includes(keyword));
   const close = () => { setOpen(false); setQuery(""); };
 
-  return <div className="min-w-0" onBlur={(event) => {
+  return <div className="relative min-w-0" onBlur={(event) => {
     if (!event.currentTarget.contains(event.relatedTarget)) close();
   }} onKeyDown={(event) => {
     if (event.key === "Escape" && open) { event.preventDefault(); event.stopPropagation(); close(); trigger.current?.focus(); }
@@ -40,7 +41,7 @@ export default function ChoiceList({ label, items, selectedIds, onSelect, multip
       <span id={`${id}-label`} className="text-sm font-medium text-foreground">{label}</span>
       <span className="shrink-0 text-xs text-secondary-text">{multiple ? limit ? `多选 · 最多 ${limit} 项` : "多选" : "单选"}</span>
     </div>
-    <div className={cn("overflow-hidden rounded-[10px] border bg-background transition-colors", open ? "border-primary/60" : "border-border")}>
+    <div className={cn("rounded-[10px] border bg-background transition-colors", placement === "inline" && "overflow-hidden", open ? "border-primary/60" : "border-border")}>
       <button ref={trigger} type="button" value={!multiple ? selectedIds[0] || "" : undefined} aria-labelledby={`${id}-label`} aria-expanded={open} aria-controls={`${id}-choices`} disabled={disabled || loading} onClick={() => { if (open) close(); else setOpen(true); }}
         className="flex min-h-11 w-full items-center gap-3 px-3 py-2.5 text-left outline-none hover:bg-hover/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50">
         <Tooltip content={selectedNames.join("、")} className="min-w-0 flex-1">
@@ -51,7 +52,7 @@ export default function ChoiceList({ label, items, selectedIds, onSelect, multip
         {multiple && selectedIds.length > 0 && <span className="shrink-0 rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{selectedIds.length} 已选</span>}
         <ChevronDown aria-hidden="true" className={cn("h-4 w-4 shrink-0 text-secondary-text transition-transform motion-reduce:transition-none", open && "rotate-180")} />
       </button>
-      {open && <div id={`${id}-choices`} className="border-t border-border/70">
+      {open && <div id={`${id}-choices`} className={placement === "above" ? "absolute inset-x-0 bottom-full z-50 mb-2 max-h-[50dvh] overflow-auto rounded-lg border border-border bg-card shadow-lg" : "border-t border-border/70"}>
         <div className="relative m-2">
           <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-secondary-text" />
           <input ref={focusSearch} type="search" aria-label={`搜索${label}`} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索名称或说明" className="h-9 w-full rounded-md border border-border bg-card pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary" />

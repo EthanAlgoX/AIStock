@@ -74,7 +74,7 @@ describe("TradingWorkspacePage", () => {
   it("saves a trading task and starts an honest backend paper run", async () => {
     render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
     expect(screen.queryByRole("textbox", { name: "策略名称" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "新建模拟运行" }));
+    fireEvent.click(screen.getByRole("button", { name: "新建交易推演" }));
     await screen.findByText("skills:2");
     expect(screen.getByRole("button", { name: "选择巴菲特专家" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "配置策略能力" })).not.toBeInTheDocument();
@@ -106,7 +106,7 @@ describe("TradingWorkspacePage", () => {
       config: { executionMode: "paper", cadence: "15m", evaluationWindow: "30d", riskPolicy: {} },
     });
     render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: "新建模拟运行" }));
+    fireEvent.click(screen.getByRole("button", { name: "新建交易推演" }));
 
     expect(await screen.findByRole("textbox", { name: "策略名称" })).toHaveValue("港股防御策略");
     expect(screen.getByRole("button", { name: "港股香港模拟市场" })).toHaveAttribute("aria-pressed", "true");
@@ -139,7 +139,7 @@ describe("TradingWorkspacePage", () => {
         </Routes>
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "新建模拟运行" }));
+    fireEvent.click(screen.getByRole("button", { name: "新建交易推演" }));
     await screen.findByText("skills:2");
     fillStrategy();
     fireEvent.click(screen.getByRole("button", { name: "创建定时计划" }));
@@ -170,7 +170,7 @@ describe("TradingWorkspacePage", () => {
     let resolve!: (run: ReturnType<typeof workspaceRunFixture>) => void;
     api.runTask.mockImplementation(() => new Promise<ReturnType<typeof workspaceRunFixture>>((done) => { resolve = done; }));
     const view = render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: "新建模拟运行" }));
+    fireEvent.click(screen.getByRole("button", { name: "新建交易推演" }));
     await screen.findByText("skills:2");
     fillStrategy();
     fireEvent.click(screen.getByRole("button", { name: "启动模拟运行" }));
@@ -188,12 +188,12 @@ describe("TradingWorkspacePage", () => {
 
   it("preserves unsaved strategy inputs when collapsing configuration", async () => {
     render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: "新建模拟运行" }));
+    fireEvent.click(screen.getByRole("button", { name: "新建交易推演" }));
     await screen.findByText("skills:2");
     fillStrategy();
     fireEvent.click(screen.getByRole("button", { name: "收起策略配置" }));
     expect(screen.queryByRole("textbox", { name: "策略名称" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "新建模拟运行" }));
+    fireEvent.click(screen.getByRole("button", { name: "新建交易推演" }));
     expect(screen.getByRole("textbox", { name: "策略名称" })).toHaveValue("高质量趋势跟踪");
     expect(api.createTask).not.toHaveBeenCalled();
   });

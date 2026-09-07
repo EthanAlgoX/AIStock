@@ -139,7 +139,7 @@ export default function SkillSettingsPage() {
         eyebrow="Capability registry"
         title="Skill"
         description="管理 Agent 的可复用工作方法。平台预置金融 Skill 可直接启用，也可以在工作区编写自己的通用金融 Skill。"
-        actions={<Link to="/overview" className="btn-primary">返回主 Agent</Link>}
+        actions={<Link to="/overview" className="btn-primary">返回投研助理</Link>}
       />
       <CapabilityCenterNav />
 

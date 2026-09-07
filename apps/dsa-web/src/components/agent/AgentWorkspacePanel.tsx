@@ -121,7 +121,7 @@ export function AgentWorkspacePanel({
             <button
               type="button"
               onClick={onOpenCapabilities}
-              className="text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              className="min-h-11 shrink-0 whitespace-nowrap text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
               调整
             </button>

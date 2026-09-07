@@ -42,7 +42,7 @@ describe("ExpertReviewPage", () => {
   });
 
   it("runs a single expert as a durable task and shows only returned evidence", async () => {
-    render(<MemoryRouter><ExpertReviewPage /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/expert-review?mode=single"]}><ExpertReviewPage /></MemoryRouter>);
 
     expect(await screen.findByRole("button", { name: /沃伦·巴菲特/ })).toHaveAttribute("aria-pressed", "true");
     fireEvent.change(screen.getByPlaceholderText(/请基于最新可得财务/), {
@@ -59,7 +59,7 @@ describe("ExpertReviewPage", () => {
   });
 
   it("lets users choose any group members before starting a staged debate", async () => {
-    render(<MemoryRouter><ExpertReviewPage /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/expert-review?mode=single"]}><ExpertReviewPage /></MemoryRouter>);
     await screen.findByRole("button", { name: /沃伦·巴菲特/ });
     fireEvent.click(screen.getByRole("button", { name: "专家群聊" }));
     expect(screen.getByText(/当前已选 3 位/)).toBeInTheDocument();
@@ -92,13 +92,13 @@ describe("ExpertReviewPage", () => {
     const run = workspaceRunFixture(task, { status: "running", completedAt: null });
     api.listRuns.mockResolvedValue([run]);
     api.getRun.mockResolvedValue(run);
-    const first = render(<MemoryRouter><ExpertReviewPage /></MemoryRouter>);
+    const first = render(<MemoryRouter initialEntries={["/expert-review?mode=single"]}><ExpertReviewPage /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "评审房间" })).toBeInTheDocument();
     expect(screen.getByDisplayValue("已提交的专家议题")).toBeInTheDocument();
     expect(screen.getByText("任务上下文标识")).toBeInTheDocument();
     first.unmount();
     api.getRun.mockResolvedValue({ ...run, status: "completed", artifacts: [{ id: "review", type: "ExpertReview", title: "专家报告", content: {}, text: "离开页面期间完成的评审", version: 1, createdAt: run.createdAt }] });
-    render(<MemoryRouter><ExpertReviewPage /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/expert-review?mode=single"]}><ExpertReviewPage /></MemoryRouter>);
     expect(await screen.findByText("离开页面期间完成的评审")).toBeInTheDocument();
     expect(api.runTask).not.toHaveBeenCalled();
   });

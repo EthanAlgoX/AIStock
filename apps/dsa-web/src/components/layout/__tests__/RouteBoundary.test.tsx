@@ -54,7 +54,7 @@ describe('RouteOutletBoundary', () => {
       expect(screen.getByRole('button', { name: '返回首页' })).toBeInTheDocument();
 
       const mainNavigation = screen.getByRole('navigation', { name: '主导航' });
-      fireEvent.click(within(mainNavigation).getByRole('link', { name: '个股分析' }));
+      fireEvent.click(within(mainNavigation).getByRole('link', { name: '个股研究' }));
 
       expect(await screen.findByTestId('research-page')).toBeInTheDocument();
       expect(screen.queryByRole('heading', { name: '页面加载失败' })).not.toBeInTheDocument();

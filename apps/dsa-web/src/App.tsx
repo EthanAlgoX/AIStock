@@ -98,7 +98,7 @@ const AppContent: React.FC = () => {
         }
       >
         <Route path="/" element={<Navigate to="/overview" replace />} />
-        <Route path="/overview" element={<ChatPage workspace="general" />} />
+        <Route path="/overview" element={<ChatPage workspace="general" defaultDiscussion />} />
         <Route path="/market-intelligence" element={<MarketIntelligencePage />} />
         <Route path="/stock-research" element={<StockAnalysisPage />} />
         <Route path="/chat" element={<Navigate to="/overview" replace />} />

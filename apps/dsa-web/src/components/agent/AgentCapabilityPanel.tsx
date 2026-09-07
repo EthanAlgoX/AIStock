@@ -7,7 +7,6 @@ import {
   Network,
   PlugZap,
   Sparkles,
-  Users,
   Wrench,
   X,
 } from "lucide-react";
@@ -45,9 +44,10 @@ type CapabilityPanelProps = {
   className?: string;
   presentation?: "sidebar" | "inline";
   showSkills?: boolean;
+  showExperts?: boolean;
 };
 
-type SectionKey = "skills" | "tools" | "mcp" | "data" | "experts" | "teams";
+type SectionKey = "skills" | "tools" | "mcp" | "data" | "experts";
 
 const sectionMeta: Record<SectionKey, { title: string; icon: typeof Sparkles }> = {
   skills: { title: "Skills", icon: Sparkles },
@@ -55,7 +55,6 @@ const sectionMeta: Record<SectionKey, { title: string; icon: typeof Sparkles }> 
   mcp: { title: "MCP 服务", icon: PlugZap },
   data: { title: "数据源", icon: Database },
   experts: { title: "专家", icon: Bot },
-  teams: { title: "专家团", icon: Users },
 };
 
 export function CapabilityButton({
@@ -127,6 +126,7 @@ export default function AgentCapabilityPanel({
   className,
   presentation = "sidebar",
   showSkills = true,
+  showExperts = true,
 }: CapabilityPanelProps) {
   const inline = presentation === "inline";
   const [dataSources, setDataSources] = useState<WorkspaceDataSource[]>([]);
@@ -135,7 +135,7 @@ export default function AgentCapabilityPanel({
   const [experts, setExperts] = useState<WorkspaceExpert[]>([]);
   const [teams, setTeams] = useState<WorkspaceExpertTeam[]>([]);
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(
-    new Set(inline ? ["skills", "experts", "teams"] : []),
+    new Set(inline ? ["skills", "experts"] : []),
   );
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -161,7 +161,13 @@ export default function AgentCapabilityPanel({
     };
   }, [retry]);
 
-  const boundCount = selectedToolIds.length + selectedDataSourceIds.length + selectedMcpIds.length + selectedExpertIds.length + selectedExpertTeamIds.length;
+  const effectiveExpertIds = [...new Set([...selectedExpertIds, ...teams.filter((team) => selectedExpertTeamIds.includes(team.id)).flatMap((team) => team.memberIds)])];
+  const toggleExpert = (expertId: number) => {
+    const desired = effectiveExpertIds.includes(expertId) ? effectiveExpertIds.filter((id) => id !== expertId) : [...effectiveExpertIds, expertId];
+    selectedExpertTeamIds.forEach((id) => onToggleExpertTeam(id));
+    [...new Set([...selectedExpertIds, ...desired])].filter((id) => selectedExpertIds.includes(id) !== desired.includes(id)).forEach((id) => onToggleExpert(id));
+  };
+  const boundCount = selectedToolIds.length + selectedDataSourceIds.length + selectedMcpIds.length + effectiveExpertIds.length;
   const readyDataSources = useMemo(() => dataSources.filter((source) => source.selectable), [dataSources]);
   const dataSourceStatusLabel = (source: WorkspaceDataSource) => {
     if (source.healthStatus === "available") return "实测可用";
@@ -181,8 +187,7 @@ export default function AgentCapabilityPanel({
 
   const inlineChoices = {
     skills: { items: skills.map((item) => ({ id: item.id, name: item.name, description: item.description })), ids: selectedSkillIds, toggle: onToggleSkill },
-    experts: { items: experts.map((item) => ({ id: String(item.id), name: item.name, description: `${item.style} · ${item.description}`, badge: item.builtIn ? "平台预置" : "自定义" })), ids: selectedExpertIds.map(String), toggle: (id: string) => onToggleExpert(Number(id)) },
-    teams: { items: teams.map((item) => ({ id: String(item.id), name: item.name, description: `${item.memberIds.map((id) => experts.find((expert) => expert.id === id)?.name).filter(Boolean).join("、")} · ${item.description}`, badge: "专家团" })), ids: selectedExpertTeamIds.map(String), toggle: (id: string) => onToggleExpertTeam(Number(id)) },
+    experts: { items: experts.map((item) => ({ id: String(item.id), name: item.name, description: `${item.style} · ${item.description}`, badge: item.builtIn ? "平台预置" : "自定义" })), ids: effectiveExpertIds.map(String), toggle: (id: string) => toggleExpert(Number(id)) },
     tools: { items: tools.map((item) => ({ id: item.id, name: item.name, description: item.description })), ids: selectedToolIds, toggle: onToggleTool },
     mcp: { items: mcpConnections.map((item) => ({ id: item.id, name: item.name, description: `${item.transport} · ${item.location}`, badge: "已连接" })), ids: selectedMcpIds, toggle: onToggleMcp },
     data: { items: readyDataSources.map((item) => ({ id: item.sourceId, name: item.name, description: item.description, badge: dataSourceStatusLabel(item) })), ids: selectedDataSourceIds, toggle: onToggleDataSource },
@@ -226,13 +231,13 @@ export default function AgentCapabilityPanel({
         </div>
       </div>
       </>}
-      {inline && <p className="mb-3 text-sm leading-6 text-secondary-text">{showSkills ? "Skill 决定研究方法，专家提供独立观点。最多选择 3 个 Skill。" : "研究方法由上方策略统一确定；这里选择独立评审的专家或专家团，以及补充证据所需的工具。"}</p>}
+      {inline && <p className="mb-3 text-sm leading-6 text-secondary-text">{showSkills ? "Skill 决定研究方法，专家提供独立观点。最多选择 3 个 Skill。" : "研究方法由上方策略统一确定；这里选择独立评审的专家，以及补充证据所需的工具。"}</p>}
       {inline && loading && <p role="status" className="mb-3 text-sm text-muted-text">正在读取 Agent 能力目录…</p>}
       <div className={inline ? "grid min-w-0 items-start gap-x-4 sm:grid-cols-2" : "min-h-0 flex-1 overflow-y-auto px-2 py-2"}>
-        {(inline ? ["skills", "experts", "teams", "tools", "mcp", "data"] as SectionKey[] : Object.keys(sectionMeta) as SectionKey[]).filter((key) => showSkills || key !== "skills").map((key) => {
+        {(inline ? ["skills", "experts", "tools", "mcp", "data"] as SectionKey[] : Object.keys(sectionMeta) as SectionKey[]).filter((key) => (showSkills || key !== "skills") && (showExperts || key !== "experts")).map((key) => {
           const { title, icon: Icon } = sectionMeta[key];
           const open = openSections.has(key);
-          const count = key === "skills" ? skills.length : key === "tools" ? tools.length : key === "mcp" ? mcpConnections.length : key === "data" ? readyDataSources.length : key === "experts" ? experts.length : key === "teams" ? teams.length : 0;
+          const count = key === "skills" ? skills.length : key === "tools" ? tools.length : key === "mcp" ? mcpConnections.length : key === "data" ? readyDataSources.length : key === "experts" ? experts.length : 0;
           if (inline) {
             const choices = inlineChoices[key];
             return <div key={key} className="py-2">
@@ -316,30 +321,16 @@ export default function AgentCapabilityPanel({
                       <CapabilityButton
                         comfortable={inline}
                         key={expert.id}
-                        active={selectedExpertIds.includes(expert.id)}
+                        active={effectiveExpertIds.includes(expert.id)}
                         title={expert.name}
                         description={`${expert.style} · ${expert.description}`}
                         statusLabel={expert.builtIn ? "平台预置" : "自定义 Prompt"}
-                        onClick={() => onToggleExpert(expert.id)}
+                        onClick={() => toggleExpert(expert.id)}
                       />
                     ))
                   ) : null}
                   {key === "experts" && !loading && !loadFailed && experts.length === 0 && <p className="px-3 py-2 text-sm text-muted-text">暂无启用的专家。</p>}
 
-                  {key === "teams" ? (
-                    teams.map((team) => (
-                      <CapabilityButton
-                        comfortable={inline}
-                        key={team.id}
-                        active={selectedExpertTeamIds.includes(team.id)}
-                        title={team.name}
-                        description={`${team.memberIds.map((id) => experts.find((expert) => expert.id === id)?.name).filter(Boolean).join("、")} · ${team.description}`}
-                        statusLabel="评审预设"
-                        onClick={() => onToggleExpertTeam(team.id)}
-                      />
-                    ))
-                  ) : null}
-                  {key === "teams" && !loading && !loadFailed && teams.length === 0 && <p className="px-3 py-2 text-sm text-muted-text">暂无启用的专家团。</p>}
                 </div>
               ) : null}
             </section>

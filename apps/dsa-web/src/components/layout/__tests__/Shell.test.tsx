@@ -36,7 +36,14 @@ beforeAll(() => {
 });
 
 describe("Shell", () => {
-  it("renders five Agent-first primary destinations in the top and mobile navigation", () => {
+  it("provides a keyboard shortcut to the single main content landmark", () => {
+    render(<MemoryRouter><ThemeProvider><Shell><div>content</div></Shell></ThemeProvider></MemoryRouter>);
+    expect(screen.getByRole("link", { name: "跳至主要内容" })).toHaveAttribute("href", "#workspace-content");
+    expect(screen.getByRole("main")).toHaveAttribute("id", "workspace-content");
+    expect(screen.getByRole("main")).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("places market intelligence immediately left of Agent and keeps the mobile workflow concise", () => {
     render(
       <MemoryRouter initialEntries={["/overview"]}>
         <ThemeProvider>
@@ -47,11 +54,16 @@ describe("Shell", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getAllByRole("link", { name: "主 Agent" })).toHaveLength(2);
-    expect(screen.getAllByRole("link", { name: "市场情报" })).toHaveLength(2);
-    expect(screen.getAllByRole("link", { name: "个股分析" })).toHaveLength(2);
-    expect(screen.getAllByRole("link", { name: "选股" })).toHaveLength(2);
-    expect(screen.getAllByRole("link", { name: "交易" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "投研助理" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "市场雷达" })).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "专家圆桌" })).toHaveLength(2);
+    const mobile = screen.getByRole("navigation", { name: "移动端主导航" });
+    expect(within(mobile).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/overview", "/expert-review", "/stock-research", "/screening", "/trading"]);
+    const desktop = screen.getByRole("navigation", { name: "主导航" });
+    expect(within(desktop).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/market-intelligence", "/overview", "/expert-review", "/stock-research", "/screening", "/trading"]);
+    expect(screen.getAllByRole("link", { name: "个股研究" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "策略选股" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "交易推演" })).toHaveLength(2);
     expect(screen.getByTestId("chat-completion-badge")).toBeInTheDocument();
     expect(screen.getByTestId("mobile-chat-completion-badge")).toBeInTheDocument();
   });
@@ -71,7 +83,7 @@ describe("Shell", () => {
 
     const drawer = screen.getByRole("dialog", { name: "工作区与设置" });
     expect(drawer).toBeInTheDocument();
-    expect(within(drawer).getByRole("link", { name: "专家评审" })).toHaveAttribute("href", "/expert-review");
+    expect(within(drawer).getByRole("link", { name: "市场雷达" })).toHaveAttribute("href", "/market-intelligence");
     expect(within(drawer).getByRole("link", { name: "模型用量" })).toHaveAttribute("href", "/usage");
   });
 

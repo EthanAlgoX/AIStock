@@ -8,8 +8,8 @@ interface AppPageProps extends React.HTMLAttributes<HTMLElement> {
 
 export const AppPage: React.FC<AppPageProps> = ({ children, className = '', ...props }) => {
   return (
-    <main className={cn('mx-auto min-h-full w-full max-w-[1540px] px-4 pb-14 pt-5 md:px-7 md:pt-7 xl:px-10', className)} {...props}>
+    <div className={cn('mx-auto min-h-full w-full max-w-[1540px] px-4 pb-14 pt-6 md:px-7 md:pt-8 xl:px-10', className)} {...props}>
       {children}
-    </main>
+    </div>
   );
 };

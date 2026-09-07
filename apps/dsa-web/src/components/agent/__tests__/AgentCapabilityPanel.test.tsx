@@ -40,9 +40,8 @@ describe("AgentCapabilityPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "专家" }));
     fireEvent.click(await screen.findByRole("checkbox", { name: /^沃伦·巴菲特/ }));
     expect(inlineProps.onToggleExpert).toHaveBeenCalledWith(-1001);
-    fireEvent.click(screen.getByRole("button", { name: "专家团" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /长期价值评审团/ }));
-    expect(inlineProps.onToggleExpertTeam).toHaveBeenCalledWith(-2001);
+    expect(screen.queryByRole("button", { name: "专家团" })).not.toBeInTheDocument();
+    expect(inlineProps.onToggleExpertTeam).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: /内置工具/ })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -54,6 +53,18 @@ describe("AgentCapabilityPanel", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "专家" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "专家" }));
     expect(await screen.findByRole("checkbox", { name: /^沃伦·巴菲特/ })).toBeVisible();
+  });
+
+  it("expands legacy membership and converts an edit into explicit expert selection", async () => {
+    render(<MemoryRouter><AgentCapabilityPanel {...inlineProps} selectedExpertTeamIds={[-2001]} /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByRole("button", { name: "专家" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "专家" }));
+    const member = screen.getByRole("checkbox", { name: /^沃伦·巴菲特/ });
+    expect(member).toBeChecked();
+    fireEvent.click(member);
+    expect(inlineProps.onToggleExpertTeam).toHaveBeenCalledWith(-2001);
+    expect(inlineProps.onToggleExpert).not.toHaveBeenCalledWith(-1001);
+    expect(inlineProps.onToggleExpert).toHaveBeenCalledWith(-1002);
   });
 
   it("retries the capability catalog without closing inline configuration", async () => {
@@ -101,11 +112,8 @@ describe("AgentCapabilityPanel", () => {
     expect(screen.queryByRole("button", { name: /基本面专家/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^沃伦·巴菲特/ }));
     expect(onToggleExpert).toHaveBeenCalledWith(-1001);
-    fireEvent.click(screen.getByRole("button", { name: /专家团/ }));
-    expect(screen.getByRole("button", { name: /长期价值评审团/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /多空评审团/ })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /长期价值评审团/ }));
-    expect(onToggleExpertTeam).toHaveBeenCalledWith(-2001);
+    expect(screen.queryByRole("button", { name: /专家团/ })).not.toBeInTheDocument();
+    expect(onToggleExpertTeam).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /MCP/ }));
     expect(screen.getByText(/还没有启用的 MCP 连接/)).toBeInTheDocument();
 

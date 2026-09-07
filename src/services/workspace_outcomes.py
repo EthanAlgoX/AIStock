@@ -95,6 +95,13 @@ def business_outcome(status: str, kind: str, artifacts: list[dict], *, formal: b
         if formal_results:
             return result("partial", "研究成果已保存，但后续解读或评审未完成；可阅读已产出部分。")
         return result("cancelled" if status == "cancelled" else "failed", "任务未完成，请查看运行原因。")
+    discussion = next((a.get("content") for a in artifacts if kind == "expert_review" and a.get("type") == "ExpertReview"
+                       and isinstance(a.get("content"), dict)
+                       and a["content"].get("protocol") == "cross_response_v1"), None)
+    if discussion is not None:
+        if discussion.get("failures"):
+            return result("partial", "讨论报告已保存；部分专家或阶段未完成，缺口与分歧见报告。")
+        return result("produced", "已生成专家讨论报告；实际质询与回应见过程，不代表独立数据验证。")
     if any(_reported_block(value) for value in payloads):
         if formal_results:
             return result("partial", "正式策略成果已保存，但后续说明记录了未完成事项，请核对缺失与风险。")

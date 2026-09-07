@@ -35,6 +35,12 @@ type HeaderNavItem = {
 
 const PRIMARY_NAV_ITEMS: HeaderNavItem[] = [
   {
+    key: "market",
+    labelKey: "layout.nav.marketIntelligence",
+    to: "/market-intelligence",
+    icon: Newspaper,
+  },
+  {
     key: "agent",
     labelKey: "layout.nav.home",
     to: "/overview",
@@ -42,10 +48,10 @@ const PRIMARY_NAV_ITEMS: HeaderNavItem[] = [
     badge: "completion",
   },
   {
-    key: "market",
-    labelKey: "layout.nav.marketIntelligence",
-    to: "/market-intelligence",
-    icon: Newspaper,
+    key: "expert-review",
+    labelKey: "layout.nav.expertReview",
+    to: "/expert-review",
+    icon: UsersRound,
   },
   {
     key: "research",
@@ -68,12 +74,6 @@ const PRIMARY_NAV_ITEMS: HeaderNavItem[] = [
 ];
 
 const DESKTOP_UTILITY_ITEMS: HeaderNavItem[] = [
-  {
-    key: "expert-review",
-    labelKey: "layout.nav.expertReview",
-    to: "/expert-review",
-    icon: UsersRound,
-  },
   {
     key: "schedules",
     labelKey: "layout.nav.scheduledTasks",
@@ -163,7 +163,7 @@ export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
   const currentTitle = ROUTE_TITLES.find(({ prefix }) => location.pathname.startsWith(prefix));
 
   return (
-    <header className="sticky top-0 z-40 shrink-0 border-b border-border/75 bg-card/95 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 shrink-0 border-b border-border/75 bg-card">
       <div className="mx-auto flex h-14 w-full items-center gap-3 px-3 lg:h-16 lg:px-4 xl:px-6">
         <NavLink
           to="/overview"
@@ -173,7 +173,7 @@ export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
           <span className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-primary/25 bg-primary text-primary-foreground shadow-[0_6px_16px_hsl(var(--primary)/0.16)]">
             <BarChart3 className="h-5 w-5" aria-hidden="true" />
           </span>
-          <span className="hidden text-sm font-semibold tracking-[-0.01em] text-foreground xl:block">
+          <span className="hidden text-sm font-semibold tracking-[-0.01em] text-foreground 2xl:block">
             LLM TradeBot
           </span>
         </NavLink>
@@ -193,7 +193,7 @@ export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
           ))}
         </nav>
 
-        <nav className="hidden shrink-0 items-center gap-1 lg:flex" aria-label={localize("辅助导航", "Utility navigation")}>
+        <nav className="hidden shrink-0 items-center gap-1 border-l border-border pl-3 lg:flex" aria-label={localize("辅助导航", "Utility navigation")}>
           {DESKTOP_UTILITY_ITEMS.map((item) => {
             const active = itemIsActive(location.pathname, item);
             const Icon = item.icon;
@@ -203,11 +203,12 @@ export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
                   to={item.to}
                   aria-label={t(item.labelKey)}
                   className={cn(
-                    "inline-flex h-11 w-11 items-center justify-center rounded-[10px] text-secondary-text transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45",
+                    "inline-flex h-11 w-11 items-center justify-center gap-2 rounded-[10px] text-secondary-text transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 xl:w-auto xl:px-2.5",
                     active ? "bg-primary/10 text-primary" : "hover:bg-hover/70 hover:text-foreground",
                   )}
                 >
                   <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+                  <span className="hidden text-xs font-medium xl:inline">{t(item.labelKey)}</span>
                 </NavLink>
               </Tooltip>
             );
@@ -237,7 +238,7 @@ export function MobilePrimaryNav() {
       className="fixed inset-x-0 bottom-0 z-40 flex min-h-16 border-t border-border/80 bg-card/97 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_28px_rgba(3,8,20,0.08)] backdrop-blur-xl lg:hidden"
       aria-label={localize("移动端主导航", "Mobile primary navigation")}
     >
-      {PRIMARY_NAV_ITEMS.map((item) => (
+      {PRIMARY_NAV_ITEMS.filter((item) => item.key !== "market").map((item) => (
         <PrimaryNavLink key={item.key} item={item} mobile />
       ))}
     </nav>

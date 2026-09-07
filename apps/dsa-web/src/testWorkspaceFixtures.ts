@@ -7,6 +7,10 @@ import type {
 import { EMPTY_AGENT_CAPABILITIES } from "./types/capabilities";
 
 export const workspaceCatalogFixture: WorkspaceCapabilityCatalog = {
+  discussionChatBinding: true,
+  discussionReconfiguration: true,
+  discussionModes: ["pipeline", "debate", "voting"],
+  discussionProtocols: ["cross_response_v1"],
   skills: [
     { id: "quality", name: "盈利质量", description: "检查现金流", category: "research", instructions: "", version: 1, builtIn: true, enabled: true },
     { id: "trend", name: "趋势分析", description: "检查趋势", category: "trading", instructions: "", version: 1, builtIn: true, enabled: true },

@@ -95,8 +95,8 @@ describe("AgentTaskSetupPage", () => {
   it("configures market, stock, task capabilities, and a research run preview", async () => {
     render(<MemoryRouter><AgentTaskSetupPage mode="research" /></MemoryRouter>);
 
-    expect(screen.getByRole("heading", { name: "个股分析" })).toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: "向主 Agent 描述任务" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "个股研究" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "向投研助理描述任务" })).not.toBeInTheDocument();
     const runButton = await screen.findByRole("button", { name: "运行单股分析" });
     expect(runButton).toBeDisabled();
 
@@ -126,7 +126,7 @@ describe("AgentTaskSetupPage", () => {
   it("blocks unsupported markets before creating a screening task", async () => {
     render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
 
-    expect(screen.getByRole("heading", { name: "选股" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "策略选股" })).toBeInTheDocument();
     const runButton = await screen.findByRole("button", { name: "运行选股任务" });
     expect(runButton).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: /港股/ }));

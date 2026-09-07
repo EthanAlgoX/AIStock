@@ -305,7 +305,7 @@ describe("App routing behavior", () => {
 
       chatPageShouldThrow.value = false;
       const mainNavigation = screen.getByRole("navigation", { name: "主导航" });
-      fireEvent.click(within(mainNavigation).getByRole("link", { name: "个股分析" }));
+      fireEvent.click(within(mainNavigation).getByRole("link", { name: "个股研究" }));
 
       expect(await screen.findByTestId("stock-analysis-page")).toBeInTheDocument();
       expect(

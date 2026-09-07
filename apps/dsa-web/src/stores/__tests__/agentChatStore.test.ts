@@ -21,6 +21,26 @@ vi.mock('../../api/agent', async (importOriginal) => {
 const { agentApi } = await import('../../api/agent');
 const encoder = new TextEncoder();
 
+it('refreshes persisted expert replies without interrupting the current chat', async () => {
+  vi.mocked(agentApi.getChatSessionMessages).mockResolvedValueOnce({
+    session_id: 'session-test', messages: [{ id: 'expert-reply', role: 'assistant', content: '专家报告', created_at: null }],
+    session_state: { selected_skill_ids: [] },
+  });
+  await useAgentChatStore.getState().refreshMessages();
+  expect(useAgentChatStore.getState().messages[0].content).toBe('专家报告');
+  expect(useAgentChatStore.getState().sessionId).toBe('session-test');
+});
+
+it('does not place a late expert reply into a different conversation', async () => {
+  const pending = createDeferred<Awaited<ReturnType<typeof agentApi.getChatSessionMessages>>>();
+  vi.mocked(agentApi.getChatSessionMessages).mockReturnValueOnce(pending.promise);
+  const refresh = useAgentChatStore.getState().refreshMessages();
+  useAgentChatStore.setState({ sessionId: 'different-chat', messages: [] });
+  pending.resolve({ session_id: 'session-test', messages: [{ id: 'late', role: 'assistant', content: '旧专家报告', created_at: null }], session_state: { selected_skill_ids: [] } });
+  await refresh;
+  expect(useAgentChatStore.getState().messages).toEqual([]);
+});
+
 function createStreamResponse(lines: string[]) {
   return new Response(
     new ReadableStream({

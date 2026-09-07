@@ -34,7 +34,7 @@ function RunElapsed({ run }: { run: WorkspaceRun }) {
 export default function ResearchReportsWorkspace({ mode }: { mode: "research" | "screening" | "trading" }) {
   const { activeRun, submitting, runError, cancelRun } = useWorkspaceRun(mode);
   const trading = mode === "trading";
-  const newAction = trading ? "新建模拟运行" : mode === "research" ? "新建单股分析" : "新建选股";
+  const newAction = trading ? "新建交易推演" : mode === "research" ? "新建个股研究" : "新建策略选股";
   const statusLabel = workspaceRunLabel;
   const [params, setParams] = useSearchParams();
   const [configOpen, setConfigOpen] = useState(false);
@@ -87,10 +87,11 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
 
   const select = (id: string) => setParams((current) => { const next = new URLSearchParams(current); next.set("run", id); return next; });
   return <AppPage className="space-y-5 pb-20">
-    <PageHeader title={trading ? "交易" : mode === "research" ? "个股分析" : "选股"}
-      description={trading ? "回看模拟交易提案、风险检查与执行记录；策略配置按需展开。" : mode === "research" ? "阅读研究结论、关键价位与风险，回看每一次个股分析。" : "回看筛选结果、候选依据与风险，比较每一次选股报告。"}
+    <PageHeader title={trading ? "交易推演" : mode === "research" ? "个股研究" : "策略选股"}
+      description={trading ? "回看模拟交易提案、风险检查与执行记录；策略配置按需展开。" : mode === "research" ? "阅读研究结论、关键价位与风险，回看每一次个股研究。" : "回看筛选结果、候选依据与风险，比较每一次策略选股报告。"}
       actions={<button className="btn-primary inline-flex items-center gap-2" type="button" aria-expanded={configOpen} aria-controls="new-analysis-config" onClick={() => { setConfigVisited(true); setConfigOpen(!configOpen); }}>{configOpen ? <ChevronDown className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{configOpen ? trading ? "收起策略配置" : "收起分析配置" : newAction}</button>} />
     {!configOpen && <DefaultTaskLauncher kind={mode} onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}
+    {selected && !isRunActive(selected) && selected.artifacts.length > 0 && <Link className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline" to={`/expert-review?sourceRun=${selected.id}`}>邀请专家讨论这份报告</Link>}
     {trading && <p className="flex items-start gap-2 text-sm leading-6 text-secondary-text"><ShieldCheck className="mt-1 h-4 w-4 shrink-0" />模拟盘 · 真实订单始终禁用。生成提案不等于已通过风险评估，也不等于已经成交。</p>}
     {(configOpen || (trading && configVisited)) && <section hidden={!configOpen} id="new-analysis-config" aria-label={trading ? "交易策略配置" : "新建分析配置"} className="border-b border-border pb-4">
       {mode === "trading" ? <TradingTaskSetupPage onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} /> : <AgentTaskSetupPage mode={mode} embedded onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}
@@ -99,8 +100,8 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
       <p>{runError || (submitting ? "正在提交任务，切换页面不会中断。" : trading ? `主 Agent 正在生成模拟交易提案 · ${activeRun?.taskSnapshot.name}` : `${activeRun?.taskSnapshot.name} · 后台分析中，可以继续阅读历史报告。`)}</p>
       {activeRun && <div className="flex items-center gap-4"><button type="button" className="text-primary hover:underline" onClick={() => select(activeRun.id)}>{trading ? "查看本次模拟" : "查看本次分析"}</button>{trading && isRunActive(activeRun) && <button type="button" className="btn-secondary inline-flex items-center gap-2 text-danger" onClick={() => void cancelRun()}><Octagon className="h-4 w-4" />停止</button>}</div>}
     </div>}
-    <div className="grid items-start gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <aside aria-label={trading ? "历史模拟运行" : "历史分析报告"} className="min-w-0 lg:sticky lg:top-6">
+    <div className="grid items-start gap-6 lg:grid-cols-[248px_minmax(0,1fr)] lg:gap-8">
+      <aside aria-label={trading ? "历史模拟运行" : "历史分析报告"} className="min-w-0 lg:sticky lg:top-24">
         <div className="mb-3 flex items-center justify-between"><h2 className="font-semibold text-foreground">历史报告 <span className="ml-1 text-xs font-normal text-muted-text">{entries.length}</span></h2><button type="button" aria-label="刷新报告列表" className="rounded-md p-2 text-secondary-text hover:bg-hover focus-visible:ring-2 focus-visible:ring-primary" onClick={() => setRetry((value) => value + 1)}><RefreshCw className="h-4 w-4" /></button></div>
         <button type="button" className="mb-3 text-sm text-primary lg:hidden" aria-expanded={historyOpen} aria-controls="report-history-list" onClick={() => setHistoryOpen(!historyOpen)}>{historyOpen ? "收起历史报告" : "切换历史报告"}</button>
         <div id="report-history-list" className={`${historyOpen ? "block" : "hidden"} lg:block`}>
@@ -117,7 +118,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
         {loaded && entries.length >= 100 && <Link to="/runs" className="mt-3 block text-xs text-primary">查看更早的运行记录</Link>}
         </div>
       </aside>
-      <section aria-label={trading ? "模拟交易结果" : "分析报告详情"} className="min-w-0 border-t border-border pt-5 lg:border-t-0 lg:pt-0">
+      <section aria-label={trading ? "模拟交易结果" : "分析报告详情"} className="min-w-0 rounded-xl border border-border bg-card p-4 md:p-6 lg:p-8">
         {selected ? <>
           <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4"><div><h2 className="text-xl font-semibold text-foreground">{selected.taskSnapshot.name}</h2><p className="mt-2 text-xs text-secondary-text">{time(selected.createdAt)} · {statusLabel(selected)} · {selected.taskSnapshot.market}</p>{trading && <p className="mt-2 text-xs text-secondary-text">运行耗时 <RunElapsed run={selected} /> · 结果仅用于模拟研究</p>}</div><div className="flex flex-wrap gap-2"><Link className="btn-secondary text-xs" to={`/overview?runId=${encodeURIComponent(selected.id)}`}>继续问 Agent</Link><Link className="btn-secondary text-xs" to={`/runs/${selected.id}`}>运行详情与数据来源</Link></div></header>
           {trading && selected.status === "completed" && <p className="mb-3 text-sm text-secondary-text">本次提案运行已结束，不代表成交</p>}

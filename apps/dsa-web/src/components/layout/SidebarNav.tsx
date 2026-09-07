@@ -7,7 +7,7 @@ import {
   History,
   LogOut,
   Settings2,
-  UsersRound,
+  Newspaper,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
@@ -42,10 +42,10 @@ const NAV_ITEMS: NavItem[] = [
     group: "automation",
   },
   {
-    key: "expertReview",
-    labelKey: "layout.nav.expertReview",
-    to: "/expert-review",
-    icon: UsersRound,
+    key: "market",
+    labelKey: "layout.nav.marketIntelligence",
+    to: "/market-intelligence",
+    icon: Newspaper,
     group: "automation",
   },
   {

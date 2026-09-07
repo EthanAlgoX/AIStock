@@ -47,7 +47,8 @@ describe("ExpertSettingsPage", () => {
     expect(screen.getByRole("heading", { name: "段永平" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "凯西·伍德" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "张磊" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "全视角个股委员会" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "全视角个股委员会" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "添加专家团" })).not.toBeInTheDocument();
     expect(screen.queryByText("工作区自定义能力")).not.toBeInTheDocument();
     expect(screen.queryByText("StrategyVersion")).not.toBeInTheDocument();
   });

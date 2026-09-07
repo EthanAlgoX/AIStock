@@ -26,6 +26,7 @@ from src.agent.capability_grants import (
 from src.config import get_config
 from src.services.workspace_outcomes import business_outcome, valid_artifact, normalize_trade_proposal, report_artifacts
 from src.storage import (
+    ConversationMessage,
     DatabaseManager,
     WorkspaceArtifactRecord,
     WorkspaceCapabilityPreferenceRecord,
@@ -1182,6 +1183,10 @@ class WorkspaceService:
             kind: self.default_bindings(kind, catalog)
             for kind in _DEFAULT_TOOL_IDS
         }
+        catalog["discussionProtocols"] = ["cross_response_v1"]
+        catalog["discussionModes"] = ["pipeline", "debate", "voting"]
+        catalog["discussionChatBinding"] = True
+        catalog["discussionReconfiguration"] = True
         return catalog
 
     def default_bindings(
@@ -1270,10 +1275,15 @@ class WorkspaceService:
         objective = str(payload.get("objective") or "").strip()
         if kind not in TASK_KINDS or not name or not objective or market not in {"CN", "HK", "US", "GLOBAL"}:
             raise WorkspaceError("task_invalid", "任务类型、名称、市场或目标无效。")
-        bindings = self.validate_bindings(payload.get("capabilities"))
         subject = payload.get("subject") if isinstance(payload.get("subject"), dict) else {}
         config = payload.get("config") if isinstance(payload.get("config"), dict) else {}
+        raw_bindings = payload.get("capabilities")
+        if config.get("discussionProtocol") == "cross_response_v1":
+            from src.services.workspace_discussion import inherit_parent
+            config, raw_bindings = inherit_parent(self, config, raw_bindings)
+        bindings = self.validate_bindings(raw_bindings)
         self._validate_task_contract(kind, subject, config, bindings)
+        self._validate_discussion_contract(kind, config, bindings)
         task_id = uuid.uuid4().hex
         with self.db.session_scope() as session:
             row = WorkspaceTaskRecord(
@@ -1309,6 +1319,8 @@ class WorkspaceService:
                 _load(row.config_json, {}),
                 normalize_bindings(_load(row.capability_bindings_json, {})),
             )
+            self._validate_discussion_contract(row.task_kind, _load(row.config_json, {}),
+                                               normalize_bindings(_load(row.capability_bindings_json, {})))
             row.version += 1
             row.updated_at = utc_naive_now()
             session.flush()
@@ -1351,6 +1363,7 @@ class WorkspaceService:
             raise WorkspaceError("task_disabled", "任务已停用，不能运行。", 409)
         self.validate_bindings(task["capabilities"])
         self._validate_task_contract(task["kind"], task["subject"], task["config"], task["capabilities"])
+        self._validate_discussion_contract(task["kind"], task["config"], task["capabilities"])
         if task["config"].get("deepResearchCount"):
             from src.services.strategy_definition_service import StrategyDefinitionService
             version = StrategyDefinitionService(self.db).get_version(task["config"]["deepResearchVersionId"])
@@ -1381,7 +1394,19 @@ class WorkspaceService:
             "runContext": {"dataSnapshotId": snapshot_id, "asOf": _iso(now)},
             "capabilitySnapshot": self._capability_snapshot(task["capabilities"]),
         }
+        if task["config"].get("discussionProtocol") == "cross_response_v1":
+            from src.services.workspace_discussion import freeze_discussion
+            task_snapshot["discussionSnapshot"] = freeze_discussion(self, task)
+            task_snapshot["capabilitySnapshot"]["experts"] = [
+                {"id": member["expert"]["id"], "version": member["expert"]["version"]}
+                for member in task_snapshot["discussionSnapshot"]["members"]
+            ]
         with self.db.session_scope() as session:
+            if task["config"].get("discussionProtocol") == "cross_response_v1" and task["config"].get("chatSessionId"):
+                message = ConversationMessage(session_id=task["config"]["chatSessionId"], role="user", content=task["objective"])
+                session.add(message)
+                session.flush()
+                task_snapshot["chatUserMessageId"] = message.id
             run = WorkspaceRunRecord(id=run_id, task_id=task_id, task_kind=task["kind"], status="queued", trigger_type=trigger_type, data_snapshot_id=snapshot_id, task_snapshot_json=_dump(task_snapshot))
             snapshot = WorkspaceDataSnapshotRecord(id=snapshot_id, run_id=run_id, as_of=now, source_ids_json=_dump(source_ids), source_versions_json=_dump({source_id: {"selectedAt": _iso(now)} for source_id in source_ids}), quality_json=_dump({"status": "pending", "warnings": []}))
             session.add_all([run, snapshot])
@@ -1407,6 +1432,8 @@ class WorkspaceService:
                 if not row or row.cancel_requested:
                     if row:
                         row.status, row.completed_at = "cancelled", utc_naive_now()
+                        from src.services.workspace_discussion import publish_chat_reply
+                        publish_chat_reply(session, row)
                     return
                 row.status, row.started_at, row.updated_at = "running", utc_naive_now(), utc_naive_now()
                 task = _load(row.task_snapshot_json, {})
@@ -1523,7 +1550,7 @@ class WorkspaceService:
         from src.agent.factory import build_agent_chat_executor
 
         bindings = normalize_bindings(task.get("capabilities"))
-        if task.get("workflowResult"):
+        if task.get("workflowResult") or task.get("discussionDeadline") is not None:
             bindings["toolIds"] = [name for name in bindings["toolIds"] if name not in {"run_stock_research", "run_stock_screening", "screen_stock_universe"}]
         executor = build_agent_chat_executor(
             get_config(), skills=builtin_skills or None,
@@ -1531,6 +1558,10 @@ class WorkspaceService:
             extra_skill_instructions=custom_skill_instructions,
             external_tools=self.resolve_mcp_tool_definitions(bindings["mcpIds"]),
         )
+        if task.get("discussionDeadline") is not None:
+            remaining = max(0.1, task["discussionDeadline"] - time.monotonic())
+            executor.timeout_seconds = min(executor.timeout_seconds or remaining, remaining)
+            executor.max_steps = min(executor.max_steps, 6)
         subject = task.get("subject") if isinstance(task.get("subject"), dict) else {}
         context = {
             "stock_code": subject.get("stock") or subject.get("stockCode") or "",
@@ -1542,6 +1573,9 @@ class WorkspaceService:
         return executor.chat(prompt, f"workspace-{session_suffix}", context=context, cancel_event=cancel_event, selected_skill_ids=builtin_skills)
 
     def _execute_expert_task(self, run_id: str, task: dict[str, Any], cancel_event: threading.Event, expert_ids: list[int], builtin_skills: list[str], custom_skill_instructions: str) -> dict[str, Any]:
+        if (task.get("config") or {}).get("discussionProtocol") == "cross_response_v1":
+            from src.services.workspace_discussion import execute_discussion
+            return execute_discussion(self, run_id, task, cancel_event)
         if not expert_ids:
             return {"success": False, "errorCode": "expert_required", "error": "专家评审至少需要选择一位专家。"}
         task = {**task, "config": {key: value for key, value in (task.get("config") or {}).items()
@@ -1640,6 +1674,11 @@ class WorkspaceService:
             "experts": [{"id": item["id"], "version": item.get("version", 1)} for item in catalog["experts"] if item["id"] in bindings["expertIds"]],
             "expertTeams": [{"id": item["id"], "version": item.get("version", 1), "memberIds": item.get("memberIds", [])} for item in catalog["expertTeams"] if item["id"] in bindings["expertTeamIds"]],
         }
+
+    def _validate_discussion_contract(self, kind, config, bindings):
+        if config.get("discussionProtocol") is not None:
+            from src.services.workspace_discussion import validate_discussion
+            validate_discussion(self, kind, config, bindings)
 
     @staticmethod
     def _validate_task_contract(kind: str, subject: dict[str, Any], config: dict[str, Any], bindings: dict[str, list[Any]]) -> None:
@@ -1833,6 +1872,8 @@ class WorkspaceService:
             summary["artifactTypes"] = list(dict.fromkeys(types))
             row.result_summary_json = _dump(summary)
             row.error_code, row.error_message = error_code, error_message
+            from src.services.workspace_discussion import publish_chat_reply
+            publish_chat_reply(session, row)
 
     def _set_run_stage(self, run_id: str, stage_id: str, label: str, status: str) -> None:
         """Persist observed execution stages, not a simulated progress percentage."""
@@ -2280,6 +2321,8 @@ class WorkspaceService:
                     if stage.get("status") == "running":
                         stage.update(status="failed", completedAt=_iso(row.completed_at))
                 row.result_summary_json = _dump(summary)
+                from src.services.workspace_discussion import publish_chat_reply
+                publish_chat_reply(session, row)
             return len(rows)
 
 

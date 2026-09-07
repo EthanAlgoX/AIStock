@@ -49,7 +49,8 @@ def test_growth_stock_uses_frozen_skill_and_complementary_expert_team(workspace)
     version = StrategyDefinitionService(workspace.db).get_version(task["config"]["strategyVersionId"])
     assert version["decisionPolicy"]["packageParameters"]["skills"] == ["growth_quality"]
     assert task["capabilities"]["skillIds"] == []  # Frozen version owns this method.
-    assert task["capabilities"]["expertTeamIds"] == [-2002]
+    assert task["capabilities"]["expertTeamIds"] == []
+    assert task["capabilities"]["expertIds"]
     assert normalize_stock_code(task["subject"]["stock"]) == "688981"
 
 

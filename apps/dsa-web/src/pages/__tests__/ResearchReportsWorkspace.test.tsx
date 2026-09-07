@@ -46,7 +46,7 @@ describe("report-first research workspace", () => {
     expect(await screen.findByRole("heading", { name: "平安银行结论" })).toBeInTheDocument();
     fireEvent.change(screen.getByRole("textbox", { name: "搜索历史报告" }), { target: { value: "000001" } });
     expect(screen.queryByRole("button", { name: /贵州茅台.*成果待核实/ })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "新建单股分析" }));
+    fireEvent.click(screen.getByRole("button", { name: "新建个股研究" }));
     expect(screen.getByText("市场与股票配置")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "平安银行结论" })).toBeInTheDocument();
     api.getRun.mockResolvedValue(run("new", "新分析"));
@@ -76,6 +76,6 @@ describe("report-first research workspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: "重试读取报告" }));
     await waitFor(() => expect(api.getRun.mock.calls.length).toBeGreaterThan(1));
     expect(screen.getByText("尚无历史分析。")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "新建选股" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("button", { name: "新建策略选股" })).toHaveAttribute("aria-expanded", "false");
   });
 });

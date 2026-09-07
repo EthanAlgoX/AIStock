@@ -35,8 +35,8 @@ export default function DefaultTaskLauncher({ kind, market = "CN", stock, onRunS
       return started;
     }, "默认方案启动未确认，请查看运行记录与 Agent 状态。");
   };
-  return <section aria-label="一键默认方案" className="border-y border-border py-4">
-    <div className="flex flex-wrap items-center justify-between gap-3">
+  return <section aria-label="一键默认方案" className="rounded-xl border border-border bg-card px-4 py-4 md:px-5">
+    <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
       <div className="min-w-0 flex-1">
         <h2 className="text-base font-semibold text-foreground">{stock ? "为当前股票匹配的默认方案" : "无需填写，直接试用"}</h2>
         <p className="mt-1 text-sm leading-6 text-secondary-text">{plan ? `${String(plan.task.subject.stockName || plan.task.subject.stock || plan.task.market)} · ${plan.strategyName} · ${plan.teamName}` : error || "正在匹配策略与可用能力…"}</p>

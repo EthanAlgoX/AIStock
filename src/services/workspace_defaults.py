@@ -100,10 +100,10 @@ def default_task_plan(workspace: WorkspaceService, kind: str, market: str = "CN"
     team = next((item for item in catalog["expertTeams"] if item.get("key") == team_key and item.get("enabled")
                  and item.get("memberIds") and set(item["memberIds"]).issubset(enabled_experts)), None)
     if team:
-        bindings["expertTeamIds"] = [team["id"]]
-        reasons.append(f"由{team['name']}独立审查假设与风险，保留分歧；不重复选择同组专家。")
+        bindings["expertIds"] = list(team["memberIds"])
+        reasons.append("按标的研究特点匹配具体专家，独立审查假设与风险，保留分歧。")
     else:
-        warnings.append("匹配的专家团不可用或成员被停用，本次仅由主 Agent 解读，不自动启用专家。")
+        warnings.append("匹配的专家不可用或被停用，本次仅由主 Agent 解读，不自动启用专家。")
     bindings["mcpIds"] = []
     reasons.append("工具与数据源只取当前已启用的任务默认白名单；不自动挂载额外 MCP 或新增权限。")
     task = {"kind": kind, "name": f"{name + ' · ' if name else ''}{strategy_name} · 默认试用", "market": market,
@@ -112,6 +112,7 @@ def default_task_plan(workspace: WorkspaceService, kind: str, market: str = "CN"
     workspace._validate_task_contract(kind, subject, config, bindings)
     names = {item["id"]: item["name"] for item in catalog["skills"]}
     return {"policyVersion": POLICY_VERSION, "task": task, "strategyName": strategy_name,
-            "skillNames": [names.get(key, key) for key in applied_skills], "teamName": team["name"] if team else "主 Agent 独立解读",
+            "skillNames": [names.get(key, key) for key in applied_skills],
+            "teamName": "、".join(e["name"] for e in catalog["experts"] if e["id"] in bindings["expertIds"]) if team else "主 Agent 独立解读",
             "expertCount": len(team["memberIds"]) if team else 0, "reasons": reasons, "warnings": warnings,
             "notice": "将调用真实数据与模型，专家评审会增加调用成本。数据或模型不可用时会明确报错，不保证必然产出报告；默认方案不是收益最优或投资推荐。"}

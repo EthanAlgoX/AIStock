@@ -96,13 +96,13 @@ const MARKETS: Array<{ id: MarketId; label: string; description: string }> = [
 const COPY = {
   research: {
     eyebrow: "Agent research task",
-    title: "个股分析",
+    title: "个股研究",
     description: "选择股票与研究策略，再按需邀请专家。预设策略已包含研究方法，自定义组合时才选择 Skill。",
     action: "运行单股分析",
   },
   screening: {
     eyebrow: "Agent screening task",
-    title: "选股",
+    title: "策略选股",
     description: "选择筛选策略，按需深研候选股票。筛选规则负责候选排名，Agent 与专家负责研究和解读。",
     action: "运行选股任务",
   },
@@ -313,7 +313,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
       const task = await workspaceApi.createTask({
         kind: mode,
         name: mode === "research"
-          ? `${selectedStock?.nameZh || selectedStock?.nameEn || selectedStock?.canonicalCode} 个股分析`
+          ? `${selectedStock?.nameZh || selectedStock?.nameEn || selectedStock?.canonicalCode} 个股研究`
           : `${MARKETS.find((item) => item.id === market)?.label || market} 选股`,
         market,
         objective: objective.trim() || `分析 ${selectedStock?.canonicalCode} 的商业质量、估值与风险`,

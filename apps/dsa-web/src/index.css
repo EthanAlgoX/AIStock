@@ -2948,13 +2948,23 @@ body {
 }
 
 .page-command-header::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: -1px;
-  width: 3.5rem;
-  height: 2px;
+  content: none;
+}
+
+.skip-to-content {
+  position: fixed;
+  top: 0.75rem;
+  left: 1rem;
+  z-index: 100;
+  transform: translateY(-200%);
+  border-radius: 0.625rem;
+  padding: 0.75rem 1rem;
   background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.skip-to-content:focus {
+  transform: translateY(0);
 }
 
 .workspace-surface {
@@ -3015,15 +3025,15 @@ body {
 
 .label-uppercase {
   gap: 0.4rem;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: hsl(var(--primary));
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: hsl(var(--secondary-text));
 }
 
 .btn-primary,
 .btn-secondary {
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   border-radius: 0.625rem;
   padding: 0.625rem 1rem;
   font-size: 0.875rem;
@@ -3039,18 +3049,14 @@ body {
   border-color: hsl(var(--primary));
   background: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
-  box-shadow:
-    0 1px 2px hsl(var(--primary) / 0.2),
-    0 7px 18px hsl(var(--primary) / 0.14);
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.1);
 }
 
 .btn-primary:hover {
   transform: none;
   filter: none;
   background: hsl(var(--primary) / 0.9);
-  box-shadow:
-    0 1px 2px hsl(var(--primary) / 0.18),
-    0 9px 22px hsl(var(--primary) / 0.18);
+  box-shadow: 0 2px 4px hsl(var(--foreground) / 0.12);
 }
 
 .btn-secondary {
