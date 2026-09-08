@@ -1,5 +1,9 @@
 # 持仓管理 / Portfolio research
 
+录入股票时，先将列表标准代码（如 `600519.SH`、`00700.HK`、`AAPL.US`）转换为持仓代码，再检查所选市场；可匹配列表中的中英文名称。股票索引未加载时仍可直接输入代码，但名称匹配需要索引数据。
+
+Holding entry normalizes exchange-qualified index codes (such as `600519.SH`, `00700.HK`, and `AAPL.US`) before validating the selected market. Exact Chinese and English names can be resolved from the stock index. Direct code entry works without the index; name resolution requires it.
+
 ## 定位与入口
 
 `/portfolio` 是以持仓短简报为主的研究页面；桌面页头提供持仓入口，移动端在菜单中进入。`/portfolio/ledger` 维护账户与买卖记录。它复用现有持仓账本、正式单股研究内核、Agent 解读、专家评审以及工作区定时调度，不建立平行的分析或下单系统。

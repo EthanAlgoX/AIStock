@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 > For user-friendly release highlights, see the [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) page.
 
 ## [Unreleased]
+- [修复] 持仓录入先归一化交易所前后缀再校验市场，修复股票列表选择 A 股、港股仍被拒绝的问题，并支持英文名称匹配。
 - [修复] 告警后台配置读取失败后真正等待 60 秒再重试，运行中调整检查间隔按最新配置计算，不再沿用旧周期截止时间。
 - [新功能] 恢复告警中心与通知设置入口，持仓支持快捷配置上下价格阈值、渠道和冷却时间，触发后发送事实简报并记录投递结果。
 - [改进] Web/API 独立检查告警，无需开启每日模型研究；持仓绑定规则清仓后跳过，过期及非有限行情不触发价格提醒。

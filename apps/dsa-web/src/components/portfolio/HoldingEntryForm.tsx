@@ -4,6 +4,7 @@ import type { PortfolioAccountItem } from '../../types/portfolio';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
 import { getParsedApiError } from '../../api/error';
 import { useStockIndex } from '../../hooks/useStockIndex';
+import { normalizeStockCode } from '../../utils/stockCode';
 
 export default function HoldingEntryForm({ onSaved }: { onSaved: () => void }) {
   const { localize: l } = useUiLanguage();
@@ -27,10 +28,13 @@ export default function HoldingEntryForm({ onSaved }: { onSaved: () => void }) {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError('');
     try {
-      const matched = index.find(s => s.market.toLowerCase() === market && [s.canonicalCode.toUpperCase(), s.displayCode.toUpperCase(), s.nameZh].includes(symbol.trim().toUpperCase()));
-      let code = matched?.canonicalCode || symbol.trim().toUpperCase();
+      const entered = symbol.trim().toUpperCase();
+      const matched = index.find(s => s.market.toLowerCase() === market && [s.canonicalCode, s.displayCode, s.nameZh, s.nameEn].some(value => value?.trim().toUpperCase() === entered));
+      // Index codes carry exchange suffixes; normalize before market validation.
+      let code = normalizeStockCode(matched?.canonicalCode || entered).toUpperCase();
+      if (market === 'us') code = code.replace(/\.US$/, '');
       if (market === 'hk' && /^(HK)?\d{1,5}$/.test(code)) code = `HK${code.replace(/^HK/, '').padStart(5, '0')}`;
-      if (!(market === 'cn' ? /^\d{6}$/.test(code) : market === 'hk' ? /^HK\d{5}$/.test(code) : /^[A-Z][A-Z0-9.-]{0,14}$/.test(code))) throw new Error(l('请输入匹配市场的股票代码，或从股票列表中选择。', 'Enter a stock code matching the market, or choose a stock from the list.'));
+      if (!(market === 'cn' ? /^\d{6}$/.test(code) : market === 'hk' ? /^HK\d{5}$/.test(code) : /^[A-Z][A-Z0-9.-]{0,14}$/.test(code) && !/^HK\d+$/.test(code))) throw new Error(l('请输入匹配市场的股票代码，或从股票列表中选择。', 'Enter a stock code matching the market, or choose a stock from the list.'));
       let id = Number(accountId);
       if (accountId === 'new') {
         const created = await portfolioApi.createAccount({ name: accountName.trim(), market, baseCurrency: currency });
