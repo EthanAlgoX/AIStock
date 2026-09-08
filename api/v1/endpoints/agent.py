@@ -7,6 +7,8 @@ import asyncio
 import json
 import logging
 import threading
+from contextvars import copy_context
+from functools import partial
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -19,6 +21,12 @@ from api.v1.schemas.system_config import AgentBackendStatusResponse
 from src.config import get_config
 from src.services.agent_chat_session_service import AgentChatSessionService
 from src.services.agent_model_service import list_agent_model_deployments
+from src.services.member_service import current_member
+
+
+def _stream_key(request_id):
+    member = current_member()
+    return (member['id'], request_id) if member else request_id
 
 # Tool name -> Chinese display name mapping
 TOOL_DISPLAY_NAMES: Dict[str, str] = {
@@ -276,8 +284,9 @@ async def agent_chat(
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             None,
-            lambda: executor.chat(message=request.message, session_id=session_id,
-                                  context=ctx, selected_skill_ids=selected_skill_ids),
+            partial(copy_context().run, lambda: executor.chat(
+                message=request.message, session_id=session_id,
+                context=ctx, selected_skill_ids=selected_skill_ids)),
         )
 
         return ChatResponse(
@@ -566,7 +575,7 @@ async def agent_chat_stream(
 
     if supports_server_cancellation:
         with _ACTIVE_CANCELLABLE_STREAMS_LOCK:
-            if request_id in _ACTIVE_CANCELLABLE_STREAMS:
+            if _stream_key(request_id) in _ACTIVE_CANCELLABLE_STREAMS:
                 raise HTTPException(
                     status_code=409,
                     detail={
@@ -574,7 +583,7 @@ async def agent_chat_stream(
                         "message": "This Agent request is already running",
                     },
                 )
-            _ACTIVE_CANCELLABLE_STREAMS[request_id] = cancel_event
+            _ACTIVE_CANCELLABLE_STREAMS[_stream_key(request_id)] = cancel_event
 
     def progress_callback(event: dict):
         if supports_server_cancellation and cancel_event.is_set():
@@ -665,7 +674,7 @@ async def agent_chat_stream(
 
             # Backend execution starts only after the accepted event has been
             # yielded, so Web state and server persistence share one commit point.
-            fut = loop.run_in_executor(None, run_sync, executor, turn)
+            fut = loop.run_in_executor(None, copy_context().run, run_sync, executor, turn)
             while True:
                 try:
                     if supports_server_cancellation:
@@ -708,8 +717,8 @@ async def agent_chat_stream(
             finally:
                 if supports_server_cancellation:
                     with _ACTIVE_CANCELLABLE_STREAMS_LOCK:
-                        if _ACTIVE_CANCELLABLE_STREAMS.get(request_id) is cancel_event:
-                            _ACTIVE_CANCELLABLE_STREAMS.pop(request_id, None)
+                        if _ACTIVE_CANCELLABLE_STREAMS.get(_stream_key(request_id)) is cancel_event:
+                            _ACTIVE_CANCELLABLE_STREAMS.pop(_stream_key(request_id), None)
 
     return StreamingResponse(
         event_generator(),
@@ -726,7 +735,7 @@ async def agent_chat_stream(
 async def cancel_agent_chat_stream(request_id: str):
     """Signal cancellation while the original cancellable Agent SSE remains open."""
     with _ACTIVE_CANCELLABLE_STREAMS_LOCK:
-        cancel_event = _ACTIVE_CANCELLABLE_STREAMS.get(request_id)
+        cancel_event = _ACTIVE_CANCELLABLE_STREAMS.get(_stream_key(request_id))
     if cancel_event is None:
         raise HTTPException(
             status_code=404,

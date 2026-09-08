@@ -3,6 +3,20 @@
 
 import tempfile
 import unittest
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def legacy_auth_mode(monkeypatch, tmp_path):
+    """Keep existing business tests in their explicit legacy/no-auth mode."""
+    monkeypatch.setenv('ADMIN_ACCESS_MODE', 'legacy')
+    monkeypatch.setenv('ADMIN_AUTH_ENABLED', 'false')
+    monkeypatch.setenv('ENV_FILE', str(tmp_path / '.env'))
+    from src import auth
+    monkeypatch.setattr(auth, '_get_data_dir', lambda: tmp_path)
+    auth.refresh_auth_state()
+    yield
+    auth.refresh_auth_state()
 from datetime import datetime
 from pathlib import Path
 

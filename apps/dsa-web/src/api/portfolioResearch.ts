@@ -20,7 +20,7 @@ const positionUrl = (accountId: number, symbol: string) => `${root}/${accountId}
 export const portfolioResearchApi = {
   async dashboard(refresh = false) { return (refresh ? await apiClient.post<HoldingsDashboard>(`${root}/refresh`) : await apiClient.get<HoldingsDashboard>(root)).data; },
   async plan(account: number, symbol: string) { return (await apiClient.get<HoldingPlan>(`${positionUrl(account, symbol)}/plan`)).data; },
-  async configure(account: number, symbol: string, payload: { strategyVersionId: number; capabilities: AgentCapabilityBindings; rules: HoldingRules; dailyEnabled: boolean; runAt: string }) {
+  async configure(account: number, symbol: string, payload: { strategyVersionId: number; capabilities: AgentCapabilityBindings; rules: HoldingRules; dailyEnabled: boolean; intervalDays: number; runAt: string }) {
     return (await apiClient.put<HoldingPlan>(`${positionUrl(account, symbol)}/plan`, payload)).data;
   },
   async run(account: number, symbol: string) { return (await apiClient.post<WorkspaceRun>(`${positionUrl(account, symbol)}/run`)).data; },

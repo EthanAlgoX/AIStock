@@ -11,6 +11,7 @@ import { workspaceCatalogFixture, workspaceRunFixture, workspaceTaskFixture } fr
 import ChatPage from '../ChatPage';
 import { useWorkspaceRunStore } from '../../stores/workspaceRunStore';
 import { extractStockCodeFromMessage, extractStockCodesFromMessage } from '../../utils/chatStockCode';
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ role: 'admin' }) }));
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
@@ -294,8 +295,8 @@ describe('ChatPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /选择专家|Choose experts/ })).toBeEnabled());
     expect(screen.getByRole('button', { name: /协作方式|Collaboration mode/ })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: /选择专家|Choose experts/ }));
-    fireEvent.click(screen.getByRole('checkbox', { name: '沃伦·巴菲特' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: '查理·芒格' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /沃伦·巴菲特|Warren Buffett/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /查理·芒格|Charlie Munger/ }));
     fireEvent.click(screen.getByRole('button', { name: /完成|Done/ }));
     fireEvent.click(screen.getByRole('button', { name: /协作方式|Collaboration mode/ }));
     fireEvent.click(screen.getByRole('radio', { name: /流水线|Pipeline/ }));

@@ -10,6 +10,7 @@ API v1 路由聚合
 """
 
 from fastapi import APIRouter
+from api.v1.endpoints import trial
 
 from api.v1.endpoints import (
     agent,
@@ -134,3 +135,5 @@ router.include_router(
     prefix="/mcp",
     tags=["FinancialMCP"],
 )
+
+router.include_router(trial.router, prefix='/trial', tags=['Trial'])

@@ -7,6 +7,7 @@ import asyncio
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
+from pydantic import BaseModel
 
 from api.v1.schemas.workspace import (
     CapabilityPreferenceRequest,
@@ -67,6 +68,74 @@ _TOOL_DATA_SOURCE_KIND = {
 
 def _service() -> WorkspaceService:
     return WorkspaceService()
+
+
+class MemberNotificationSettings(BaseModel):
+    model_config = {'extra': 'forbid'}
+    enabled: bool
+
+
+@router.get('/chat-settings')
+def member_chat_settings():
+    from src.services.member_service import current_member
+    if not current_member():
+        raise HTTPException(403, 'Member workspace required')
+    return {'enabled': get_config().agent_context_compression_enabled}
+
+
+@router.put('/chat-settings')
+def update_member_chat_settings(body: MemberNotificationSettings):
+    from src.services.member_service import current_member
+    from src.storage import WorkspaceCapabilityPreferenceRecord
+    from sqlalchemy import select
+    if not current_member():
+        raise HTTPException(403, 'Member workspace required')
+    with _service().db.session_scope() as session:
+        row = session.scalar(select(WorkspaceCapabilityPreferenceRecord).where(
+            WorkspaceCapabilityPreferenceRecord.capability_kind == 'member_chat',
+            WorkspaceCapabilityPreferenceRecord.capability_id == 'compression'))
+        if row:
+            row.enabled = body.enabled
+        else:
+            session.add(WorkspaceCapabilityPreferenceRecord(capability_kind='member_chat',
+                                                           capability_id='compression', enabled=body.enabled))
+    return {'enabled': body.enabled}
+
+
+@router.get('/notification-settings')
+def member_notification_settings():
+    from src.services.member_service import current_member
+    from src.storage import WorkspaceCapabilityPreferenceRecord
+    from sqlalchemy import select
+    member = current_member()
+    if not member:
+        raise HTTPException(403, 'Member workspace required')
+    with _service().db.get_session() as session:
+        row = session.scalar(select(WorkspaceCapabilityPreferenceRecord).where(
+            WorkspaceCapabilityPreferenceRecord.capability_kind == 'member_notification',
+            WorkspaceCapabilityPreferenceRecord.capability_id == 'email',
+        ))
+        return {'enabled': bool(row and row.enabled), 'email': member['email']}
+
+
+@router.put('/notification-settings')
+def update_member_notification_settings(body: MemberNotificationSettings):
+    from src.services.member_service import current_member
+    from src.storage import WorkspaceCapabilityPreferenceRecord
+    from sqlalchemy import select
+    if not current_member():
+        raise HTTPException(403, 'Member workspace required')
+    with _service().db.session_scope() as session:
+        row = session.scalar(select(WorkspaceCapabilityPreferenceRecord).where(
+            WorkspaceCapabilityPreferenceRecord.capability_kind == 'member_notification',
+            WorkspaceCapabilityPreferenceRecord.capability_id == 'email',
+        ))
+        if row:
+            row.enabled = body.enabled
+        else:
+            session.add(WorkspaceCapabilityPreferenceRecord(capability_kind='member_notification',
+                                                           capability_id='email', enabled=body.enabled))
+    return {'enabled': body.enabled}
 
 
 def _raise(error: WorkspaceError) -> HTTPException:

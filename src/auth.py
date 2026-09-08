@@ -2,8 +2,8 @@
 """
 Web admin authentication module.
 
-Single toggle (ADMIN_AUTH_ENABLED) + file-based credentials.
-First login sets initial password; supports web change-password and CLI reset.
+Single-instance email account + file-based credentials and signed Cookie sessions.
+Explicit legacy mode retains the former ADMIN_AUTH_ENABLED password-only flow.
 """
 
 from __future__ import annotations
@@ -12,11 +12,15 @@ import base64
 import getpass
 import hashlib
 import hmac
+import json
 import logging
 import os
 import secrets
 import sys
 import time
+import re
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -26,16 +30,174 @@ logger = logging.getLogger(__name__)
 
 COOKIE_NAME = "dsa_session"
 PBKDF2_ITERATIONS = 100_000
+ACCOUNT_PBKDF2_ITERATIONS = 600_000
 RATE_LIMIT_WINDOW_SEC = 300
 RATE_LIMIT_MAX_FAILURES = 5
 SESSION_MAX_AGE_HOURS_DEFAULT = 24
 MIN_PASSWORD_LEN = 6
+
+
+def access_mode() -> str:
+    """Explicit deployment policy; never infer trust from Host or forwarded IP."""
+    _ensure_env_loaded()
+    mode = os.getenv("ADMIN_ACCESS_MODE", "local").strip().lower()
+    if mode not in {"local", "server", "legacy"}:
+        raise ValueError("ADMIN_ACCESS_MODE must be local, server or legacy")
+    return mode
+
+
+def account_mode_enabled() -> bool:
+    # Local mode is explicitly single-user; middleware restricts it to loopback.
+    return access_mode() == "server" or (access_mode() == "legacy" and bool(account_email()))
+
+
+def account_email() -> str:
+    path = _get_credential_path()
+    if not path.exists():
+        return ""
+    raw = path.read_text().strip()
+    if not raw.startswith("{"):
+        return ""
+    return json.loads(raw)["email"]
+
+
+def normalize_email(value: str) -> str:
+    value = value.strip().lower()
+    if len(value) > 254 or not re.fullmatch(r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,63}", value):
+        raise ValueError("email_invalid")
+    return value
+
+
+@contextmanager
+def account_write_lock():
+    """OS lock released on process exit, shared by registration and recovery."""
+    directory = _get_data_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    with open(directory / '.admin_account.lock', 'a+b') as handle:
+        if os.name == 'nt':
+            import msvcrt
+            handle.write(b'0')
+            handle.flush()
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if os.name == 'nt':
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _atomic_private_write(path: Path, content: str) -> None:
+    fd, temporary = tempfile.mkstemp(prefix='.admin-', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _account_hash(password: str) -> str:
+    salt = secrets.token_bytes(32)
+    derived = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, ACCOUNT_PBKDF2_ITERATIONS)
+    return base64.b64encode(salt).decode() + ':' + base64.b64encode(derived).decode()
+
+
+def setup_token_cli() -> int:
+    """Only the deployment operator can mint a short-lived bootstrap credential."""
+    _ensure_env_loaded()
+    with account_write_lock():
+        if _get_credential_path().exists():
+            print('Credentials already exist. Use the existing password or reset_password.', file=sys.stderr)
+            return 1
+        token = secrets.token_urlsafe(32)
+        _atomic_private_write(_get_data_dir() / '.admin_setup_token', json.dumps({
+            'digest': hashlib.sha256(token.encode()).hexdigest(), 'expires': time.time() + 1800,
+        }))
+    print('One-time setup token (expires in 30 minutes):')
+    print(token)
+    return 0
+
+
+def register_account(email: str, password: str, confirmation: str, current: str, token: str) -> None:
+    email = normalize_email(email)
+    with account_write_lock():
+        if account_email():
+            raise ValueError('registration_closed')
+        path = _get_credential_path()
+        if path.exists():
+            if not verify_stored_password(current):
+                raise ValueError('credentials_invalid')
+            # Migration preserves the existing password (including legacy length).
+            password_hash = path.read_text().strip()
+        else:
+            if password != confirmation:
+                raise ValueError('password_mismatch')
+            if not 8 <= len(password) <= 128 or not password.strip():
+                raise ValueError('password_length')
+            token_path = _get_data_dir() / '.admin_setup_token'
+            data = json.loads(token_path.read_text()) if token_path.exists() else {}
+            if data.get('expires', 0) <= time.time() or not hmac.compare_digest(
+                data.get('digest', ''), hashlib.sha256(token.encode()).hexdigest()
+            ):
+                raise ValueError('setup_token_invalid')
+            password_hash = _account_hash(password)
+        iterations = PBKDF2_ITERATIONS if path.exists() else ACCOUNT_PBKDF2_ITERATIONS
+        _atomic_private_write(path, json.dumps({'email': email, 'password_hash': password_hash, 'iterations': iterations}))
+        refresh_auth_state()
+        # Registration is closed by the credentials record even if cleanup fails.
+        token_path = _get_data_dir() / '.admin_setup_token'
+        if token_path.exists():
+            try:
+                token_path.unlink()
+            except OSError:
+                logger.warning('Could not remove consumed bootstrap token file')
+
+
+def update_account_email(email: str, current: str) -> None:
+    email = normalize_email(email)
+    with account_write_lock():
+        if not account_email() or not verify_stored_password(current):
+            raise ValueError('credentials_invalid')
+        data = json.loads(_get_credential_path().read_text())
+        data['email'] = email
+        _atomic_private_write(_get_credential_path(), json.dumps(data))
+
+
+def replace_account_password(password: str, current: Optional[str] = None) -> Optional[str]:
+    if not 8 <= len(password) <= 128 or not password.strip():
+        return 'Password must contain 8–128 characters.'
+    with account_write_lock():
+        if current is not None and not verify_stored_password(current):
+            return 'Email or password incorrect.'
+        email = account_email()
+        content = _account_hash(password)
+        if email:
+            content = json.dumps({'email': email, 'password_hash': content, 'iterations': ACCOUNT_PBKDF2_ITERATIONS})
+        else:
+            # Password-only recovery must remain readable by legacy migration.
+            salt = secrets.token_bytes(32)
+            derived = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, PBKDF2_ITERATIONS)
+            content = base64.b64encode(salt).decode() + ':' + base64.b64encode(derived).decode()
+        _atomic_private_write(_get_credential_path(), content)
+        refresh_auth_state()
+    return None
 
 # Lazy-loaded state
 _auth_enabled: Optional[bool] = None
 _session_secret: Optional[bytes] = None
 _password_hash_salt: Optional[bytes] = None
 _password_hash_stored: Optional[bytes] = None
+_password_hash_iterations = PBKDF2_ITERATIONS
 _rate_limit: dict[str, Tuple[int, float]] = {}
 _rate_limit_lock = None
 
@@ -152,20 +314,20 @@ def _parse_password_hash(value: str) -> Optional[Tuple[bytes, bytes]]:
     return None
 
 
-def _verify_password_hash(submitted: str, salt: bytes, stored_hash: bytes) -> bool:
+def _verify_password_hash(submitted: str, salt: bytes, stored_hash: bytes, iterations: int = PBKDF2_ITERATIONS) -> bool:
     """Verify submitted password against stored pbkdf2 hash."""
     computed = hashlib.pbkdf2_hmac(
         "sha256",
         submitted.encode("utf-8"),
         salt=salt,
-        iterations=PBKDF2_ITERATIONS,
+        iterations=iterations,
     )
     return hmac.compare_digest(computed, stored_hash)
 
 
 def _load_credential_from_file() -> bool:
     """Load credential from file into module globals. Returns True if loaded."""
-    global _password_hash_salt, _password_hash_stored
+    global _password_hash_salt, _password_hash_stored, _password_hash_iterations
 
     path = _get_credential_path()
     if not path.exists():
@@ -175,6 +337,11 @@ def _load_credential_from_file() -> bool:
 
     try:
         raw = path.read_text().strip()
+        _password_hash_iterations = PBKDF2_ITERATIONS
+        if raw.startswith('{'):
+            record = json.loads(raw)
+            raw = record['password_hash']
+            _password_hash_iterations = record.get('iterations', PBKDF2_ITERATIONS)
         parsed = _parse_password_hash(raw)
         if parsed is None:
             logger.warning("Invalid .admin_password_hash format, ignoring")
@@ -197,6 +364,10 @@ def refresh_auth_state() -> None:
 def is_auth_enabled() -> bool:
     """Return whether admin authentication is enabled (ADMIN_AUTH_ENABLED=true)."""
     global _auth_enabled
+    if access_mode() == 'local':
+        return False
+    if account_mode_enabled():
+        return True
     if _auth_enabled is not None:
         return _auth_enabled
     _auth_enabled = _is_auth_enabled_from_env()
@@ -212,7 +383,7 @@ def verify_stored_password(password: str) -> bool:
     """Verify password against stored credential even when auth is disabled."""
     if not has_stored_password():
         return False
-    return _verify_password_hash(password, _password_hash_salt, _password_hash_stored)
+    return _verify_password_hash(password, _password_hash_salt, _password_hash_stored, _password_hash_iterations)
 
 
 def is_password_set() -> bool:
@@ -230,6 +401,14 @@ def is_password_changeable() -> bool:
 def _get_session_secret() -> Optional[bytes]:
     """Return session signing secret."""
     if not is_auth_enabled():
+        return None
+    if account_mode_enabled():
+        # Read the secret on every verification for cross-worker logout/recovery.
+        global _session_secret
+        _session_secret = None
+        secret = _load_session_secret()
+        if secret and _get_credential_path().exists():
+            return hmac.digest(secret, _get_credential_path().read_bytes(), 'sha256')
         return None
     return _load_session_secret()
 
@@ -290,6 +469,8 @@ def change_password(current: str, new: str) -> Optional[str]:
     """
     Change password. Verifies current, writes new hash. Returns error message or None on success.
     """
+    if account_mode_enabled():
+        return replace_account_password(new, current)
     if not is_auth_enabled():
         return "认证功能未启用"
     if not is_password_set():
@@ -426,6 +607,8 @@ def overwrite_password(new_password: str) -> Optional[str]:
     Overwrite stored password without verifying current. For CLI reset only.
     Returns error message or None on success.
     """
+    if account_mode_enabled():
+        return replace_account_password(new_password)
     if not is_auth_enabled():
         return "认证功能未启用"
     err = _validate_password(new_password)
@@ -462,7 +645,7 @@ def overwrite_password(new_password: str) -> Optional[str]:
 def reset_password_cli() -> int:
     """Interactive CLI to reset password. Returns exit code."""
     _ensure_env_loaded()
-    if not _is_auth_enabled_from_env():
+    if not is_auth_enabled():
         print("Error: Auth is not enabled. Set ADMIN_AUTH_ENABLED=true in .env", file=sys.stderr)
         return 1
 
@@ -492,7 +675,9 @@ def _main() -> int:
     """CLI entry: reset_password subcommand."""
     if len(sys.argv) > 1 and sys.argv[1] == "reset_password":
         return reset_password_cli()
-    print("Usage: python -m src.auth reset_password", file=sys.stderr)
+    if len(sys.argv) > 1 and sys.argv[1] == "setup_token":
+        return setup_token_cli()
+    print("Usage: python -m src.auth {setup_token|reset_password}", file=sys.stderr)
     return 1
 
 

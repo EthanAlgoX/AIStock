@@ -41,6 +41,7 @@ const Probe = () => {
       <button type="button" onClick={() => void auth.logout()}>
         trigger-logout
       </button>
+      <button type="button" onClick={() => void auth.refreshStatus()}>refresh-status</button>
     </div>
   );
 };
@@ -48,6 +49,23 @@ const Probe = () => {
 describe('AuthContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it('clears private browser data on identity change, not on quota refresh', async () => {
+    localStorage.setItem('investcrew.activeIdentity', 'previous-member');
+    localStorage.setItem('dsa.research-task-draft.v1', 'private draft');
+    localStorage.setItem('dsa.uiLanguage', 'en');
+    getStatus.mockResolvedValue({ authEnabled: true, loggedIn: true, role: 'member',
+      userId: 'current-member', multiUserEnabled: true, deploymentMode: 'server', setupState: 'enabled' });
+    render(<AuthProvider><Probe /></AuthProvider>);
+    await waitFor(() => expect(localStorage.getItem('investcrew.activeIdentity')).toBe('current-member'));
+    expect(localStorage.getItem('dsa.research-task-draft.v1')).toBeNull();
+    expect(localStorage.getItem('dsa.uiLanguage')).toBe('en');
+    localStorage.setItem('dsa.research-task-draft.v1', 'new private draft');
+    fireEvent.click(screen.getByRole('button', { name: 'refresh-status' }));
+    await waitFor(() => expect(getStatus).toHaveBeenCalledTimes(2));
+    expect(localStorage.getItem('dsa.research-task-draft.v1')).toBe('new private draft');
   });
 
   it('refreshes auth state after a successful login', async () => {

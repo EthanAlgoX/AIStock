@@ -13,6 +13,10 @@
 
 ## 本地开发
 
+桌面端默认 `ADMIN_ACCESS_MODE=local`，直接回环访问，免注册和登录。只有主动配置服务器模式才需要账户；源码可使用 `python -m src.auth setup_token`，打包后端可使用 `stock_analysis --account-action setup-token`（Windows 为 `.exe`），恢复使用 `--account-action reset-password`。须使用实际后端的配置与数据目录，详见 [实例账户](instance-account.md)。
+
+Desktop defaults to `ADMIN_ACCESS_MODE=local`: direct loopback access with no signup/login. Only explicit server mode requires accounts. Packaged recovery/setup uses `stock_analysis --account-action setup-token` (or `.exe`) and `--account-action reset-password`, with the actual backend configuration/data directory. Source installs can use `python -m src.auth setup_token`. See [Instance account](instance-account.md).
+
 一键启动（开发模式）：
 
 ```bash

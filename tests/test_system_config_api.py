@@ -30,6 +30,13 @@ from api.v1.schemas.system_config import (
     UpdateSystemConfigRequest,
 )
 import src.auth as auth
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def legacy_auth_mode(monkeypatch):
+    """Retain explicit legacy/no-auth API contracts; account-mode access has separate integration tests."""
+    monkeypatch.setenv('ADMIN_ACCESS_MODE', 'legacy')
 from src.config import Config
 from src.core.config_manager import ConfigManager
 from src.services.system_config_service import SystemConfigService

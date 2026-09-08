@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import json
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
+from concurrent.futures import as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
 

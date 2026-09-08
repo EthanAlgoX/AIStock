@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Union
 
@@ -50,6 +50,13 @@ class TaskService:
     @classmethod
     def get_instance(cls) -> 'TaskService':
         """获取单例实例"""
+        from src.workspace_scope import current_workspace_database
+        database = current_workspace_database()
+        if database is not None:
+            with cls._lock:
+                if not hasattr(database, '_task_service'):
+                    database._task_service = cls(max_workers=1)
+                return database._task_service
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
@@ -59,6 +66,9 @@ class TaskService:
     @property
     def executor(self) -> ThreadPoolExecutor:
         """获取或创建线程池"""
+        from src.services.member_service import current_member, member_task_executor
+        if current_member():
+            return member_task_executor()
         if self._executor is None:
             self._executor = ThreadPoolExecutor(
                 max_workers=self._max_workers,

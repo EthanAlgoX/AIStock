@@ -13,7 +13,8 @@ rather than silently screening the US pool.
 
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
+from concurrent.futures import as_completed
 import pandas as pd
 
 logger = logging.getLogger(__name__)

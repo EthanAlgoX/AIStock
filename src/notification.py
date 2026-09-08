@@ -2854,7 +2854,14 @@ class NotificationService(
             filename = f"report_{date_str}.md"
 
         # 确保 reports 目录存在（使用项目根目录下的 reports）
-        reports_dir = Path(__file__).parent.parent / 'reports'
+        from src.workspace_scope import current_workspace_database
+        database = current_workspace_database()
+        if database is not None:
+            if Path(filename).name != filename:
+                raise ValueError('Report filename must not contain a path')
+            reports_dir = Path(database._engine.url.database).parent / 'reports'
+        else:
+            reports_dir = Path(__file__).parent.parent / 'reports'
         reports_dir.mkdir(parents=True, exist_ok=True)
 
         filepath = reports_dir / filename

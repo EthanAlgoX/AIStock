@@ -63,17 +63,20 @@ class ConversationManager:
 
     def get_or_create(self, session_id: str) -> ConversationSession:
         """Get an existing session or create a new one."""
+        from src.workspace_scope import current_workspace_database
+        database = current_workspace_database()
+        key = (database._workspace_id, session_id) if database else session_id
         with self._lock:
             self._cleanup_expired()
 
-            if session_id not in self._sessions:
-                self._sessions[session_id] = ConversationSession(session_id=session_id)
+            if key not in self._sessions:
+                self._sessions[key] = ConversationSession(session_id=session_id)
                 logger.info(f"Created new conversation session: {session_id}")
             else:
                 # Update last active time
-                self._sessions[session_id].last_active = datetime.now()
+                self._sessions[key].last_active = datetime.now()
 
-            return self._sessions[session_id]
+            return self._sessions[key]
 
     def add_message(self, session_id: str, role: str, content: str) -> int:
         """Add a message to a session."""
@@ -97,9 +100,12 @@ class ConversationManager:
 
     def clear(self, session_id: str):
         """Clear a session."""
+        from src.workspace_scope import current_workspace_database
+        database = current_workspace_database()
+        key = (database._workspace_id, session_id) if database else session_id
         with self._lock:
-            if session_id in self._sessions:
-                del self._sessions[session_id]
+            if key in self._sessions:
+                del self._sessions[key]
                 logger.info(f"Cleared conversation session: {session_id}")
         # We don't delete from DB here to keep history, or we could add a delete method.
         # For now, just clear from memory.

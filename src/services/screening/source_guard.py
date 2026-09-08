@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 from queue import Queue
 import threading
+from src.workspace_scope import context_thread as ContextThread
 from typing import Any, Callable, TypeVar
 
 T = TypeVar("T")
@@ -60,7 +61,7 @@ def call_with_timeout(
         except BaseException as exc:  # noqa: BLE001 - propagate worker failures to caller.
             result_queue.put((False, exc))
 
-    worker = threading.Thread(target=run, name=f"screening-source:{label}", daemon=True)
+    worker = ContextThread(target=run, name=f"screening-source:{label}", daemon=True)
     worker.start()
     worker.join(float(timeout_sec))
     if worker.is_alive():

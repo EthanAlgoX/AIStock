@@ -26,9 +26,10 @@ def client():
 
 
 @pytest.fixture(autouse=True)
-def disable_auth():
+def disable_auth(monkeypatch):
     """Keep analysis integration tests independent from local auth env state."""
     auth._auth_enabled = None
+    monkeypatch.setenv('ADMIN_ACCESS_MODE', 'legacy')
     with patch("api.middlewares.auth.is_auth_enabled", return_value=False), \
          patch("src.auth.is_auth_enabled", return_value=False):
         yield

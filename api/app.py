@@ -313,6 +313,8 @@ async def app_lifespan(app: FastAPI):
     if interrupted_workspace_runs:
         logger.warning("Marked %s interrupted Agent workspace run(s) as failed", interrupted_workspace_runs)
     workspace_scheduler = WorkspaceSchedulerService()
+    from src.services.member_service import run_member_maintenance
+    run_member_maintenance(reconcile=True)
     workspace_scheduler.start()
     app.state.workspace_scheduler = workspace_scheduler
     if runtime_owns_schedule and not runtime_suppress_start:

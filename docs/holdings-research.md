@@ -1,5 +1,15 @@
 # 持仓管理 / Portfolio research
 
+## 跟踪周期 / Tracking cadence
+
+“跟踪周期与策略”支持填写 `intervalDays`（1–365 的整数，默认 1）：1 为每天，2 为每两天，3 为每三天，按自然日而非交易日计算。开启定时自动研究并保存后，在任务与运行的定时计划中可查看同一任务，不另建副本。首次启用或修改周期/时间后，在下一个市场当地 HH:MM 首次运行，随后每 N 天运行。未修改调度的保存保留下次执行时间。服务停机错过的周期仅触发一次，跳到原周期中下一个未来时间，不批量补跑。休市复用规则不变；服务必须保持运行。
+
+Tracking schedule settings accept `intervalDays` (an integer from 1–365, default 1): 1 runs daily, 2 every two calendar days, and 3 every three days. Enable scheduled research and save to register the same task in Tasks & Runs; no duplicate is created. Enabling or changing timing starts at the next market-local HH:MM, then repeats every N days. Unchanged saves preserve the next run. Missed cycles trigger once, then skip to the next future slot on the original cadence, without replaying every missed run. Holiday reuse still applies and the server must remain running.
+
+API 保留 `dailyEnabled` 和 `scheduleMode: daily` 兼容旧客户端，新增 `intervalDays`。旧持仓请求省略周期时保留已保存值，旧计划默认每天。SQLite 启动自动补列；已有其他数据库需先给 `workspace_schedules` 增加 `interval_days INTEGER NOT NULL DEFAULT 1`。回滚至不支持周期的版本前应停用多天计划，避免被旧调度器当作每日计划执行。
+
+The API retains `dailyEnabled` and `scheduleMode: daily` for compatibility and adds `intervalDays`. Omitted periods in holding requests preserve saved settings; legacy schedules default to daily. SQLite adds the column at startup. Existing other databases require adding `interval_days INTEGER NOT NULL DEFAULT 1` to `workspace_schedules` before upgrading. Disable multi-day schedules before reverting to an older scheduler, which would otherwise treat them as daily.
+
 录入股票时，先将列表标准代码（如 `600519.SH`、`00700.HK`、`AAPL.US`）转换为持仓代码，再检查所选市场；可匹配列表中的中英文名称。股票索引未加载时仍可直接输入代码，但名称匹配需要索引数据。
 
 Holding entry normalizes exchange-qualified index codes (such as `600519.SH`, `00700.HK`, and `AAPL.US`) before validating the selected market. Exact Chinese and English names can be resolved from the stock index. Direct code entry works without the index; name resolution requires it.

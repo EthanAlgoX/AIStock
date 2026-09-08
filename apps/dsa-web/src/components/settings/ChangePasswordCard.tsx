@@ -9,8 +9,8 @@ import { SettingsAlert } from './SettingsAlert';
 import { SettingsSectionCard } from './SettingsSectionCard';
 
 export const ChangePasswordCard: React.FC = () => {
-  const { changePassword } = useAuth();
-  const { t } = useUiLanguage();
+  const { changePassword, accountMode, role } = useAuth();
+  const { t, localize: l } = useUiLanguage();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
@@ -32,8 +32,8 @@ export const ChangePasswordCard: React.FC = () => {
       setError(t('settings.changePasswordRequiredNew'));
       return;
     }
-    if (newPassword.length < 6) {
-      setError(t('settings.changePasswordShort'));
+    if (newPassword.length < (accountMode ? 8 : 6) || (accountMode && newPassword.length > 128)) {
+      setError(accountMode ? l('密码长度须为 8–128 位。', 'Password must contain 8–128 characters.') : t('settings.changePasswordShort'));
       return;
     }
     if (newPassword !== newPasswordConfirm) {
@@ -61,7 +61,7 @@ export const ChangePasswordCard: React.FC = () => {
   return (
     <SettingsSectionCard
       title={t('settings.changePasswordTitle')}
-      description={t('settings.changePasswordDescription')}
+      description={role === 'member' ? l('更新你的账户密码，保存后需要重新登录。', 'Update your account password. Sign in again after saving.') : t('settings.changePasswordDescription')}
     >
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid gap-4 md:grid-cols-2">
@@ -87,7 +87,7 @@ export const ChangePasswordCard: React.FC = () => {
               allowTogglePassword
               iconType="password"
               label={t('settings.changePasswordNew')}
-              hint={t('settings.changePasswordNewHint')}
+              hint={accountMode ? l('8–128 位；修改后其他会话将失效。', '8–128 characters; other sessions will be signed out.') : t('settings.changePasswordNewHint')}
               placeholder={t('settings.changePasswordNewPlaceholder')}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}

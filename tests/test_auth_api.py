@@ -21,6 +21,13 @@ except ModuleNotFoundError:
     sys.modules["litellm"] = MagicMock()
 
 import src.auth as auth
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def legacy_auth_mode(monkeypatch):
+    """These tests cover the explicit legacy compatibility mode."""
+    monkeypatch.setenv('ADMIN_ACCESS_MODE', 'legacy')
 from api.middlewares.auth import AuthMiddleware
 from api.v1.endpoints import auth as auth_endpoint
 from src.config import Config

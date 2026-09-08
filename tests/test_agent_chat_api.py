@@ -9,6 +9,13 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def legacy_access_policy(monkeypatch):
+    """These business-contract tests explicitly stub legacy authentication."""
+    monkeypatch.setenv('ADMIN_ACCESS_MODE', 'legacy')
+
 from fastapi.testclient import TestClient
 
 from api.app import create_app

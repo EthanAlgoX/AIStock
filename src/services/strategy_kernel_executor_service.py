@@ -225,6 +225,9 @@ class StrategyKernelExecutorService:
         return function(context)
 
     def _execute_uploaded(self, package: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+        from src.services.member_service import current_member
+        if current_member():
+            raise StrategyKernelExecutionError('ADMIN_REQUIRED', 'Uploaded executable packages require administrator access.', 403)
         archive_path = self._archive_path(str(package.get("sha256") or ""))
         if not archive_path.exists():
             raise StrategyKernelExecutionError("STRATEGY_KERNEL_ARCHIVE_MISSING", "策略内核归档不存在。", 409)

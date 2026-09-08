@@ -2,6 +2,7 @@
 
 import logging
 import threading
+from src.workspace_scope import context_thread as ContextThread
 import time
 from datetime import datetime
 
@@ -25,7 +26,7 @@ class AlertPollingService:
         if self._thread and self._thread.is_alive():
             return
         self._stop.clear()
-        self._thread = threading.Thread(target=self._loop, name="alert-poller", daemon=True)
+        self._thread = ContextThread(target=self._loop, name="alert-poller", daemon=True)
         self._thread.start()
 
     def _loop(self):
@@ -37,13 +38,17 @@ class AlertPollingService:
                 if now < retry_after:
                     continue
                 config = self.config_provider()
-                if not config.agent_event_monitor_enabled:
+                from src.services.member_service import multi_user_enabled
+                if not config.agent_event_monitor_enabled and not multi_user_enabled():
                     last_check = None
                     continue
                 interval = _agent_event_monitor_interval_seconds(config)
                 if last_check is not None and now - last_check < interval:
                     continue
-                self.worker.run_once()
+                if config.agent_event_monitor_enabled:
+                    self.worker.run_once()
+                from src.services.member_service import run_member_maintenance
+                run_member_maintenance(alerts=True)
                 self.last_checked_at = datetime.now().isoformat()
                 self.last_error = None
                 last_check = time.monotonic()

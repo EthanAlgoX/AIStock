@@ -1,6 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LoginPage from '../LoginPage';
+import { MemoryRouter } from 'react-router-dom';
+import { UiLanguageProvider } from '../../contexts/UiLanguageContext';
+import { authApi } from '../../api/auth';
+
+vi.mock('../../api/auth', () => ({ authApi: { login: vi.fn() } }));
+const mount = () => render(<UiLanguageProvider><MemoryRouter><LoginPage /></MemoryRouter></UiLanguageProvider>);
 
 const { navigate, useSearchParamsMock, useAuthMock } = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -25,6 +31,7 @@ describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     document.documentElement.className = 'light';
+    localStorage.setItem('dsa.uiLanguage', 'zh');
     useSearchParamsMock.mockReturnValue([new URLSearchParams('redirect=%2Fsettings')]);
   });
 
@@ -36,32 +43,33 @@ describe('LoginPage', () => {
       setupState: 'no_password',
     });
 
-    render(<LoginPage />);
+    mount();
 
-    fireEvent.change(screen.getByLabelText('管理员密码'), { target: { value: 'passwd6' } });
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'passwd6' } });
     fireEvent.change(screen.getByLabelText('确认密码'), { target: { value: 'passwd7' } });
-    fireEvent.click(screen.getByRole('button', { name: '完成设置并登录' }));
+    fireEvent.click(screen.getByRole('button', { name: '创建账户并进入' }));
 
-    expect(await screen.findByText('两次输入的密码不一致')).toBeInTheDocument();
+    expect(await screen.findByText('两次输入的密码不一致。')).toBeInTheDocument();
     expect(login).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('管理员密码')).toHaveAttribute('data-appearance', 'login');
-    expect(screen.getByLabelText('确认密码')).toHaveAttribute('data-appearance', 'login');
+    expect(authApi.login).not.toHaveBeenCalled();
   });
 
   it('navigates to redirect after a successful login', async () => {
     useAuthMock.mockReturnValue({
       login: vi.fn().mockResolvedValue({ success: true }),
+      refreshStatus: vi.fn().mockResolvedValue(undefined),
       passwordSet: true,
       setupState: 'enabled',
     });
 
-    render(<LoginPage />);
+    vi.mocked(authApi.login).mockResolvedValue(undefined);
+    mount();
 
-    fireEvent.change(screen.getByLabelText('登录密码'), { target: { value: 'passwd6' } });
-    fireEvent.click(screen.getByRole('button', { name: '授权进入工作台' }));
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'passwd6' } });
+    fireEvent.click(screen.getByRole('button', { name: '登录' }));
 
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/settings', { replace: true }));
-    expect(screen.getByLabelText('登录密码')).toHaveAttribute('data-appearance', 'login');
+    expect(authApi.login).toHaveBeenCalledWith('passwd6', undefined, undefined);
   });
 
   it('does not override login theme tokens inline so light mode can take effect', () => {
@@ -71,7 +79,7 @@ describe('LoginPage', () => {
       setupState: 'enabled',
     });
 
-    const { container } = render(<LoginPage />);
+    const { container } = mount();
     const pageRoot = container.firstElementChild as HTMLElement | null;
 
     expect(pageRoot).not.toBeNull();

@@ -1,6 +1,15 @@
 import apiClient from './index';
 
 export type AuthStatusResponse = {
+  deploymentMode?: 'local' | 'server' | 'legacy';
+  role?: 'admin' | 'member' | null;
+  userId?: string | null;
+  multiUserEnabled?: boolean;
+  registrationMode?: 'invite' | 'closed';
+  quota?: { used: number; limit: number; remaining: number } | null;
+  accountMode?: boolean;
+  accountState?: 'register' | 'migrate' | 'ready';
+  email?: string | null;
   authEnabled: boolean;
   loggedIn: boolean;
   passwordSet?: boolean;
@@ -9,6 +18,12 @@ export type AuthStatusResponse = {
 };
 
 export const authApi = {
+  async register(body: { email: string; password: string; passwordConfirm: string; currentPassword: string; setupToken: string; memberRegistration?: boolean; inviteCode?: string }): Promise<void> {
+    await apiClient.post('/api/v1/auth/register', body);
+  },
+  async changeEmail(email: string, currentPassword: string): Promise<void> {
+    await apiClient.post('/api/v1/auth/change-email', { email, currentPassword });
+  },
   async getStatus(): Promise<AuthStatusResponse> {
     const { data } = await apiClient.get<AuthStatusResponse>('/api/v1/auth/status');
     return data;
@@ -39,8 +54,8 @@ export const authApi = {
     return data;
   },
 
-  async login(password: string, passwordConfirm?: string): Promise<void> {
-    const body: { password: string; passwordConfirm?: string } = { password };
+  async login(password: string, passwordConfirm?: string, email?: string): Promise<void> {
+    const body: { password: string; passwordConfirm?: string; email?: string } = { password, email };
     if (passwordConfirm !== undefined) {
       body.passwordConfirm = passwordConfirm;
     }

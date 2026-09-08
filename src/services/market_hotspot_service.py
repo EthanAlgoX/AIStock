@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import copy
 import threading
+from src.workspace_scope import context_thread as ContextThread
 from concurrent.futures import Future, TimeoutError as FutureTimeoutError
 from datetime import date
 import time
@@ -491,7 +492,7 @@ class MarketHotspotService:
             future.add_done_callback(
                 lambda done_future: cls._forget_ranking_fetch(inflight_key, done_future)
             )
-            worker = threading.Thread(
+            worker = ContextThread(
                 target=cls._run_ranking_fetch,
                 args=(future, task),
                 daemon=True,

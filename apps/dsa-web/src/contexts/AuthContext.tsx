@@ -3,8 +3,21 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { createParsedApiError, getParsedApiError, type ParsedApiError } from '../api/error';
 import { authApi } from '../api/auth';
 import { useStockPoolStore } from '../stores';
+import { useAgentChatStore } from '../stores/agentChatStore';
+import { useWorkspaceRunStore } from '../stores/workspaceRunStore';
+import { useAnalysisStore } from '../stores/analysisStore';
+import { clearPrivateWorkspaceStorage } from '../utils/privateWorkspaceState';
+import type { AuthStatusResponse } from '../api/auth';
 
 type AuthContextValue = {
+  deploymentMode?: AuthStatusResponse['deploymentMode'];
+  role: 'admin' | 'member' | null;
+  multiUserEnabled: boolean;
+  registrationMode: 'invite' | 'closed';
+  quota: AuthStatusResponse['quota'];
+  accountMode: boolean;
+  accountState: 'register' | 'migrate' | 'ready';
+  email: string;
   authEnabled: boolean;
   loggedIn: boolean;
   passwordSet: boolean;
@@ -12,7 +25,7 @@ type AuthContextValue = {
   setupState: 'enabled' | 'password_retained' | 'no_password';
   isLoading: boolean;
   loadError: ParsedApiError | null;
-  login: (password: string, passwordConfirm?: string) => Promise<{ success: boolean; error?: ParsedApiError }>;
+  login: (password: string, passwordConfirm?: string, email?: string) => Promise<{ success: boolean; error?: ParsedApiError }>;
   changePassword: (
     currentPassword: string,
     newPassword: string,
@@ -39,6 +52,14 @@ function extractLoginError(err: unknown): ParsedApiError {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [deploymentMode, setDeploymentMode] = useState<AuthStatusResponse['deploymentMode']>();
+  const [role, setRole] = useState<'admin' | 'member' | null>(null);
+  const [multiUserEnabled, setMultiUserEnabled] = useState(false);
+  const [registrationMode, setRegistrationMode] = useState<'invite' | 'closed'>('closed');
+  const [quota, setQuota] = useState<AuthStatusResponse['quota']>(null);
+  const [accountMode, setAccountMode] = useState(false);
+  const [accountState, setAccountState] = useState<'register' | 'migrate' | 'ready'>('register');
+  const [email, setEmail] = useState('');
   const [authEnabled, setAuthEnabled] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [passwordSet, setPasswordSet] = useState(false);
@@ -52,6 +73,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoadError(null);
     try {
       const status = await authApi.getStatus();
+      setDeploymentMode(status.deploymentMode);
+      setRole(status.role || null);
+      setMultiUserEnabled(Boolean(status.multiUserEnabled));
+      setRegistrationMode(status.registrationMode || 'closed');
+      setQuota(status.quota || null);
+      const identity = status.deploymentMode === 'local' ? 'local-owner' : status.userId || (status.loggedIn ? 'owner' : '');
+      if ((status.multiUserEnabled || status.deploymentMode) && localStorage.getItem('investcrew.activeIdentity') !== identity) {
+        clearPrivateWorkspaceStorage();
+        useAgentChatStore.getState().abortController?.abort();
+        useAgentChatStore.setState(useAgentChatStore.getInitialState());
+        useAgentChatStore.getState().startNewChat();
+        useStockPoolStore.getState().resetDashboardState();
+        useWorkspaceRunStore.setState(useWorkspaceRunStore.getInitialState());
+        useAnalysisStore.getState().reset();
+        localStorage.setItem('investcrew.activeIdentity', identity);
+      }
+      setAccountMode(Boolean(status.accountMode));
+      setAccountState(status.accountState || 'register');
+      setEmail(status.email || '');
       setAuthEnabled(status.authEnabled);
       setLoggedIn(status.loggedIn);
       setPasswordSet(status.passwordSet ?? false);
@@ -61,6 +101,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         useStockPoolStore.getState().resetDashboardState();
       }
     } catch (err) {
+      setRole(null);
+      setQuota(null);
       setLoadError(getParsedApiError(err));
       setAuthEnabled(false);
       setLoggedIn(false);
@@ -77,13 +119,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void fetchStatus();
   }, [fetchStatus]);
 
+  useEffect(() => {
+    const changed = (event: StorageEvent) => {
+      if (event.key === 'investcrew.activeIdentity' && event.oldValue !== event.newValue) {
+        clearPrivateWorkspaceStorage();
+        window.location.assign('/login');
+      }
+    };
+    window.addEventListener('storage', changed);
+    return () => window.removeEventListener('storage', changed);
+  }, []);
+
   const login = useCallback(
     async (
       password: string,
-      passwordConfirm?: string
+      passwordConfirm?: string,
+      email?: string
     ): Promise<{ success: boolean; error?: ParsedApiError }> => {
       try {
-        await authApi.login(password, passwordConfirm);
+        await authApi.login(password, passwordConfirm, email);
         await fetchStatus();
         return { success: true };
       } catch (err: unknown) {
@@ -101,12 +155,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ): Promise<{ success: boolean; error?: ParsedApiError }> => {
       try {
         await authApi.changePassword(currentPassword, newPassword, newPasswordConfirm);
+        if (role === 'member') await fetchStatus();
         return { success: true };
       } catch (err: unknown) {
         return { success: false, error: getParsedApiError(err) };
       }
     },
-    []
+    [role, fetchStatus]
   );
 
   const logout = useCallback(async () => {
@@ -122,11 +177,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (logoutError && getParsedApiError(logoutError).status !== 401) {
       throw logoutError;
     }
-  }, [fetchStatus]);
+    if (multiUserEnabled) window.location.assign('/login');
+  }, [fetchStatus, multiUserEnabled]);
 
   return (
     <AuthContext.Provider
       value={{
+        deploymentMode,
+        role,
+        multiUserEnabled,
+        registrationMode,
+        quota,
+        accountMode,
+        accountState,
+        email,
         authEnabled,
         loggedIn,
         passwordSet,

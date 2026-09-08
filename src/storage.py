@@ -799,6 +799,49 @@ class AgentProviderTurn(Base):
     )
 
 
+class TrialUserRecord(Base):
+    __tablename__ = 'trial_users'
+    id = Column(String(64), primary_key=True)
+    email = Column(String(254), unique=True, nullable=False)
+    password_hash = Column(Text)
+    invite_hash = Column(String(64))
+    invite_expires = Column(DateTime)
+    session_hash = Column(String(64))
+    session_expires = Column(DateTime)
+    enabled = Column(Boolean, nullable=False, default=True)
+    active_run = Column(String(64))
+
+
+class TrialBudgetRecord(Base):
+    __tablename__ = 'trial_budgets'
+    id = Column(String(80), primary_key=True)
+    used = Column(Integer, nullable=False, default=0)
+    limit = Column(Integer, nullable=False)
+
+
+class TrialRunRecord(Base):
+    __tablename__ = 'trial_runs'
+    id = Column(String(64), primary_key=True)
+    user_id = Column(String(64), nullable=False, index=True)
+    status = Column(String(24), nullable=False, default='running')
+    request_json = Column(Text, nullable=False)
+    events_json = Column(Text, nullable=False, default='[]')
+    error = Column(String(80))
+    created_at = Column(DateTime, nullable=False, default=utc_naive_now)
+
+
+class TrialCallRecord(Base):
+    __tablename__ = 'trial_calls'
+    id = Column(String(64), primary_key=True)
+    run_id = Column(String(64), nullable=False, index=True)
+    user_id = Column(String(64), nullable=False)
+    day_budget = Column(String(80), nullable=False)
+    reserved = Column(Integer, nullable=False)
+    charged = Column(Integer, nullable=False)
+    settled = Column(Boolean, nullable=False, default=False)
+    estimated = Column(Boolean, nullable=False, default=True)
+
+
 class LLMUsage(Base):
     """One row per litellm.completion() call — token-usage audit log."""
 
@@ -1420,6 +1463,7 @@ class WorkspaceScheduleRecord(Base):
     schedule_mode = Column(String(16), nullable=False, index=True)
     run_at = Column(String(8))
     interval_minutes = Column(Integer)
+    interval_days = Column(Integer, nullable=False, default=1, server_default='1')
     timezone = Column(String(64), nullable=False, default='Asia/Shanghai')
     enabled = Column(Boolean, nullable=False, default=True, index=True)
     next_run_at = Column(DateTime, nullable=False, index=True)
@@ -2124,6 +2168,16 @@ class _DatabaseManagerMeta(type):
             return super().__call__(*args, **kwargs)
 
 
+class _WorkspaceAwareSession(Session):
+    """Guard identity-map hits too, which do not issue SQL/ORM execute events."""
+
+    def get(self, *args, **kwargs):
+        guard = self.info.get('workspace_guard')
+        if guard:
+            guard()
+        return super().get(*args, **kwargs)
+
+
 class DatabaseManager(metaclass=_DatabaseManagerMeta):
     """
     数据库管理器 - 单例模式
@@ -2140,6 +2194,12 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     
     def __new__(cls, *args, **kwargs):
         """单例模式实现"""
+        from src.workspace_scope import current_workspace_database
+        scoped = current_workspace_database()
+        if scoped is not None:
+            if args or kwargs:
+                raise RuntimeError('Cannot override the database in a workspace scope')
+            return scoped
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
@@ -2172,6 +2232,9 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 "echo": False,
                 "pool_pre_ping": True,
             }
+            if getattr(self, '_workspace_provisioning', False):
+                from sqlalchemy.pool import NullPool
+                engine_kwargs['poolclass'] = NullPool
             if str(db_url).startswith("sqlite:") and self._sqlite_busy_timeout_ms > 0:
                 engine_kwargs["connect_args"] = {
                     "timeout": self._sqlite_busy_timeout_ms / 1000,
@@ -2190,6 +2253,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             # 创建 Session 工厂
             self._SessionLocal = sessionmaker(
                 bind=self._engine,
+                class_=_WorkspaceAwareSession,
                 autocommit=False,
                 autoflush=False,
             )
@@ -2205,6 +2269,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             self._ensure_intelligence_items_unique_index()
 
             self._initialized = True
+            event.listen(self._engine, 'before_cursor_execute', self._check_statement_scope)
             logger.info(f"数据库初始化完成: {db_url}")
 
             # 注册退出钩子，确保程序退出时关闭数据库连接
@@ -2218,8 +2283,38 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 logger.warning("数据库初始化失败后的引擎清理也失败: %s", cleanup_exc)
             self._engine = None
             self._SessionLocal = None
-            self.__class__._instance = None
+            if self.__class__._instance is self:
+                self.__class__._instance = None
             raise
+
+    def _check_statement_scope(self, connection, cursor, statement, parameters, context, executemany):
+        from src.workspace_scope import check_database_scope
+        check_database_scope(self)
+
+    @classmethod
+    def open_workspace(cls, db_url: str, workspace_id: str) -> 'DatabaseManager':
+        """Open an explicit independent store without replacing the legacy singleton.
+
+        Internal provisioning API only. The caller must resolve the URL from
+        trusted account metadata, never request data. No legacy data is copied.
+        Scope routing is dormant until a trusted boundary enters workspace_scope.
+        """
+        import re
+        from src.workspace_scope import current_workspace_database, WorkspaceScopeError
+
+        if not re.fullmatch(r'[a-f0-9]{32}', workspace_id):
+            raise ValueError('Invalid internal workspace identifier')
+        if current_workspace_database() is not None:
+            raise WorkspaceScopeError('Provision workspaces outside request scopes')
+        with cls._init_lock:
+            instance = object.__new__(cls)
+            instance._initialized = False
+            instance._workspace_provisioning = True
+            # Schema setup runs before the store becomes scoped. Existing data
+            # migrations and repositories remain the single implementation.
+            cls.__init__(instance, db_url)
+            instance._workspace_id = workspace_id
+            return instance
 
     def _ensure_schema_migration_record(self) -> None:
         session = self._SessionLocal()
@@ -2258,6 +2353,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         if not self._is_sqlite_engine:
             return
         columns = {
+            'workspace_schedules': {'interval_days': 'INTEGER NOT NULL DEFAULT 1'},
             'workspace_experts': {'avatar': 'TEXT'},
             'simulation_strategies': {
                 'lifecycle_status': "VARCHAR(32) NOT NULL DEFAULT 'draft'",
@@ -2784,6 +2880,10 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     @classmethod
     def get_instance(cls) -> 'DatabaseManager':
         """获取单例实例"""
+        from src.workspace_scope import current_workspace_database
+        scoped = current_workspace_database()
+        if scoped is not None:
+            return scoped
         with cls._init_lock:
             if cls._instance is None:
                 cls()
@@ -2920,12 +3020,16 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 # 执行查询
                 session.commit()  # 如果需要
         """
+        from src.workspace_scope import check_database_scope
+        check_database_scope(self)
         if not getattr(self, '_initialized', False) or not hasattr(self, '_SessionLocal'):
             raise RuntimeError(
                 "DatabaseManager 未正确初始化。"
                 "请确保通过 DatabaseManager.get_instance() 获取实例。"
             )
-        session = self._SessionLocal()
+        session = self._SessionLocal(info={'workspace_guard': lambda: check_database_scope(self)})
+        event.listen(session, 'do_orm_execute', lambda state: check_database_scope(self))
+        event.listen(session, 'before_flush', lambda *args: check_database_scope(self))
         try:
             return session
         except Exception:

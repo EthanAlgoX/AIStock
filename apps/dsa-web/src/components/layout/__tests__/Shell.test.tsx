@@ -103,6 +103,13 @@ describe("Shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "退出" }));
 
     expect(await screen.findByRole("heading", { name: "退出登录" })).toBeInTheDocument();
+    const confirmation = screen.getByRole("dialog", { name: "退出登录" });
+    expect(confirmation.parentElement).toHaveClass("z-[110]");
+    expect(screen.getByRole("button", { name: "取消" })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("button", { name: "取消" }), { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "退出登录" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "工作区与设置" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "退出" }));
     fireEvent.click(screen.getByRole("button", { name: "确认退出" }));
     expect(mockLogout).toHaveBeenCalled();
   });

@@ -6,8 +6,9 @@ import {
   Route,
   Routes,
   useLocation,
+  Link,
 } from "react-router-dom";
-import { ApiErrorAlert, Shell } from "./components/common";
+import { ApiErrorAlert, Shell, AppPage, PageHeader } from "./components/common";
 import {
   PageLoadingFallback,
   RouteOutletBoundary,
@@ -22,7 +23,9 @@ import { useAgentChatStore } from "./stores/agentChatStore";
 import "./App.css";
 
 const SettingsPage = lazy(() => import("./pages/PlatformSettingsPage"));
+const MemberSettingsPage = lazy(() => import('./pages/MemberSettingsPage'));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
+const TrialPage = lazy(() => import("./pages/TrialPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const ChatPage = lazy(() => import("./pages/ChatPage"));
 const MarketIntelligencePage = lazy(() => import("./pages/MarketIntelligencePage"));
@@ -44,15 +47,27 @@ const ExpertReviewPage = lazy(() => import("./pages/ExpertReviewPage"));
 const TaskRunsPage = lazy(() => import("./pages/TaskRunsPage"));
 const TaskRunDetailPage = lazy(() => import("./pages/TaskRunDetailPage"));
 
+function ManagedCapabilitiesPage() {
+  const { localize: l } = useUiLanguage();
+  return <AppPage>
+    <PageHeader title={l('平台托管能力', 'Platform-managed capabilities')} description={l('公共数据源和运行工具由平台管理员维护。你可以在研究页面选择可用的 Skill 与专家；持仓、报告和个人配置仍只属于你。', 'Public data sources and runtime tools are maintained by the platform administrator. Choose available Skills and experts on your research pages; your holdings, reports and personal settings remain private.')} />
+    <Link className="btn-secondary mt-6 inline-flex min-h-11 items-center" to="/overview">{l('返回投研助理', 'Back to research assistant')}</Link>
+  </AppPage>;
+}
+
 const AppContent: React.FC = () => {
   const location = useLocation();
-  const { authEnabled, loggedIn, isLoading, loadError, refreshStatus } =
+  const { authEnabled, loggedIn, isLoading, loadError, refreshStatus, role } =
     useAuth();
   const { t } = useUiLanguage();
 
   useEffect(() => {
     useAgentChatStore.getState().setCurrentRoute(location.pathname);
   }, [location.pathname]);
+
+  if (location.pathname === '/try') {
+    return <StandaloneRouteBoundary><TrialPage /></StandaloneRouteBoundary>;
+  }
 
   if (isLoading) {
     return <PageLoadingFallback />;
@@ -133,10 +148,10 @@ const AppContent: React.FC = () => {
         <Route path="/capabilities" element={<CapabilityOverviewPage />} />
         <Route path="/capabilities/skills" element={<SkillSettingsPage />} />
         <Route path="/capabilities/tools" element={<ToolSettingsPage />} />
-        <Route path="/capabilities/mcp" element={<McpSettingsPage />} />
-        <Route path="/capabilities/data" element={<DataSourcesPage />} />
+        <Route path="/capabilities/mcp" element={role === 'member' ? <ManagedCapabilitiesPage /> : <McpSettingsPage />} />
+        <Route path="/capabilities/data" element={role === 'member' ? <ManagedCapabilitiesPage /> : <DataSourcesPage />} />
         <Route path="/capabilities/experts" element={<AgentCenterPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings" element={role === 'member' ? <MemberSettingsPage /> : <SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

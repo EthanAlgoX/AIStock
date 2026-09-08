@@ -13,6 +13,12 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def legacy_auth_mode(monkeypatch):
+    """Retain explicit legacy/no-auth API contracts; account-mode access has separate integration tests."""
+    monkeypatch.setenv('ADMIN_ACCESS_MODE', 'legacy')
 from fastapi.testclient import TestClient
 
 try:

@@ -7,6 +7,8 @@ import { cn } from '../utils/cn';
 import { agentApi } from '../api/agent';
 import { workspaceApi } from '../api/workspace';
 import { systemConfigApi } from '../api/systemConfig';
+import apiClient from '../api';
+import { useAuth } from '../contexts/AuthContext';
 import { ApiErrorAlert, Badge, Button, ConfirmDialog, EmptyState, InlineAlert, ScrollArea, Tooltip } from '../components/common';
 import { createParsedApiError, getParsedApiError } from '../api/error';
 import type { AgentStatusResponse, SkillInfo } from '../api/agent';
@@ -268,6 +270,7 @@ const restoreActiveStockContextFromMessages = (messages: Message[]): ActiveStock
 };
 
 const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: boolean }> = ({ workspace = 'general', defaultDiscussion = false }) => {
+  const { role } = useAuth();
   const { t, localize, language } = useUiLanguage();
   const workspaceCopy = WORKSPACE_COPY[workspace][language];
   const navigate = useNavigate();
@@ -671,6 +674,12 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
   useEffect(() => {
     let active = true;
 
+    if (role === 'member') {
+      void apiClient.get('/api/v1/workspace/chat-settings').then(({ data }) => {
+        if (active) { setContextCompressionEnabled(Boolean(data.enabled)); setContextCompressionLoaded(true); setContextCompressionError(null); }
+      }).catch(error => { if (active) setContextCompressionError(getParsedApiError(error).message); });
+      return () => { active = false; };
+    }
     void systemConfigApi.getConfig(false)
       .then((config) => {
         if (!active) {
@@ -696,7 +705,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
     return () => {
       active = false;
     };
-  }, []);
+  }, [role]);
 
   const updateContextCompressionEnabled = useCallback(
     async (nextEnabled: boolean) => {
@@ -710,6 +719,10 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
       setContextCompressionError(null);
 
       try {
+        if (role === 'member') {
+          await apiClient.put('/api/v1/workspace/chat-settings', { enabled: nextEnabled });
+          return;
+        }
         const result = await systemConfigApi.update({
           configVersion: contextCompressionConfigVersion,
           maskToken: contextCompressionMaskToken,
@@ -731,6 +744,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
       }
     },
     [
+      role,
       contextCompressionConfigVersion,
       contextCompressionEnabled,
       contextCompressionLoaded,

@@ -14,6 +14,13 @@ import os
 import sys
 import tempfile
 import unittest
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def legacy_auth_mode(monkeypatch):
+    """Keep existing business tests in their explicit legacy/no-auth mode."""
+    monkeypatch.setenv('ADMIN_ACCESS_MODE', 'legacy')
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace

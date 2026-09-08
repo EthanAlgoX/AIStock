@@ -25,7 +25,7 @@ describe('holdings research desk', () => {
     expect(screen.getByText('Loss threshold · review reduction')).toBeVisible();
     expect(screen.queryByText('Plan editor')).not.toBeInTheDocument();
     expect(view.container.textContent).not.toMatch(/[\u3400-\u9fff]/);
-    fireEvent.click(screen.getByRole('button', { name: 'Daily plan & strategy' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tracking schedule & strategy' }));
     expect(screen.getByText('Plan editor')).toBeVisible();
     expect(screen.getByRole('link', { name: 'Full research & progress' })).toHaveAttribute('href', '/stock-research?run=run');
   });

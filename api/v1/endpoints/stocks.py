@@ -53,6 +53,15 @@ ALLOWED_MIME_STR = ", ".join(ALLOWED_MIME)
 
 def _read_watchlist_codes(service: SystemConfigService) -> list:
     """Read STOCK_LIST codes as-is (no normalization)."""
+    from src.services.member_service import current_member
+    if current_member():
+        from src.storage import DatabaseManager, WorkspaceCapabilityPreferenceRecord
+        from sqlalchemy import select
+        with DatabaseManager.get_instance().get_session() as session:
+            return list(session.scalars(select(WorkspaceCapabilityPreferenceRecord.capability_id).where(
+                WorkspaceCapabilityPreferenceRecord.capability_kind == 'watchlist',
+                WorkspaceCapabilityPreferenceRecord.enabled.is_(True),
+            ).order_by(WorkspaceCapabilityPreferenceRecord.id)))
     config_data = service.get_config(include_schema=False)
     stock_list_str = ""
     for item in config_data.get("items", []):
@@ -64,6 +73,17 @@ def _read_watchlist_codes(service: SystemConfigService) -> list:
 
 def _write_watchlist_codes(service: SystemConfigService, codes: list) -> None:
     """Persist stock codes to STOCK_LIST as-is (no normalization)."""
+    from src.services.member_service import current_member
+    if current_member():
+        from src.storage import DatabaseManager, WorkspaceCapabilityPreferenceRecord
+        from sqlalchemy import delete
+        with DatabaseManager.get_instance().session_scope() as session:
+            session.execute(delete(WorkspaceCapabilityPreferenceRecord).where(
+                WorkspaceCapabilityPreferenceRecord.capability_kind == 'watchlist'))
+            for code in dict.fromkeys(codes):
+                session.add(WorkspaceCapabilityPreferenceRecord(capability_kind='watchlist',
+                                                               capability_id=code, enabled=True))
+        return
     config_data = service.get_config(include_schema=False)
     config_version = config_data.get("config_version", "")
     service.update(

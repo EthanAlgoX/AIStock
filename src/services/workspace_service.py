@@ -8,9 +8,11 @@ import logging
 import os
 import re
 import threading
+from src.workspace_scope import context_thread as ContextThread
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
 from urllib.parse import urlsplit
@@ -618,6 +620,9 @@ class WorkspaceService:
         from src.agent.tools.registry import ToolDefinition, ToolParameter, ToolPolicy
 
         selected = {str(item) for item in server_ids}
+        from src.services.member_service import current_member
+        if current_member() and selected:
+            raise WorkspaceError('admin_required', '普通用户不能调用未经隔离的外部 MCP。', 403)
         if not selected:
             return []
         servers = {
@@ -1405,6 +1410,13 @@ class WorkspaceService:
             return self._create_run(task_id, trigger_type)
 
     def _create_run(self, task_id: str, trigger_type: str = "manual") -> dict[str, Any]:
+        from src.services.member_service import current_member
+        if current_member():
+            with self.db.get_session() as session:
+                active = session.scalar(select(func.count()).select_from(WorkspaceRunRecord).where(
+                    WorkspaceRunRecord.status.in_(['queued', 'running'])))
+                if active >= 5:
+                    raise WorkspaceError('workspace_busy', '已有任务正在运行，请稍后重试。', 429)
         task = self.get_task(task_id)
         if not task["enabled"]:
             raise WorkspaceError("task_disabled", "任务已停用，不能运行。", 409)
@@ -2259,6 +2271,7 @@ class WorkspaceService:
         timezone_name = str(payload.get("timezone") or "Asia/Shanghai")
         run_at = str(payload.get("runAt") or "")
         interval = payload.get("intervalMinutes")
+        interval_days = self._validate_interval_days(payload.get("intervalDays", 1))
         if mode == "daily" and not _TIME_RE.fullmatch(run_at):
             raise WorkspaceError("schedule_time_invalid", "每日运行时间必须为 HH:MM。")
         if mode == "interval":
@@ -2275,6 +2288,7 @@ class WorkspaceService:
             row = WorkspaceScheduleRecord(id=uuid.uuid4().hex, task_id=task_id, name=str(payload.get("name") or task["name"]), schedule_mode=mode, run_at=run_at or None, interval_minutes=interval if mode == "interval" else None, timezone=timezone_name, enabled=bool(payload.get("enabled", True)), next_run_at=next_run)
             session.add(row)
             session.flush()
+            row.interval_days = interval_days
             if bool(payload.get("publishToMarket")):
                 dashboard_market = self._normalize_dashboard_market(task["market"])
                 title = str(payload.get("marketDashboardTitle") or task["name"]).strip()[:160]
@@ -2310,6 +2324,9 @@ class WorkspaceService:
             row = session.get(WorkspaceScheduleRecord, schedule_id)
             if not row:
                 raise WorkspaceError("schedule_not_found", "定时计划不存在。", 404)
+            previous_timing = (row.run_at, row.interval_minutes, row.interval_days, row.timezone, row.enabled)
+            if "intervalDays" in payload:
+                row.interval_days = self._validate_interval_days(payload["intervalDays"])
             if "enabled" in payload:
                 row.enabled = bool(payload["enabled"])
             for key, attr in (("name", "name"), ("runAt", "run_at"), ("timezone", "timezone")):
@@ -2324,7 +2341,9 @@ class WorkspaceService:
                 raise WorkspaceError("schedule_time_invalid", "每日运行时间必须为 HH:MM。")
             if row.schedule_mode == "interval" and not 5 <= int(row.interval_minutes or 0) <= 10080:
                 raise WorkspaceError("schedule_interval_invalid", "运行间隔必须在 5 分钟到 7 天之间。")
-            row.next_run_at = self._next_run(row.schedule_mode, row.run_at or "", row.interval_minutes, row.timezone, utc_naive_now())
+            current_timing = (row.run_at, row.interval_minutes, row.interval_days, row.timezone, row.enabled)
+            if current_timing != previous_timing:
+                row.next_run_at = self._next_run(row.schedule_mode, row.run_at or "", row.interval_minutes, row.timezone, utc_naive_now())
             row.updated_at = utc_naive_now()
             session.flush()
             return self._schedule_item(row)
@@ -2338,11 +2357,17 @@ class WorkspaceService:
             return {"id": schedule_id, "deleted": True}
 
     @staticmethod
-    def _schedule_item(row: WorkspaceScheduleRecord) -> dict[str, Any]:
-        return {"id": row.id, "taskId": row.task_id, "name": row.name, "scheduleMode": row.schedule_mode, "runAt": row.run_at, "intervalMinutes": row.interval_minutes, "timezone": row.timezone, "enabled": bool(row.enabled), "nextRunAt": _iso(row.next_run_at), "lastRunAt": _iso(row.last_run_at), "lastRunId": row.last_run_id, "createdAt": _iso(row.created_at), "updatedAt": _iso(row.updated_at)}
+    def _validate_interval_days(value: Any) -> int:
+        if type(value) is not int or not 1 <= value <= 365:
+            raise WorkspaceError("schedule_days_invalid", "运行周期必须为 1 至 365 天的整数。", 422)
+        return value
 
     @staticmethod
-    def _next_run(mode: str, run_at: str, interval: Optional[int], timezone_name: str, now_utc: datetime) -> datetime:
+    def _schedule_item(row: WorkspaceScheduleRecord) -> dict[str, Any]:
+        return {"id": row.id, "taskId": row.task_id, "name": row.name, "scheduleMode": row.schedule_mode, "runAt": row.run_at, "intervalMinutes": row.interval_minutes, "intervalDays": row.interval_days, "timezone": row.timezone, "enabled": bool(row.enabled), "nextRunAt": _iso(row.next_run_at), "lastRunAt": _iso(row.last_run_at), "lastRunId": row.last_run_id, "createdAt": _iso(row.created_at), "updatedAt": _iso(row.updated_at)}
+
+    @staticmethod
+    def _next_run(mode: str, run_at: str, interval: Optional[int], timezone_name: str, now_utc: datetime, interval_days: int = 1, anchor: Optional[datetime] = None) -> datetime:
         try:
             zone = ZoneInfo(timezone_name)
         except ZoneInfoNotFoundError as exc:
@@ -2352,9 +2377,13 @@ class WorkspaceService:
             return (aware_now + timedelta(minutes=int(interval or 5))).replace(tzinfo=None)
         hour, minute = (int(part) for part in run_at.split(":"))
         local_now = aware_now.astimezone(zone)
-        candidate = local_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        base = anchor.replace(tzinfo=timezone.utc).astimezone(zone) if anchor else local_now
+        candidate = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        step = interval_days if anchor else 1
         if candidate <= local_now:
-            candidate += timedelta(days=1)
+            candidate += timedelta(days=max(0, (local_now.date() - candidate.date()).days // step) * step)
+            if candidate <= local_now:
+                candidate += timedelta(days=step)
         return candidate.astimezone(timezone.utc).replace(tzinfo=None)
 
     def run_due_schedules(self, now: Optional[datetime] = None) -> list[str]:
@@ -2367,7 +2396,7 @@ class WorkspaceService:
             ).order_by(WorkspaceScheduleRecord.next_run_at).limit(20)).scalars().all()
             for row in rows:
                 row.claim_token, row.claimed_at = uuid.uuid4().hex, now
-                row.next_run_at = self._next_run(row.schedule_mode, row.run_at or "", row.interval_minutes, row.timezone, now)
+                row.next_run_at = self._next_run(row.schedule_mode, row.run_at or "", row.interval_minutes, row.timezone, now, row.interval_days, row.next_run_at)
                 claimed.append((row.id, row.task_id))
         run_ids = []
         for schedule_id, task_id in claimed:
@@ -2416,13 +2445,15 @@ class WorkspaceSchedulerService:
         if self._thread and self._thread.is_alive():
             return
         self._stop.clear()
-        self._thread = threading.Thread(target=self._loop, name="workspace-scheduler", daemon=True)
+        self._thread = ContextThread(target=self._loop, name="workspace-scheduler", daemon=True)
         self._thread.start()
 
     def _loop(self) -> None:
         while not self._stop.wait(self.interval_seconds):
             try:
                 self.service_factory().run_due_schedules()
+                from src.services.member_service import run_member_maintenance
+                run_member_maintenance()
             except Exception:  # noqa: BLE001 - scheduler must survive one database failure.
                 logger.exception("Workspace scheduler tick failed")
 

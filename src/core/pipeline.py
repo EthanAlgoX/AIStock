@@ -17,7 +17,8 @@ import threading
 import time
 import uuid
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
+from concurrent.futures import as_completed
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import List, Dict, Any, Optional, Tuple, Callable

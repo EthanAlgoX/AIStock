@@ -11,6 +11,7 @@ const signal = { id: 7, stockCode: "600519", market: "cn", sourceType: "analysis
 describe("DecisionReviewPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.setItem('dsa.uiLanguage', 'zh');
     api.list.mockResolvedValue({ items: [signal] });
     api.getSignalOutcomes.mockResolvedValue({ items: [] });
     api.runOutcomes.mockResolvedValue({ items: [], evaluated: 0 });

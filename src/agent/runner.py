@@ -20,7 +20,8 @@ import logging
 import re
 import time
 import contextvars
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
+from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError, as_completed
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 

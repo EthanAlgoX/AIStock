@@ -37,6 +37,7 @@ class PortfolioResearchRequest(WorkspaceModel):
     capabilities: Optional[CapabilityBindings] = None
     rules: Optional[PortfolioResearchRules] = None
     dailyEnabled: bool = False
+    intervalDays: Optional[int] = Field(None, strict=True, ge=1, le=365)
     runAt: Optional[str] = Field(None, pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
@@ -150,6 +151,7 @@ class RunCreateRequest(WorkspaceModel):
 
 
 class ScheduleCreateRequest(WorkspaceModel):
+    intervalDays: int = Field(1, strict=True, ge=1, le=365)
     taskId: str = Field(..., min_length=1, max_length=64)
     name: str = Field(..., min_length=1, max_length=160)
     scheduleMode: Literal["daily", "interval"]
@@ -162,6 +164,7 @@ class ScheduleCreateRequest(WorkspaceModel):
 
 
 class ScheduleUpdateRequest(WorkspaceModel):
+    intervalDays: Optional[int] = Field(None, strict=True, ge=1, le=365)
     name: Optional[str] = Field(None, min_length=1, max_length=160)
     runAt: Optional[str] = Field(None, max_length=8)
     intervalMinutes: Optional[int] = Field(None, ge=5, le=10080)

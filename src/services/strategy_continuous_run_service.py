@@ -9,6 +9,7 @@ its reproducibility record is never torn down half way through.
 from __future__ import annotations
 
 import threading
+from src.workspace_scope import context_thread as ContextThread
 from datetime import timedelta
 from typing import Any, Optional
 
@@ -35,6 +36,14 @@ class StrategyContinuousRunService:
     def __new__(cls, db_manager: Optional[DatabaseManager] = None):
         if db_manager is not None:
             return super().__new__(cls)
+        from src.workspace_scope import current_workspace_database
+        database = current_workspace_database()
+        if database is not None:
+            with cls._instance_lock:
+                if not hasattr(database, '_continuous_run_service'):
+                    database._continuous_run_service = super().__new__(cls)
+                    cls.__init__(database._continuous_run_service, database)
+                return database._continuous_run_service
         with cls._instance_lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
@@ -156,7 +165,7 @@ class StrategyContinuousRunService:
                 return
             event = self._wake_events.setdefault(control_id, threading.Event())
             event.clear()
-            worker = threading.Thread(
+            worker = ContextThread(
                 target=self._worker,
                 args=(control_id, event),
                 name=f"strategy-continuous-{control_id}",

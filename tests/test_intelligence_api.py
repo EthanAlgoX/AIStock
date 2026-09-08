@@ -6,6 +6,13 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def legacy_auth_mode(monkeypatch):
+    """Keep existing business tests in their explicit legacy/no-auth mode."""
+    monkeypatch.setenv('ADMIN_ACCESS_MODE', 'legacy')
 import socket
 from pathlib import Path
 from unittest.mock import Mock, patch

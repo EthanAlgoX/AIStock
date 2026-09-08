@@ -18,7 +18,8 @@ import copy
 import logging
 import threading
 import uuid
-from concurrent.futures import ThreadPoolExecutor, Future
+from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
+from concurrent.futures import Future
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -173,6 +174,14 @@ class AnalysisTaskQueue:
     _instance_lock = threading.Lock()
     
     def __new__(cls, *args, **kwargs):
+        from src.workspace_scope import current_workspace_database
+        database = current_workspace_database()
+        if database is not None:
+            with cls._instance_lock:
+                if not hasattr(database, '_analysis_task_queue'):
+                    database._analysis_task_queue = super().__new__(cls)
+                    cls.__init__(database._analysis_task_queue, *args, **kwargs)
+                return database._analysis_task_queue
         if cls._instance is None:
             with cls._instance_lock:
                 if cls._instance is None:
@@ -212,6 +221,9 @@ class AnalysisTaskQueue:
     @property
     def executor(self) -> ThreadPoolExecutor:
         """懒加载线程池"""
+        from src.services.member_service import current_member, member_task_executor
+        if current_member():
+            return member_task_executor()
         if self._executor is None:
             self._executor = ThreadPoolExecutor(
                 max_workers=self._max_workers,
@@ -416,6 +428,7 @@ class AnalysisTaskQueue:
         ]
 
         with self._data_lock:
+            self._check_member_capacity(len(set(canonical_codes)))
             for stock_code in canonical_codes:
                 dedupe_key = _dedupe_stock_code_key(stock_code)
                 if dedupe_key in self._analyzing_stocks:
@@ -474,6 +487,14 @@ class AnalysisTaskQueue:
 
         return accepted, duplicates
 
+    def _check_member_capacity(self, additions):
+        from src.services.member_service import current_member
+        from src.services.trial_service import TrialError
+        if current_member():
+            active = sum(task.status in {TaskStatus.PENDING, TaskStatus.PROCESSING} for task in self._tasks.values())
+            if active + additions > 5:
+                raise TrialError('workspace_busy', 429)
+
     def submit_background_task(
         self,
         run_task: Callable[[], Optional[Any]],
@@ -507,6 +528,7 @@ class AnalysisTaskQueue:
         with self._data_lock:
             if task_id in self._tasks:
                 raise ValueError(f"任务 ID 已存在: {task_id}")
+            self._check_member_capacity(1)
             self._tasks[task_id] = task_info
             try:
                 future = self.executor.submit(self._execute_background_task, task_id, run_task)

@@ -594,6 +594,13 @@ class LLMToolAdapter:
         timeout: Optional[float] = None,
     ) -> LLMResponse:
         """Shared completion path for both tool and text-only calls."""
+        from src.services.member_service import current_member
+        if current_member():
+            from src.services.member_completion import member_completion
+            target = resolve_agent_litellm_route(self._config).primary_model or ''
+            converted = self._convert_messages(messages, target_model=target)
+            response = member_completion(converted, tools=tools, max_tokens=max_tokens, temperature=temperature)
+            return self._parse_litellm_response(response, response.model, converted)
         config = self._config
         if self._backend_error is not None:
             error_msg = (

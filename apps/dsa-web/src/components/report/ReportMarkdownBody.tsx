@@ -3,6 +3,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 interface ReportMarkdownBodyProps {
+  allowImages?: boolean;
   content: string;
   className?: string;
   testId?: string;
@@ -12,6 +13,7 @@ export const ReportMarkdownBody: React.FC<ReportMarkdownBodyProps> = ({
   content,
   className = '',
   testId,
+  allowImages = true,
 }) => (
   <div
     data-testid={testId}
@@ -33,7 +35,7 @@ export const ReportMarkdownBody: React.FC<ReportMarkdownBodyProps> = ({
       ${className}
     `}
   >
-    <Markdown remarkPlugins={[remarkGfm]}>
+    <Markdown remarkPlugins={[remarkGfm]} components={allowImages ? undefined : { img: () => null }}>
       {content}
     </Markdown>
   </div>

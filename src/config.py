@@ -1365,6 +1365,10 @@ class Config:
         2. 配置只从环境变量加载一次
         3. 所有模块共享相同配置
         """
+        from src.services.member_service import current_member
+        member = current_member()
+        if member is not None and member.get('config') is not None:
+            return member['config']
         if cls._instance is None:
             cls._instance = cls._load_from_env()
         return cls._instance

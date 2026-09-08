@@ -238,6 +238,15 @@ def get_skill_manager(config=None):
     """
     global _SKILL_MANAGER_PROTOTYPE, _SKILL_MANAGER_CUSTOM_DIR
 
+    from src.services.member_service import current_member
+    if current_member():
+        # Do not race the owner's mutable custom-directory prototype. Private
+        # workspace custom Skills are bound separately from their own database.
+        from src.agent.skills.base import SkillManager
+        manager = SkillManager()
+        manager.load_builtin_skills()
+        return manager
+
     if config is None:
         from src.config import get_config
         config = get_config()

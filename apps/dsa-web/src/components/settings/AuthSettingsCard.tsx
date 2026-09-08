@@ -8,6 +8,8 @@ import type { UiTextKey } from '../../i18n/uiText';
 import { Badge, Button, Input, Checkbox } from '../common';
 import { SettingsAlert } from './SettingsAlert';
 import { SettingsSectionCard } from './SettingsSectionCard';
+import { AccountSettingsCard } from './AccountSettingsCard';
+import { TrialSettingsCard } from './TrialSettingsCard';
 
 function createNextModeLabel(authEnabled: boolean, desiredEnabled: boolean, t: (key: UiTextKey) => string) {
   if (authEnabled && !desiredEnabled) {
@@ -20,6 +22,15 @@ function createNextModeLabel(authEnabled: boolean, desiredEnabled: boolean, t: (
 }
 
 export const AuthSettingsCard: React.FC = () => {
+  const { accountMode, deploymentMode } = useAuth();
+  const { localize: l } = useUiLanguage();
+  if (deploymentMode === 'local') return <SettingsSectionCard title={l('本地单人模式', 'Local single-user mode')} description={l('直接使用，无需邮箱注册或登录。', 'Start directly, without email registration or login.')}>
+    <p className="text-sm leading-6 text-secondary-text">{l('仅接受本机回环访问。若要部署到服务器供其他人使用，请在部署配置中切换为服务器模式，启用 HTTPS 和独立用户账户。', 'Only direct loopback access is allowed. For a shared server, select server mode in deployment configuration and enable HTTPS and private user accounts.')}</p>
+  </SettingsSectionCard>;
+  return accountMode ? <div className="space-y-6"><AccountSettingsCard /><TrialSettingsCard /></div> : <LegacyAuthSettingsCard />;
+};
+
+const LegacyAuthSettingsCard: React.FC = () => {
   const { authEnabled, setupState, refreshStatus } = useAuth();
   const { t } = useUiLanguage();
   const [desiredEnabled, setDesiredEnabled] = useState(authEnabled);

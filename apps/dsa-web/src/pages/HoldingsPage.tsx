@@ -92,7 +92,7 @@ export default function HoldingsPage() {
     <section aria-label={l('持仓概览', 'Portfolio overview')} className="my-6 flex flex-wrap items-center gap-x-8 gap-y-3 border-y border-border py-4 text-sm">
       <p><strong className="mr-2 text-lg tabular-nums">{data?.items.length ?? '—'}</strong>{l('笔持仓', 'holdings')}</p>
       <p><strong className="mr-2 text-lg tabular-nums">{data?.items.filter(i => i.alerts.some(a => a !== 'price_unverified')).length ?? '—'}</strong>{l('项风险复核', 'risk reviews')}</p>
-      <p><strong className="mr-2 text-lg tabular-nums">{data?.items.filter(i => i.schedule?.enabled).length ?? '—'}</strong>{l('项每日跟踪', 'daily plans')}</p>
+      <p><strong className="mr-2 text-lg tabular-nums">{data?.items.filter(i => i.schedule?.enabled).length ?? '—'}</strong>{l('项定时跟踪', 'scheduled plans')}</p>
       <button className="ml-auto flex min-h-11 items-center gap-2 text-primary disabled:opacity-50" disabled={!!busy} onClick={() => { setBusy('refresh'); void load(true).finally(() => setBusy('')); }}><RefreshCw size={15} className={busy === 'refresh' ? 'animate-spin motion-reduce:animate-none' : ''} aria-hidden />{l('刷新行情', 'Refresh prices')}</button>
     </section>
     <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -120,9 +120,9 @@ export default function HoldingsPage() {
             <div className="flex flex-wrap items-start gap-2 lg:flex-col">
               <button className="btn-secondary w-full" disabled={!!busy || active(item) || !item.supported} onClick={() => void act(key, () => portfolioResearchApi.run(item.accountId, p.symbol))}>{active(item) ? states[item.run!.status] : l('研究这只持仓', 'Research holding')}</button>
               <button className="flex min-h-11 items-center gap-2 text-sm text-primary" aria-expanded={alertEditing === key} onClick={() => setAlertEditing(alertEditing === key ? '' : key)}><ShieldAlert size={15} aria-hidden />{l('设置价格告警', 'Set price alerts')}</button>
-              <button className="flex min-h-11 items-center gap-2 text-sm text-secondary-text hover:text-primary" disabled={!item.supported} aria-expanded={editing === key} onClick={() => setEditing(editing === key ? '' : key)}><Settings2 size={15} aria-hidden />{l('每日跟踪与策略', 'Daily plan & strategy')}</button>
+              <button className="flex min-h-11 items-center gap-2 text-sm text-secondary-text hover:text-primary" disabled={!item.supported} aria-expanded={editing === key} onClick={() => setEditing(editing === key ? '' : key)}><Settings2 size={15} aria-hidden />{l('跟踪周期与策略', 'Tracking schedule & strategy')}</button>
               {item.run && <Link className="inline-flex min-h-11 items-center gap-1 text-sm text-primary" to={`/stock-research?run=${item.run.id}`}>{l('完整研究与进度', 'Full research & progress')}<ArrowUpRight size={14} aria-hidden /></Link>}
-              <p className="text-xs leading-5 text-secondary-text">{item.schedule?.enabled ? `${l('每日', 'Daily')} ${item.schedule.runAt} · ${item.schedule.timezone}` : l('自动跟踪未开启', 'Daily tracking is off')}</p>
+              <p className="text-xs leading-5 text-secondary-text">{item.schedule?.enabled ? `${l(`每 ${item.schedule.intervalDays || 1} 天`, `Every ${item.schedule.intervalDays || 1} days`)} ${item.schedule.runAt} · ${item.schedule.timezone}` : l('自动跟踪未开启', 'Scheduled tracking is off')}</p>
             </div>
           </div>
           {editing === key && <HoldingPlanEditor item={item} onSaved={() => { setEditing(''); void load(); }} />}

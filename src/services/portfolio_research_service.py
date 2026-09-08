@@ -153,11 +153,15 @@ class PortfolioResearchService:
             config = {**task["config"], "strategyVersionId": version_id, "portfolioRules": rules}
             update = {"config": config, "capabilities": bindings}
             # Validate scheduling before writing the task.
-            run_at = payload.get("runAt") or plan["runAt"]
+            run_at = payload.get("runAt") or (plan["schedule"] or {}).get("runAt") or plan["runAt"]
+            interval_days = payload.get("intervalDays")
+            if interval_days is None:
+                interval_days = (plan["schedule"] or {}).get("intervalDays", 1)
+            interval_days = self.workspace._validate_interval_days(interval_days)
             self.workspace._next_run("daily", run_at, None, plan["timezone"], datetime.now(timezone.utc).replace(tzinfo=None))
             task = (self.workspace.update_task(task["id"], update) if task.get("id")
                     else self.workspace.create_task({**task, **update}))
-            schedule_data = {"runAt": run_at, "enabled": payload.get("dailyEnabled", False)}
+            schedule_data = {"intervalDays": interval_days, "runAt": run_at, "enabled": payload.get("dailyEnabled", False)}
             if plan["schedule"]:
                 self.workspace.update_schedule(plan["schedule"]["id"], schedule_data)
             else:

@@ -11,6 +11,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 import src.auth as auth
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def legacy_auth_mode(monkeypatch):
+    """These tests cover the explicit legacy compatibility mode."""
+    monkeypatch.setenv('ADMIN_ACCESS_MODE', 'legacy')
 
 
 def _reset_auth_globals() -> None:

@@ -17,6 +17,7 @@ import { NavLink, useLocation } from "react-router-dom";
 
 import { useAgentChatStore } from "../../stores/agentChatStore";
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
+import { useAuth } from "../../contexts/AuthContext";
 import type { UiTextKey } from "../../i18n/uiText";
 import { cn } from "../../utils/cn";
 import { StatusDot } from "../common/StatusDot";
@@ -165,9 +166,11 @@ function PrimaryNavLink({ item, mobile = false }: { item: HeaderNavItem; mobile?
 
 export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
   const location = useLocation();
+  const { role } = useAuth();
   const { t, localize } = useUiLanguage();
   const currentTitle = ROUTE_TITLES.find(({ prefix }) => location.pathname.startsWith(prefix));
-  const pageTitle = currentTitle ? t(currentTitle.labelKey) : "InvestCrew";
+  const pageTitle = role === 'member' && location.pathname === '/settings'
+    ? localize('我的账户', 'My account') : currentTitle ? t(currentTitle.labelKey) : "InvestCrew";
   useEffect(() => { document.title = `${pageTitle} - InvestCrew`; }, [pageTitle]);
 
   return (

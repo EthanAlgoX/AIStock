@@ -235,6 +235,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       {authEnabled ? (
         <button
           type="button"
+          aria-label={t("layout.logout")}
           onClick={() => setShowLogoutConfirm(true)}
           className={cn(itemInteractiveClass, isRail ? "mt-1.5" : "mt-5")}
         >

@@ -14,7 +14,7 @@ const apiClient = axios.create({
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !error.config?.url?.startsWith('/api/v1/trial/')) {
       const path = window.location.pathname + window.location.search;
       if (!path.startsWith('/login')) {
         const redirect = encodeURIComponent(path);

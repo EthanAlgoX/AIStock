@@ -4,7 +4,8 @@ import json
 import re
 import time
 from copy import deepcopy
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
+from concurrent.futures import as_completed
 from contextvars import copy_context
 from types import SimpleNamespace
 

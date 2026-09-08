@@ -33,6 +33,7 @@ import {
 } from "../types/scheduledTasks";
 import type { StockIndexItem } from "../types/stockIndex";
 import { cn } from "../utils/cn";
+import { useUiLanguage } from "../contexts/UiLanguageContext";
 import { workspaceApi } from "../api/workspace";
 
 type TaskKind = ScheduledTaskKind;
@@ -57,6 +58,7 @@ type ScheduleDraft = {
   strategyName: string;
   scheduleMode: ScheduleMode;
   runAt: string;
+  intervalDays: string;
   intervalMinutes: string;
   capabilities: ScheduledCapabilityBindings;
   publishToMarket: boolean;
@@ -82,6 +84,7 @@ const DEFAULT_DRAFT: ScheduleDraft = {
   strategyName: "",
   scheduleMode: "daily",
   runAt: "18:30",
+  intervalDays: "1",
   intervalMinutes: "15",
   capabilities: EMPTY_SCHEDULED_CAPABILITIES,
   publishToMarket: true,
@@ -218,13 +221,13 @@ const marketMatches = (item: StockIndexItem, market: MarketId) => (
 
 type TradingStrategyOption = { id: string; name: string; versionLabel: string };
 
-const getScheduleSummary = (plan: { kind: ScheduledPlanKind; scheduleMode: ScheduleMode; runAt: string; intervalMinutes: string; market: MarketId }) => {
+const getScheduleSummary = (plan: { intervalDays: string; kind: ScheduledPlanKind; scheduleMode: ScheduleMode; runAt: string; intervalMinutes: string; market: MarketId }, english: boolean) => {
   if (plan.kind === "trading" && plan.scheduleMode === "interval") {
     const minutes = Number(plan.intervalMinutes);
     if (minutes >= 60 && minutes % 60 === 0) return `每 ${minutes / 60} 小时运行`;
     return `每 ${plan.intervalMinutes} 分钟运行`;
   }
-  return `每日 ${plan.runAt} · ${getMarket(plan.market).timezoneLabel}`;
+  return `${english ? `Every ${plan.intervalDays} days` : `每 ${plan.intervalDays} 天`} ${plan.runAt} · ${getMarket(plan.market).timezone}`;
 };
 
 const getTargetSummary = (plan: ScheduledTaskPlan) => {
@@ -238,6 +241,7 @@ const getTargetSummary = (plan: ScheduledTaskPlan) => {
 };
 
 export default function ScheduledTasksPage() {
+  const { localize: l, language } = useUiLanguage();
   const location = useLocation();
   const navigationState = location.state as ScheduledTaskNavigationState | null;
   const prefill = navigationState?.schedulePrefill;
@@ -284,6 +288,7 @@ export default function ScheduledTasksPage() {
             strategyName: task?.kind === "trading" ? task.name : "",
             scheduleMode: schedule.scheduleMode,
             runAt: schedule.runAt || "18:30",
+            intervalDays: String(schedule.intervalDays || 1),
             intervalMinutes: String(schedule.intervalMinutes || 15),
             capabilities: normalizeCapabilities(task?.capabilities),
             publishToMarket: subscriptions.some((item) => item.taskId === schedule.taskId && item.enabled),
@@ -351,6 +356,7 @@ export default function ScheduledTasksPage() {
   };
 
   const validate = (): { message: string; field: ErrorField } | null => {
+    if (!Number.isInteger(Number(draft.intervalDays)) || Number(draft.intervalDays) < 1 || Number(draft.intervalDays) > 365) return { message: l("运行周期必须为 1 至 365 天的整数。", "Run interval must be a whole number from 1 to 365 days."), field: "runAt" };
     if (!draft.name.trim()) return { message: "请先填写计划名称。", field: "name" };
     if (draft.kind === "research" && !draft.stock.trim()) return { message: "请从股票目录选择需要定时分析的股票。", field: "stock" };
     if (draft.kind === "screening" && !draft.objective.trim()) return { message: "请描述定时选股使用的筛选目标。", field: "objective" };
@@ -390,6 +396,7 @@ export default function ScheduledTasksPage() {
         name: draft.name.trim(),
         scheduleMode: draft.scheduleMode,
         runAt: draft.scheduleMode === "daily" ? draft.runAt : undefined,
+        intervalDays: Number(draft.intervalDays),
         intervalMinutes: draft.scheduleMode === "interval" ? Number(draft.intervalMinutes) : undefined,
         timezone: getMarket(draft.market).timezone,
         publishToMarket: draft.publishToMarket,
@@ -497,6 +504,7 @@ export default function ScheduledTasksPage() {
 
           <div className="border-b border-border/70 px-5 py-5 sm:px-6">
             <h3 className="text-sm font-semibold text-foreground">任务对象</h3>
+            {draft.scheduleMode === "daily" && <label className="mt-4 block text-sm">{l("每隔几天运行", "Run every (days)")}<input type="number" min="1" max="365" step="1" required value={draft.intervalDays} onChange={e => updateDraft("intervalDays", e.target.value)} className="ml-3 w-24 rounded-lg border border-border bg-background p-2" /></label>}
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-medium text-foreground">
                 计划名称
@@ -639,7 +647,7 @@ export default function ScheduledTasksPage() {
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               {draft.scheduleMode === "daily" ? (
                 <label className="text-sm font-medium text-foreground">
-                  每天运行时间
+                  {l("运行时间", "Run time")}
                   <input id="schedule-field-runAt" required aria-invalid={errorField === "runAt"} aria-describedby={errorField === "runAt" ? "schedule-form-error" : undefined} type="time" value={draft.runAt} onChange={(event) => updateDraft("runAt", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" />
                 </label>
               ) : (
@@ -682,7 +690,7 @@ export default function ScheduledTasksPage() {
             ) : null}
 
             <div className="mt-5 flex flex-col gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs leading-5 text-muted-text">拟定节奏：{getScheduleSummary(draft)}</p>
+              <p className="text-xs leading-5 text-muted-text">拟定节奏：{getScheduleSummary(draft, language === 'en')}</p>
               <button type="button" onClick={() => void savePlan()} className="btn-primary inline-flex shrink-0 items-center justify-center gap-2">
                 <Save className="h-4 w-4" aria-hidden="true" />
                 注册定时计划
@@ -739,7 +747,7 @@ export default function ScheduledTasksPage() {
                     <span className="min-w-0"><span className="block truncate text-sm font-semibold text-foreground">{plan.name}</span><span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-text"><span>{type.title} · {countScheduledCapabilities(plan.capabilities)} 项能力</span>{plan.publishToMarket ? <span className="text-primary">市场展示</span> : null}</span></span>
                   </div>
                   <div><span className="block text-[11px] text-muted-text">运行对象</span><span className="mt-1 block truncate text-sm text-secondary-text">{getTargetSummary(plan)}</span></div>
-                  <div><span className="block text-[11px] text-muted-text">拟定节奏</span><span className="mt-1 block text-sm text-secondary-text">{getScheduleSummary(plan)}</span></div>
+                  <div><span className="block text-[11px] text-muted-text">拟定节奏</span><span className="mt-1 block text-sm text-secondary-text">{getScheduleSummary(plan, language === 'en')}</span></div>
                   <div><span className="block text-[11px] text-muted-text">输出</span><span className="mt-1 block font-mono text-xs text-secondary-text">{type.output}</span></div>
                   <button type="button" onClick={() => void deletePlan(plan.id)} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-muted-text transition-colors hover:bg-danger/10 hover:text-danger" aria-label={`删除计划 ${plan.name}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
                 </div>

@@ -3111,6 +3111,21 @@ class GeminiAnalyzer:
             Tuple of (response text, model_used, usage). On success model_used is the full model
             name and usage is a dict with prompt_tokens, completion_tokens, total_tokens.
         """
+        from src.services.member_service import current_member
+        if current_member():
+            from src.services.member_completion import member_completion
+            messages = ([{'role': 'system', 'content': system_prompt}] if system_prompt else [])
+            messages.append({'role': 'user', 'content': prompt})
+            response = member_completion(messages, max_tokens=generation_config.get('max_output_tokens')
+                                         or generation_config.get('max_tokens'),
+                                         temperature=generation_config.get('temperature'))
+            result = response.choices[0].message.content or ''
+            if response_validator:
+                response_validator(result)
+            usage = {'prompt_tokens': response.usage.prompt_tokens,
+                     'completion_tokens': response.usage.completion_tokens,
+                     'total_tokens': response.usage.total_tokens}
+            return result, response.model, usage
         config = self._get_runtime_config()
         max_tokens = (
             generation_config.get('max_output_tokens')

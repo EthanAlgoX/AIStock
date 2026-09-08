@@ -13,6 +13,7 @@ import { Link } from "react-router-dom";
 import type { SkillInfo } from "../../api/agent";
 import { cn } from "../../utils/cn";
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
+import { translateWorkspaceText } from "../../i18n/translateWorkspaceText";
 
 type AgentWorkspacePanelProps = {
   taskTypeLabel?: string;
@@ -53,10 +54,10 @@ export function AgentWorkspacePanel({
   isRunning,
   onOpenCapabilities,
 }: AgentWorkspacePanelProps) {
-  const { localize } = useUiLanguage();
+  const { localize, language } = useUiLanguage();
   const selectedSkillNames = skills
     .filter((skill) => selectedSkillIds.includes(skill.id))
-    .map((skill) => skill.name);
+    .map((skill) => translateWorkspaceText(skill.name, language));
   const counts = {
     skills: selectedSkillIds.length,
     tools: selectedToolCount,

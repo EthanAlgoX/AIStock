@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+from src.workspace_scope import context_thread as ContextThread
 import _thread
 from datetime import datetime
 from types import SimpleNamespace
@@ -260,7 +261,7 @@ class RuntimeSchedulerService:
         except Exception:
             # Best-effort fallback for environments where the low-level thread API
             # is unavailable or restricted.
-            thread = threading.Thread(target=target, daemon=True)
+            thread = ContextThread(target=target, daemon=True)
             thread.start()
 
     def start(self, *, run_immediately: bool = False) -> None:
@@ -297,7 +298,7 @@ class RuntimeSchedulerService:
                 )
             if run_immediately and self._run_immediately_in_background:
                 self._run_in_background_thread(self._run_analysis_once)
-            thread = threading.Thread(
+            thread = ContextThread(
                 target=scheduler.run,
                 daemon=True,
                 name="runtime-scheduler",
@@ -347,7 +348,7 @@ class RuntimeSchedulerService:
             finally:
                 self._run_lock.release()
 
-        worker = threading.Thread(
+        worker = ContextThread(
             target=run_and_release,
             daemon=True,
             name="runtime-scheduler-run-now",

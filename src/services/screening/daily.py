@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
 from datetime import datetime, timedelta
 import hashlib
 import json

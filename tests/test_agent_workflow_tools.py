@@ -34,7 +34,9 @@ def test_discovery_only_exposes_published_configurations(definitions):
 
 
 def test_research_template_skills_reach_actual_analysis_entry(definitions):
-    items = [item for item in list_research_workflows()["items"] if item["contract"] == "ResearchReport"]
+    # The catalogue also includes HK/US products; this test exercises CN methods.
+    items = [item for item in list_research_workflows()["items"] if item["contract"] == "ResearchReport"
+             and definitions.get_version(item['versionId'])['screeningPolicy']['market'].upper() == 'CN']
     assert len(items) == 5
     growth = next(item for item in items if "成长质量" in item["name"])
     with patch("src.services.analysis_service.AnalysisService.analyze_stock", return_value={"report": {"summary": {"analysis_summary": "成长研究"}}}) as analyze:

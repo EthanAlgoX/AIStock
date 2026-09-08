@@ -12,6 +12,13 @@ from unittest.mock import patch
 from starlette.requests import Request
 
 import src.auth as auth
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def legacy_auth_mode(monkeypatch):
+    """These tests cover the explicit legacy compatibility mode."""
+    monkeypatch.setenv('ADMIN_ACCESS_MODE', 'legacy')
 from api.v1.endpoints.auth import AuthSettingsRequest, auth_status, auth_update_settings
 
 

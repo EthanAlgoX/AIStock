@@ -17,7 +17,8 @@ import re
 import threading
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
+from concurrent.futures import as_completed
 from contextvars import ContextVar
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, is_dataclass

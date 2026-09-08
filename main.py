@@ -293,6 +293,8 @@ def parse_arguments() -> argparse.Namespace:
         action='store_true',
         help='启用调试模式，输出详细日志'
     )
+    parser.add_argument('--account-action', choices=['setup-token', 'reset-password'],
+                        help='Local administrator setup/recovery (also available in packaged backends)')
 
     parser.add_argument(
         '--dry-run',
@@ -1319,6 +1321,9 @@ def main() -> int:
     """
     # 解析命令行参数
     args = parse_arguments()
+    if getattr(args, 'account_action', None):
+        from src.auth import setup_token_cli, reset_password_cli
+        return setup_token_cli() if args.account_action == 'setup-token' else reset_password_cli()
 
     # 在配置加载前先初始化 bootstrap 日志，确保早期失败也能落盘
     try:
