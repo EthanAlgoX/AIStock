@@ -11,6 +11,7 @@ import {
   SearchCode,
   Target,
   UsersRound,
+  Wallet,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -76,6 +77,7 @@ const PRIMARY_NAV_ITEMS: HeaderNavItem[] = [
 ];
 
 const DESKTOP_UTILITY_ITEMS: HeaderNavItem[] = [
+  { key: "portfolio", labelKey: "layout.nav.portfolio", to: "/portfolio", icon: Wallet, matchPrefix: "/portfolio" },
   {
     key: "schedules",
     labelKey: "layout.nav.scheduledTasks",
@@ -99,6 +101,8 @@ const DESKTOP_UTILITY_ITEMS: HeaderNavItem[] = [
 ];
 
 const ROUTE_TITLES: Array<{ prefix: string; labelKey: UiTextKey }> = [
+  { prefix: "/portfolio", labelKey: "layout.nav.portfolio" },
+  { prefix: "/alerts", labelKey: "layout.nav.alerts" },
   { prefix: "/market-intelligence", labelKey: "layout.nav.marketIntelligence" },
   { prefix: "/stock-research", labelKey: "layout.nav.stockResearch" },
   { prefix: "/screening", labelKey: "layout.nav.screeningTool" },
@@ -212,7 +216,7 @@ export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
                   )}
                 >
                   <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-                  <span className="hidden text-xs font-medium min-[1800px]:inline">{t(item.labelKey)}</span>
+                  <span className={cn("hidden text-xs font-medium", item.key === "portfolio" ? "xl:inline" : "min-[1800px]:inline")}>{t(item.labelKey)}</span>
                 </NavLink>
               </Tooltip>
             );

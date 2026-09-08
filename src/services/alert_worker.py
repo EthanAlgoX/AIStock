@@ -60,6 +60,7 @@ class RuntimeAlertRule:
     cooldown_policy: Optional[Dict[str, Any]] = None
     effective_target: Optional[str] = None
     display_target: Optional[str] = None
+    notification_policy: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -221,6 +222,7 @@ class AlertWorker:
                             source="db",
                             severity=row.severity,
                             cooldown_policy=cooldown_policy,
+                            notification_policy=self.service._load_json(row.notification_policy, default=None),
                             effective_target=payload.effective_target,
                             display_target=payload.display_target,
                         )
@@ -655,8 +657,17 @@ class AlertWorker:
         if signal_excerpt:
             content = f"{content}\n\n{signal_excerpt}"
         alert_text = NotificationBuilder.build_simple_alert(title=title, content=content, alert_type="warning")
+        policy = runtime_rule.notification_policy or {}
+        if policy.get("report") == "price_brief":
+            from src.services.alert_brief import render_price_alert_brief
 
-        return notification_service.send_with_results(alert_text, route_type="alert")
+            alert_text = render_price_alert_brief(runtime_rule, result, policy.get("language", "zh"))
+        kwargs = {}
+        if policy.get("channels") is not None:
+            from src.notification import NotificationChannel
+
+            kwargs["channels"] = [NotificationChannel(ch) for ch in policy["channels"]]
+        return notification_service.send_with_results(alert_text, route_type="alert", **kwargs)
 
     def _send_notification_safely(self, runtime_rule: RuntimeAlertRule, result: Dict[str, Any]) -> "NotificationDispatchResult":
         try:

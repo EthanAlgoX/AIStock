@@ -1,5 +1,6 @@
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
-import type { WorkspaceArtifact, WorkspaceRun } from "../../api/workspace";
+import type { WorkspaceArtifact, WorkspaceRun, WorkspaceExpert } from "../../api/workspace";
+import { ExpertAvatar } from "../common/ExpertAvatar";
 import { useState } from "react";
 import { FileText } from "lucide-react";
 import { Drawer } from "../common/Drawer";
@@ -30,7 +31,7 @@ function speaker(artifact: WorkspaceArtifact, mode: string, tx: (text: string, .
 }
 
 /** Public, persisted outputs only; no invented progress or private reasoning. */
-export default function DiscussionTimeline({ run }: { run: WorkspaceRun }) {
+export default function DiscussionTimeline({ run, experts = [] }: { run: WorkspaceRun; experts?: WorkspaceExpert[] }) {
   const { translate: tx } = useUiLanguage();
   const [report, setReport] = useState<WorkspaceArtifact>();
   const mode = String(run.taskSnapshot.config.collaborationMode || "debate");
@@ -52,7 +53,7 @@ export default function DiscussionTimeline({ run }: { run: WorkspaceRun }) {
         const vote = artifact.type === "ExpertBallot";
         const label = speaker(artifact, mode, tx);
         return <li key={artifact.id} className="flex items-start gap-3">
-          <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-sm font-semibold">{label.slice(0, 1)}</span>
+          <ExpertAvatar id={vote ? `reviewer-${artifact.id}` : String(data.expertId || 'moderator')} name={label} avatar={!vote ? experts.find((expert) => expert.id === Number(data.expertId))?.avatar : undefined} />
           <div className="min-w-0 flex-1">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-semibold text-foreground">{label}</h3>

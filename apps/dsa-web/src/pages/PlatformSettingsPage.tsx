@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Database, KeyRound, RotateCcw, Save, ServerCog, Sparkles } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth, useSystemConfig } from '../hooks';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import { ApiErrorAlert, AppPage, Button, InlineAlert, PageHeader } from '../components/common';
@@ -14,10 +14,11 @@ import {
   SettingsField,
   SettingsLoading,
   SettingsSectionCard,
+  NotificationTestPanel,
 } from '../components/settings';
 import { cn } from '../utils/cn';
 
-type PlatformSettingsTab = 'model' | 'system';
+type PlatformSettingsTab = 'model' | 'system' | 'notifications';
 
 const PLATFORM_SYSTEM_KEYS = new Set([
   'HTTP_PROXY',
@@ -40,6 +41,7 @@ const TAB_ITEMS: Array<{
   descriptionZh: string;
   descriptionEn: string;
 }> = [
+  { id: 'notifications', icon: ServerCog, titleZh: '通知与告警', titleEn: 'Notifications & alerts', descriptionZh: '渠道凭据、告警路由与检查频率', descriptionEn: 'Channel credentials, alert routing and polling' },
   {
     id: 'model',
     icon: Sparkles,
@@ -61,7 +63,8 @@ const TAB_ITEMS: Array<{
 const PlatformSettingsPage: React.FC = () => {
   const { language } = useUiLanguage();
   const { passwordChangeable } = useAuth();
-  const [activeTab, setActiveTab] = useState<PlatformSettingsTab>('model');
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<PlatformSettingsTab>(searchParams.get('tab') === 'notifications' ? 'notifications' : 'model');
   const {
     configVersion,
     maskToken,
@@ -87,6 +90,8 @@ const PlatformSettingsPage: React.FC = () => {
 
   const isZh = language === 'zh';
   const modelItems = itemsByCategory.ai_model ?? [];
+  const notificationItems = itemsByCategory.notification ?? [];
+  const alertItems = Object.values(itemsByCategory).flat().filter(item => ['AGENT_EVENT_MONITOR_ENABLED', 'AGENT_EVENT_MONITOR_INTERVAL_MINUTES'].includes(item.key));
   const systemItems = useMemo(
     () => (itemsByCategory.system ?? []).filter((item) => PLATFORM_SYSTEM_KEYS.has(item.key)),
     [itemsByCategory.system],
@@ -105,7 +110,7 @@ const PlatformSettingsPage: React.FC = () => {
           description={isZh
             ? '管理平台运行与通知设置。模型、Skill、工具和 MCP 在能力中心配置，定时计划在任务与运行中管理。'
             : 'Manage platform runtime and notifications. Configure models, skills, tools and MCP in Capabilities, and schedules in Tasks & Runs.'}
-          actions={activeTab === 'system' ? (
+          actions={activeTab !== 'model' ? (
             <div className="flex items-center gap-2">
               <Button type="button" variant="secondary" onClick={resetDraft} disabled={isLoading || isSaving || !hasDirty}>
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
@@ -186,6 +191,13 @@ const PlatformSettingsPage: React.FC = () => {
                 </p>
                 <SettingsLoading />
               </div>
+            ) : activeTab === 'notifications' ? (
+              <SettingsSectionCard title={isZh ? '通知渠道与告警' : 'Notification channels & alerts'} description={isZh ? '先配置渠道凭据，再设置告警路由。空路由使用全部可用渠道；规则可进一步缩小发送范围。' : 'Configure channel credentials, then the alert route. An empty route uses all available channels; individual rules may narrow delivery.'}>
+                <Link to="/alerts" className="inline-block min-h-11 py-2 text-primary">{isZh ? '管理股票告警' : 'Manage stock alerts'}</Link>
+                <div className="divide-y divide-border">{alertItems.map(item => <SettingsField key={item.key} item={item} value={item.value} disabled={isSaving} onChange={setDraftValue} issues={issueByKey[item.key]} />)}</div>
+                <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer py-3 font-medium">{isZh ? '渠道凭据、路由与通知选项' : 'Channel credentials, routing & delivery options'}</summary><div className="divide-y divide-border">{notificationItems.map(item => <SettingsField key={item.key} item={item} value={item.value} disabled={isSaving} onChange={setDraftValue} issues={issueByKey[item.key]} />)}</div></details>
+                <NotificationTestPanel items={notificationItems.map(item => ({ key: item.key, value: item.value }))} maskToken={maskToken} disabled={isSaving} />
+              </SettingsSectionCard>
             ) : activeTab === 'model' ? (
               <SettingsSectionCard
                 title={isZh ? '策略模型运行时' : 'Strategy model runtime'}

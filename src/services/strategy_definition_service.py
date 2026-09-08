@@ -508,6 +508,14 @@ class StrategyDefinitionService:
             screening_preset = next(p for p in presets if p["purpose"] == "candidate_screening")
             configurations = list(presets)
             research_preset = next(p for p in presets if p["purpose"] == "research_report")
+            for market, label in (("hk", "港股"), ("us", "美股")):
+                configurations.append({
+                    **research_preset,
+                    "configurationName": f"单股研究 · {label}配置",
+                    "configurationDescription": f"使用现有单股研究内核分析{label}，核验行情、趋势、新闻与基本面；不可用的数据明确标注，不产生订单。",
+                    "configurationPolicy": {"strategy": "single_stock_research", "market": market, "maxCandidates": 1},
+                    "configurationObjective": f"研究运行时指定的{label}股票，使用该市场真实数据形成研究结论、风险和失效条件；不套用 A 股特有数据或交易制度。",
+                })
             for label, skill_ids in (
                 ("成长质量研究", ["growth_quality"]),
                 ("事件驱动研究", ["event_driven"]),
@@ -603,6 +611,8 @@ class StrategyDefinitionService:
                     configured_screening_policy = preset["configurationPolicy"]
                     configured_description = preset["configurationDescription"]
                     configured_objective = f"{configured_description}。{kernel_version.objective}"
+                if preset.get("configurationObjective"):
+                    configured_objective = preset["configurationObjective"]
                 if starter_symbols:
                     configured_market_scope = {
                         "universeMode": "fixed",

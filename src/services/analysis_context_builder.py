@@ -467,6 +467,7 @@ def _build_portfolio_block(artifacts: PipelineAnalysisArtifacts) -> Optional[Ana
 
     item_status = status if status != ContextFieldStatus.AVAILABLE else ContextFieldStatus.AVAILABLE
     exposed_keys = (
+        "positions",
         "account_id",
         "account_name",
         "symbol",

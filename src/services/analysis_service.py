@@ -82,6 +82,13 @@ class AnalysisService:
         """
         try:
             self.last_error = None
+            if portfolio_context is None:
+                from src.services.portfolio_research_service import matching_context, ACTIVE_HOLDING_CONTEXT, research_symbol
+                from src.services.portfolio_service import PortfolioService
+                holdings = PortfolioService()
+                active = ACTIVE_HOLDING_CONTEXT.get()
+                portfolio_context = (active if active and active.get("symbol") == research_symbol(stock_code)
+                                     else matching_context(holdings, stock_code))
             # 导入分析相关模块
             from src.config import get_config
             from src.core.pipeline import StockAnalysisPipeline

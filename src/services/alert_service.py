@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import re
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
@@ -210,7 +211,23 @@ class AlertService:
         daily_cache: Optional[Dict[Any, Any]] = None,
     ) -> Dict[str, Any]:
         if isinstance(rule, PriceAlert):
-            return await self._evaluate_price(rule, monitor)
+            policy = (rule.metadata or {}).get("notification_policy") or {}
+            context = None
+            if policy.get("holding_account_id"):
+                from src.services.portfolio_research_service import matching_context
+                from src.services.portfolio_service import PortfolioService
+                from src.repositories.portfolio_repo import PortfolioRepository
+
+                context = await asyncio.to_thread(
+                    matching_context, PortfolioService(PortfolioRepository(self.db)),
+                    rule.stock_code, policy["holding_account_id"],
+                )
+                if not context:
+                    return self._not_triggered(rule, None, "Holding closed or unavailable; alert skipped", record_status="skipped")
+            result = await self._evaluate_price(rule, monitor)
+            if context:
+                result["holding_context"] = context
+            return result
         if isinstance(rule, PriceChangeAlert):
             return await self._evaluate_price_change(rule, monitor)
         if isinstance(rule, VolumeAlert):
@@ -329,6 +346,13 @@ class AlertService:
                 data_source="realtime_quote",
             )
 
+        if self._read_quote_field(quote, "is_stale") is True:
+            return self._not_triggered(
+                rule, None, "Quote is stale; price alert skipped", record_status="skipped",
+                threshold=threshold, data_source="realtime_quote",
+                data_timestamp=self._extract_quote_datetime(quote),
+            )
+
         try:
             current_price = float(getattr(quote, "price", 0) or 0)
         except (TypeError, ValueError) as exc:
@@ -339,7 +363,7 @@ class AlertService:
                 data_source="realtime_quote",
                 data_timestamp=self._extract_quote_datetime(quote),
             )
-        if current_price <= 0:
+        if not math.isfinite(current_price) or current_price <= 0:
             return self._not_triggered(
                 rule,
                 None,
@@ -720,6 +744,7 @@ class AlertService:
     @classmethod
     def _extract_quote_datetime(cls, quote: Any) -> Optional[datetime]:
         for field_name in (
+            "provider_timestamp",
             "data_timestamp",
             "timestamp",
             "quote_time",
@@ -868,6 +893,11 @@ class AlertService:
         }
 
     def _normalize_rule_payload(self, payload: Dict[str, Any], *, source: str = "api") -> Dict[str, Any]:
+        cooldown = payload.get("cooldown_policy")
+        if isinstance(cooldown, dict) and "cooldown_seconds" in cooldown:
+            seconds = cooldown["cooldown_seconds"]
+            if type(seconds) is not int or seconds < 0:
+                raise AlertServiceError("cooldown_seconds must be a non-negative integer")
         target_scope = str(payload.get("target_scope") or "single_symbol").strip()
         if target_scope not in SUPPORTED_TARGET_SCOPES:
             raise AlertServiceError(f"unsupported target_scope: {target_scope}")
@@ -886,6 +916,9 @@ class AlertService:
             raise AlertServiceError(f"unsupported severity: {severity}")
 
         parameters = self._normalize_parameters(alert_type, payload.get("parameters") or {})
+        policy = self._normalize_notification_policy(payload.get("notification_policy"))
+        if policy and policy.get("holding_account_id") and (target_scope != "single_symbol" or alert_type != "price_cross"):
+            raise AlertServiceError("Holding-bound reports require a single-symbol price rule")
         target = self._normalize_target(target_scope, target)
         if target_scope == "single_symbol" and alert_type in LEGACY_RUNTIME_ALERT_TYPES:
             serialized_rule = {"stock_code": target, "alert_type": alert_type, **parameters}
@@ -908,8 +941,28 @@ class AlertService:
             "enabled": bool(payload.get("enabled", True)),
             "source": str(source or "api")[:16],
             "cooldown_policy": self._dump_json_or_none(payload.get("cooldown_policy")),
-            "notification_policy": self._dump_json_or_none(payload.get("notification_policy")),
+            "notification_policy": self._dump_json_or_none(self._normalize_notification_policy(payload.get("notification_policy"))),
         }
+
+    @staticmethod
+    def _normalize_notification_policy(policy):
+        if policy is None:
+            return None
+        if not isinstance(policy, dict):
+            raise AlertServiceError("notification_policy must be an object")
+        from src.notification import NotificationChannel
+
+        channels = policy.get("channels")
+        allowed = {ch.value for ch in NotificationChannel if ch.value != "unknown"}
+        if channels is not None and (not isinstance(channels, list) or not channels or
+                                     any(not isinstance(ch, str) or ch not in allowed for ch in channels)):
+            raise AlertServiceError("channels must contain known notification channels")
+        account_id = policy.get("holding_account_id")
+        if account_id is not None and (type(account_id) is not int or account_id <= 0):
+            raise AlertServiceError("holding_account_id must be a positive integer")
+        if policy.get("language", "zh") not in {"zh", "en"}:
+            raise AlertServiceError("notification language must be zh or en")
+        return policy
 
     def _validate_rule_update_payload(self, payload: Dict[str, Any]) -> None:
         for field_name, value in payload.items():
@@ -997,7 +1050,7 @@ class AlertService:
             number = float(value)
         except (TypeError, ValueError) as exc:
             raise AlertServiceError(f"invalid {field_name}: {value}") from exc
-        if number <= 0:
+        if not math.isfinite(number) or number <= 0:
             raise AlertServiceError(f"{field_name} must be > 0")
         return number
 
@@ -1112,6 +1165,7 @@ class AlertService:
             "target_scope": data.get("target_scope"),
             "parent_target": row.target,
             "effective_target": data.get("target"),
+            "notification_policy": data.get("notification_policy"),
         }
         if data["alert_type"] == "price_cross":
             return PriceAlert(

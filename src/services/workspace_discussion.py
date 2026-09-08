@@ -101,6 +101,8 @@ def freeze_discussion(service, task):
     members = []
     for expert_id in service._expanded_expert_ids(bindings):
         expert = service.get_expert(expert_id)
+        # Presentation assets do not belong in frozen research inputs or LLM prompts.
+        expert.pop("avatar", None)
         profile = config.get("expertCapabilities", {}).get(str(expert_id), {})
         capabilities = {**bindings, **profile, "expertIds": [], "expertTeamIds": []}
         skills, instructions = service.resolve_skill_selection(capabilities["skillIds"])

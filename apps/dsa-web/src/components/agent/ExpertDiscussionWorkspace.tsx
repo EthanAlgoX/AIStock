@@ -1,3 +1,4 @@
+import { ExpertAvatar } from "../common/ExpertAvatar";
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -354,19 +355,19 @@ export default function ExpertDiscussionWorkspace({
         </div>
         <section aria-label={tx("当前专家团")} className="mt-3">
           {editable ? <div className="grid grid-cols-2 items-start gap-3">
-            <ChoiceList label={tx("选择专家")} multiple limit={6} items={experts.map((e) => ({ id: String(e.id), name: e.name, description: e.style }))} selectedIds={memberIds.map(String)} onSelect={(id) => setCapabilities((c) => ({ ...c, expertTeamIds: [], expertIds: toggle(memberIds, Number(id)) }))} />
+            <ChoiceList label={tx("选择专家")} multiple limit={6} items={experts.map((e) => ({ id: String(e.id), name: e.name, description: e.style, leading: <ExpertAvatar id={e.id} name={e.name} avatar={e.avatar} /> }))} selectedIds={memberIds.map(String)} onSelect={(id) => setCapabilities((c) => ({ ...c, expertTeamIds: [], expertIds: toggle(memberIds, Number(id)) }))} />
             <ChoiceList label={tx("协作模式")} items={[
               { id: "pipeline", name: tx("流水线"), description: tx("主持人分工，专家执行，汇总成果") },
               { id: "debate", name: tx("辩论式"), description: tx("独立观点，质询反驳，总结共识与分歧") },
               { id: "voting", name: tx("投票式"), description: tx("独立报告，三位评审投票，按计票总结") },
             ]} selectedIds={[collaborationMode]} onSelect={setCollaborationMode} loading={!catalog} />
-          </div> : <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-secondary-text"><span>{tx("主持人 +")}{" "}{displayedMembers.length} {" "}{tx("位专家 ·")}{" "}{tx(modeNames[currentMode] || currentMode)}</span><ul aria-label={tx("专家团成员")} className="flex flex-wrap gap-3">{displayedMembers.map((expert) => <li key={expert.id}>{tx(expert.name)}</li>)}</ul></div>}
+          </div> : <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-secondary-text"><span>{tx("主持人 +")}{" "}{displayedMembers.length} {" "}{tx("位专家 ·")}{" "}{tx(modeNames[currentMode] || currentMode)}</span><ul aria-label={tx("专家团成员")} className="flex flex-wrap gap-3">{displayedMembers.map((expert) => <li key={expert.id} className="inline-flex items-center gap-2"><ExpertAvatar id={expert.id} name={tx(expert.name)} avatar={catalog?.experts.find((item) => item.id === expert.id)?.avatar} size={24} />{tx(expert.name)}</li>)}</ul></div>}
         </section>
       </header>
       {(error || runError) && <div role="alert" className="bg-card px-4 py-2 text-sm text-danger">{error || runError}<button className="ml-3 text-primary" onClick={() => setRetry((n) => n + 1)}>{tx("重试")}</button></div>}
       <div ref={viewport} onScroll={() => { const el = viewport.current; if (el) nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 md:px-8" aria-label={tx("群聊消息")}>
         <div className="w-full min-w-0 space-y-8">
-          {creating ? <div className="py-8 text-center"><h2 className="text-lg font-semibold">{tx("向专家们发一条消息")}</h2><p className="mx-auto mt-3 max-w-md text-sm leading-7 text-secondary-text">{tx("主持人组织讨论，专家回应彼此观点。每轮结束后，报告会作为一条成果消息保留在群里。")}</p></div> : thread.rounds.map((round) => <div key={round.id} className="space-y-4"><p className="text-center text-xs text-secondary-text">{new Date(round.createdAt).toLocaleString()} · {tx(statusNames[round.status])} · {tx(modeNames[String(round.taskSnapshot.config.collaborationMode || "debate")])}</p><DiscussionTimeline run={round} />{round.errorMessage && <p role="alert" className="text-sm text-danger">{tx(round.errorMessage)}</p>}{round.outcome?.status === "partial" && <p className="text-sm text-warning">{tx(round.outcome.message)}</p>}</div>)}
+          {creating ? <div className="py-8 text-center"><h2 className="text-lg font-semibold">{tx("向专家们发一条消息")}</h2><p className="mx-auto mt-3 max-w-md text-sm leading-7 text-secondary-text">{tx("主持人组织讨论，专家回应彼此观点。每轮结束后，报告会作为一条成果消息保留在群里。")}</p></div> : thread.rounds.map((round) => <div key={round.id} className="space-y-4"><p className="text-center text-xs text-secondary-text">{new Date(round.createdAt).toLocaleString()} · {tx(statusNames[round.status])} · {tx(modeNames[String(round.taskSnapshot.config.collaborationMode || "debate")])}</p><DiscussionTimeline run={round} experts={catalog?.experts} />{round.errorMessage && <p role="alert" className="text-sm text-danger">{tx(round.errorMessage)}</p>}{round.outcome?.status === "partial" && <p className="text-sm text-warning">{tx(round.outcome.message)}</p>}</div>)}
           {thread.error && <p role="alert" className="text-sm text-danger">{thread.error}<button type="button" className="ml-2 text-primary" onClick={thread.retry}>{tx("重试历史")}</button></p>}
           {!creating && !selected && <p role="status">{tx("正在读取讨论…")}</p>}
         </div>

@@ -5,7 +5,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from src.services.expert_avatar import validate_avatar
 
 
 class WorkspaceModel(BaseModel):
@@ -23,6 +24,20 @@ class CapabilityBindings(WorkspaceModel):
 
 class CapabilityPreferenceRequest(WorkspaceModel):
     enabledIds: List[str | int] = Field(default_factory=list, max_length=200)
+
+
+class PortfolioResearchRules(WorkspaceModel):
+    lossPct: float = Field(10, ge=0.1, le=100, allow_inf_nan=False)
+    profitPct: float = Field(20, ge=0.1, le=100, allow_inf_nan=False)
+    dailyMovePct: float = Field(5, ge=0.1, le=100, allow_inf_nan=False)
+
+
+class PortfolioResearchRequest(WorkspaceModel):
+    strategyVersionId: Optional[int] = Field(None, gt=0)
+    capabilities: Optional[CapabilityBindings] = None
+    rules: Optional[PortfolioResearchRules] = None
+    dailyEnabled: bool = False
+    runAt: Optional[str] = Field(None, pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
 class DataSourceCreateRequest(WorkspaceModel):
@@ -70,6 +85,8 @@ class McpServerUpdateRequest(WorkspaceModel):
 
 
 class ExpertCreateRequest(WorkspaceModel):
+    avatar: Optional[str] = Field(None, max_length=180000)
+    _validate_avatar = field_validator("avatar")(validate_avatar)
     name: str = Field(..., min_length=1, max_length=120)
     style: str = Field("自定义投资视角", min_length=1, max_length=240)
     description: str = Field("", max_length=4000)
@@ -80,6 +97,8 @@ class ExpertCreateRequest(WorkspaceModel):
 
 
 class ExpertUpdateRequest(WorkspaceModel):
+    avatar: Optional[str] = Field(None, max_length=180000)
+    _validate_avatar = field_validator("avatar")(validate_avatar)
     name: Optional[str] = Field(None, min_length=1, max_length=120)
     style: Optional[str] = Field(None, min_length=1, max_length=240)
     description: Optional[str] = Field(None, max_length=4000)

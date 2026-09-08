@@ -1,10 +1,10 @@
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { Tooltip } from "./Tooltip";
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
 
-export type ChoiceItem = { id: string; name: string; description?: string | null; badge?: string; disabled?: boolean };
+export type ChoiceItem = { id: string; name: string; description?: string | null; badge?: string; disabled?: boolean; leading?: ReactNode };
 
 /** Compact disclosure with native radio/checkbox semantics and a bounded, searchable list. */
 export default function ChoiceList({ label, items, selectedIds, onSelect, multiple = false, limit, loading = false, error, emptyText = "暂无可选项", placeholder = "请选择", disabled = false, placement = "inline" }: {
@@ -70,6 +70,7 @@ export default function ChoiceList({ label, items, selectedIds, onSelect, multip
             return <label key={item.id} className={cn("flex min-h-12 items-start gap-3 px-2 py-3 transition-colors", checked ? "bg-primary/5" : "hover:bg-hover/50", blocked ? "cursor-not-allowed opacity-50" : "cursor-pointer")}>
               <input type={multiple ? "checkbox" : "radio"} name={id} value={item.id} aria-label={item.name} checked={checked} disabled={blocked} onChange={() => { onSelect(item.id); if (!multiple) { close(); trigger.current?.focus(); } }} className="mt-0.5 h-4 w-4 shrink-0 accent-primary focus-visible:outline-2 focus-visible:outline-primary" />
               <span className="min-w-0 flex-1">
+                {item.leading && <span aria-hidden="true" className="float-left mr-3">{item.leading}</span>}
                 <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"><span className="text-sm font-medium text-foreground">{item.name}</span>{item.badge && <span className="text-xs text-secondary-text">{item.badge}</span>}</span>
                 {item.description && <span className={cn("mt-1 block text-xs leading-5 text-secondary-text", !checked && "line-clamp-2")}>{item.description}</span>}
               </span>

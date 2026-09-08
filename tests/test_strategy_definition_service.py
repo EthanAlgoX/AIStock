@@ -271,7 +271,11 @@ class StrategyDefinitionServiceTest(unittest.TestCase):
             item["name"]: item for item in self.service.list_strategies()
             if item["productRole"] == "configured"
         }
-        self.assertEqual(len(complete), 16)
+        self.assertEqual(len(complete), 18)
+        for label, market in (("港股", "hk"), ("美股", "us")):
+            version = self.service.get_version(complete[f"单股研究 · {label}配置"]["currentPublishedVersionId"])
+            self.assertEqual(version["screeningPolicy"]["market"], market)
+            self.assertEqual(version["strategyPackage"]["entrypoint"], "src.strategy_kernels.single_stock_research:run")
         from src.services.screening.config import Config as ScreeningConfig
         from src.services.screening.strategy import load_all_strategies
         rules = load_all_strategies(ScreeningConfig().strategies_dir)

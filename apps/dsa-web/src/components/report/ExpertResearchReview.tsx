@@ -1,4 +1,6 @@
-import { useId, useState } from 'react';
+import { ExpertAvatar } from "../common/ExpertAvatar";
+import { useEffect, useId, useState } from 'react';
+import { workspaceApi, type WorkspaceExpert } from '../../api/workspace';
 import { Users, MessageSquareText, ShieldAlert, GitCompareArrows } from 'lucide-react';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
 import { ReportMarkdownBody } from './ReportMarkdownBody';
@@ -67,6 +69,12 @@ export function ExpertResearchReview({ artifacts }: { artifacts: Artifact[] }) {
   const { localize: l } = useUiLanguage();
   const id = useId();
   const [selected, setSelected] = useState(0);
+  const [experts, setExperts] = useState<WorkspaceExpert[]>([]);
+  useEffect(() => {
+    let active = true;
+    void workspaceApi.listExperts().then((items) => { if (active) setExperts(items); }).catch(() => { /* Default illustrations remain available offline. */ });
+    return () => { active = false; };
+  }, []);
   const reviews = artifacts.filter(a => a.type === 'ExpertReview');
   // Aggregate copies are identical snapshots; keep distinct revisions, failures and unknown fields.
   const candidates: Record<string, unknown>[] = [...artifacts.filter(a => a.type === 'ExpertOpinion').map(a => ({ ...record(a.content), title: a.title })), ...reviews.flatMap(a => list(record(a.content).opinions).map(item => record(item)))];
@@ -101,7 +109,7 @@ export function ExpertResearchReview({ artifacts }: { artifacts: Artifact[] }) {
         </>}
       </section>;
     })}
-    {opinions.length > 0 && <><h4 className="mb-3 font-semibold">{l('专家立场 · 选择查看完整意见', 'Expert positions · Select to read')}</h4><div className="mb-6 grid gap-2 sm:grid-cols-2">{opinions.map((opinion, index) => { const data = record(opinion.structured); return <button key={index} type="button" aria-pressed={active === opinion} aria-controls={`${id}-opinion`} onClick={() => setSelected(index)} className={`min-w-0 rounded-lg border p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${active === opinion ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/30'}`}><span className="flex flex-wrap justify-between gap-2"><span className="font-semibold">{name(opinion)}</span><span className="text-xs text-secondary-text">{words(opinion.status) === 'completed' ? l('已完成', 'Completed') : words(opinion.status) === 'failed' ? l('失败', 'Failed') : words(opinion.status) || l('状态未记录', 'Status unavailable')}</span></span><span className="mb-3 mt-2 block text-sm text-primary">{stance(data.stance)}</span><Confidence value={data.confidence} /></button>; })}</div><section id={`${id}-opinion`} aria-label={name(active)} className="min-w-0"><h4 className="mb-5 border-b border-border pb-4 text-lg font-semibold">{name(active)}</h4>{Object.keys(activeData).length ? <ReviewBody key={selected} data={activeData} raw={active} /> : <div className="space-y-4"><p className="text-sm text-warning">{l('未生成结构化意见，以下保留原始说明。', 'No structured opinion was produced. Original notes are preserved below.')}</p><EvidenceValue value={active.content || active.error || active.message} /></div>}</section></>}
+    {opinions.length > 0 && <><h4 className="mb-3 font-semibold">{l('专家立场 · 选择查看完整意见', 'Expert positions · Select to read')}</h4><div className="mb-6 grid gap-2 sm:grid-cols-2">{opinions.map((opinion, index) => { const data = record(opinion.structured); return <button key={index} type="button" aria-pressed={active === opinion} aria-controls={`${id}-opinion`} onClick={() => setSelected(index)} className={`min-w-0 rounded-lg border p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${active === opinion ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/30'}`}><span className="flex flex-wrap justify-between gap-2"><span className="inline-flex items-center gap-2 font-semibold"><ExpertAvatar id={String(opinion.expertId || 0)} name={name(opinion)} avatar={experts.find((expert) => expert.id === Number(opinion.expertId))?.avatar} />{name(opinion)}</span><span className="text-xs text-secondary-text">{words(opinion.status) === 'completed' ? l('已完成', 'Completed') : words(opinion.status) === 'failed' ? l('失败', 'Failed') : words(opinion.status) || l('状态未记录', 'Status unavailable')}</span></span><span className="mb-3 mt-2 block text-sm text-primary">{stance(data.stance)}</span><Confidence value={data.confidence} /></button>; })}</div><section id={`${id}-opinion`} aria-label={name(active)} className="min-w-0"><h4 className="mb-5 border-b border-border pb-4 text-lg font-semibold">{name(active)}</h4>{Object.keys(activeData).length ? <ReviewBody key={selected} data={activeData} raw={active} /> : <div className="space-y-4"><p className="text-sm text-warning">{l('未生成结构化意见，以下保留原始说明。', 'No structured opinion was produced. Original notes are preserved below.')}</p><EvidenceValue value={active.content || active.error || active.message} /></div>}</section></>}
   </section>;
 }
 

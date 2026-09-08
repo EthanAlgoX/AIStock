@@ -1056,10 +1056,10 @@ const settingsHelpZhCN: SettingsHelpMap = {
   },
   'settings.agent.event_monitor': {
     title: '事件监控',
-    summary: '在定时模式下启用后台事件监控，定期轮询告警规则。',
+    summary: '在 Web/API 或 CLI 定时模式中定期检查告警；Web 告警不要求开启每日模型研究。',
     usage: 'AGENT_EVENT_MONITOR_ENABLED 开启后台监控；AGENT_EVENT_MONITOR_INTERVAL_MINUTES 设定轮询间隔（分钟）。',
     valueNotes: [
-      '仅在定时（schedule）模式下生效。',
+      '保持一个 Web/API 或 CLI 调度进程常驻运行。',
       '轮询间隔过短可能增加 API 调用频率。',
     ],
     impact: ['影响后台告警检测频率和通知推送时机。'],
@@ -2298,10 +2298,10 @@ const settingsHelpEnUS: SettingsHelpMap = {
   },
   'settings.agent.event_monitor': {
     title: 'Event Monitor',
-    summary: 'Enables background event monitoring in schedule mode with periodic rule polling.',
+    summary: 'Enables periodic alert checks in Web/API or CLI schedule mode. Web alerts do not require daily model research.',
     usage: 'AGENT_EVENT_MONITOR_ENABLED turns on monitoring; AGENT_EVENT_MONITOR_INTERVAL_MINUTES sets the polling interval.',
     valueNotes: [
-      'Only effective in schedule mode.',
+      'Keep one long-lived Web/API or CLI schedule owner running.',
       'Very short intervals may increase API call frequency.',
     ],
     impact: ['Affects background alert detection frequency and notification timing.'],

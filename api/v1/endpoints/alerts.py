@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from api.v1.schemas.alerts import (
     AlertDeleteResponse,
@@ -29,6 +29,25 @@ from src.services.alert_service import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.get("/status")
+def alert_status(request: Request):
+    """Expose readiness and channel identifiers, never channel credentials."""
+    from src.config import get_config
+    from src.notification import NotificationService
+
+    config = get_config()
+    notifier = NotificationService()
+    poller = getattr(request.app.state, "alert_poller", None)
+    return {
+        "enabled": config.agent_event_monitor_enabled,
+        "interval_minutes": config.agent_event_monitor_interval_minutes,
+        "worker": poller.status() if poller else {"running": False, "last_checked_at": None, "last_error": None},
+        "owner": "web" if poller else "external_or_stopped",
+        "channels": [ch.value for ch in notifier.get_channels_for_route("alert")],
+        "configured_channels": [ch.value for ch in notifier.get_available_channels()],
+    }
 
 
 def _bad_request(exc: Exception, *, error: str = "validation_error") -> HTTPException:

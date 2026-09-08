@@ -4459,7 +4459,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     },
     "AGENT_EVENT_MONITOR_ENABLED": {
         "title": "Event Monitor",
-        "description": "Enable background Event Monitor polling in schedule mode.",
+        "description": "Enable background alerts in Web/API or CLI schedule mode; independent of daily model research in Web/API.",
         "category": "agent",
         "data_type": "boolean",
         "ui_control": "switch",

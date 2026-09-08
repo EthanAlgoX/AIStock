@@ -70,6 +70,8 @@ export interface AlertRuleListResponse {
 }
 
 export interface AlertRuleCreateRequest {
+  cooldownPolicy?: { cooldownSeconds: number };
+  notificationPolicy?: { channels?: string[]; report?: string; language?: string; holdingAccountId?: number };
   name?: string;
   targetScope?: AlertTargetScope;
   target: string;

@@ -2591,6 +2591,7 @@ class NotificationService(
         dedup_key: Optional[str] = None,
         cooldown_key: Optional[str] = None,
         structured_payload: Optional[Dict[str, Any]] = None,
+        channels: Optional[List[NotificationChannel]] = None,
     ) -> NotificationDispatchResult:
         """
         Send a notification and return per-channel diagnostics.
@@ -2660,6 +2661,9 @@ class NotificationService(
             )
 
         target_channels = self.get_channels_for_route(route_type)
+        if channels is not None:
+            # A rule may narrow the route, never bypass its allow-list.
+            target_channels = [ch for ch in target_channels if ch in channels]
         if not target_channels:
             if context_success:
                 logger.info("已通过消息上下文渠道完成推送（路由后无其他通知渠道）")

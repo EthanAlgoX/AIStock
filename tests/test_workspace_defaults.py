@@ -63,8 +63,8 @@ def test_watchlist_precedes_demo_and_explicit_stock_precedes_watchlist(workspace
 def test_market_mismatch_and_missing_formal_market_are_explicit(workspace):
     with pytest.raises(WorkspaceError, match="市场不一致"):
         default_task_plan(workspace, "research", stock="00981.HK")
-    with pytest.raises(WorkspaceError, match="默认正式策略"):
-        default_task_plan(workspace, "research", market="HK")
+    assert default_task_plan(workspace, "research", market="HK")["task"]["market"] == "HK"
+    assert default_task_plan(workspace, "research", market="US")["task"]["market"] == "US"
 
 
 def test_disabled_team_member_is_not_reenabled(workspace):

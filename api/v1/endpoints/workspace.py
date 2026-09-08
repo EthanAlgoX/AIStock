@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 
 from api.v1.schemas.workspace import (
     CapabilityPreferenceRequest,
+    PortfolioResearchRequest,
     DataSourceCreateRequest,
     ExpertCreateRequest,
     ExpertTeamCreateRequest,
@@ -89,6 +90,36 @@ def get_default_task_plan(kind: str, market: str = "CN", stock: Optional[str] = 
     from src.services.workspace_defaults import default_task_plan
 
     return _call(lambda: default_task_plan(_service(), kind, market, stock))
+
+
+def _holding_service():
+    from src.services.portfolio_research_service import PortfolioResearchService
+    return PortfolioResearchService(_service())
+
+
+@router.get("/portfolio-research")
+def holdings_dashboard() -> dict[str, Any]:
+    return _call(lambda: _holding_service().dashboard())
+
+
+@router.post("/portfolio-research/refresh")
+def refresh_holdings_dashboard() -> dict[str, Any]:
+    return _call(lambda: _holding_service().dashboard(refresh=True))
+
+
+@router.get("/portfolio-research/{account_id}/{symbol}/plan")
+def holding_plan(account_id: int, symbol: str) -> dict[str, Any]:
+    return _call(lambda: _holding_service().plan(account_id, symbol))
+
+
+@router.put("/portfolio-research/{account_id}/{symbol}/plan")
+def configure_holding_plan(account_id: int, symbol: str, request: PortfolioResearchRequest) -> dict[str, Any]:
+    return _call(lambda: _holding_service().configure(account_id, symbol, request.model_dump(exclude_none=True)))
+
+
+@router.post("/portfolio-research/{account_id}/{symbol}/run", status_code=202)
+def run_holding_research(account_id: int, symbol: str) -> dict[str, Any]:
+    return _call(lambda: _holding_service().run(account_id, symbol))
 
 
 @router.get("/runtime-manifest")

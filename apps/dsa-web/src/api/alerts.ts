@@ -27,6 +27,11 @@ function toSnakeRulePayload(payload: AlertRuleCreateRequest): Record<string, unk
   if (payload.alertType !== undefined) request.alert_type = payload.alertType;
   if (payload.severity !== undefined) request.severity = payload.severity;
   if (payload.enabled !== undefined) request.enabled = payload.enabled;
+  if (payload.cooldownPolicy) request.cooldown_policy = { cooldown_seconds: payload.cooldownPolicy.cooldownSeconds };
+  if (payload.notificationPolicy) request.notification_policy = omitUndefined({
+    channels: payload.notificationPolicy.channels, report: payload.notificationPolicy.report,
+    language: payload.notificationPolicy.language, holding_account_id: payload.notificationPolicy.holdingAccountId,
+  });
   if (payload.parameters !== undefined) {
     request.parameters = omitUndefined({
       direction: payload.parameters.direction,
@@ -82,6 +87,14 @@ function toNotificationListParams(query: AlertNotificationListQuery = {}): Recor
 }
 
 export const alertsApi = {
+  async status(): Promise<AlertReadiness> {
+    const response = await apiClient.get('/api/v1/alerts/status');
+    return toCamelCase<AlertReadiness>(response.data);
+  },
+  async updateRule(ruleId: number, payload: AlertRuleCreateRequest): Promise<AlertRuleItem> {
+    const response = await apiClient.patch(`/api/v1/alerts/rules/${ruleId}`, toSnakeRulePayload(payload));
+    return toCamelCase<AlertRuleItem>(response.data);
+  },
   async listRules(query: AlertRuleListQuery = {}): Promise<AlertRuleListResponse> {
     const response = await apiClient.get<Record<string, unknown>>('/api/v1/alerts/rules', {
       params: toRuleListParams(query),
@@ -131,3 +144,12 @@ export const alertsApi = {
     return toCamelCase<AlertNotificationListResponse>(response.data);
   },
 };
+
+export interface AlertReadiness {
+  enabled: boolean;
+  intervalMinutes: number;
+  owner: string;
+  channels: string[];
+  configuredChannels: string[];
+  worker: { running: boolean; lastCheckedAt?: string | null; lastError?: string | null };
+}

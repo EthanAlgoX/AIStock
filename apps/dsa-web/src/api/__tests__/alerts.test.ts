@@ -16,6 +16,13 @@ vi.mock('../index', () => ({
 }));
 
 describe('alertsApi', () => {
+  it('serializes holding report policy and cooldown without leaking camelCase fields', async () => {
+    post.mockResolvedValueOnce({ data: { id: 1 } });
+    await alertsApi.createRule({ target: 'AAPL', alertType: 'price_cross', severity: 'warning', parameters: { direction: 'below', price: 90 },
+      cooldownPolicy: { cooldownSeconds: 3600 }, notificationPolicy: { holdingAccountId: 7, channels: ['email'], language: 'en', report: 'price_brief' } });
+    expect(post).toHaveBeenCalledWith('/api/v1/alerts/rules', expect.objectContaining({ cooldown_policy: { cooldown_seconds: 3600 },
+      notification_policy: { holding_account_id: 7, channels: ['email'], language: 'en', report: 'price_brief' } }));
+  });
   beforeEach(() => {
     get.mockReset();
     post.mockReset();

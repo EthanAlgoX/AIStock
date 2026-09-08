@@ -84,7 +84,11 @@ describe("ExpertSettingsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存专家" }));
 
     expect(await screen.findByRole("heading", { name: "现金流审查员" })).toBeInTheDocument();
-    expect(api.createExpert).toHaveBeenCalledWith(expect.objectContaining({ name: "现金流审查员" }));
+    expect(api.createExpert).toHaveBeenCalledWith(expect.objectContaining({ name: "现金流审查员", avatar: null }));
     expect(screen.getByRole("status")).toHaveTextContent("已保存到工作区");
+    fireEvent.click(screen.getByText('设置头像'));
+    fireEvent.click(screen.getByRole('button', { name: '使用默认头像' }));
+    fireEvent.click(screen.getByRole('button', { name: '保存头像' }));
+    await waitFor(() => expect(api.updateExpert).toHaveBeenCalledWith(1, { avatar: null }));
   });
 });

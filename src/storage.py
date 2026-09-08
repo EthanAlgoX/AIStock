@@ -1302,6 +1302,7 @@ class WorkspaceExpertRecord(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     expert_key = Column(String(96), nullable=False, unique=True, index=True)
+    avatar = Column(Text, nullable=True)
     name = Column(String(120), nullable=False, unique=True, index=True)
     style = Column(String(240), nullable=False)
     description = Column(Text)
@@ -2257,6 +2258,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         if not self._is_sqlite_engine:
             return
         columns = {
+            'workspace_experts': {'avatar': 'TEXT'},
             'simulation_strategies': {
                 'lifecycle_status': "VARCHAR(32) NOT NULL DEFAULT 'draft'",
                 'current_published_version_id': 'INTEGER',

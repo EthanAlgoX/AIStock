@@ -6,6 +6,16 @@
 
 这些角色是参考公开方法的产品改编，不是本人、本人授权代理、私有模型复刻或当前投资建议。管理类角色只评价组织与经营，不凭管理口号给目标价；趋势类角色要求真实量价数据和明确风险边界，不保证收益。
 
+## 专家头像 / Expert avatars
+
+专家配置页为所有角色提供按 ID 稳定生成的本地插画头像，不是真人照片或授权背书。创建自定义专家时可不上传，直接使用默认头像；已创建的自定义专家在“设置头像”中更换，点击“保存头像”后生效，也可恢复默认。选择 PNG、JPG 或 WebP（最多 5 MB、4000 万像素），浏览器居中裁剪为 160 × 160 PNG 后保存，不上传原始照片及其元数据。
+
+`POST /api/v1/workspace/experts` 和 `PATCH /api/v1/workspace/experts/{id}` 追加可选 `avatar` 字段：PNG data URL，最长 180000 字符，尺寸最多 512 × 512；后端验证编码、PNG 签名、尺寸和区块校验。省略字段保持原值，`null` 恢复默认。不接受远程 URL 或 SVG，不新增文件服务或外部头像请求。头像随工作区专家资料持久化；圆桌及报告读取当前目录头像，旧研究快照和 Prompt 不包含头像，改头像不重跑研究。
+
+SQLite 启动时为 `workspace_experts` 增加可空 `avatar` 列，保留既有资料；旧客户端可忽略新字段。升级后需重启后端并构建 Web；回滚代码可保留此可空列与已保存头像，无需删除专家或历史记录。
+
+All experts receive stable, local illustrated avatars, not real-person photographs. Custom experts can upload an optional PNG/JPG/WebP image (up to 5 MB / 40 megapixels), preview its center crop, save it, or restore the default. The browser saves only a 160 × 160 PNG; the API validates a bounded PNG data URL. Omitted update fields preserve the avatar; `null` resets it. Avatars persist in the workspace, never enter research prompts or frozen discussion inputs, and require no third-party image requests. SQLite upgrades add a nullable column; a code rollback can safely leave it in place. Both language descriptions are maintained here.
+
 ## Prompt 契约
 
 `src/services/expert_personas.py` 维护差异化研究视角与共同约束，`workspace_service.py` 继续作为目录与持久化入口。各角色包含专门的核查步骤、反例、失效条件及交付要求；公共部分要求来源/日期/口径、事实与推断分离、授权工具使用、协作独立性、语言与 Schema 兼容。数据不足时先交付支持得住的研究，再说明缺口，不能只返回占位提示。
@@ -14,7 +24,7 @@
 
 ## 升级、验证与回滚
 
-首次读取目录或专家时补齐缺少的内置角色。只有 ID、内置身份、key 对应且 Prompt **完全等于旧版默认文本**的记录才自动升级，版本加一并更新时间；重复读取不会反复升级。名称、启用状态及其他用户设置保留。自定义 Prompt 不覆盖，新模板通过现有“恢复默认”显式采用。无需数据库结构迁移或新环境变量。
+首次读取目录或专家时补齐缺少的内置角色。只有 ID、内置身份、key 对应且 Prompt **完全等于旧版默认文本**的记录才自动升级，版本加一并更新时间；重复读取不会反复升级。名称、启用状态及其他用户设置保留。自定义 Prompt 不覆盖，新模板通过现有“恢复默认”显式采用。Prompt 升级本身无需数据库结构迁移或新环境变量；头像的增量列见上节。
 
 历史 Run 冻结的专家文本与版本不修改；旧讨论追问沿用冻结成员，想用新版需新开讨论或显式调整下一轮配置。新增角色不改变原五位的目录顺序，避免改变依赖目录顺序的默认选择。
 

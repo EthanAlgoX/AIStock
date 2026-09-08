@@ -1,5 +1,7 @@
 # 实时告警中心
 
+> InvestCrew 当前入口与运行方式已扩展，见 [持仓价格告警与通知](holding-price-alerts.md)。Web/API 使用独立告警 poller，不再要求开启每日研究 schedule；CLI `--schedule` 仍复用原 worker。下文 P0–P8 是继承模块的分阶段记录，“仅 schedule”“notification_policy 不执行”等历史描述不适用于新版 Web 的价格简报规则。
+
 本文档记录 Issue #1202 告警中心的运行基线、数据契约、分阶段实现范围和兼容边界。
 
 ## 当前基线

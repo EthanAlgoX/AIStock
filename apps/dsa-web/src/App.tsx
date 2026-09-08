@@ -34,6 +34,9 @@ const ToolSettingsPage = lazy(() => import("./pages/ToolSettingsPage"));
 const McpSettingsPage = lazy(() => import("./pages/McpSettingsPage"));
 const AgentCenterPage = lazy(() => import("./pages/AgentCenterPage"));
 const StockAnalysisPage = lazy(() => import("./pages/StockAnalysisPage"));
+const HoldingsPage = lazy(() => import("./pages/HoldingsPage"));
+const AlertsPage = lazy(() => import("./pages/AlertsPage"));
+const HoldingsLedgerPage = lazy(() => import("./pages/HoldingsLedgerPage"));
 const ScreeningWorkspacePage = lazy(() => import("./pages/ScreeningWorkspacePage"));
 const TradingWorkspacePage = lazy(() => import("./pages/TradingWorkspacePage"));
 const ScheduledTasksPage = lazy(() => import("./pages/ScheduledTasksPage"));
@@ -102,14 +105,15 @@ const AppContent: React.FC = () => {
         <Route path="/market-intelligence" element={<MarketIntelligencePage />} />
         <Route path="/stock-research" element={<StockAnalysisPage />} />
         <Route path="/chat" element={<Navigate to="/overview" replace />} />
-        <Route path="/portfolio" element={<Navigate to="/trading" replace />} />
+        <Route path="/portfolio" element={<HoldingsPage />} />
+        <Route path="/portfolio/ledger" element={<HoldingsLedgerPage />} />
         <Route path="/decision-signals" element={<Navigate to="/trading" replace />} />
         <Route path="/screening" element={<ScreeningWorkspacePage />} />
         <Route path="/trading" element={<TradingWorkspacePage />} />
         <Route path="/schedules" element={<ScheduledTasksPage />} />
         <Route path="/expert-review" element={<ExpertReviewPage />} />
         <Route path="/backtest" element={<Navigate to="/overview" replace />} />
-        <Route path="/alerts" element={<Navigate to="/schedules" replace />} />
+        <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/runs" element={<TaskRunsPage />} />
         <Route path="/runs/:runId" element={<TaskRunDetailPage />} />
         <Route path="/usage" element={<TokenUsagePage />} />

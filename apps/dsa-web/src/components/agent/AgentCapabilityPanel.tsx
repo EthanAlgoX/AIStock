@@ -1,3 +1,4 @@
+import { ExpertAvatar } from "../common/ExpertAvatar";
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -66,6 +67,7 @@ export function CapabilityButton({
   statusLabel,
   onClick,
   comfortable = false,
+  expertAvatar,
 }: {
   active: boolean;
   disabled?: boolean;
@@ -74,6 +76,7 @@ export function CapabilityButton({
   statusLabel?: string;
   onClick: () => void;
   comfortable?: boolean;
+  expertAvatar?: { id: number; name: string; avatar?: string | null };
 }) {
   const { translate: tx } = useUiLanguage();
   return (
@@ -98,6 +101,7 @@ export function CapabilityButton({
         {active ? <Check className="h-3 w-3" /> : null}
       </span>
       <span className="min-w-0 flex-1">
+        {expertAvatar && <span aria-hidden="true" className="float-left mr-2"><ExpertAvatar {...expertAvatar} size={28} /></span>}
         <span className={cn("flex items-center justify-between gap-2 font-medium", comfortable ? "text-sm" : "text-xs")}>
           <span className={comfortable ? "break-words" : "truncate"}>{tx(title)}</span>
           {statusLabel ? <span className="shrink-0 text-[9px] font-normal text-muted-text">{statusLabel ? tx(statusLabel) : ""}</span> : null}
@@ -190,7 +194,7 @@ export default function AgentCapabilityPanel({
 
   const inlineChoices = {
     skills: { items: skills.map((item) => ({ id: item.id, name: item.name, description: item.description })), ids: selectedSkillIds, toggle: onToggleSkill },
-    experts: { items: experts.map((item) => ({ id: String(item.id), name: item.name, description: `${item.style} · ${item.description}`, badge: item.builtIn ? "平台预置" : "自定义" })), ids: effectiveExpertIds.map(String), toggle: (id: string) => toggleExpert(Number(id)) },
+    experts: { items: experts.map((item) => ({ id: String(item.id), name: item.name, leading: <ExpertAvatar id={item.id} name={item.name} avatar={item.avatar} />, description: `${item.style} · ${item.description}`, badge: item.builtIn ? "平台预置" : "自定义" })), ids: effectiveExpertIds.map(String), toggle: (id: string) => toggleExpert(Number(id)) },
     tools: { items: tools.map((item) => ({ id: item.id, name: item.name, description: item.description })), ids: selectedToolIds, toggle: onToggleTool },
     mcp: { items: mcpConnections.map((item) => ({ id: item.id, name: item.name, description: `${item.transport} · ${item.location}`, badge: "已连接" })), ids: selectedMcpIds, toggle: onToggleMcp },
     data: { items: readyDataSources.map((item) => ({ id: item.sourceId, name: item.name, description: item.description, badge: dataSourceStatusLabel(item) })), ids: selectedDataSourceIds, toggle: onToggleDataSource },
@@ -325,6 +329,7 @@ export default function AgentCapabilityPanel({
                         key={expert.id}
                         active={effectiveExpertIds.includes(expert.id)}
                         title={expert.name}
+                        expertAvatar={expert}
                         description={`${expert.style} · ${expert.description}`}
                         statusLabel={expert.builtIn ? tx("平台预置") : tx("自定义 Prompt")}
                         onClick={() => toggleExpert(expert.id)}

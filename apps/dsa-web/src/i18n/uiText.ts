@@ -64,7 +64,7 @@ const zh = {
   "layout.nav.news": "实时新闻",
   "layout.nav.dataSources": "数据源",
   "layout.nav.expertConfig": "专家配置",
-  "layout.nav.portfolio": "组合与风险",
+  "layout.nav.portfolio": "持仓管理",
   "layout.nav.settings": "平台设置",
   "layout.nav.simulation": "模拟交易",
   "layout.nav.screening": "选股",
@@ -1121,7 +1121,7 @@ const zh = {
   "settings.notificationTestBody": "正文",
   "settings.notificationTestChannel": "渠道",
   "settings.notificationTestContent":
-    "这是一条来自 DSA Web 设置页的通知测试消息。",
+    "这是一条来自 InvestCrew 设置页的通知测试消息。",
   "settings.notificationTestDescription":
     "使用当前页面草稿发送一条真实测试通知；测试不会保存配置。",
   "settings.notificationTestFailure": "测试失败",
@@ -1129,7 +1129,7 @@ const zh = {
   "settings.notificationTestSuccess": "测试成功",
   "settings.notificationTestTimeout": "超时秒数",
   "settings.notificationTestTitle": "标题",
-  "settings.notificationTestTitleValue": "DSA 通知测试",
+  "settings.notificationTestTitleValue": "InvestCrew 通知测试",
   "settings.notificationTesting": "测试中...",
   "settings.openConfigItems": "查看配置项",
   "settings.pageDescription":
@@ -1227,7 +1227,7 @@ const en: Record<UiTextKey, string> = {
   "layout.nav.news": "Live news",
   "layout.nav.dataSources": "Data sources",
   "layout.nav.expertConfig": "Expert setup",
-  "layout.nav.portfolio": "Portfolio & risk",
+  "layout.nav.portfolio": "Portfolio",
   "layout.nav.settings": "Platform settings",
   "layout.nav.simulation": "Simulation",
   "layout.nav.screening": "Screening",
@@ -2355,7 +2355,7 @@ const en: Record<UiTextKey, string> = {
   "settings.notificationTestBody": "Body",
   "settings.notificationTestChannel": "Channel",
   "settings.notificationTestContent":
-    "This is a test notification from the DSA Web settings page.",
+    "This is a test notification from the InvestCrew settings page.",
   "settings.notificationTestDescription":
     "Send a real test notification using the current page draft. This test does not save configuration.",
   "settings.notificationTestFailure": "Test failed",
@@ -2363,7 +2363,7 @@ const en: Record<UiTextKey, string> = {
   "settings.notificationTestSuccess": "Test succeeded",
   "settings.notificationTestTimeout": "Timeout seconds",
   "settings.notificationTestTitle": "Title",
-  "settings.notificationTestTitleValue": "DSA notification test",
+  "settings.notificationTestTitleValue": "InvestCrew notification test",
   "settings.notificationTesting": "Testing...",
   "settings.openConfigItems": "View fields",
   "settings.pageDescription":

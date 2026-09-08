@@ -279,6 +279,8 @@ async def app_lifespan(app: FastAPI):
         force_enabled=runtime_force_enabled,
         run_immediately_in_background=True,
         schedule_args_overrides=runtime_scheduler_args,
+        # API owns an independent alert poller, even when daily research is off.
+        background_tasks_provider=lambda config: [],
     )
     app.state.runtime_scheduler_service = runtime_scheduler_service
     if not runtime_suppress_start:
@@ -313,9 +315,17 @@ async def app_lifespan(app: FastAPI):
     workspace_scheduler = WorkspaceSchedulerService()
     workspace_scheduler.start()
     app.state.workspace_scheduler = workspace_scheduler
+    if runtime_owns_schedule and not runtime_suppress_start:
+        from src.services.alert_polling import AlertPollingService
+
+        app.state.alert_poller = AlertPollingService()
+        app.state.alert_poller.start()
     try:
         yield
     finally:
+        alert_poller = getattr(app.state, "alert_poller", None)
+        if alert_poller is not None:
+            alert_poller.stop()
         refresh_task = getattr(app.state, "stock_index_refresh_task", None)
         if refresh_task is not None and not refresh_task.done():
             refresh_task.cancel()

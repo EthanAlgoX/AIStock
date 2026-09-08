@@ -35,6 +35,8 @@ describe("SidebarNav", () => {
     expect(hrefs).toEqual([
       "/schedules",
       "/market-intelligence",
+      "/portfolio",
+      "/alerts",
       "/capabilities",
       "/runs",
       "/usage",
