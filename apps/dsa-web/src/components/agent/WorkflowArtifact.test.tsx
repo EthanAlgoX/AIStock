@@ -3,6 +3,25 @@ import { describe, expect, it } from "vitest";
 import WorkflowArtifact from "./WorkflowArtifact";
 
 describe("WorkflowArtifact", () => {
+  it("uses the memo only when requested and preserves snake-case report evidence", () => {
+    render(<WorkflowArtifact researchPresentation="memo" artifact={{ title: "正式报告", type: "ResearchReport", content: {
+      status: "success", workflowVersionId: 3, result: { report: {
+        meta: { query_id: "q", stock_code: "600519", stock_name: "贵州茅台", report_type: "full" },
+        summary: { analysis_summary: "历史正文", operation_advice: "回避", sentiment_score: 0 },
+        details: { technical_analysis: "技术正文保持完整", raw_result: { dashboard: {
+          core_conclusion: { one_sentence: "回避并观察" },
+          signal_attribution: { strongest_bullish_signal: "估值支撑", strongest_bearish_signal: "盈利下降" },
+        } } },
+      } },
+    } }} />);
+    expect(screen.getByRole("article", { name: "投研备忘录" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "回避并观察" })).toBeVisible();
+    expect(screen.getByText("技术正文保持完整")).toBeVisible();
+    expect(screen.getByText("估值支撑")).toBeVisible();
+    expect(screen.getByText("盈利下降")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "正向信号与催化" })).toBeVisible();
+    expect(screen.queryByText("支持判断的线索")).not.toBeInTheDocument();
+  });
   it("shows screening evidence, factor scores and portfolio caveats without inventing missing facts", () => {
     render(<WorkflowArtifact artifact={{ title: "选股", type: "CandidateList", content: {
       status: "success", result: { ranking_mode: "factor", degradation: ["智能重排未完成"],

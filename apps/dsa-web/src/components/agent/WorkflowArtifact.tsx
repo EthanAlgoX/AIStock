@@ -157,7 +157,7 @@ function TradingResult({ artifact }: { artifact: Artifact }) {
   return Object.keys(data).length ? <InterpretationValue value={data} /> : <ResearchNarrative content={artifact.text || text(artifact.content)} />;
 }
 
-export default function WorkflowArtifact({ artifact }: { artifact: Artifact }) {
+export default function WorkflowArtifact({ artifact, researchPresentation }: { artifact: Artifact; researchPresentation?: "memo" }) {
   const { translate: tx } = useUiLanguage();
   if (artifact.type === "CandidateResearch") {
     const entry = object(artifact.content);
@@ -180,10 +180,10 @@ export default function WorkflowArtifact({ artifact }: { artifact: Artifact }) {
   const screeningWarnings = [...new Set([...(Array.isArray(result.warnings) ? result.warnings : []), ...(Array.isArray(result.degradation) ? result.degradation : [])].map(screeningDiagnostic))];
   const envelopeWarnings = Array.isArray(envelope.warnings) ? envelope.warnings.filter((item) => !candidates || !screeningWarnings.includes(screeningDiagnostic(item))) : [];
 
-  return <section className="border-t border-border py-4" aria-label={artifact.title}>
-    <h3 className="mb-3 text-sm font-semibold text-foreground">{{ ResearchReport: tx("研究报告"), CandidateList: tx("候选股票"), ScreenSpec: tx("筛选条件"), ResearchInterpretation: tx("Agent 解读"), TradeProposal: tx("模拟交易提案"), RiskAssessment: tx("风险检查"), PaperTradingRun: tx("模拟执行记录") }[artifact.type] || artifact.title}</h3>
-    {envelope.workflowVersionId != null && <p className="mb-3 text-xs text-secondary-text">{tx("策略版本 #")}{text(envelope.workflowVersionId)} {" "}{tx("· 运行时间")}{" "}{text(envelope.asOf)}</p>}
-    {["TradeProposal", "RiskAssessment", "PaperTradingRun"].includes(artifact.type) ? <TradingResult artifact={artifact} /> : isReport ? <ReportSummary data={toCamelCase<AnalysisResult>(result)} isHistory /> : screeningFailure ? <section className="py-4"><h4 className="text-xl font-semibold text-foreground">{tx("未生成选股报告")}</h4><p className="mt-3 max-w-prose text-sm leading-7 text-warning">{text(screeningFailure)}</p><p className="mt-3 text-sm text-secondary-text">{tx("这不是“没有符合条件的股票”，而是本次筛选没有完成。请选择当前市场可用的正式筛选流程后重新运行。")}</p><div className="mt-4"><InterpretationValue value={envelope.risk_notes || envelope.riskNotes || []} /></div></section> : candidates ? <div className="space-y-5">
+  return <section className={isReport && researchPresentation === "memo" ? "min-w-0" : "border-t border-border py-4"} aria-label={artifact.title}>
+    {!(isReport && researchPresentation === "memo") && <h3 className="mb-3 text-sm font-semibold text-foreground">{{ ResearchReport: tx("研究报告"), CandidateList: tx("候选股票"), ScreenSpec: tx("筛选条件"), ResearchInterpretation: tx("Agent 解读"), TradeProposal: tx("模拟交易提案"), RiskAssessment: tx("风险检查"), PaperTradingRun: tx("模拟执行记录") }[artifact.type] || artifact.title}</h3>}
+    {researchPresentation !== "memo" && envelope.workflowVersionId != null && <p className="mb-3 text-xs text-secondary-text">{tx("策略版本 #")}{text(envelope.workflowVersionId)} {" "}{tx("· 运行时间")}{" "}{text(envelope.asOf)}</p>}
+    {["TradeProposal", "RiskAssessment", "PaperTradingRun"].includes(artifact.type) ? <TradingResult artifact={artifact} /> : isReport ? <ReportSummary data={toCamelCase<AnalysisResult>(result)} isHistory presentation={researchPresentation} /> : screeningFailure ? <section className="py-4"><h4 className="text-xl font-semibold text-foreground">{tx("未生成选股报告")}</h4><p className="mt-3 max-w-prose text-sm leading-7 text-warning">{text(screeningFailure)}</p><p className="mt-3 text-sm text-secondary-text">{tx("这不是“没有符合条件的股票”，而是本次筛选没有完成。请选择当前市场可用的正式筛选流程后重新运行。")}</p><div className="mt-4"><InterpretationValue value={envelope.risk_notes || envelope.riskNotes || []} /></div></section> : candidates ? <div className="space-y-5">
       <div className="border-b border-border pb-5"><h4 className="text-xl font-semibold text-foreground">{tx("选股研究报告 ·")}{" "}{candidates.length} {" "}{tx("只候选")}</h4><p className="mt-2 text-sm leading-6 text-secondary-text">{tx("市场")}{" "}{({ cn: tx("A 股"), hk: tx("港股"), us: tx("美股") } as Record<string, string>)[String(result.market).toLowerCase()] || text(result.market)} {" "}{tx("· 策略")}{" "}{text(result.strategy_display_name || result.strategyDisplayName || result.strategy)} {" "}{tx("· 来源")}{" "}{(result.snapshot_source || result.snapshotSource) === "last_good_cache" ? tx("最近可用缓存（非实时）") : text(result.snapshot_source || result.snapshotSource)}</p><dl className="mt-4 flex flex-wrap gap-x-10 gap-y-4">{[[tx("扫描股票"), result.snapshot_count ?? result.snapshotCount], [tx("过滤后"), result.after_filter_count ?? result.afterFilterCount], [tx("最终候选"), candidates.length]].filter(([, value]) => typeof value === "number").map(([label, value]) => <div key={tx(String(label))}><dt className="text-xs text-secondary-text">{tx(String(label))}</dt><dd className="mt-1 text-lg font-semibold tabular-nums text-foreground">{text(value)}</dd></div>)}</dl></div>
       {(result.llm_market_view || result.llmMarketView) ? <ReportMarkdownBody content={text(result.llm_market_view || result.llmMarketView)} /> : null}
       {(result.strategy_description || result.strategyDescription) ? <p className="max-w-prose text-sm leading-7 text-secondary-text">{text(result.strategy_description || result.strategyDescription)}</p> : null}
@@ -200,7 +200,7 @@ export default function WorkflowArtifact({ artifact }: { artifact: Artifact }) {
       {screeningWarnings.length > 0 ? <section><h4 className="mb-3 font-semibold text-foreground">{tx("数据覆盖、降级与限制")}</h4><InterpretationValue value={screeningWarnings} /></section> : null}
     </div>
       : artifact.text ? <ResearchNarrative content={artifact.text} /> : <ResearchObject value={artifact.content} />}
-    {isReport && <div className="mt-4">
+    {isReport && researchPresentation !== "memo" && <div className="mt-4">
       {[["technical_analysis", tx("技术分析")], ["fundamental_analysis", tx("基本面分析")], ["news_summary", tx("新闻与事件")], ["risk_warning", tx("风险提示")]].map(([key, label]) => (
         details[key] ? <section key={key} className="mt-5 border-t border-border pt-5"><h4 className="mb-3 text-base font-semibold text-foreground">{label}</h4><ReportMarkdownBody content={text(details[key])} /></section> : null
       ))}

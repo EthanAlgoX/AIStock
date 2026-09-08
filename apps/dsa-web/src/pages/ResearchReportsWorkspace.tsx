@@ -37,6 +37,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
   const { translate: tx, language } = useUiLanguage();
   const { activeRun, submitting, runError, cancelRun } = useWorkspaceRun(mode);
   const trading = mode === "trading";
+  const RunContext = mode === "research" ? "details" : "div";
   const newAction = tx(trading ? "新建交易推演" : mode === "research" ? "新建个股研究" : "新建策略选股");
   const statusLabel = (run: WorkspaceRun) => tx(workspaceRunLabel(run));
   const [params, setParams] = useSearchParams();
@@ -56,6 +57,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
   const requestedId = params.get("run") || (isRunActive(activeRun) ? activeRun?.id : undefined) || entries[0]?.id || "";
   const selectedId = ledgerEntries.find((run) => run.id === requestedId)?.primaryReportRunId || requestedId;
   const selected = selectedId === activeRun?.id ? activeRun : detail.id === selectedId ? detail.run : undefined;
+  const contextFirst = mode !== "research" || isRunActive(selected ?? null) || selected?.status === "failed" || !!selected?.errorMessage || !selected?.artifacts.length;
   const reportMeta = runs.find((run) => run.id === selectedId);
   const filtered = entries.filter((run) => `${run.reportTitle || ""} ${run.taskSnapshot.name} ${String(run.taskSnapshot.subject.stock || "")}`.toLowerCase().includes(query.toLowerCase()));
 
@@ -89,12 +91,21 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
   }, [selectedId, activeRun?.id, retry]);
 
   const select = (id: string) => setParams((current) => { const next = new URLSearchParams(current); next.set("run", id); return next; });
+  const runContext = selected ? (<RunContext {...(mode === "research" ? { open: isRunActive(selected) || selected.status === "failed" || !!selected.errorMessage } : {})} className="mb-4">
+          {mode === "research" && <summary className="cursor-pointer py-2 text-xs text-secondary-text">{time(selected.createdAt, language)} · {statusLabel(selected)} · {language === "en" ? "Research task and provenance" : "研究任务与溯源"}</summary>}
+          <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4"><div><h2 className="text-xl font-semibold text-foreground">{selected.taskSnapshot.name}</h2><p className="mt-2 text-xs text-secondary-text">{time(selected.createdAt, language)} · {statusLabel(selected)} · {selected.taskSnapshot.market}</p>{trading && <p className="mt-2 text-xs text-secondary-text">{tx("运行耗时")}{" "}<RunElapsed run={selected} /> {" "}{tx("· 结果仅用于模拟研究")}</p>}</div><div className="flex flex-wrap gap-2"><Link className="btn-secondary text-xs" to={`/overview?runId=${encodeURIComponent(selected.id)}`}>{tx("继续问 Agent")}</Link><Link className="btn-secondary text-xs" to={`/runs/${selected.id}`}>{tx("运行详情与数据来源")}</Link></div></header>
+          {trading && selected.status === "completed" && <p className="mb-3 text-sm text-secondary-text">{tx("本次提案运行已结束，不代表成交")}</p>}
+          {selected.outcome && !isRunActive(selected) && <p role="status" className={`mb-4 text-sm leading-6 ${workspaceRunTone(selected)}`}>{tx(selected.outcome.message)}</p>}
+          <RunStages run={selected} />
+          {!!reportMeta?.relatedRunIds?.length && <details className="mb-5 border-b border-border pb-4"><summary className="cursor-pointer text-sm text-secondary-text">{tx("相关任务与 Agent 解读 ·")}{" "}{reportMeta.relatedRunIds.length} {" "}{tx("条")}</summary><p className="mt-3 text-sm leading-6 text-secondary-text">{tx("以下任务调用了本份正式研究。这里只展示一份报告，原始解读和运行记录保留备查。")}</p>{reportMeta.relatedRunIds.map((id) => <Link key={id} className="mt-2 block text-sm text-primary hover:underline" to={`/runs/${id}`}>{tx("查看")}{" "}{runs.find((run) => run.id === id)?.taskSnapshot.name || tx("原任务")} {" "}{tx("的解读与过程")}</Link>)}</details>}
+          {selected.errorMessage && <p role="alert" className="mb-4 text-sm text-danger">{selected.errorMessage}</p>}
+          </RunContext>) : null;
   return <AppPage className="space-y-5 pb-20">
     <PageHeader title={trading ? tx("交易推演") : mode === "research" ? tx("个股研究") : tx("策略选股")}
-      description={trading ? tx("回看模拟交易提案、风险检查与执行记录；策略配置按需展开。") : mode === "research" ? tx("阅读研究结论、关键价位与风险，回看每一次个股研究。") : tx("回看筛选结果、候选依据与风险，比较每一次策略选股报告。")}
+      description={mode === "research" && entries.length > 0 ? undefined : trading ? tx("回看模拟交易提案、风险检查与执行记录；策略配置按需展开。") : mode === "research" ? tx("阅读研究结论、关键价位与风险，回看每一次个股研究。") : tx("回看筛选结果、候选依据与风险，比较每一次策略选股报告。")}
       actions={<button className="btn-primary inline-flex items-center gap-2" type="button" aria-expanded={configOpen} aria-controls="new-analysis-config" onClick={() => { setConfigVisited(true); setConfigOpen(!configOpen); }}>{configOpen ? <ChevronDown className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{configOpen ? trading ? tx("收起策略配置") : tx("收起分析配置") : newAction}</button>} />
-    {!configOpen && <DefaultTaskLauncher kind={mode} onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}
-    {selected && !isRunActive(selected) && selected.artifacts.length > 0 && <Link className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline" to={`/expert-review?sourceRun=${selected.id}`}>{tx("邀请专家讨论这份报告")}</Link>}
+    {!configOpen && !(mode === "research" && entries.length > 0) && <DefaultTaskLauncher kind={mode} onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}
+    {mode !== "research" && selected && !isRunActive(selected) && selected.artifacts.length > 0 && <Link className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline" to={`/expert-review?sourceRun=${selected.id}`}>{tx("邀请专家讨论这份报告")}</Link>}
     {trading && <p className="flex items-start gap-2 text-sm leading-6 text-secondary-text"><ShieldCheck className="mt-1 h-4 w-4 shrink-0" />{tx("模拟盘 · 真实订单始终禁用。生成提案不等于已通过风险评估，也不等于已经成交。")}</p>}
     {(configOpen || (trading && configVisited)) && <section hidden={!configOpen} id="new-analysis-config" aria-label={trading ? tx("交易策略配置") : tx("新建分析配置")} className="border-b border-border pb-4">
       {mode === "trading" ? <TradingTaskSetupPage onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} /> : <AgentTaskSetupPage mode={mode} embedded onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}
@@ -118,18 +129,17 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
           </button>)}
           {loaded && !filtered.length && <p className="py-4 text-sm text-secondary-text">{query ? tx("没有匹配的报告，试试其他名称或代码。") : trading ? tx("尚无模拟运行记录。") : tx("尚无历史分析。")}</p>}
         </div>}
+        {mode === "research" && entries.length > 0 && !configOpen && <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer py-2 text-xs text-secondary-text">{language === "en" ? "Try a ready-to-run plan" : "快速试用默认方案"}</summary><DefaultTaskLauncher kind={mode} onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} /></details>}
         {loaded && entries.length >= 100 && <Link to="/runs" className="mt-3 block text-xs text-primary">{tx("查看更早的运行记录")}</Link>}
         </div>
       </aside>
       <section aria-label={trading ? tx("模拟交易结果") : tx("分析报告详情")} className="min-w-0 rounded-xl border border-border bg-card p-4 md:p-6 lg:p-8">
         {selected ? <>
-          <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4"><div><h2 className="text-xl font-semibold text-foreground">{selected.taskSnapshot.name}</h2><p className="mt-2 text-xs text-secondary-text">{time(selected.createdAt, language)} · {statusLabel(selected)} · {selected.taskSnapshot.market}</p>{trading && <p className="mt-2 text-xs text-secondary-text">{tx("运行耗时")}{" "}<RunElapsed run={selected} /> {" "}{tx("· 结果仅用于模拟研究")}</p>}</div><div className="flex flex-wrap gap-2"><Link className="btn-secondary text-xs" to={`/overview?runId=${encodeURIComponent(selected.id)}`}>{tx("继续问 Agent")}</Link><Link className="btn-secondary text-xs" to={`/runs/${selected.id}`}>{tx("运行详情与数据来源")}</Link></div></header>
-          {trading && selected.status === "completed" && <p className="mb-3 text-sm text-secondary-text">{tx("本次提案运行已结束，不代表成交")}</p>}
-          {selected.outcome && !isRunActive(selected) && <p role="status" className={`mb-4 text-sm leading-6 ${workspaceRunTone(selected)}`}>{tx(selected.outcome.message)}</p>}
-          <RunStages run={selected} />
-          {!!reportMeta?.relatedRunIds?.length && <details className="mb-5 border-b border-border pb-4"><summary className="cursor-pointer text-sm text-secondary-text">{tx("相关任务与 Agent 解读 ·")}{" "}{reportMeta.relatedRunIds.length} {" "}{tx("条")}</summary><p className="mt-3 text-sm leading-6 text-secondary-text">{tx("以下任务调用了本份正式研究。这里只展示一份报告，原始解读和运行记录保留备查。")}</p>{reportMeta.relatedRunIds.map((id) => <Link key={id} className="mt-2 block text-sm text-primary hover:underline" to={`/runs/${id}`}>{tx("查看")}{" "}{runs.find((run) => run.id === id)?.taskSnapshot.name || tx("原任务")} {" "}{tx("的解读与过程")}</Link>)}</details>}
-          {selected.errorMessage && <p role="alert" className="mb-4 text-sm text-danger">{selected.errorMessage}</p>}
-          {selected.artifacts.length ? visibleWorkspaceArtifacts(selected.artifacts).map((artifact) => <WorkflowArtifact key={artifact.id} artifact={artifact} />) : <div className="py-16 text-center"><FileText className="mx-auto mb-4 h-7 w-7 text-muted-text" /><p className="text-sm text-secondary-text">{isRunActive(selected) ? tx("正在准备证据与报告，成果生成后会自动显示。") : tx("本次运行没有生成报告，可查看运行详情了解原因。")}</p></div>}
+          {contextFirst && runContext}
+
+          {selected.artifacts.length ? visibleWorkspaceArtifacts(selected.artifacts).map((artifact) => <WorkflowArtifact key={artifact.id} artifact={artifact} researchPresentation={mode === "research" ? "memo" : undefined} />) : <div className="py-16 text-center"><FileText className="mx-auto mb-4 h-7 w-7 text-muted-text" /><p className="text-sm text-secondary-text">{isRunActive(selected) ? tx("正在准备证据与报告，成果生成后会自动显示。") : tx("本次运行没有生成报告，可查看运行详情了解原因。")}</p></div>}
+          {mode === "research" && !isRunActive(selected) && selected.artifacts.length > 0 && <div className="my-5 flex flex-wrap gap-3"><Link className="btn-secondary" to={`/expert-review?sourceRun=${selected.id}`}>{tx("邀请专家讨论这份报告")}</Link><Link className="btn-secondary" to={`/overview?runId=${encodeURIComponent(selected.id)}`}>{tx("继续问 Agent")}</Link></div>}
+          {!contextFirst && runContext}
         </> : selectedId ? <p role="status" className="py-16 text-center text-sm text-secondary-text">{detail.id === selectedId && detail.error ? tx(detail.error) : tx("正在读取完整报告…")}</p> : loaded ? <div className="py-20 text-center"><FileText className="mx-auto mb-4 h-8 w-8 text-muted-text" /><h2 className="text-lg font-semibold text-foreground">{trading ? tx("从一次模拟运行开始") : tx("从一份研究报告开始")}</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-secondary-text">{tx("点击“")}{newAction}{tx("”配置任务。生成的报告会保存在这里，随时回来继续阅读。")}</p></div> : null}
         {detail.id === selectedId && detail.error && <button type="button" className="btn-secondary mt-3" onClick={() => setRetry((value) => value + 1)}>{tx("重试读取报告")}</button>}
       </section>

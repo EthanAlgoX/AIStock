@@ -25,6 +25,16 @@ const run = (id: string, name: string) => workspaceRunFixture(workspaceTaskFixtu
 describe("report-first research workspace", () => {
   beforeEach(() => { vi.resetAllMocks(); useWorkspaceRunStore.setState({ runs: {} }); });
 
+  it("keeps failed research errors visible without opening provenance", async () => {
+    const failed = { ...run("failed", "失败研究"), status: "failed" as const, artifacts: [], errorMessage: "行情服务超时，请重新运行" };
+    api.listRuns.mockResolvedValue([failed]);
+    api.getRun.mockResolvedValue(failed);
+    render(<MemoryRouter><ResearchReportsWorkspace mode="research" /></MemoryRouter>);
+    expect(await screen.findByRole("alert")).toHaveTextContent("行情服务超时，请重新运行");
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(screen.getByRole("alert").closest("details")).toHaveAttribute("open");
+  });
+
   it.each(["research", "screening", "trading"] as const)("updates %s report controls immediately and preserves language after remount", async (mode) => {
     localStorage.setItem("dsa.uiLanguage", "zh");
     api.listRuns.mockResolvedValue([]);

@@ -9,10 +9,12 @@ import { AnalysisContextSummary } from './AnalysisContextSummary';
 import { MarketReviewReportView } from './MarketReviewReportView';
 import { getReportText } from '../../utils/reportLanguage';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
+import { ResearchMemo } from './ResearchMemo';
 
 interface ReportSummaryProps {
   data: AnalysisResult | AnalysisReport;
   isHistory?: boolean;
+  presentation?: 'memo';
   /** 自选相关 */
   watchlist?: {
     isInWatchlist: (code: string) => boolean;
@@ -30,6 +32,7 @@ interface ReportSummaryProps {
 export const ReportSummary: React.FC<ReportSummaryProps> = ({
   data,
   isHistory = false,
+  presentation,
   watchlist,
   onOpenRunFlow,
 }) => {
@@ -57,6 +60,14 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
       />
     );
   }
+
+  if (presentation === 'memo' && !watchlist) return <ResearchMemo report={report} provenance={<div className="space-y-5">
+    <AnalysisContextSummary overview={details?.analysisContextPackOverview} language={reportLanguage} />
+    <ReportDiagnostics recordId={recordId} summary={diagnosticSummary} language={reportLanguage} onOpenRunFlow={onOpenRunFlow} />
+    <details><summary className="cursor-pointer py-2 text-sm text-secondary-text">{reportLanguage === 'en' ? 'Related news (may include later retrieval)' : '关联资讯（可能包含后续检索）'}</summary><ReportNews recordId={recordId} limit={8} language={reportLanguage} /></details>
+    <ReportDetails details={details} recordId={recordId} language={reportLanguage} />
+    {shouldShowModel && <p className="text-xs text-secondary-text">{text.analysisModel}: {modelUsed}</p>}
+  </div>} />;
 
   return (
     <div className="space-y-5 pb-8 animate-fade-in">
