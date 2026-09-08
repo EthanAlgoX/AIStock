@@ -19,7 +19,7 @@ describe("WorkflowArtifact", () => {
     expect(screen.getByText("技术正文保持完整")).toBeVisible();
     expect(screen.getByText("估值支撑")).toBeVisible();
     expect(screen.getByText("盈利下降")).toBeVisible();
-    expect(screen.getByRole("heading", { name: "正向信号与催化" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: /^正向信号与催化/ })).toBeVisible();
     expect(screen.queryByText("支持判断的线索")).not.toBeInTheDocument();
   });
   it("shows screening evidence, factor scores and portfolio caveats without inventing missing facts", () => {
@@ -69,7 +69,7 @@ describe("WorkflowArtifact", () => {
       agentRiskDiscussion: { approved: true, evidence_gaps: ["资金流超时"] },
     } }} />);
     expect(screen.getByRole("heading", { name: "趋势追踪" })).toBeVisible();
-    expect(screen.getByRole("table")).toHaveTextContent("1700");
+    expect(screen.getByText("数量").nextElementSibling).toHaveTextContent("1700");
     expect(screen.getByText("资金流超时")).toBeVisible();
     expect(screen.getByText(/未由账户风控引擎核验/)).toBeVisible();
   });
@@ -118,11 +118,12 @@ describe("WorkflowArtifact", () => {
     expect(container.querySelector("details")).not.toHaveAttribute("open");
   });
 
-  it("renders proposed actions as a table, not executed orders", () => {
+  it("renders independent proposal plans, not executed orders", () => {
     render(<WorkflowArtifact artifact={{ title: "提案", type: "TradeProposal", content: { actions: [{ symbol: "600519", side: "hold", quantity: 0, reason: "等待证据" }] } }} />);
-    expect(screen.getByRole("table")).toHaveTextContent("Agent 生成的模拟提案，不是已执行订单。");
-    expect(screen.getByRole("table")).toHaveTextContent("600519");
-    expect(screen.getByRole("table")).toHaveTextContent("等待证据");
+    expect(screen.getByText("Agent 生成的模拟提案，不是已执行订单。")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "600519" })).toBeVisible();
+    expect(screen.getByText("等待证据")).toBeVisible();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText("数量").nextElementSibling).toHaveTextContent("0");
   });
 });

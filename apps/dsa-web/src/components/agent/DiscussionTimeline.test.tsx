@@ -14,10 +14,10 @@ it("shows persisted speaker outputs chronologically without collapsed process pa
   expect(entries[0]).toHaveTextContent("价值专家 · 独立分析");
   expect(entries[1]).toHaveTextContent("投给：价值专家");
   expect(entries[2]).toHaveTextContent("主持人 · 依据独立评审计票总结");
-  expect(screen.getByText("现金流需要核查")).toBeVisible();
-  expect(screen.queryByText("最终结论")).not.toBeInTheDocument();
+  expect(screen.getByText("现金流需要核查", { selector: "p" })).toBeVisible();
+  expect(screen.getByText("最终结论", { selector: "p" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: /本轮研究报告/ }));
-  expect(screen.getByText("最终结论")).toBeVisible();
+  expect(within(screen.getByRole("dialog")).getByText("最终结论", { selector: "p" })).toBeVisible();
 });
 
 it.each([["pipeline", "主持人 · 汇总各项任务与衔接缺口"], ["debate", "主持人 · 总结共识、分歧与待核实问题"]])("labels the supervisor's actual mode %s", (mode, label) => {

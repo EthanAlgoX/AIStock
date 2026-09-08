@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ResearchMemo } from '../ResearchMemo';
 import { UiLanguageProvider } from '../../../contexts/UiLanguageContext';
@@ -12,15 +12,13 @@ const report: AnalysisReport = {
 };
 
 describe('ResearchMemo', () => {
-  it('shows recorded arguments and conditions without a sentiment gauge or invented consensus', () => {
+  it('shows recorded arguments, conditions and a valid zero score without invented consensus', () => {
     render(<ResearchMemo report={report} provenance={<p>真实来源记录</p>} />);
     expect(screen.getByRole('heading', { name: '等待经营数据验证' })).toBeVisible();
     for (const text of ['原始研究结论', '现金流改善', '需求下降', '库存风险', '缺少资金流', '检查下次财报', '10–11，需量能确认', '真实来源记录']) expect(screen.getByText(text)).toBeVisible();
     expect(screen.getByText('0.00')).toBeVisible();
-    expect(screen.queryByRole('meter')).not.toBeInTheDocument();
+    expect(screen.getByRole('meter', { name: '报告情绪' })).toHaveAttribute('aria-valuenow', '0');
     expect(screen.queryByText('专家一致看多')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('辅助情绪指标'));
-    expect(screen.getByText('0 / 100')).toBeVisible();
     for (const link of screen.getByRole('navigation', { name: '报告阅读目录' }).querySelectorAll('a')) {
       expect(document.getElementById(link.hash.slice(1))).not.toBeNull();
     }

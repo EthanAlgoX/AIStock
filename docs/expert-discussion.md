@@ -4,7 +4,11 @@
 
 ## 可视化讨论入口
 
-`/expert-review` 位于主导航的投研助理之后。专家圆桌只用于专家协作：左侧为历史群聊，中央消息区独立滚动，顶部选择专家与协作模式，底部常驻输入框。用户、主持人、专家分别署名；长发言展示最多 900 字符摘录，可打开全文；每轮最终报告作为独立卡片打开阅读。追问在同一群聊中显示前几轮消息，不再只替换当前报告。
+`/expert-review` 位于主导航的投研助理之后。专家圆桌只用于专家协作：左侧为历史群聊，中央消息区独立滚动，顶部选择专家与协作模式，底部常驻输入框。用户、主持人、专家分别署名；专家意见与回应按原有 Markdown 章节或结构化字段阅读，默认展开首个章节，风险/反证章节以语义色标识。主持人最终总结直接显示在时间线内，并可打开宽版完整阅读窗口。追问在同一群聊中显示前几轮消息，不再只替换当前报告。公共证据、分工、质询与计票保持原展示方式。
+
+专家发言不再截取 900 字符；只折叠章节，不删改内容。章节拆分保留嵌套标题、表格和代码围栏，窄屏表格可横向滚动。结构化意见复用报告中的观点/依据/反证视图；历史 JSON 的解析边界同[工作区报告](workspace-decision-reports.md)，不可解析部分不回退为正文代码块。完整原文在溯源入口保留。自评信心不从叙述文字推算，章节分组不意味着新增专家共识。
+
+Roundtable expert opinions and responses now use expandable original sections instead of 900-character excerpts. The first section opens by default, with explicit risk/counterevidence styling. Host synthesis appears inline and in the wide reader using the same renderer. Nested headings, tables, source text, speaker order, response rounds, failed stages and voting semantics are retained. Structured outputs reuse the evidence view; malformed JSON stays in source disclosures with a warning. No new model calls or inferred scores are introduced. Revert the frontend and rebuild to roll back; no data migration is needed.
 
 投研助理内的专家协作保留简洁运行状态和最终报告；专家圆桌则直接展开过程。流水线展示主持人分工、各专家成果及任务汇总；辩论展示公共证据、独立分析、质询回应及共识/分歧总结；投票展示专家报告、三位独立评审的投票对象和理由、服务端计票及主持人总结。主持人不参与投票。界面展示的是公开输出而非内部思考，按完整发言保存后轮询更新，不虚构逐字生成或中间状态。
 

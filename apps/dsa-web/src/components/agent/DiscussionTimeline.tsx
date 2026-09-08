@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FileText } from "lucide-react";
 import { Drawer } from "../common/Drawer";
 import { ReportMarkdownBody } from "../report/ReportMarkdownBody";
+import { RoundtableMessageReport } from "../report/RoundtableMessageReport";
 
 const summaryLabels: Record<string, string> = {
   pipeline: "主持人 · 汇总各项任务与衔接缺口",
@@ -59,10 +60,14 @@ export default function DiscussionTimeline({ run }: { run: WorkspaceRun }) {
             {data.status === "failed" && <span className="text-xs text-danger">{tx("本阶段未完成")}</span>}
           </div>
           {vote && <p className="mb-3 text-sm text-secondary-text">{data.status === "failed" ? tx("无效票 · 未计入") : data.expertId == null ? tx("弃权") : tx("投给：{0}", String(names.get(String(data.expertId)) || `专家 ${String(data.expertId)}`))} · {String(data.criterion || tx("报告质量评审"))}</p>}
-          {artifact.type === "ExpertReview" ? <button type="button" onClick={() => setReport(artifact)} className="flex w-full max-w-md items-center gap-3 rounded-xl border border-border bg-card p-4 text-left hover:border-primary focus-visible:ring-2 focus-visible:ring-primary">
+          {artifact.type === "ExpertReview" ? <div className="w-full min-w-0 rounded-xl border border-primary/30 bg-card p-4 md:p-5"><RoundtableMessageReport content={artifact.content} text={artifact.text} summary /><button type="button" onClick={() => setReport(artifact)} className="mt-4 flex w-full items-center gap-3 rounded-lg border border-border p-4 text-left hover:border-primary focus-visible:ring-2 focus-visible:ring-primary">
             <FileText className="h-7 w-7 shrink-0 text-primary" />
             <span><span className="block text-sm font-semibold">{tx("本轮研究报告")}</span><span className="mt-1 block text-xs leading-5 text-secondary-text">{run.taskSnapshot.name}</span><span className="mt-2 block text-xs text-primary">{tx("打开完整报告")}</span></span>
-          </button> : <div data-testid="expert-message-body" className="w-full min-w-0 overflow-x-auto rounded-xl border border-border bg-card px-4 py-3 md:px-5 md:py-4">
+          </button></div> : ["ExpertOpinion", "ExpertResponse"].includes(artifact.type) ? <div data-testid="expert-message-body" className="w-full min-w-0 rounded-xl border border-border bg-card p-4 md:p-5">
+            {artifact.type === "ExpertResponse" && typeof data.question === "string" && <details className="mb-4 border-b border-border pb-3"><summary className="cursor-pointer py-2 text-xs text-secondary-text">{tx("回应主持人质询：")}</summary><ReportMarkdownBody content={data.question} /></details>}
+            <RoundtableMessageReport content={artifact.content} text={artifact.text} />
+            <button type="button" className="mt-3 min-h-11 text-sm text-primary" onClick={() => setReport(artifact)}>{tx("阅读完整发言")}</button>
+          </div> : <div data-testid="expert-message-body" className="w-full min-w-0 overflow-x-auto rounded-xl border border-border bg-card px-4 py-3 md:px-5 md:py-4">
             {artifact.text && artifact.text.length > 900 && <p className="mb-2 text-xs text-secondary-text">{tx("发言摘录 · 完整内容可展开阅读")}</p>}
             {artifact.type === "ExpertResponse" && typeof data.question === "string" && <p className="mb-3 border-b border-border pb-3 text-xs leading-6 text-secondary-text">{tx("回应主持人质询：")}{data.question}</p>}
             <ReportMarkdownBody content={artifact.text && artifact.text.length > 900 ? `${artifact.text.slice(0, 900)}\n\n…` : artifact.text || tx("该阶段无文本记录，请查看运行详情中的结构化证据。")} />
@@ -76,7 +81,7 @@ export default function DiscussionTimeline({ run }: { run: WorkspaceRun }) {
     {!artifacts.some((a) => a.type === "ExpertReview") && <p role="status" className="text-sm leading-6 text-secondary-text">{run.status === "running" || run.status === "queued" ? tx("专家正在研究，发言完成后逐条显示；主持人将在协作结束后总结。") : tx("本次尚无综合报告，已完成的意见保留在上方。")}</p>}
     <p className="text-xs leading-5 text-secondary-text">{tx("按实际发言保存时间展示，并行专家可能先后返回。这里展示公开分析与协作记录，不展示模型内部思考。")}</p>
     <Drawer isOpen={!!report} onClose={() => setReport(undefined)} title={report?.type === "ExpertReview" ? tx("本轮研究报告") : tx("完整发言")} width="max-w-6xl">
-      {report && <ReportMarkdownBody content={report.text || tx("暂无报告正文")} />}
+      {report && (["ExpertReview", "ExpertOpinion", "ExpertResponse"].includes(report.type) ? <RoundtableMessageReport content={report.content} text={report.text} summary={report.type === "ExpertReview"} /> : <ReportMarkdownBody content={report.text || tx("暂无报告正文")} />)}
     </Drawer>
   </section>;
 }

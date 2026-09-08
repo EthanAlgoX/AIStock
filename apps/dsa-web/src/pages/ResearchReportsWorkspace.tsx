@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ChevronDown, FileText, Octagon, Plus, RefreshCw, ShieldCheck } from "lucide-react";
 import { workspaceApi, type WorkspaceRun } from "../api/workspace";
 import { AppPage, PageHeader } from "../components/common";
-import WorkflowArtifact from "../components/agent/WorkflowArtifact";
+import { StockResearchArtifacts } from "../components/report/ExpertResearchReview";
 import RunStages from "../components/agent/RunStages";
 import DecisionReviewPanel from "../components/agent/DecisionReviewPanel";
 import { useWorkspaceRun } from "../hooks/useWorkspaceRun";
@@ -57,7 +57,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
   const requestedId = params.get("run") || (isRunActive(activeRun) ? activeRun?.id : undefined) || entries[0]?.id || "";
   const selectedId = ledgerEntries.find((run) => run.id === requestedId)?.primaryReportRunId || requestedId;
   const selected = selectedId === activeRun?.id ? activeRun : detail.id === selectedId ? detail.run : undefined;
-  const contextFirst = mode !== "research" || isRunActive(selected ?? null) || selected?.status === "failed" || !!selected?.errorMessage || !selected?.artifacts.length;
+  const contextFirst = isRunActive(selected ?? null) || selected?.status === "failed" || !!selected?.errorMessage || !selected?.artifacts.length;
   const reportMeta = runs.find((run) => run.id === selectedId);
   const filtered = entries.filter((run) => `${run.reportTitle || ""} ${run.taskSnapshot.name} ${String(run.taskSnapshot.subject.stock || "")}`.toLowerCase().includes(query.toLowerCase()));
 
@@ -91,7 +91,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
   }, [selectedId, activeRun?.id, retry]);
 
   const select = (id: string) => setParams((current) => { const next = new URLSearchParams(current); next.set("run", id); return next; });
-  const runContext = selected ? (<RunContext {...(mode === "research" ? { open: isRunActive(selected) || selected.status === "failed" || !!selected.errorMessage } : {})} className="mb-4">
+  const runContext = selected ? (<RunContext open={isRunActive(selected) || selected.status === "failed" || !!selected.errorMessage} className="mb-4">
           {mode === "research" && <summary className="cursor-pointer py-2 text-xs text-secondary-text">{time(selected.createdAt, language)} · {statusLabel(selected)} · {language === "en" ? "Research task and provenance" : "研究任务与溯源"}</summary>}
           <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4"><div><h2 className="text-xl font-semibold text-foreground">{selected.taskSnapshot.name}</h2><p className="mt-2 text-xs text-secondary-text">{time(selected.createdAt, language)} · {statusLabel(selected)} · {selected.taskSnapshot.market}</p>{trading && <p className="mt-2 text-xs text-secondary-text">{tx("运行耗时")}{" "}<RunElapsed run={selected} /> {" "}{tx("· 结果仅用于模拟研究")}</p>}</div><div className="flex flex-wrap gap-2"><Link className="btn-secondary text-xs" to={`/overview?runId=${encodeURIComponent(selected.id)}`}>{tx("继续问 Agent")}</Link><Link className="btn-secondary text-xs" to={`/runs/${selected.id}`}>{tx("运行详情与数据来源")}</Link></div></header>
           {trading && selected.status === "completed" && <p className="mb-3 text-sm text-secondary-text">{tx("本次提案运行已结束，不代表成交")}</p>}
@@ -137,7 +137,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
         {selected ? <>
           {contextFirst && runContext}
 
-          {selected.artifacts.length ? visibleWorkspaceArtifacts(selected.artifacts).map((artifact) => <WorkflowArtifact key={artifact.id} artifact={artifact} researchPresentation={mode === "research" ? "memo" : undefined} />) : <div className="py-16 text-center"><FileText className="mx-auto mb-4 h-7 w-7 text-muted-text" /><p className="text-sm text-secondary-text">{isRunActive(selected) ? tx("正在准备证据与报告，成果生成后会自动显示。") : tx("本次运行没有生成报告，可查看运行详情了解原因。")}</p></div>}
+          {selected.artifacts.length ? <StockResearchArtifacts key={selected.id} artifacts={visibleWorkspaceArtifacts(selected.artifacts)} researchPresentation={mode === "research" ? "memo" : "default"} /> : <div className="py-16 text-center"><FileText className="mx-auto mb-4 h-7 w-7 text-muted-text" /><p className="text-sm text-secondary-text">{isRunActive(selected) ? tx("正在准备证据与报告，成果生成后会自动显示。") : tx("本次运行没有生成报告，可查看运行详情了解原因。")}</p></div>}
           {mode === "research" && !isRunActive(selected) && selected.artifacts.length > 0 && <div className="my-5 flex flex-wrap gap-3"><Link className="btn-secondary" to={`/expert-review?sourceRun=${selected.id}`}>{tx("邀请专家讨论这份报告")}</Link><Link className="btn-secondary" to={`/overview?runId=${encodeURIComponent(selected.id)}`}>{tx("继续问 Agent")}</Link></div>}
           {!contextFirst && runContext}
         </> : selectedId ? <p role="status" className="py-16 text-center text-sm text-secondary-text">{detail.id === selectedId && detail.error ? tx(detail.error) : tx("正在读取完整报告…")}</p> : loaded ? <div className="py-20 text-center"><FileText className="mx-auto mb-4 h-8 w-8 text-muted-text" /><h2 className="text-lg font-semibold text-foreground">{trading ? tx("从一次模拟运行开始") : tx("从一份研究报告开始")}</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-secondary-text">{tx("点击“")}{newAction}{tx("”配置任务。生成的报告会保存在这里，随时回来继续阅读。")}</p></div> : null}

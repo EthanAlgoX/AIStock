@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
 import {
@@ -79,7 +79,7 @@ it("starts a real discussion task using visible team defaults and renders Markdo
     ),
   );
   fireEvent.click(await screen.findByRole("button", { name: /本轮研究报告/ }));
-  expect(await screen.findByRole("heading", { name: "综合结论" })).toBeInTheDocument();
+  expect(within(await screen.findByRole("dialog")).getByRole("heading", { name: "综合结论" })).toBeVisible();
   expect(
     screen.queryByRole("textbox", { name: "讨论议题" }),
   ).not.toBeInTheDocument();
