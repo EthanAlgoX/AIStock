@@ -23,10 +23,24 @@ export interface IndexLoadResult {
  *
  * @returns Index load result
  */
-export async function loadStockIndex(): Promise<IndexLoadResult> {
+let pendingIndex: Promise<IndexLoadResult> | undefined;
+let cachedIndex: IndexLoadResult | undefined;
+
+export function loadStockIndex(): Promise<IndexLoadResult> {
+  if (cachedIndex) return Promise.resolve(cachedIndex);
+  if (!pendingIndex) pendingIndex = fetchStockIndex().then(result => {
+    if (result.loaded) cachedIndex = result;
+    return result;
+  }).finally(() => { pendingIndex = undefined; });
+  return pendingIndex;
+}
+
+async function fetchStockIndex(): Promise<IndexLoadResult> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 12000);
   try {
     // Add time parameter to bypass cache (in case the backend doesn't handle ETag/Cache-Control)
-    const response = await fetch(`/stocks.index.json?_t=${Math.floor(Date.now() / 3600000)}`);
+    const response = await fetch(`/stocks.index.json?_t=${Math.floor(Date.now() / 3600000)}`, {signal: controller.signal});
 
     if (!response.ok) {
       throw new Error(`Failed to load index: ${response.status} ${response.statusText}`);
@@ -52,6 +66,8 @@ export async function loadStockIndex(): Promise<IndexLoadResult> {
       error: error as Error,
       fallback: true,  // Load failed, fallback to old mode
     };
+  } finally {
+    window.clearTimeout(timeout);
   }
 }
 

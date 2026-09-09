@@ -8,7 +8,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { workspaceApi, type WorkspaceRun, type WorkspaceSkill, type WorkspaceTask } from "../api/workspace";
 import { useWorkspaceRun } from "../hooks/useWorkspaceRun";
@@ -30,6 +30,7 @@ type TradingStrategyDraft = {
   objective: string;
   market: MarketId;
   universeMode: "screening" | "watchlist" | "portfolio";
+  sourceRunId: string;
   cadence: "5m" | "15m" | "1h" | "1d";
   evaluationWindow: "7d" | "30d" | "90d";
   initialCapital: string;
@@ -44,6 +45,7 @@ const DEFAULT_DRAFT: TradingStrategyDraft = {
   objective: "",
   market: "CN",
   universeMode: "screening",
+  sourceRunId: "",
   cadence: "15m",
   evaluationWindow: "30d",
   initialCapital: "1000000",
@@ -66,7 +68,11 @@ const toggleValue = <T,>(items: T[], value: T) => (
 export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (run: WorkspaceRun) => void }) {
   const { translate: tx } = useUiLanguage();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const incomingSource = params.get("sourceRun");
   const [draft, setDraft] = useState<TradingStrategyDraft>(DEFAULT_DRAFT);
+  const [sources, setSources] = useState<WorkspaceRun[]>([]);
+  useEffect(() => { let live = true; void workspaceApi.runHistory({kind:"screening",status:"completed",market:draft.market,limit:100}).then(page => {if(live) setSources(page.items);}).catch(() => {if(live) setSources([]);}); return () => {live=false;}; }, [draft.market]);
   const [skills, setSkills] = useState<WorkspaceSkill[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState("");
@@ -83,13 +89,14 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
 
   useEffect(() => {
     let active = true;
-    void Promise.all([workspaceApi.getCapabilities(), workspaceApi.listTasks("trading")])
-      .then(([catalog, tasks]) => {
+    void Promise.all([workspaceApi.getCapabilities(), workspaceApi.listTasks("trading"), incomingSource ? workspaceApi.getRun(incomingSource) : Promise.resolve(null)])
+      .then(([catalog, tasks, source]) => {
         if (!active) return;
         setSkills(catalog.skills.filter((skill) => skill.enabled));
         const task = tasks[0];
         if (!task) {
           setCapabilities(catalog.defaults.trading);
+          if (source?.kind === "screening") setDraft({...DEFAULT_DRAFT, sourceRunId:source.id, market:source.taskSnapshot.market === "GLOBAL" ? "CN" : source.taskSnapshot.market});
           return;
         }
         const config = task.config || {};
@@ -104,6 +111,7 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
           objective: task.objective,
           market: task.market === "GLOBAL" ? "CN" : task.market,
           universeMode: String(task.subject?.universeMode || "screening") as TradingStrategyDraft["universeMode"],
+          sourceRunId: String(task.subject?.sourceRunId || ""),
           cadence: String(config.cadence || "15m") as TradingStrategyDraft["cadence"],
           evaluationWindow: String(config.evaluationWindow || "30d") as TradingStrategyDraft["evaluationWindow"],
           initialCapital: String(config.initialCapital || "1000000"),
@@ -111,6 +119,7 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
           maxPositionPercent: String(risk.maxPositionPercent || "15"),
           maxDailyLossPercent: String(risk.maxDailyLossPercent || "3"),
           requireApproval: risk.requireApproval !== false,
+          ...(source?.kind === "screening" ? {universeMode:"screening",sourceRunId:source.id,market:source.taskSnapshot.market === "GLOBAL" ? "CN" : source.taskSnapshot.market} as const : {}),
         });
       })
       .catch(() => {
@@ -122,10 +131,10 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
     return () => {
       active = false;
     };
-  }, []);
+  }, [incomingSource]);
 
   const capabilityCount = countAgentCapabilities(capabilities);
-  const strategyReady = Boolean(draft.name.trim() && draft.objective.trim());
+  const strategyReady = Boolean(draft.name.trim() && draft.objective.trim() && (draft.universeMode !== "screening" || draft.sourceRunId));
 
   const updateDraft = <K extends keyof TradingStrategyDraft>(key: K, value: TradingStrategyDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -137,7 +146,7 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
       name: draft.name.trim(),
       market: draft.market,
       objective: draft.objective.trim(),
-      subject: { universeMode: draft.universeMode },
+      subject: { universeMode: draft.universeMode, sourceRunId: draft.universeMode === "screening" ? draft.sourceRunId : undefined },
       config: {
         cadence: draft.cadence,
         evaluationWindow: draft.evaluationWindow,
@@ -226,9 +235,9 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
     <div className="space-y-6 pb-6" data-testid="trading-strategy-workspace">
       <ol className="grid gap-px overflow-hidden rounded-[12px] border border-border bg-border sm:grid-cols-4" aria-label={tx("交易策略配置流程")}>
         {[
-          { label: tx("定义策略"), ready: Boolean(draft.name.trim() && draft.objective.trim()) },
+          { label: tx("定义策略"), ready: Boolean(draft.name.trim() && draft.objective.trim() && (draft.universeMode !== "screening" || draft.sourceRunId)) },
           { label: tx("设置信号"), ready: true },
-          { label: tx("锁定风控"), ready: true },
+          { label: tx("设置研究约束"), ready: true },
           { label: tx("生成提案"), ready: Boolean(activeRun) },
         ].map((step, index) => (
           <li key={step.label} className="flex items-center gap-3 bg-card px-4 py-3">
@@ -247,8 +256,9 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
               <p className="mt-1 text-sm text-secondary-text">{tx("这里保存策略目标与适用范围，不上传代码包。")}</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <label className="text-sm font-medium text-foreground">{tx("策略名称")}<input value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} placeholder={tx("例如：高质量趋势跟踪")} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
-                <label className="text-sm font-medium text-foreground">{tx("候选范围")}<select value={draft.universeMode} onChange={(event) => updateDraft("universeMode", event.target.value as TradingStrategyDraft["universeMode"])} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"><option value="screening">{tx("选股任务最新候选池")}</option><option value="watchlist">{tx("工作区观察池")}</option><option value="portfolio">{tx("当前模拟持仓")}</option></select></label>
+                <label className="text-sm font-medium text-foreground">{tx("候选范围")}<select value={draft.universeMode} onChange={(event) => updateDraft("universeMode", event.target.value as TradingStrategyDraft["universeMode"])} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"><option value="screening">{tx("指定选股结果")}</option><option value="watchlist">{tx("我的自选股")}</option><option value="portfolio">{tx("持仓管理中的现有持仓")}</option></select></label>
               </div>
+              {draft.universeMode === "screening" && <label className="mt-4 block text-sm font-medium text-foreground">选股来源<select className="min-h-10 rounded-lg border border-border bg-background px-3 py-2 text-sm mt-2 w-full" value={draft.sourceRunId} onChange={e => updateDraft("sourceRunId", e.target.value)}><option value="">请选择已完成的选股结果</option>{sources.map(run => <option value={run.id} key={run.id}>{run.taskSnapshot.name} · {new Date(run.createdAt).toLocaleString()}</option>)}</select><span className="mt-1 block text-xs text-muted-text">启动时冻结该报告的股票与来源日期。历史候选不代表最新行情；没有结果请先完成选股。</span></label>}
               <label className="mt-4 block text-sm font-medium text-foreground">{tx("交易逻辑")}<textarea value={draft.objective} onChange={(event) => updateDraft("objective", event.target.value)} placeholder={tx("例如：从高质量候选池中寻找中期趋势确认的公司；信号冲突时保持现金，并要求专家团复核重大基本面变化")} className="mt-2 min-h-28 w-full resize-y rounded-[9px] border border-border bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none focus:border-primary" /></label>
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
                 {MARKETS.map((market) => (
@@ -262,29 +272,29 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
 
             <section className="border-b border-border/70 px-5 py-5 sm:px-6" aria-labelledby="trading-signal-heading">
               <h2 id="trading-signal-heading" className="text-base font-semibold text-foreground">{tx("信号与运行节奏")}</h2>
-              <p className="mt-1 text-sm text-secondary-text">{tx("模拟周期用于观察策略运行稳定性，不代表回测已通过。")}</p>
+              <p className="mt-1 text-sm text-secondary-text">{tx("以下时间参数用于描述研究场景；当前不运行回测或模拟撮合。")}</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
                 <label className="text-sm font-medium text-foreground">{tx("信号检查频率")}<select value={draft.cadence} onChange={(event) => updateDraft("cadence", event.target.value as TradingStrategyDraft["cadence"])} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"><option value="5m">{tx("每 5 分钟")}</option><option value="15m">{tx("每 15 分钟")}</option><option value="1h">{tx("每小时")}</option><option value="1d">{tx("每日收盘后")}</option></select></label>
                 <label className="text-sm font-medium text-foreground">{tx("评估窗口")}<select value={draft.evaluationWindow} onChange={(event) => updateDraft("evaluationWindow", event.target.value as TradingStrategyDraft["evaluationWindow"])} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"><option value="7d">{tx("连续 7 天")}</option><option value="30d">{tx("连续 30 天")}</option><option value="90d">{tx("连续 90 天")}</option></select></label>
-                <div className="rounded-[10px] border border-success/20 bg-success/5 px-3 py-2.5"><span className="block text-xs text-muted-text">{tx("执行模式")}</span><span className="mt-1 block text-sm font-semibold text-success">{tx("模拟盘 · 不下真实订单")}</span></div>
+                <div className="rounded-[10px] border border-success/20 bg-success/5 px-3 py-2.5"><span className="block text-xs text-muted-text">{tx("执行模式")}</span><span className="mt-1 block text-sm font-semibold text-success">{tx("研究提案 · 无订单、无模拟成交")}</span></div>
               </div>
             </section>
 
             <section className="border-b border-border/70 px-5 py-5 sm:px-6" aria-labelledby="trading-risk-heading">
-              <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /><h2 id="trading-risk-heading" className="text-base font-semibold text-foreground">{tx("硬性风险边界")}</h2></div>
-              <p className="mt-1 text-sm text-secondary-text">{tx("这些限制属于确定性风控，目标架构中不允许 Agent 修改或绕过。")}</p>
+              <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /><h2 id="trading-risk-heading" className="text-base font-semibold text-foreground">{tx("提案风险参数")}</h2></div>
+              <p className="mt-1 text-sm text-secondary-text">{tx("目前仅校验参数范围并生成提案，尚未结合账户执行风控评估。")}</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <label className="text-sm font-medium text-foreground">{tx("模拟初始资金")}<input type="number" min="10000" value={draft.initialCapital} onChange={(event) => updateDraft("initialCapital", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
                 <label className="text-sm font-medium text-foreground">{tx("最大持仓数")}<input type="number" min="1" max="100" value={draft.maxPositions} onChange={(event) => updateDraft("maxPositions", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
                 <label className="text-sm font-medium text-foreground">{tx("单股仓位上限（%）")}<input type="number" min="1" max="100" value={draft.maxPositionPercent} onChange={(event) => updateDraft("maxPositionPercent", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
                 <label className="text-sm font-medium text-foreground">{tx("单日亏损上限（%）")}<input type="number" min="0.1" max="100" step="0.1" value={draft.maxDailyLossPercent} onChange={(event) => updateDraft("maxDailyLossPercent", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
               </div>
-              <label className="mt-4 flex items-start gap-3 rounded-[10px] border border-border bg-background px-4 py-3 text-sm text-foreground"><input type="checkbox" checked={draft.requireApproval} onChange={(event) => updateDraft("requireApproval", event.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" /><span><span className="font-medium">{tx("模拟交易提案进入人工确认")}</span><span className="mt-1 block text-xs leading-5 text-muted-text">{tx("即使后端接通，也先生成提案，不自动提交真实订单。")}</span></span></label>
+              <label className="mt-4 flex items-start gap-3 rounded-[10px] border border-border bg-background px-4 py-3 text-sm text-foreground"><input type="checkbox" checked={draft.requireApproval} onChange={(event) => updateDraft("requireApproval", event.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" /><span><span className="font-medium">{tx("要求提案注明人工复核")}</span><span className="mt-1 block text-xs leading-5 text-muted-text">{tx("这是研究约束，当前没有订单确认或成交功能。")}</span></span></label>
             </section>
 
             <section className="border-b border-border/70 px-5 py-5 sm:px-6" aria-labelledby="trading-skills-heading">
               <h2 id="trading-skills-heading" className="text-base font-semibold text-foreground">{tx("交易策略 Skill（可选）")}</h2>
-              <p className="mt-1 text-sm leading-6 text-secondary-text">{tx("交易逻辑与所选 Skill 共同组成这份自定义策略，用于研究信号和生成模拟提案；不另选执行流程，也不改变上方硬性风险边界。")}</p>
+              <p className="mt-1 text-sm leading-6 text-secondary-text">{tx("交易逻辑与所选 Skill 共同组成这份自定义策略，用于研究信号和生成模拟提案；不另选执行流程，也不改变上方提案风险参数。")}</p>
               <StrategySkillPicker skills={skills} selectedIds={capabilities.skillIds} onToggle={(id) => { setCapabilities((current) => ({ ...current, skillIds: toggleValue(current.skillIds, id) })); setSaved(false); }} loading={skillsLoading} error={tx(skillsError)} />
             </section>
             <section className="px-5 py-5 sm:px-6" aria-labelledby="trading-capability-heading">
@@ -294,7 +304,7 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
               </div>
               <div className="mt-5 flex flex-col gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
                 <p className="flex items-start gap-2 text-xs leading-5 text-muted-text"><Database className="mt-0.5 h-3.5 w-3.5 shrink-0" />{tx("策略定义和能力绑定会保存到后端；每次模拟运行都会冻结独立快照。")}</p>
-                <div className="flex flex-wrap gap-2"><button type="button" className="btn-secondary inline-flex items-center gap-2" onClick={() => void saveDraft()}><Save className="h-4 w-4" />{tx("保存交易策略")}</button><button type="button" disabled={!strategyReady} className="btn-secondary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45" onClick={() => void scheduleStrategy()}><CalendarClock className="h-4 w-4" />{tx("创建定时计划")}</button><button type="button" disabled={!strategyReady || busy} className="btn-primary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45" onClick={() => void startRun()}><Play className="h-4 w-4" />{restoring ? tx("恢复运行状态…") : submitting ? tx("正在提交…") : tx("启动模拟运行")}</button></div>
+                <div className="flex flex-wrap gap-2"><button type="button" className="btn-secondary inline-flex items-center gap-2" onClick={() => void saveDraft()}><Save className="h-4 w-4" />{tx("保存交易策略")}</button><button type="button" disabled={!strategyReady} className="btn-secondary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45" onClick={() => void scheduleStrategy()}><CalendarClock className="h-4 w-4" />{tx("创建定时计划")}</button><button type="button" disabled={!strategyReady || busy} className="btn-primary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45" onClick={() => void startRun()}><Play className="h-4 w-4" />{restoring ? tx("恢复运行状态…") : submitting ? tx("正在提交…") : tx("生成交易提案")}</button></div>
               </div>
               {saved ? <p role="status" className="mt-3 text-xs font-medium text-success">{tx("交易策略已保存到后端工作区。")}</p> : null}
             </section>

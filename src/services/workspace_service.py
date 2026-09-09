@@ -271,6 +271,20 @@ class WorkspaceService:
 
     # Capability registry ----------------------------------------------------------
     def _seed_experts(self, session) -> None:
+        from sqlalchemy.exc import IntegrityError
+
+        def insert_builtin(row, key_field):
+            # Concurrent first visits may both observe an empty catalog. Roll back
+            # only this insert; never overwrite an existing user's customization.
+            try:
+                with session.begin_nested():
+                    session.add(row)
+                    session.flush()
+            except IntegrityError:
+                existing = session.get(type(row), row.id)
+                if not existing or getattr(existing, key_field) != getattr(row, key_field):
+                    raise
+
         for item in BUILTIN_EXPERTS:
             existing = session.get(WorkspaceExpertRecord, item["id"])
             if existing:
@@ -280,20 +294,20 @@ class WorkspaceService:
                     existing.version += 1
                     existing.updated_at = utc_naive_now()
                 continue
-            session.add(WorkspaceExpertRecord(
+            insert_builtin(WorkspaceExpertRecord(
                 id=item["id"], expert_key=item["key"], name=item["name"], style=item["style"],
                 description=item["description"], philosophy=item["philosophy"],
                 focus_json=_dump(item["focus"]), prompt=item["prompt"], built_in=True,
-            ))
+            ), "expert_key")
         session.flush()
         for item in BUILTIN_TEAMS:
             if session.get(WorkspaceExpertTeamRecord, item["id"]):
                 continue
-            session.add(WorkspaceExpertTeamRecord(
+            insert_builtin(WorkspaceExpertTeamRecord(
                 id=item["id"], team_key=item["key"], name=item["name"],
                 description=item["description"], member_ids_json=_dump(item["member_ids"]),
                 protocol=item["protocol"], built_in=True,
-            ))
+            ), "team_key")
         session.flush()
 
     def _preferences(self, session, kind: str) -> dict[str, bool]:
@@ -1452,6 +1466,17 @@ class WorkspaceService:
                 return self.get_run(existing_run)
             if context:
                 task["portfolioContext"] = context
+        if task["kind"] == "expert_review" and task["subject"].get("stock"):
+            from src.core.trading_calendar import get_market_for_stock
+            from src.services.workspace_inputs import stock_code
+            market = get_market_for_stock(task["subject"]["stock"])
+            if not market or task["market"] not in {"GLOBAL", market.upper()}:
+                raise WorkspaceError("discussion_stock_invalid", "个股讨论请填写明确股票代码，并核对市场；不能只填简称。", 422)
+            task["subject"] = {**task["subject"], "stock": stock_code(task["subject"]["stock"])}
+            task["market"] = market.upper()
+        if task["kind"] == "trading":
+            from src.services.workspace_inputs import freeze_trading_inputs
+            task["subject"] = {**task["subject"], "resolvedUniverse": freeze_trading_inputs(self, task)}
         run_id, snapshot_id = uuid.uuid4().hex, uuid.uuid4().hex
         now = utc_naive_now()
         source_ids = task["capabilities"]["dataSourceIds"]
@@ -2006,7 +2031,10 @@ class WorkspaceService:
                 raise WorkspaceError("run_not_found", "运行记录不存在。", 404)
             snapshot = session.execute(select(WorkspaceDataSnapshotRecord).where(WorkspaceDataSnapshotRecord.run_id == run_id)).scalar_one_or_none()
             artifacts = session.execute(select(WorkspaceArtifactRecord).where(WorkspaceArtifactRecord.run_id == run_id).order_by(WorkspaceArtifactRecord.created_at)).scalars().all()
-            return self._run_item(row, snapshot, artifacts)
+            item = self._run_item(row, snapshot, artifacts)
+        from src.services.workspace_inputs import run_usage
+        item["usage"] = run_usage(self.db, run_id)
+        return item
 
     def list_runs(self, kind: Optional[str] = None, task_id: Optional[str] = None, limit: int = 100) -> list[dict[str, Any]]:
         with self.db.get_session() as session:
@@ -2045,6 +2073,8 @@ class WorkspaceService:
             row = session.get(WorkspaceRunRecord, run_id)
             if not row:
                 raise WorkspaceError("run_not_found", "运行记录不存在。", 404)
+            if _load(row.result_summary_json, {}).get('externalExecutor'):
+                raise WorkspaceError('external_cancel_unsupported', '此任务由原执行队列管理，暂不支持在此中断；关闭页面不会停止运行。', 409)
             if row.status not in {"queued", "running"}:
                 return {"accepted": False, "runId": run_id, "status": row.status}
             row.cancel_requested = True

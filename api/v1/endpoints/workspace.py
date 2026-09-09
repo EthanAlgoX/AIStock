@@ -382,6 +382,16 @@ def list_runs(kind: Optional[str] = None, task_id: Optional[str] = None, limit: 
     return _service().list_runs(kind, task_id, limit)
 
 
+@router.get("/run-history")
+def run_history(kind: Optional[str] = None, status: Optional[str] = None,
+                query: Optional[str] = Query(None, max_length=200), stock: Optional[str] = None,
+                market: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None,
+                offset: int = Query(0, ge=0), limit: int = Query(30, ge=1, le=100)):
+    from src.services.workspace_inputs import history
+    return _call(lambda: history(_service(), kind=kind, status=status, query=query, stock=stock,
+                                 market=market, start=start, end=end, offset=offset, limit=limit))
+
+
 @router.get("/runs/{run_id}")
 def get_run(run_id: str) -> dict[str, Any]:
     return _call(lambda: _service().get_run(run_id))

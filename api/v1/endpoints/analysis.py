@@ -619,14 +619,19 @@ def trigger_market_review(
             effective_region,
             request.send_notification,
         )
+        from src.services.workspace_service import WorkspaceService
+        from src.services.workspace_external_runs import begin, execute
+        workspace = WorkspaceService()
+        begin(workspace, 'market_analysis', '大盘复盘', {'cn':'CN', 'us':'US'}.get(effective_region, 'GLOBAL'), {}, {},
+              run_id=task_id, trigger='market_review')
         task = get_task_queue().submit_background_task(
-            lambda: _run_market_review_background(
+            lambda: execute(workspace, task_id, lambda: _run_market_review_background(
                 request.send_notification,
                 effective_region=effective_region,
                 lock_token=lock_token,
                 config=runtime_config,
                 query_id=task_id,
-            ),
+            ), "MarketAnalysisReport"),
             stock_code="market_review",
             stock_name="大盘复盘",
             message="大盘复盘任务已提交",
@@ -634,6 +639,8 @@ def trigger_market_review(
             region=effective_region,
         )
     except Exception:
+        if 'workspace' in locals():
+            workspace._finish_run(task_id, 'failed', error_code='queue_unavailable', error_message='大盘复盘未能提交到执行队列。')
         _release_market_review_lock(lock_token)
         raise
 

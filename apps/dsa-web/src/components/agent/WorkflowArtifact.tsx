@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
 import { toCamelCase } from "../../api/utils";
 import type { AnalysisResult } from "../../types/analysis";
@@ -203,7 +204,7 @@ export default function WorkflowArtifact({ artifact, researchPresentation }: { a
       {candidates.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm">
         <caption className="pb-3 text-left text-xs text-secondary-text">{tx("实际筛选候选；分数为策略评分，不代表获利概率。")}</caption>
         <thead><tr className="border-b border-border text-secondary-text"><th className="p-2">{tx("股票")}</th><th className="p-2">{tx("评分")}</th><th className="p-2">{tx("入选依据")}</th><th className="p-2">{tx("风险")}</th></tr></thead>
-        <tbody>{candidates.map((candidate, index) => { const row = object(candidate); return <tr key={`${text(row.code ?? row.symbol)}-${index}`} className="border-b border-border/60 align-top"><td className="p-2">{text(row.name)}<br /><span className="text-xs text-secondary-text">{text(row.code ?? row.symbol)}</span></td><td className="p-2 tabular-nums">{typeof row.score === "number" ? row.score.toLocaleString("zh-CN", { maximumFractionDigits: 2 }) : text(row.score)}</td><td className="min-w-40 p-2">{text(row.reason || row.reasons || row.llm_thesis || tx("详见因子明细"))}</td><td className="min-w-32 p-2">{text(row.risks ?? row.risk_flags)}</td></tr>; })}</tbody>
+        <tbody>{candidates.map((candidate, index) => { const row = object(candidate); return <tr key={`${text(row.code ?? row.symbol)}-${index}`} className="border-b border-border/60 align-top"><td className="p-2">{text(row.name)}<br /><span className="text-xs text-secondary-text">{text(row.code ?? row.symbol)}</span><Link className="mt-2 block text-xs text-primary hover:underline" to={`/stock-research?stock=${encodeURIComponent(text(row.code ?? row.symbol))}`}>查看股票档案 / 深入研究</Link></td><td className="p-2 tabular-nums">{typeof row.score === "number" ? row.score.toLocaleString("zh-CN", { maximumFractionDigits: 2 }) : text(row.score)}</td><td className="min-w-40 p-2">{text(row.reason || row.reasons || row.llm_thesis || tx("详见因子明细"))}</td><td className="min-w-32 p-2">{text(row.risks ?? row.risk_flags)}</td></tr>; })}</tbody>
       </table></div> : <p className="text-sm text-secondary-text">{tx("本次没有符合策略条件的候选股票。")}</p>
       }
       {(result.llm_selection_logic || result.llmSelectionLogic) ? <section><h4 className="mb-3 font-semibold text-foreground">{tx("筛选逻辑")}</h4><ReportMarkdownBody content={text(result.llm_selection_logic || result.llmSelectionLogic)} /></section> : null}

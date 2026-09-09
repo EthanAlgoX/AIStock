@@ -11,6 +11,7 @@ import { useWorkspaceRun } from "../hooks/useWorkspaceRun";
 import { isRunActive } from "../stores/workspaceRunStore";
 import AgentTaskSetupPage from "./AgentTaskSetupPage";
 import TradingTaskSetupPage from "./TradingTaskSetupPage";
+import StockArchive from "../components/agent/StockArchive";
 import DefaultTaskLauncher from "../components/agent/DefaultTaskLauncher";
 
 import { visibleWorkspaceArtifacts, workspaceRunLabel, workspaceRunTone } from "../utils/workspaceOutcome";
@@ -41,7 +42,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
   const newAction = tx(trading ? "新建交易推演" : mode === "research" ? "新建个股研究" : "新建策略选股");
   const statusLabel = (run: WorkspaceRun) => tx(workspaceRunLabel(run));
   const [params, setParams] = useSearchParams();
-  const [configOpen, setConfigOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(mode === "trading" && Boolean(params.get("sourceRun")));
   const [reviewOpen, setReviewOpen] = useState(false);
   const [configVisited, setConfigVisited] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -104,9 +105,10 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
     <PageHeader title={trading ? tx("交易推演") : mode === "research" ? tx("个股研究") : tx("策略选股")}
       description={mode === "research" && entries.length > 0 ? undefined : trading ? tx("回看模拟交易提案、风险检查与执行记录；策略配置按需展开。") : mode === "research" ? tx("阅读研究结论、关键价位与风险，回看每一次个股研究。") : tx("回看筛选结果、候选依据与风险，比较每一次策略选股报告。")}
       actions={<button className="btn-primary inline-flex items-center gap-2" type="button" aria-expanded={configOpen} aria-controls="new-analysis-config" onClick={() => { setConfigVisited(true); setConfigOpen(!configOpen); }}>{configOpen ? <ChevronDown className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{configOpen ? trading ? tx("收起策略配置") : tx("收起分析配置") : newAction}</button>} />
-    {!configOpen && !(mode === "research" && entries.length > 0) && <DefaultTaskLauncher kind={mode} onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}
+    {!configOpen && !(mode === "research" && (entries.length > 0 || params.get("stock"))) && <DefaultTaskLauncher kind={mode} onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}
     {mode !== "research" && selected && !isRunActive(selected) && selected.artifacts.length > 0 && <Link className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline" to={`/expert-review?sourceRun=${selected.id}`}>{tx("邀请专家讨论这份报告")}</Link>}
     {trading && <p className="flex items-start gap-2 text-sm leading-6 text-secondary-text"><ShieldCheck className="mt-1 h-4 w-4 shrink-0" />{tx("模拟盘 · 真实订单始终禁用。生成提案不等于已通过风险评估，也不等于已经成交。")}</p>}
+    {mode === "research" && <StockArchive onRunStarted={(run) => {select(run.id);setConfigOpen(false);}} />}
     {(configOpen || (trading && configVisited)) && <section hidden={!configOpen} id="new-analysis-config" aria-label={trading ? tx("交易策略配置") : tx("新建分析配置")} className="border-b border-border pb-4">
       {mode === "trading" ? <TradingTaskSetupPage onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} /> : <AgentTaskSetupPage mode={mode} embedded onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}
     </section>}
@@ -129,8 +131,8 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
           </button>)}
           {loaded && !filtered.length && <p className="py-4 text-sm text-secondary-text">{query ? tx("没有匹配的报告，试试其他名称或代码。") : trading ? tx("尚无模拟运行记录。") : tx("尚无历史分析。")}</p>}
         </div>}
-        {mode === "research" && entries.length > 0 && !configOpen && <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer py-2 text-xs text-secondary-text">{language === "en" ? "Try a ready-to-run plan" : "快速试用默认方案"}</summary><DefaultTaskLauncher kind={mode} onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} /></details>}
-        {loaded && entries.length >= 100 && <Link to="/runs" className="mt-3 block text-xs text-primary">{tx("查看更早的运行记录")}</Link>}
+        {mode === "research" && entries.length > 0 && !configOpen && !params.get("stock") && <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer py-2 text-xs text-secondary-text">{language === "en" ? "Try a ready-to-run plan" : "快速试用默认方案"}</summary><DefaultTaskLauncher kind={mode} onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} /></details>}
+        {loaded && entries.length >= 100 && <Link to={`/runs?kind=${mode}`} className="mt-3 block text-xs text-primary">{tx("查看更早的运行记录")}</Link>}
         </div>
       </aside>
       <section aria-label={trading ? tx("模拟交易结果") : tx("分析报告详情")} className="min-w-0 rounded-xl border border-border bg-card p-4 md:p-6 lg:p-8">

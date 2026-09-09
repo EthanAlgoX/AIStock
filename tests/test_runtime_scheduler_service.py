@@ -670,11 +670,13 @@ class RuntimeSchedulerServiceTestCase(unittest.TestCase):
         ), patch("api.app.RuntimeSchedulerService", FakeRuntimeSchedulerService), patch(
             "api.app.SystemConfigService",
             FakeSystemConfigService,
-        ), patch("api.app._schedule_stock_index_background_refresh"):
+        ), patch("api.app._schedule_stock_index_background_refresh"), patch("src.services.alert_polling.AlertPollingService") as poller:
             app = create_app(static_dir=Path(temp_dir))
             with TestClient(app):
                 pass
 
+        poller.return_value.start.assert_called_once()
+        poller.return_value.stop.assert_called_once()
         self.assertEqual(events, [
             ("init", True, False, True),
             ("stop",),

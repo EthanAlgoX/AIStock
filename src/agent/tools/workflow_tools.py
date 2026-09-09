@@ -67,12 +67,32 @@ def execute_research_workflow(version_id: int, purpose: str, inputs: dict, *, ma
 def run_stock_research(strategy_version_id: int, stock_code: str) -> dict:
     if not stock_code.strip():
         raise ValueError("单股研究需要股票代码。")
-    result = execute_research_workflow(strategy_version_id, "research_report", {"symbol": stock_code.strip()})
-    return _record_chat_result(result, {"stock": stock_code.strip()})
+    return _run_tracked_workflow(strategy_version_id, "research_report", {"symbol": stock_code.strip()}, {"stock": stock_code.strip()})
 
 
 def run_stock_screening(strategy_version_id: int) -> dict:
-    return _record_chat_result(execute_research_workflow(strategy_version_id, "candidate_screening", {}), {})
+    return _run_tracked_workflow(strategy_version_id, "candidate_screening", {}, {})
+
+
+def _run_tracked_workflow(version_id, purpose, inputs, subject):
+    check_tool_execution()
+    from src.services.workspace_service import WorkspaceService
+    from src.services.workspace_external_runs import begin, execute
+    workspace = WorkspaceService()
+    kind = 'research' if purpose == 'research_report' else 'screening'
+    parent_id = ACTIVE_WORKSPACE_RUN.get()
+    version = StrategyDefinitionService(workspace.db).get_version(version_id)
+    market = str((version.get('screeningPolicy') or {}).get('market') or '').upper()
+    if parent_id:
+        parent = workspace.get_run(parent_id)
+        from src.services.workspace_inputs import stock_code
+        same_stock = kind != 'research' or stock_code((parent['taskSnapshot'].get('subject') or {}).get('stock', '')) == stock_code(subject.get('stock', ''))
+        if parent['kind'] == kind and parent['taskSnapshot'].get('market') == market and same_stock:
+            return _record_chat_result(execute_research_workflow(version_id, purpose, inputs), subject)
+    run_id = begin(workspace, kind, '主 Agent · ' + ('个股研究' if kind == 'research' else '选股'),
+                   market, subject, {'strategyVersionId': version_id}, parent=parent_id)
+    result = execute(workspace, run_id, lambda: execute_research_workflow(version_id, purpose, inputs), CONTRACTS[purpose])
+    return {**result, 'workspaceRunId': run_id, 'reportUrl': f'/runs/{run_id}'}
 
 
 def _record_chat_result(result: dict, subject: dict) -> dict:

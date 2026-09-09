@@ -11,6 +11,8 @@ def member_api_allowed(path, method):
     if group == 'auth':
         return resource in {'status', 'logout', 'change-password', 'change-email'}
     if group == 'workspace':
+        if resource == 'run-history':
+            return read
         if resource in {'mcp-servers', 'data-sources', 'runtime-manifest'}:
             return read
         return resource in {

@@ -68,6 +68,7 @@ export default function ExpertDiscussionWorkspace({
   const [error, setError] = useState("");
   const [runs, setRuns] = useState<WorkspaceRun[]>([]);
   const [detail, setDetail] = useState<WorkspaceRun>();
+  const [topicStock, setTopicStock] = useState("");
   const [topic, setTopic] = useState(initialTopic);
   const [followUp, setFollowUp] = useState("");
   const [capabilities, setCapabilities] =
@@ -253,7 +254,7 @@ export default function ExpertDiscussionWorkspace({
           "GLOBAL",
         subject:
           parent?.taskSnapshot.subject ||
-          (sourceId ? source?.taskSnapshot.subject : {}) ||
+          (sourceId ? source?.taskSnapshot.subject : {stock:topicStock.trim() || undefined}) ||
           {},
         capabilities: base,
         config: {
@@ -380,6 +381,7 @@ export default function ExpertDiscussionWorkspace({
           </div>
           {sourceId && <p className="mb-2 text-xs text-secondary-text">{tx("引用报告：")}{source?.taskSnapshot.name || tx("正在读取…")}</p>}
           <form onSubmit={(e) => { e.preventDefault(); if (!composerDisabled) void submit(creating ? undefined : selected); }} className="flex items-end gap-3">
+            {creating && !sourceId && <label className="block text-sm">关联股票代码（个股议题请填写）<input value={topicStock} onChange={e=>setTopicStock(e.target.value)} placeholder="600519 / HK00700 / AAPL；宏观议题留空" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label>}
             <label className="min-w-0 flex-1"><span className="sr-only">{creating ? tx("讨论议题") : tx("继续追问")}</span><textarea aria-label={creating ? tx("讨论议题") : tx("继续追问")} value={creating ? topic : followUp} onChange={(e) => creating ? setTopic(e.target.value) : setFollowUp(e.target.value)} placeholder={creating ? tx("发消息，例如：请讨论中芯国际的投资逻辑与风险") : tx("继续向群里发消息，发起下一轮讨论…")} className="block min-h-20 max-h-40 w-full resize-y rounded-xl border border-border bg-background px-4 py-3 text-sm leading-6" /></label>
             {isRunActive(selected ?? null) ? <button type="button" className="btn-secondary" onClick={() => { if (selected) void workspaceApi.cancelRun(selected.id).catch(() => setError(tx("停止请求未确认，请刷新运行状态后重试。"))); }}>{tx("停止讨论")}</button> : <button type="submit" className="btn-primary" disabled={composerDisabled || !(creating ? topic : followUp).trim() || Boolean(sourceId && source?.id !== sourceId)}>{restoring ? tx("恢复中…") : submitting ? tx("提交中…") : creating ? tx("开始讨论") : tx("发送追问")}</button>}
           </form>

@@ -382,3 +382,20 @@ def test_activity_owner_member_tokens_and_admin_boundaries(members):
     assert 'member-password' not in activity.text and 'password_hash' not in activity.text
     filtered = analytics(service.db, utc_naive_now().date(), utc_naive_now().date(), member['id'], 'screening')
     assert filtered['daily'][0]['charged'] == service.trials.status(member['id'])['used'] == 10
+
+
+def test_paginated_run_history_and_usage_remain_private(members):
+    owner, alice, bob, service = members
+    from src.services.workspace_external_runs import begin
+    from src.services.workspace_service import WorkspaceService
+    with service.scope(identity(service, alice)):
+        run_id = begin(WorkspaceService(), 'research', 'Alice private report', 'CN', {'stock':'600519'}, {})
+    response = alice.get('/api/v1/workspace/run-history?stock=600519')
+    assert response.status_code == 200 and response.json()['total'] == 1
+    detail = alice.get(f'/api/v1/workspace/runs/{run_id}')
+    assert detail.status_code == 200 and not detail.json()['usage']['recorded']
+    for other in (owner, bob):
+        page = other.get('/api/v1/workspace/run-history?stock=600519')
+        assert page.status_code == 200 and page.json()['total'] == 0
+        assert other.get(f'/api/v1/workspace/runs/{run_id}').status_code == 404
+    assert alice.post('/api/v1/workspace/run-history', json={}).status_code == 403

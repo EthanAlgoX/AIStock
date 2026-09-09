@@ -317,7 +317,8 @@ async def app_lifespan(app: FastAPI):
     run_member_maintenance(reconcile=True)
     workspace_scheduler.start()
     app.state.workspace_scheduler = workspace_scheduler
-    if runtime_owns_schedule and not runtime_suppress_start:
+    # Price polling is independent of daily LLM scheduling (including --serve-only).
+    if runtime_owns_schedule:
         from src.services.alert_polling import AlertPollingService
 
         app.state.alert_poller = AlertPollingService()

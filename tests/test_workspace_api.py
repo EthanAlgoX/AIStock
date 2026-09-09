@@ -279,3 +279,18 @@ def test_financial_mcp_exposes_only_enabled_workspace_tools(workspace_client):
     })
     assert wrong_source.json()["error"]["code"] == -32003
     assert "kline" in wrong_source.json()["error"]["message"]
+
+
+def test_run_history_preserves_legacy_array_and_validates_pagination(workspace_client, workspace_service):
+    from src.services.workspace_external_runs import begin
+    for index in range(3):
+        begin(workspace_service, 'research', f'History {index}', 'CN', {'stock':'600519.SH'}, {})
+    page = workspace_client.get('/workspace/run-history', params={'stock':'600519','limit':2}).json()
+    assert page['total'] == 3 and len(page['items']) == 2
+    next_page = workspace_client.get('/workspace/run-history', params={'stock':'600519','offset':2,'limit':2}).json()
+    assert len(next_page['items']) == 1
+    assert not {item['id'] for item in page['items']} & {item['id'] for item in next_page['items']}
+    assert isinstance(workspace_client.get('/workspace/runs').json(), list)
+    assert workspace_client.get('/workspace/run-history?offset=-1').status_code == 422
+    assert workspace_client.get('/workspace/run-history?limit=101').status_code == 422
+    assert workspace_client.get('/workspace/run-history?start=invalid').status_code == 422

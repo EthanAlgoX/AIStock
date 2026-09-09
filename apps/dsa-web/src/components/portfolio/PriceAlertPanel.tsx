@@ -74,7 +74,7 @@ export default function PriceAlertPanel({ symbol, accountId, cost, currency }: {
   };
   const input = 'mt-2 h-11 w-full min-w-0 rounded-lg border border-border bg-background px-3 text-sm';
   const channelLabel = (channel: string) => ({ email: l('邮件', 'Email'), feishu: l('飞书', 'Feishu'), wechat: l('企业微信', 'WeCom'), dingtalk: l('钉钉', 'DingTalk') }[channel] || channel);
-  const ready = status?.enabled && status.worker.running;
+  const ready = status?.enabled && status.worker.running && status.channels.length > 0;
   const eventLabel = (value: string) => ({ triggered: l('已触发', 'Triggered'), skipped: l('已跳过', 'Skipped'), degraded: l('数据不足', 'Degraded'), failed: l('检查失败', 'Failed') }[value] || value);
   const deliveryTarget = (id?: number | null) => {
     const event = triggers.find(t => t.id === id);
@@ -83,7 +83,7 @@ export default function PriceAlertPanel({ symbol, accountId, cost, currency }: {
   return <section className="my-5 border-y border-border bg-hover/20 p-4 md:p-6" data-design-contract="operate: inline price alert setup; readiness before activation; explicit delivery evidence">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">{l('价格告警', 'Price alerts')}{symbol ? ` · ${symbol}` : ''}</h2><p className="mt-2 max-w-[70ch] text-sm leading-6 text-secondary-text">{l('价格达到上限或下限时，通过指定渠道发送事实简报。不调用模型，不自动买卖。', 'When a price reaches an upper or lower limit, send a factual brief through your selected channels. No model calls or automatic trades.')}</p></div><Link className="min-h-11 py-2 text-sm text-primary" to="/settings?tab=notifications">{l('配置通知渠道', 'Configure channels')}</Link></div>
     <div className="my-5 flex flex-wrap items-center gap-3 border-y border-border py-3 text-sm">
-      <span className={ready ? 'text-success' : 'text-warning'}>{!status ? l('正在检查后台…', 'Checking monitor…') : ready ? l(`后台检查已开启 · 每 ${status.intervalMinutes} 分钟`, `Monitor on · every ${status.intervalMinutes} min`) : status.owner !== 'web' ? l('当前 Web 无告警后台，请检查服务启动方式', 'No Web alert worker; check server startup') : l('后台检查未开启', 'Monitor is off')}</span>
+      <span className={ready ? 'text-success' : 'text-warning'}>{!status ? l('正在检查后台…', 'Checking monitor…') : ready ? l(`后台检查已开启 · 每 ${status.intervalMinutes} 分钟`, `Monitor on · every ${status.intervalMinutes} min`) : status.owner !== 'web' ? l('当前 Web 无告警后台，请检查服务启动方式', 'No Web alert worker; check server startup') : status.enabled && status.worker.running ? l('后台已运行，通知渠道尚未就绪', 'Monitor running; delivery not ready') : l('后台检查未开启', 'Monitor is off')}</span>
       {status?.owner === 'web' && <button type="button" disabled={busy} onClick={() => void toggleMonitor()} className="btn-secondary">{status.enabled ? l('停用全部告警检查', 'Pause all alert checks') : l('开启后台告警', 'Enable alert monitor')}</button>}
       {status && !status.channels.length && <span className="text-warning">{l('没有可用的告警渠道，请先配置渠道及 alert 路由。', 'No alert channels available. Configure credentials and the alert route first.')}</span>}
       {status?.worker.lastError && <p role="alert" className="text-danger">{status.worker.lastError}</p>}
