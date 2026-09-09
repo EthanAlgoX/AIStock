@@ -39,12 +39,13 @@ export default function LoginPage() {
       <ShieldCheck size={28} className="mb-5 text-primary" aria-hidden />
       <h1 id="account-title" className="text-3xl font-semibold tracking-tight">{title}</h1>
       <p className="mt-3 text-sm leading-6 text-secondary-text">{joining
-        ? l('使用受邀邮箱与邀请码注册。对话、报告和持仓仅属于你，累计试用额度为 20 万 Token。', 'Register with your invited email and invitation code. Your chats, reports and holdings are private, with a lifetime allowance of 200,000 tokens.')
+        ? l('使用邀请码注册，并自行设置登录邮箱和密码。对话、报告和持仓仅属于你，每日额度由管理员设置。', 'Register with an invitation code and choose your own login email and password. Your chats, reports and holdings are private, with a daily allowance set by the administrator.')
         : migrate
         ? l('验证原管理员密码并补充邮箱。已有持仓、报告和配置都会保留。', 'Verify your existing admin password and add an email. Your holdings, reports and settings will be preserved.')
         : register
           ? l('为你的投研工作区创建唯一管理员。邮箱仅用作登录账号，不会发送验证邮件。', 'Create the sole administrator for your research workspace. Email is a login identifier; no verification email is sent.')
           : l('登录你的投研工作区，继续研究和跟踪持仓。', 'Sign in to continue your research and portfolio tracking.')}</p>
+      <p className="mb-4 text-xs leading-6 text-secondary-text">{l('为用量统计和故障排查，平台会记录页面使用、问答内容及模型 Token 消耗，授权管理员可查阅。密码仅保存不可逆哈希。', 'For usage analysis and troubleshooting, the platform records page activity, questions, answers, and model token usage for authorized administrators. Passwords are stored only as irreversible hashes.')}</p>
       <form className="mt-8 space-y-5" onSubmit={async e => {
         e.preventDefault(); setError(undefined); setMismatch(false);
         if (register && password !== confirmation) { setMismatch(true); return; }

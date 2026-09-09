@@ -2,9 +2,9 @@ import axios from 'axios';
 
 const messages: Record<string, [string, string]> = {
   quota_exhausted: ['剩余额度不足以安全启动下一次模型调用。仍可浏览报告和演示。', 'Not enough tokens to safely start the next model call. Reports and demos remain available.'],
-  global_quota_exhausted: ['今日全站试用额度已用完，请明天再试。个人额度不会每日重置。', 'The shared daily trial limit has been reached. Try tomorrow; your personal quota does not reset daily.'],
+  global_quota_exhausted: ['今日全站试用额度已用完，请明天再试。个人额度也在 UTC 00:00 重置。', 'The shared daily trial limit has been reached. Try tomorrow; personal limits also reset at 00:00 UTC.'],
   trial_disabled: ['真实试用暂未开放或此身份已停用，可以继续体验演示。', 'Live trials are disabled or this identity was suspended. You can still explore the demo.'],
-  invite_invalid: ['邀请码无效、过期或已经领取。请检查邮箱或联系管理员。', 'Invite is invalid, expired or already claimed. Check your email or contact the administrator.'],
+  invite_invalid: ['邀请码无效、过期或已经领取，请联系管理员。', 'The invitation is invalid, expired or already claimed. Contact the administrator.'],
   credentials_invalid: ['邮箱或密码错误。', 'Email or password incorrect.'],
   trial_login_required: ['请先登录独立试用账户。', 'Sign in to your separate trial account first.'],
   already_enrolled: ['此邮箱已领取额度，不能重新发放。', 'This email has already enrolled. Its quota cannot be reissued.'],

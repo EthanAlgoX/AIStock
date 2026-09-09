@@ -8,17 +8,29 @@ import json
 import os
 import secrets
 import uuid
+import time
 from datetime import timedelta
 from urllib.parse import urlparse
 
-from sqlalchemy import select, update
+from sqlalchemy import Integer, func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from src import auth
-from src.storage import (DatabaseManager, TrialUserRecord, TrialBudgetRecord,
-                         TrialRunRecord, TrialCallRecord, utc_naive_now)
+from src.storage import (
+    DatabaseManager,
+    TrialBudgetRecord,
+    TrialCallRecord,
+    UserCallDetailRecord,
+    UserActivityRecord,
+    TrialInvitationRecord,
+    TrialRunRecord,
+    TrialUserRecord,
+    utc_naive_now,
+)
 
 TOKEN_LIMIT = 200_000
+MAX_INVITATIONS_PER_BATCH = 20
+MAX_DAILY_TOKEN_LIMIT = 10_000_000
 OUTPUT_LIMIT = 2048
 TRIAL_COOKIE = 'investcrew_trial'
 EXPERTS = {'warren-buffett': 'Warren Buffett', 'charlie-munger': 'Charlie Munger',
@@ -44,38 +56,89 @@ class TrialService:
     def __init__(self, db=None):
         self.db = db or DatabaseManager.get_instance()
 
-    def invite(self, email):
-        email = auth.normalize_email(email)
-        from src.services.member_service import multi_user_enabled
-        if multi_user_enabled() and email == auth.account_email():
-            raise TrialError('email_in_use', 409)
-        token = secrets.token_urlsafe(32)
+    def invite(self, count=1, daily_limit=TOKEN_LIMIT):
+        self._validate_limit(daily_limit)
+        if not isinstance(count, int) or isinstance(count, bool) or not 1 <= count <= MAX_INVITATIONS_PER_BATCH:
+            raise TrialError('invalid_input')
+        expires = utc_naive_now() + timedelta(days=7)
+        tokens = [secrets.token_urlsafe(32) for _ in range(count)]
+        invitation_ids = [uuid.uuid4().hex for _ in tokens]
         with self.db.session_scope() as session:
-            user = session.scalar(select(TrialUserRecord).where(TrialUserRecord.email == email))
-            if user and user.password_hash:
-                raise TrialError('already_enrolled', 409)
-            if not user:
-                user = TrialUserRecord(id=uuid.uuid4().hex, email=email)
-                session.add(user)
-                session.add(TrialBudgetRecord(id=user.id, limit=TOKEN_LIMIT, used=0))
-            user.invite_hash = digest(token)
-            user.invite_expires = utc_naive_now() + timedelta(days=7)
-        return {'email': email, 'inviteCode': token, 'limit': TOKEN_LIMIT}
+            session.add_all([
+                TrialInvitationRecord(
+                    id=invitation_id,
+                    invite_hash=digest(token),
+                    invite_expires=expires,
+                )
+                for invitation_id, token in zip(invitation_ids, tokens)
+            ])
+            session.add_all([TrialBudgetRecord(id="invite:" + i, limit=daily_limit, used=0)
+                             for i in invitation_ids])
+        return {
+            'inviteCode': tokens[0],
+            'inviteCodes': tokens,
+            'limit': daily_limit,
+            'invitationIds': invitation_ids,
+            'expiresAt': expires.isoformat(),
+        }
 
     def enroll(self, email, password, invite):
         email = auth.normalize_email(email)
         if not 8 <= len(password) <= 128 or not password.strip():
             raise TrialError('password_length')
         session_token = secrets.token_urlsafe(32)
-        with self.db.session_scope() as session:
-            result = session.execute(update(TrialUserRecord).where(
-                TrialUserRecord.email == email, TrialUserRecord.password_hash.is_(None),
-                TrialUserRecord.invite_hash == digest(invite), TrialUserRecord.enabled.is_(True),
-                TrialUserRecord.invite_expires > utc_naive_now(),
-            ).values(password_hash=auth._account_hash(password), invite_hash=None, invite_expires=None,
-                     session_hash=digest(session_token), session_expires=utc_naive_now() + timedelta(days=7)))
-            if result.rowcount != 1:
-                raise TrialError('invite_invalid', 401)
+        now = utc_naive_now()
+        invite_hash = digest(invite)
+        try:
+            with self.db.session_scope() as session:
+                user = session.scalar(select(TrialUserRecord).where(TrialUserRecord.email == email))
+                # Email-bound invitations from older deployments remain usable.
+                legacy_invite = bool(
+                    user
+                    and user.enabled
+                    and user.invite_hash == invite_hash
+                    and user.invite_expires
+                    and user.invite_expires > now
+                )
+                invitation = session.scalar(select(TrialInvitationRecord).where(
+                    TrialInvitationRecord.invite_hash == invite_hash,
+                    TrialInvitationRecord.claimed_at.is_(None),
+                    TrialInvitationRecord.invite_expires > now,
+                ))
+                if not legacy_invite and not invitation:
+                    raise TrialError('invite_invalid', 401)
+                if email == auth.account_email():
+                    raise TrialError('email_in_use', 409)
+                if user and user.password_hash:
+                    raise TrialError('already_enrolled', 409)
+
+                if invitation:
+                    user_id = user.id if user else uuid.uuid4().hex
+                    claimed = session.execute(update(TrialInvitationRecord).where(
+                        TrialInvitationRecord.id == invitation.id,
+                        TrialInvitationRecord.claimed_at.is_(None),
+                        TrialInvitationRecord.invite_expires > now,
+                    ).values(claimed_at=now, claimed_user_id=user_id))
+                    if claimed.rowcount != 1:
+                        raise TrialError('invite_invalid', 401)
+                    if not user:
+                        user = TrialUserRecord(id=user_id, email=email)
+                        session.add(user)
+                        session.add(TrialBudgetRecord(id=user_id, limit=TOKEN_LIMIT, used=0))
+                    session.flush()
+                    policy = session.get(TrialBudgetRecord, "invite:" + invitation.id)
+                    session.get(TrialBudgetRecord, user_id).limit = policy.limit if policy else TOKEN_LIMIT
+
+                user.password_hash = auth._account_hash(password)
+                user.invite_hash = None
+                user.invite_expires = None
+                user.session_hash = digest(session_token)
+                user.session_expires = now + timedelta(days=7)
+                session.add(UserActivityRecord(id=uuid.uuid4().hex, user_id=user.id,
+                    request_id=uuid.uuid4().hex, feature='settings', event='register'))
+                session.flush()
+        except IntegrityError as exc:
+            raise TrialError('already_enrolled', 409) from exc
         return session_token
 
     def login(self, email, password):
@@ -89,6 +152,8 @@ class TrialService:
             valid = auth._verify_password_hash(password, salt, expected, auth.ACCOUNT_PBKDF2_ITERATIONS)
             if not valid or not user or not user.enabled:
                 raise TrialError('credentials_invalid', 401)
+            session.add(UserActivityRecord(id=uuid.uuid4().hex, user_id=user.id,
+                request_id=uuid.uuid4().hex, feature='settings', event='login'))
             user.session_hash = digest(token)
             user.session_expires = utc_naive_now() + timedelta(days=7)
         return token
@@ -110,8 +175,10 @@ class TrialService:
         with self.db.get_session() as session:
             user = session.get(TrialUserRecord, user_id)
             budget = session.get(TrialBudgetRecord, user_id)
-            return {'email': user.email, 'limit': budget.limit, 'used': budget.used,
-                    'remaining': max(0, budget.limit - budget.used), 'activeRun': user.active_run}
+            used = self._daily_used(session, user_id)
+            return {'email': user.email, 'limit': budget.limit, 'used': used,
+                    'lifetimeUsed': budget.used, 'period': 'daily', 'timezone': 'UTC',
+                    'remaining': max(0, budget.limit - used), 'activeRun': user.active_run}
 
     def recover_stale(self, user_id):
         with self.db.session_scope() as session:
@@ -133,7 +200,77 @@ class TrialService:
             rows = session.execute(select(TrialUserRecord, TrialBudgetRecord).join(
                 TrialBudgetRecord, TrialBudgetRecord.id == TrialUserRecord.id)).all()
             return [{'id': u.id, 'email': u.email, 'enabled': u.enabled, 'enrolled': bool(u.password_hash),
-                     'used': b.used, 'limit': b.limit} for u, b in rows]
+                     'used': self._daily_used(session, u.id), 'limit': b.limit,
+                     'lifetimeUsed': b.used, 'period': 'daily', 'timezone': 'UTC'} for u, b in rows]
+
+    @staticmethod
+    def _validate_limit(value):
+        if type(value) is not int or not 0 <= value <= MAX_DAILY_TOKEN_LIMIT:
+            raise TrialError('invalid_input')
+
+    @staticmethod
+    def _daily_used(session, user_id, day=None):
+        day = day or utc_naive_now().date().isoformat()
+        return session.scalar(select(func.coalesce(func.sum(TrialCallRecord.charged), 0)).where(
+            TrialCallRecord.user_id == user_id, TrialCallRecord.day_budget == 'global:' + day))
+
+    def invitations(self):
+        """Return identifiers, never reusable invitation secrets; include legacy members."""
+        today = utc_naive_now().date()
+        dates = [(today - timedelta(days=i)).isoformat() for i in reversed(range(7))]
+        with self.db.get_session() as session:
+            invitations = session.scalars(select(TrialInvitationRecord).order_by(
+                TrialInvitationRecord.created_at.desc())).all()
+            users = {u.id: u for u in session.scalars(select(TrialUserRecord))}
+            budgets = {b.id: b for b in session.scalars(select(TrialBudgetRecord))}
+            usage = {(uid, day.removeprefix('global:')): (charged, estimated)
+                     for uid, day, charged, estimated in session.execute(select(
+                         TrialCallRecord.user_id, TrialCallRecord.day_budget,
+                         func.sum(TrialCallRecord.charged),
+                         func.sum(TrialCallRecord.estimated.cast(Integer))
+                     ).where(TrialCallRecord.day_budget >= 'global:' + dates[0]).group_by(
+                         TrialCallRecord.user_id, TrialCallRecord.day_budget))}
+            rows = []
+            claimed = set()
+            def append(identifier, uid, expires=None):
+                user = users.get(uid)
+                budget = budgets.get(uid) if user else budgets.get('invite:' + identifier)
+                history = [{'date': day, 'used': usage.get((uid, day), (0, 0))[0],
+                            'estimatedCalls': usage.get((uid, day), (0, 0))[1]} for day in dates]
+                expires = expires or (user.invite_expires if user else None)
+                state = ('claimed' if user and user.password_hash else
+                         'expired' if expires and expires < utc_naive_now() else 'pending')
+                rows.append({'id': identifier, 'userId': uid, 'email': user.email if user else None,
+                             'enabled': user.enabled if user else True,
+                             'state': state,
+                             'dailyLimit': budget.limit if budget else TOKEN_LIMIT,
+                             'used': history[-1]['used'], 'lifetimeUsed': budget.used if user and budget else 0,
+                             'history': history, 'timezone': 'UTC'})
+            for invitation in invitations:
+                append(invitation.id, invitation.claimed_user_id, invitation.invite_expires)
+                claimed.add(invitation.claimed_user_id)
+            for uid in users.keys() - claimed:
+                append('legacy:' + uid, uid)
+            return rows
+
+    def set_daily_limit(self, invitation_id, daily_limit):
+        self._validate_limit(daily_limit)
+        with self.db.session_scope() as session:
+            # Serialize with enrollment so an update cannot be lost during claim.
+            result = session.execute(update(TrialInvitationRecord).where(
+                TrialInvitationRecord.id == invitation_id).values(id=TrialInvitationRecord.id))
+            invitation = session.get(TrialInvitationRecord, invitation_id) if result.rowcount else None
+            if invitation:
+                budget_id = invitation.claimed_user_id or 'invite:' + invitation.id
+            elif invitation_id.startswith('legacy:') and session.get(TrialUserRecord, invitation_id[7:]):
+                budget_id = invitation_id[7:]
+            else:
+                raise TrialError('not_found', 404)
+            budget = session.get(TrialBudgetRecord, budget_id)
+            if budget:
+                budget.limit = daily_limit
+            else:
+                session.add(TrialBudgetRecord(id=budget_id, used=0, limit=daily_limit))
 
     def set_enabled(self, user_id, enabled):
         with self.db.session_scope() as session:
@@ -162,9 +299,12 @@ class TrialService:
             if not changed.rowcount:
                 raise TrialError('run_in_progress', 409)
             budget = session.get(TrialBudgetRecord, user_id)
-            if budget.used >= budget.limit:
+            if self._daily_used(session, user_id) >= budget.limit:
                 raise TrialError('quota_exhausted', 429)
             session.add(TrialRunRecord(id=request['requestId'], user_id=user_id, request_json=json.dumps(request)))
+            session.add(UserActivityRecord(id=uuid.uuid4().hex, user_id=user_id,
+                request_id=request['requestId'], feature=request['kind'], event='question',
+                resource=request['requestId'], content=request['topic']))
         return request['requestId'], True
 
     def runs(self, user_id):
@@ -176,7 +316,7 @@ class TrialService:
                      'events': json.loads(r.events_json), 'error': r.error,
                      'createdAt': r.created_at.isoformat() + 'Z'} for r in rows]
 
-    def reserve(self, user_id, run_id, amount, *, workspace=False):
+    def reserve(self, user_id, run_id, amount, *, workspace=False, model=None):
         if not trial_enabled():
             raise TrialError('trial_disabled', 403)
         if type(amount) is not int or amount <= 0:
@@ -199,18 +339,34 @@ class TrialService:
                         session.flush()
                 except IntegrityError:
                     pass  # Another worker created this same unique daily budget.
+            # Take the identity budget lock before reading daily calls. All workers
+            # serialize here; the subsequent read sees the previous committed debit.
+            session.execute(update(TrialBudgetRecord).where(TrialBudgetRecord.id == user_id)
+                            .values(used=TrialBudgetRecord.used))
+            budget = session.get(TrialBudgetRecord, user_id, populate_existing=True)
+            if self._daily_used(session, user_id, day.removeprefix('global:')) + amount > budget.limit:
+                raise TrialError('quota_exhausted', 429)
             for budget_id in (user_id, day):
                 result = session.execute(update(TrialBudgetRecord).where(
                     TrialBudgetRecord.id == budget_id,
-                    TrialBudgetRecord.used + amount <= (daily_limit if budget_id == day else TOKEN_LIMIT),
+                    (TrialBudgetRecord.used + amount <= daily_limit) if budget_id == day else True,
                 ).values(used=TrialBudgetRecord.used + amount))
                 if result.rowcount != 1:
                     raise TrialError('global_quota_exhausted' if budget_id == day else 'quota_exhausted', 429)
             session.add(TrialCallRecord(id=call_id, user_id=user_id, run_id=run_id,
                                        day_budget=day, reserved=amount, charged=amount))
+            from src.services.user_activity_service import ACTIVITY, FEATURES
+            context = ACTIVITY.get() or {}
+            feature = context.get('feature', 'other')
+            if not workspace:
+                run = session.get(TrialRunRecord, run_id)
+                feature = json.loads(run.request_json).get('kind', 'other') if run else 'other'
+            session.add(UserCallDetailRecord(call_id=call_id,
+                request_id=context.get('request_id', run_id),
+                feature=feature if feature in FEATURES else 'other', model=model))
         return call_id
 
-    def settle(self, call_id, actual):
+    def settle(self, call_id, actual, *, prompt_tokens=None, completion_tokens=None, duration_ms=None):
         overflow = False
         with self.db.session_scope() as session:
             call = session.get(TrialCallRecord, call_id)
@@ -221,6 +377,10 @@ class TrialService:
                 TrialCallRecord.id == call_id, TrialCallRecord.settled.is_(False),
             ).values(charged=actual, settled=True, estimated=False))
             if changed.rowcount:
+                detail = session.get(UserCallDetailRecord, call_id)
+                if detail:
+                    detail.prompt_tokens, detail.completion_tokens = prompt_tokens, completion_tokens
+                    detail.duration_ms = duration_ms
                 for budget_id in (call.user_id, call.day_budget):
                     session.execute(update(TrialBudgetRecord).where(TrialBudgetRecord.id == budget_id)
                                     .values(used=TrialBudgetRecord.used - (call.reserved - actual)))
@@ -233,12 +393,21 @@ class TrialService:
         if overflow:
             raise TrialError('usage_unverified', 502)
 
+    def call_failed(self, call_id, error_code, duration_ms):
+        with self.db.session_scope() as session:
+            detail = session.get(UserCallDetailRecord, call_id)
+            if detail:
+                detail.error_code, detail.duration_ms = error_code, duration_ms
+
     def _event(self, run_id, role, content):
         with self.db.session_scope() as session:
             run = session.get(TrialRunRecord, run_id)
             events = json.loads(run.events_json)
             events.append({'role': role, 'content': content})
             run.events_json = json.dumps(events, ensure_ascii=False)
+            session.add(UserActivityRecord(id=uuid.uuid4().hex, user_id=run.user_id,
+                request_id=run_id, feature=json.loads(run.request_json)['kind'],
+                event='answer', resource=role, content=content))
 
     def execute(self, user_id, run_id):
         claimed = False
@@ -294,6 +463,9 @@ class TrialService:
                 row = session.get(TrialRunRecord, run_id)
                 if row and row.status in ('running', 'processing'):
                     row.status, row.error = 'failed', exc.code if isinstance(exc, TrialError) else 'upstream_failed'
+                    session.add(UserActivityRecord(id=uuid.uuid4().hex, user_id=user_id,
+                        request_id=run_id, feature=json.loads(row.request_json)['kind'],
+                        event='task_result', resource=run_id, status='failed', content=row.error))
         finally:
             if claimed:
                 with self.db.session_scope() as session:
@@ -309,22 +481,29 @@ class TrialService:
         amount = len(json.dumps(messages, ensure_ascii=False).encode('utf-8')) + 1024 + OUTPUT_LIMIT
         if amount > 60000:
             raise TrialError('context_too_large')
-        call_id = self.reserve(user_id, run_id, amount)
-        response = litellm.completion(**params, messages=messages, max_tokens=OUTPUT_LIMIT,
-                                     timeout=45, num_retries=0, stream=False)
-        usage = response.usage
-        if usage is None:
-            raise TrialError('usage_unverified', 502)
-        actual = usage.total_tokens
-        if (type(usage.prompt_tokens) is not int or usage.prompt_tokens <= 0
-                or type(usage.completion_tokens) is not int or usage.completion_tokens < 0
-                or actual != usage.prompt_tokens + usage.completion_tokens):
-            raise TrialError('usage_unverified', 502)
-        self.settle(call_id, actual)
-        content = response.choices[0].message.content
-        if not content:
-            raise TrialError('empty_response', 502)
-        return content
+        call_id = self.reserve(user_id, run_id, amount, model=params.get("model"))
+        started = time.monotonic()
+        try:
+            response = litellm.completion(**params, messages=messages, max_tokens=OUTPUT_LIMIT,
+                                         timeout=45, num_retries=0, stream=False)
+            usage = response.usage
+            if usage is None:
+                raise TrialError('usage_unverified', 502)
+            actual = usage.total_tokens
+            if (type(usage.prompt_tokens) is not int or usage.prompt_tokens <= 0
+                    or type(usage.completion_tokens) is not int or usage.completion_tokens < 0
+                    or actual != usage.prompt_tokens + usage.completion_tokens):
+                raise TrialError('usage_unverified', 502)
+            self.settle(call_id, actual, prompt_tokens=usage.prompt_tokens, completion_tokens=usage.completion_tokens, duration_ms=int((time.monotonic() - started) * 1000))
+            content = response.choices[0].message.content
+            if not content:
+                raise TrialError('empty_response', 502)
+            return content
+        except Exception as exc:
+            self.call_failed(call_id, exc.code if isinstance(exc, TrialError) else 'model_call_failed',
+                             int((time.monotonic() - started) * 1000))
+            raise
+
 
 
 def trial_model_params():

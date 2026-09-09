@@ -1,13 +1,17 @@
 """Public trial endpoints. Trial cookies never authorize administrator routes."""
+from datetime import date
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, BackgroundTasks, Request, Query
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from src import auth
-from src.services.trial_service import TrialService, TrialError, TRIAL_COOKIE, EXPERTS, trial_enabled
+from src.services.trial_service import (
+    TrialService, TrialError, TRIAL_COOKIE, EXPERTS, trial_enabled,
+    TOKEN_LIMIT, MAX_DAILY_TOKEN_LIMIT,
+)
 from api.v1.endpoints.auth import _cookie_params
 
 router = APIRouter()
@@ -21,7 +25,15 @@ class Credentials(BaseModel):
 
 
 class Invitation(BaseModel):
-    email: str = Field(max_length=254)
+    model_config = ConfigDict(extra='forbid')
+    count: int = Field(default=1, ge=1, le=20)
+    dailyLimit: int = Field(default=TOKEN_LIMIT, ge=0, le=MAX_DAILY_TOKEN_LIMIT, strict=True)
+    email: str | None = Field(default=None, max_length=254, description='Deprecated and ignored')
+
+
+class DailyLimit(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    dailyLimit: int = Field(ge=0, le=MAX_DAILY_TOKEN_LIMIT, strict=True)
 
 
 class Enabled(BaseModel):
@@ -143,7 +155,7 @@ def users(request: Request):
 def invite(request: Request, body: Invitation):
     def perform():
         require_admin(request)
-        return TrialService().invite(body.email)
+        return TrialService().invite(body.count, body.dailyLimit)
     return call(perform)
 
 
@@ -153,4 +165,56 @@ def enabled(request: Request, user_id: str, body: Enabled):
         require_admin(request)
         TrialService().set_enabled(user_id, body.enabled)
         return {'ok': True}
+    return call(perform)
+
+
+@router.get('/admin/invitations')
+def invitations(request: Request):
+    def perform():
+        require_admin(request)
+        return TrialService().invitations()
+    return call(perform)
+
+
+@router.patch('/admin/invitations/{invitation_id}')
+def daily_limit(request: Request, invitation_id: str, body: DailyLimit):
+    def perform():
+        require_admin(request)
+        TrialService().set_daily_limit(invitation_id, body.dailyLimit)
+        return {'ok': True}
+    return call(perform)
+
+
+@router.get('/admin/analytics')
+def user_analytics(request: Request, start: date,
+                   end: date, user_id: str | None = None,
+                   feature: str | None = None):
+    def perform():
+        require_admin(request)
+        from src.services.user_activity_service import analytics
+        return analytics(TrialService().db, start, end, user_id, feature)
+    return call(perform)
+
+
+@router.get('/admin/activity')
+def user_activity(request: Request, start: date,
+                  end: date, user_id: str | None = None,
+                  feature: str | None = None, request_id: str | None = None,
+                  offset: int = Query(0, ge=0, le=100000)):
+    def perform():
+        require_admin(request)
+        from src.services.user_activity_service import activity_details
+        return activity_details(TrialService().db, start, end, user_id, feature, request_id, offset)
+    return call(perform)
+
+
+@router.get('/admin/calls')
+def user_calls(request: Request, start: date,
+               end: date, user_id: str | None = None,
+               feature: str | None = None, request_id: str | None = None,
+               offset: int = Query(0, ge=0, le=100000)):
+    def perform():
+        require_admin(request)
+        from src.services.user_activity_service import call_details
+        return call_details(TrialService().db, start, end, user_id, feature, request_id, offset)
     return call(perform)

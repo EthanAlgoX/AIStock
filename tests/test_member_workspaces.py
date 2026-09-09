@@ -47,7 +47,7 @@ def members(tmp_path, monkeypatch, capsys):
     service = MemberService(root)
     clients = []
     for email in ('alice@example.com', 'bob@example.com'):
-        invitation = service.trials.invite(email)
+        invitation = service.trials.invite()
         client = TestClient(app, base_url='https://testserver')
         response = client.post('/api/v1/auth/register', json={
             'email': email, 'password': 'member-password', 'passwordConfirm': 'member-password',
@@ -206,8 +206,7 @@ def test_all_member_model_calls_use_shared_atomic_trial_budget(members, monkeypa
     assert service.trials.status(user['id'])['used'] == 60
     assert service.trials.status(identity(service, bob)['id'])['used'] == 0
     assert all(c['stream'] is False and c['num_retries'] == 0 for c in calls)
-    with service.db.session_scope() as session:
-        session.get(TrialBudgetRecord, user['id']).used = 199999
+    service.trials.reserve(user['id'], 'quota-regression', 199939, workspace=True)
     with service.scope(user):
         with pytest.raises(TrialError, match='quota_exhausted'):
             module.member_completion([{'role': 'user', 'content': 'Over quota'}])
@@ -330,3 +329,56 @@ def test_host_recovery_preserves_workspace_and_budget(members, monkeypatch):
     assert alice.post('/api/v1/auth/login', json={'email': user['email'], 'password': 'recovered-member-password'}).status_code == 200
     assert identity(service, alice)['id'] == user['id']
     assert service.trials.status(user['id'])['used'] == before['used']
+
+
+def test_activity_owner_member_tokens_and_admin_boundaries(members):
+    from src.storage import utc_naive_now
+    from src.services.user_activity_service import activity_scope, analytics
+    from src.services.member_service import control_plane
+    from src.storage import UserActivityRecord, UserCallDetailRecord
+    from sqlalchemy import select
+    owner, alice, bob, service = members
+    member = identity(service, alice)
+    day = utc_naive_now().date().isoformat()
+    params = {'start': day, 'end': day}
+    assert alice.post('/api/v1/usage/activity', json={'page': '/screening'}).status_code == 204
+    assert owner.post('/api/v1/usage/activity', json={'page': '/trading'}).status_code == 204
+    assert alice.post('/api/v1/usage/activity', json={'page': '/screening?secret=x'}).status_code == 400
+    with service.scope(member), activity_scope('screening', 'trace-screening'):
+        from src.storage import get_db
+        get_db().save_conversation_user_turn('session-a', 'Which stocks meet my criteria?')
+        get_db().save_conversation_message('session-a', 'assistant', 'Check the source dates first.')
+        # Secondary workspace telemetry must not be counted twice.
+        get_db().record_llm_usage('agent', 'test-model', 7, 3, 10)
+        with control_plane():
+            call_id = service.trials.reserve(member['id'], 'workspace:test', 100, workspace=True, model='test-model')
+            service.trials.settle(call_id, 10, prompt_tokens=7, completion_tokens=3, duration_ms=5)
+            service.trials.settle(call_id, 10, prompt_tokens=7, completion_tokens=3, duration_ms=5)
+        get_db().delete_conversation_session('session-a')
+    with activity_scope('trading', 'trace-owner'):
+        service.db.record_llm_usage('agent', 'test-model', 20, 5, 25)
+    with service.db.get_session() as session:
+        assert session.get(UserCallDetailRecord, call_id).feature == 'screening'
+        messages = session.scalars(select(UserActivityRecord).where(UserActivityRecord.request_id == 'trace-screening')).all()
+        assert {m.event for m in messages} == {'question', 'answer'}
+        assert all(m.user_id == member['id'] for m in messages)
+    result = owner.get('/api/v1/trial/admin/analytics', params=params)
+    assert result.status_code == 200, result.text
+    rows = result.json()['usage']
+    assert sum(r['charged'] for r in rows) == 35
+    assert {r['feature'] for r in rows} == {'screening', 'trading'}
+    assert {r['userId'] for r in rows} == {member['id'], 'owner'}
+    calls = owner.get('/api/v1/trial/admin/calls', params=params)
+    assert calls.status_code == 200, calls.text
+    assert calls.json()['total'] == 2
+    activity = owner.get('/api/v1/trial/admin/activity', params={**params, 'request_id': 'trace-screening'})
+    assert activity.status_code == 200
+    assert activity.json()['total'] == 2
+    for path in ['analytics', 'activity', 'calls']:
+        assert bob.get('/api/v1/trial/admin/' + path, params=params).status_code == 403
+        assert alice.get('/api/v1/trial/admin/' + path, params=params).status_code == 403
+    assert owner.get('/api/v1/trial/admin/analytics', params={'start': day, 'end': '2020-01-01'}).status_code == 400
+    # API responses never contain the password or its hash.
+    assert 'member-password' not in activity.text and 'password_hash' not in activity.text
+    filtered = analytics(service.db, utc_naive_now().date(), utc_naive_now().date(), member['id'], 'screening')
+    assert filtered['daily'][0]['charged'] == service.trials.status(member['id'])['used'] == 10

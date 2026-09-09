@@ -2,6 +2,7 @@
 import json
 import threading
 import uuid
+import time
 
 from src.services.member_service import current_member, control_plane
 from src.services.trial_service import TrialError, trial_model_params
@@ -30,7 +31,7 @@ def member_completion(messages, *, tools=None, max_tokens=None, temperature=None
             service.require_enabled(member['id'])
             params = trial_model_params()
             call_id = service.trials.reserve(member['id'], 'workspace:' + uuid.uuid4().hex,
-                                             reservation, workspace=True)
+                                             reservation, workspace=True, model=params.get("model"))
         import litellm
         kwargs = dict(params, messages=messages, max_tokens=limit, timeout=45,
                       num_retries=0, stream=False)
@@ -38,6 +39,7 @@ def member_completion(messages, *, tools=None, max_tokens=None, temperature=None
             kwargs['tools'] = tools
         if temperature is not None:
             kwargs['temperature'] = temperature
+        started = time.monotonic()
         try:
             response = litellm.completion(**kwargs)
             usage = response.usage
@@ -47,11 +49,16 @@ def member_completion(messages, *, tools=None, max_tokens=None, temperature=None
                     or usage.total_tokens != usage.prompt_tokens + usage.completion_tokens):
                 raise TrialError('usage_unverified', 502)
             with control_plane():
-                service.trials.settle(call_id, usage.total_tokens)
+                service.trials.settle(call_id, usage.total_tokens, prompt_tokens=usage.prompt_tokens,
+                                      completion_tokens=usage.completion_tokens,
+                                      duration_ms=int((time.monotonic() - started) * 1000))
             return response
         except Exception as exc:
             # Keep an uncertain reservation and stop every sibling/follow-up call
             # sharing this request context. Never expose provider exception text.
+            with control_plane():
+                service.trials.call_failed(call_id, exc.code if isinstance(exc, TrialError) else 'model_call_failed',
+                                           int((time.monotonic() - started) * 1000))
             member['modelBlocked'] = True
             if isinstance(exc, TrialError):
                 raise

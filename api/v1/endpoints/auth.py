@@ -250,6 +250,10 @@ def _password_set_for_response(auth_enabled: bool) -> bool:
 
 def _set_session_cookie(response: Response, session_value: str, request: Request) -> None:
     """Attach the admin session cookie to a response."""
+    if not session_value.startswith('member:') and account_email():
+        from src.services.user_activity_service import activity_scope, record_activity
+        with activity_scope('settings'):
+            record_activity('authenticated', resource=request.url.path)
     params = _cookie_params(request)
     response.set_cookie(
         key=COOKIE_NAME,

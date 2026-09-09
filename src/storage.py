@@ -15,6 +15,7 @@ import atexit
 from contextlib import contextmanager
 import hashlib
 import json
+import uuid
 import logging
 import threading
 import time
@@ -812,6 +813,16 @@ class TrialUserRecord(Base):
     active_run = Column(String(64))
 
 
+class TrialInvitationRecord(Base):
+    __tablename__ = 'trial_invitations'
+    id = Column(String(64), primary_key=True)
+    invite_hash = Column(String(64), unique=True, nullable=False, index=True)
+    invite_expires = Column(DateTime, nullable=False, index=True)
+    claimed_at = Column(DateTime)
+    claimed_user_id = Column(String(64))
+    created_at = Column(DateTime, nullable=False, default=utc_naive_now)
+
+
 class TrialBudgetRecord(Base):
     __tablename__ = 'trial_budgets'
     id = Column(String(80), primary_key=True)
@@ -840,6 +851,43 @@ class TrialCallRecord(Base):
     charged = Column(Integer, nullable=False)
     settled = Column(Boolean, nullable=False, default=False)
     estimated = Column(Boolean, nullable=False, default=True)
+
+
+class UserActivityRecord(Base):
+    """Control-plane activity ledger; never stores credentials or request headers."""
+    __tablename__ = 'user_activity'
+    id = Column(String(64), primary_key=True)
+    user_id = Column(String(64), nullable=False, index=True)
+    request_id = Column(String(64), nullable=False, index=True)
+    feature = Column(String(40), nullable=False, index=True)
+    event = Column(String(40), nullable=False, index=True)
+    resource = Column(String(300), nullable=False, default='')
+    status = Column(String(40), nullable=False, default='completed')
+    duration_ms = Column(Integer)
+    content = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=utc_naive_now, index=True)
+
+
+class UserCallDetailRecord(Base):
+    """One-to-one attribution for trial_calls; existing calls need no migration."""
+    __tablename__ = 'user_call_details'
+    call_id = Column(String(64), primary_key=True)
+    request_id = Column(String(64), nullable=False, index=True)
+    feature = Column(String(40), nullable=False, index=True)
+    model = Column(String(160))
+    prompt_tokens = Column(Integer)
+    completion_tokens = Column(Integer)
+    duration_ms = Column(Integer)
+    error_code = Column(String(80))
+    created_at = Column(DateTime, nullable=False, default=utc_naive_now, index=True)
+
+
+class OwnerCallAttributionRecord(Base):
+    __tablename__ = 'owner_call_attribution'
+    usage_id = Column(Integer, primary_key=True)
+    request_id = Column(String(64), nullable=False, index=True)
+    feature = Column(String(40), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=utc_naive_now, index=True)
 
 
 class LLMUsage(Base):
@@ -4432,7 +4480,10 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             )
             session.add(msg)
             session.flush()
-            return int(msg.id)
+            message_id = int(msg.id)
+        from src.services.user_activity_service import record_message
+        record_message(session_id, role, content)
+        return message_id
 
     def save_conversation_user_turn(
         self,
@@ -4469,7 +4520,10 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                     )
                 )
 
-            return int(msg.id)
+            message_id = int(msg.id)
+        from src.services.user_activity_service import record_message
+        record_message(session_id, 'user', content)
+        return message_id
 
     def get_conversation_session_selected_skill_ids(
         self,
@@ -4877,6 +4931,15 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         row = LLMUsage(**row_values)
         with self.session_scope() as session:
             session.add(row)
+            # Member calls already belong to trial_calls; never count them twice.
+            if not getattr(self, '_workspace_id', None):
+                from src.services.user_activity_service import ACTIVITY
+                context = ACTIVITY.get() or {}
+                session.flush()
+                session.add(OwnerCallAttributionRecord(usage_id=row.id,
+                    request_id=context.get('request_id') or uuid.uuid4().hex,
+                    feature=context.get('feature') or {'analysis': 'research',
+                        'market_review': 'market', 'agent': 'assistant'}.get(call_type, 'other')))
 
     def get_llm_usage_summary(
         self,

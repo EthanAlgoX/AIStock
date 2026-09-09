@@ -1509,7 +1509,11 @@ class WorkspaceService:
             if cancel_event.is_set():
                 self._finish_run(run_id, "cancelled")
                 return
-            result = self._execute_agent_task(run_id, task, cancel_event)
+            from src.services.user_activity_service import activity_scope, record_activity
+            with activity_scope(task['kind'], run_id):
+                record_activity('task_started', resource=run_id, content=task.get('objective'))
+                result = self._execute_agent_task(run_id, task, cancel_event)
+
             if cancel_event.is_set():
                 self._finish_run(run_id, "cancelled")
             elif result["success"]:
@@ -1963,6 +1967,14 @@ class WorkspaceService:
             row.error_code, row.error_message = error_code, error_message
             from src.services.workspace_discussion import publish_chat_reply
             publish_chat_reply(session, row)
+            kind = row.task_kind
+            outputs = [artifact.content_text for artifact in session.scalars(select(WorkspaceArtifactRecord).where(
+                WorkspaceArtifactRecord.run_id == run_id)) if artifact.content_text]
+        from src.services.user_activity_service import activity_scope, record_activity
+        with activity_scope(kind, run_id):
+            record_activity('task_result', resource=run_id, status=status,
+                            content=_dump({'answers': outputs, 'summary': summary,
+                                           'errorCode': error_code, 'error': error_message}))
 
     def _set_run_stage(self, run_id: str, stage_id: str, label: str, status: str) -> None:
         """Persist observed execution stages, not a simulated progress percentage."""

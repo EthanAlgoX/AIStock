@@ -1,3 +1,4 @@
+import apiClient from './api';
 import type React from "react";
 import { lazy, useEffect } from "react";
 import {
@@ -64,6 +65,16 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     useAgentChatStore.getState().setCurrentRoute(location.pathname);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const pages = new Set(['/overview', '/stock-research', '/screening', '/trading', '/portfolio', '/portfolio/ledger', '/market-intelligence', '/expert-review', '/settings', '/usage', '/runs', '/alerts', '/schedules', '/runs/:runId', '/capabilities', '/capabilities/skills', '/capabilities/tools', '/capabilities/mcp', '/capabilities/data', '/capabilities/experts']);
+    const page = /^\/runs\/[^/]+$/.test(location.pathname) ? '/runs/:runId' : location.pathname;
+    if (loggedIn && !isLoading && pages.has(page)) {
+      // Delay cancels the StrictMode probe; never retry a page event automatically.
+      const timer = window.setTimeout(() => { void apiClient.post('/api/v1/usage/activity', { page }).catch(() => console.warn('Page activity could not be recorded')); }, 100);
+      return () => window.clearTimeout(timer);
+    }
+  }, [loggedIn, isLoading, location.pathname]);
 
   if (location.pathname === '/try') {
     return <StandaloneRouteBoundary><TrialPage /></StandaloneRouteBoundary>;

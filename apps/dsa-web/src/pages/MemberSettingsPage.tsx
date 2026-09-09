@@ -33,11 +33,11 @@ export default function MemberSettingsPage() {
         <p className="break-all text-sm">{email}</p>
         <p className="mt-3 text-sm leading-6 text-secondary-text">{l('需要修改邮箱或恢复账户时，请联系部署管理员。', 'Contact the deployment administrator to change your email or recover your account.')}</p>
       </SettingsSectionCard>
-      <SettingsSectionCard title={l('试用额度', 'Trial allowance')} description={l('累计 20 万输入与输出 Token。所有专家与主持总结共享额度，不按天重置。', '200,000 lifetime input and output tokens. All experts and moderator summaries share this allowance; it does not reset daily.')}>
+      <SettingsSectionCard title={l('试用额度', 'Trial allowance')} description={l('每日上限由管理员调整，输入、输出与专家调用共享额度。UTC 00:00（北京时间 08:00）重置。', 'The administrator controls your daily limit, shared across input, output and expert calls. Resets at 00:00 UTC.')}>
         {quota ? <p className="text-sm tabular-nums">{l('已用', 'Used')} {number(quota.used)} / {number(quota.limit)} · {l('剩余', 'Remaining')} {number(quota.remaining)}</p> : <p className="text-sm text-secondary-text">{l('暂未获取额度。', 'Allowance is not available yet.')}</p>}
         <Button variant="secondary" className="mt-4" onClick={() => void refreshStatus()}>{l('刷新额度', 'Refresh allowance')}</Button>
       </SettingsSectionCard>
-      <SettingsSectionCard title={l('个人通知', 'Personal notifications')} description={l('邮件只发送到你的受邀邮箱，不使用管理员或其他用户的收件地址。需要平台已配置发件服务。', 'Emails go only to your invited email, never to the administrator or another user. The platform must have an email delivery service configured.')}>
+      <SettingsSectionCard title={l('个人通知', 'Personal notifications')} description={l('邮件只发送到你的注册邮箱，不使用管理员或其他用户的收件地址。需要平台已配置发件服务。', 'Emails go only to your registered email, never to the administrator or another user. The platform must have an email delivery service configured.')}>
         <label className="flex min-h-11 items-start gap-3 text-sm leading-6">
           <input type="checkbox" className="mt-1 size-4 accent-primary" checked={enabled} disabled={loading || saving} onChange={event => { setEnabled(event.target.checked); setSaved(false); }} />
           <span>{l('接收我的研究与持仓告警邮件', 'Receive my research and portfolio alert emails')}</span>

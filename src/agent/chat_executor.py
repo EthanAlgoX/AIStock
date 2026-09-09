@@ -79,6 +79,8 @@ class AgentChatExecutor:
         selected_skill_ids: Optional[List[str]] = None,
     ) -> PreparedAgentChatTurn:
         """Prepare context and persist the user message without starting a backend."""
+        from src.services.user_activity_service import record_activity
+        record_activity('question_submitted', resource=session_id, content=message)
         conversation_manager.get_or_create(session_id)
         prepared = prepare_agent_chat(
             message=message,

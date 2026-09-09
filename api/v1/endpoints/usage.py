@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, ConfigDict, Field
 
 from api.deps import get_database_manager
 from api.v1.schemas.usage import UsageDashboardResponse, UsageSummaryResponse
@@ -100,3 +101,19 @@ def get_usage_dashboard(
     payload = _build_summary_payload(normalized_period, from_dt, to_dt, data)
     payload["recent_calls"] = [_enrich_call_record(row) for row in records]
     return UsageDashboardResponse(**payload)
+
+
+class PageVisit(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    page: str = Field(max_length=100)
+
+
+@router.post('/activity', status_code=204)
+def page_visit(body: PageVisit):
+    from fastapi import HTTPException, Response
+    from src.services.user_activity_service import PAGE_FEATURES, activity_scope, record_activity
+    if body.page not in PAGE_FEATURES:
+        raise HTTPException(400, 'Unknown page')
+    with activity_scope(PAGE_FEATURES[body.page]):
+        record_activity('page_view', resource=body.page)
+    return Response(status_code=204)

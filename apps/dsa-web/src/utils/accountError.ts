@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getParsedApiError } from '../api/error';
 
 const errors: Record<string, [string, string]> = {
-  invite_invalid: ['邀请码无效、已使用或已过期。请确认受邀邮箱或联系管理员。', 'The invitation is invalid, used or expired. Check your invited email or contact the administrator.'],
+  invite_invalid: ['邀请码无效、已使用或已过期，请联系管理员。', 'The invitation is invalid, used or expired. Contact the administrator.'],
   admin_required: ['此操作仅限平台管理员。', 'This operation is restricted to platform administrators.'],
   email_change_requires_verification: ['修改邮箱需要重新验证，请联系管理员。', 'Changing your email requires verification. Contact the administrator.'],
   credentials_invalid: ['邮箱或密码错误。', 'Email or password incorrect.'],

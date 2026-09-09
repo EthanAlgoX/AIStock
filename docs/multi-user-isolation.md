@@ -3,8 +3,8 @@
 ## 部署模式
 
 - 本地单人：`ADMIN_ACCESS_MODE=local`（默认），无需注册或登录，直接进入投研助理。仅允许直接回环地址访问，服务请绑定 `127.0.0.1`；局域网、代理转发和跨站变更请求被拒绝。已有管理员凭据保留但本地模式不要求使用。
-- 服务器多人：`ADMIN_ACCESS_MODE=server`、`MULTI_USER_ENABLED=true`，要求 HTTPS 和邮箱账户。先按 [实例账户](instance-account.md) 初始化唯一平台管理员，再在设置中生成绑定邮箱的邀请。用户从登录页“收到邀请？创建私有工作区”注册。
-- 注册目前是**邮箱＋邀请码**，不开放任意邮箱自助注册，不发送验证邮件。管理员负责确认邮箱归属并私下交付邀请码。正式开放公开注册前仍需另行实现邮件验证、反滥用与自助恢复。不同部署不会同步账户。
+- 服务器多人：`ADMIN_ACCESS_MODE=server`、`MULTI_USER_ENABLED=true`，要求 HTTPS 和邮箱账户。先按 [实例账户](instance-account.md) 初始化唯一平台管理员，再在设置中批量生成一次性邀请码。用户从登录页“收到邀请？创建私有工作区”注册，并自行填写登录邮箱。
+- 注册目前是**一次性邀请码＋领取者自选邮箱**，不开放无邀请码注册，也不发送验证邮件。邀请码是 7 天有效的 bearer credential，管理员必须私下交付给预期用户。正式开放公开注册前仍需另行实现邮件验证、反滥用与自助恢复。不同部署不会同步账户。
 
 Docker 桥接端口转发不是直接回环访问：当前请使用服务器模式和 HTTPS 代理，不要放宽本地访问校验。免登录本地体验使用源码或桌面端直连回环服务；Docker 桥接免登录部署不在当前支持范围。
 
@@ -22,7 +22,7 @@ Docker 桥接端口转发不是直接回环访问：当前请使用服务器模�
 
 ## 额度与资源
 
-每个受邀身份累计 **200,000 输入＋输出 Token**，与原访客试用共享同一账本；重新登录、进入完整工作区不会补发额度。所有普通用户 Agent、专家与报告生成调用通过官方 DeepSeek 的统一预扣/结算入口。先预留额度再请求，未知用量或超时保留预扣并阻止当前运行后续调用；没有自动重试或不计费的备用模型路径。
+每个受邀身份默认每日 **200,000 输入＋输出 Token**（管理员可动态调整），与原访客试用共享同一账本；重新登录、进入完整工作区不会补发额度。所有普通用户 Agent、专家与报告生成调用通过官方 DeepSeek 的统一预扣/结算入口。先预留额度再请求，未知用量或超时保留预扣并阻止当前运行后续调用；没有自动重试或不计费的备用模型路径。
 
 设置 `TRIAL_ENABLED=true` 才允许真实调用，默认关闭；`TRIAL_MODEL` 可指定已配置路由，留空使用主 Agent 路由；只支持官方 HTTPS DeepSeek 端点。全站另受 `TRIAL_DAILY_TOKEN_LIMIT` 限制（默认 UTC 每日 2,000,000）。额度不足会停止新的模型调用，而非无限等待。实际已发出的调用可能在停用后完成。
 
@@ -47,7 +47,7 @@ Local single-user deployments use `ADMIN_ACCESS_MODE=local` by default: no signu
 
 Docker bridge forwarding is not direct loopback access. Use server mode and an HTTPS proxy for bridge deployments; do not weaken the local guard. No-login local use currently targets source/desktop deployments, not Docker bridge networking.
 
-Shared servers use `ADMIN_ACCESS_MODE=server` and `MULTI_USER_ENABLED=true`, with HTTPS and email accounts. Bootstrap the owner using [Instance account](instance-account.md), issue an email-bound invitation in Settings, then let the recipient register from the login page. Registration is **invitation-only**; there is no automatic email verification or public self-registration. The operator verifies recipients. Separate installations do not synchronize accounts.
+Shared servers use `ADMIN_ACCESS_MODE=server` and `MULTI_USER_ENABLED=true`, with HTTPS and email accounts. Bootstrap the owner using [Instance account](instance-account.md), generate one or more single-use codes in Settings, then let recipients choose their login email on the registration page. Registration is **invitation-only**; each code is a seven-day bearer credential and must be shared privately. There is no automatic email verification or public self-registration. Separate installations do not synchronize accounts.
 
 Authenticated identity selects a private SQLite database at `workspaces/<user-id>/workspace.db` beside the control database. Client workspace/user selectors are not trusted. Existing data stays with the owner. Chats, roundtables, reports/files, holdings, watchlists, custom experts/Skills, preferences, tasks, schedules and notification preferences are isolated. Matching IDs do not authorize cross-account reads, changes, downloads or cancellation. Identity changes clear browser drafts and runtime state, including other tabs.
 
@@ -55,7 +55,7 @@ Public market data and built-in templates may be shared. Platform secrets, globa
 
 Workers preserve identity and recheck account status; reused threads do not reuse a previous user's scope. Durable schedules load from each private database. Restart marks interrupted runs instead of replaying paid calls, while future schedules continue.
 
-Each identity shares one lifetime **200,000-token input/output allowance** across limited trials and full workspaces. Every member Agent/expert/report call reserves and settles against it through the official DeepSeek endpoint. Unknown usage/timeouts retain the reservation and stop follow-up calls in that run; no automatic retries or unmetered fallback. Real calls require `TRIAL_ENABLED=true` (default false). `TRIAL_MODEL` optionally selects an existing route; otherwise the main Agent route is used. The shared daily limit defaults to 2,000,000 tokens UTC. Already dispatched calls may still complete after suspension.
+Each identity shares an adjustable daily **200,000-token default input/output allowance** across limited trials and full workspaces. Every member Agent/expert/report call reserves and settles against it through the official DeepSeek endpoint. Unknown usage/timeouts retain the reservation and stop follow-up calls in that run; no automatic retries or unmetered fallback. Real calls require `TRIAL_ENABLED=true` (default false). `TRIAL_MODEL` optionally selects an existing route; otherwise the main Agent route is used. The shared daily limit defaults to 2,000,000 tokens UTC. Already dispatched calls may still complete after suspension.
 
 Use one application process. Model concurrency is 2, shared analysis workers 3, each member has at most 5 active/queued analysis tasks and 5 workspace runs, and the process caches up to 256 workspace databases. This is a small invited deployment, not distributed SaaS. Data-provider failure or quota exhaustion may interrupt research.
 
@@ -64,3 +64,14 @@ Before deployment, back up the control database, workspaces, credential/session 
 Owner recovery: `python -m src.auth reset_password`. Member recovery: `python -m src.services.member_service reset-password --email <member-email>`; interactive host-only recovery preserves data/quota and revokes sessions. No unverified browser email changes or password reset.
 
 For rollback, close public access and stop workers first, preserve backups, then restore matching code/configuration. `MULTI_USER_ENABLED=false` disables member access while keeping server-owner authentication. Never proxy local mode publicly, delete workspaces to reset quotas, or downgrade credential formats without matching backups.
+
+
+每日额度在 UTC 00:00（北京时间 08:00）重置。管理员可在设置中查看近 7 天用量并调整每个邀请码的上限，保存后对下一次调用生效。旧成员的累计账本保留，Web/API 额度字段改为按日语义，详见 [邀请码额度管理与 API 契约](guest-trial.md)。
+
+Daily limits reset at 00:00 UTC. Administrators can inspect seven days of usage and adjust each invitation's limit for the next call. Lifetime records are retained; Web/API quota fields now describe daily usage. See [invitation quota management and API contracts](guest-trial.md).
+
+## 用户行为与用量审计 / User activity and usage audit
+
+管理员设置页「访客与试用额度 → 用户行为与 Token 分析」包含管理员自己和受邀成员，可按日期、用户、功能筛选每日用量、每日功能用量、页面/操作次数、单次模型调用以及问答记录。详细契约和边界见 [用户用量与审计](user-activity-audit.md)。
+
+The administrator's Settings → Visitors & trial access → User activity and token analysis includes the administrator and invited members, with date/user/feature filters, daily totals, feature totals, page/operation counts, individual model calls and questions/answers. See [the audit contract](user-activity-audit.md) for accounting and coverage limits.

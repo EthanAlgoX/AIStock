@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 
-LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(pathname)s:%(lineno)d | %(message)s"
+LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(pathname)s:%(lineno)d | trace=%(activity_trace)s | %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 _ALLOWED_LOG_LEVELS = {
     'DEBUG': logging.DEBUG,
@@ -29,6 +29,15 @@ _ALLOWED_LOG_LEVELS = {
     'CRITICAL': logging.CRITICAL,
 }
 _DEFAULT_LITELLM_LOG_LEVEL = 'WARNING'
+
+
+class ActivityTraceFilter(logging.Filter):
+    def filter(self, record):
+        module = sys.modules.get('src.services.user_activity_service')
+        activity = getattr(module, 'ACTIVITY', None)
+        context = (activity.get() if activity is not None else None) or {}
+        record.activity_trace = context.get('request_id', '-')
+        return True
 
 
 class RelativePathFormatter(logging.Formatter):
@@ -133,6 +142,7 @@ def setup_logging(
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(level)
     console_handler.setFormatter(rel_formatter)
+    console_handler.addFilter(ActivityTraceFilter())
     root_logger.addHandler(console_handler)
 
     # Handler 2: 常规日志文件（INFO 级别，10MB 轮转）
@@ -144,6 +154,7 @@ def setup_logging(
     )
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(rel_formatter)
+    file_handler.addFilter(ActivityTraceFilter())
     root_logger.addHandler(file_handler)
 
     # Handler 3: 调试日志文件（DEBUG 级别，包含所有详细信息）
@@ -155,6 +166,7 @@ def setup_logging(
     )
     debug_handler.setLevel(logging.DEBUG)
     debug_handler.setFormatter(rel_formatter)
+    debug_handler.addFilter(ActivityTraceFilter())
     root_logger.addHandler(debug_handler)
 
     # 降低第三方库的日志级别

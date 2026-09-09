@@ -20,7 +20,7 @@ def test_public_demo_trial_cookie_is_not_admin(instance, service, monkeypatch):
     assert instance.get('/api/v1/trial/runs').json() == []
     assert instance.get('/api/v1/private').status_code == 401
     assert instance.get('/api/v1/trial/admin/users').status_code == 403
-    assert instance.post('/api/v1/trial/admin/invitations', json={'email': 'x@example.com'}).status_code == 403
+    assert instance.post('/api/v1/trial/admin/invitations', json={'count': 1}).status_code == 403
     assert instance.patch(f'/api/v1/trial/admin/users/{user}', json={'enabled': False}).status_code == 403
     assert instance.post('/api/v1/trial/logout', headers={'Origin': 'https://evil.example'}).status_code == 403
 
@@ -28,13 +28,15 @@ def test_public_demo_trial_cookie_is_not_admin(instance, service, monkeypatch):
 def test_admin_invitation_and_trial_enrollment_cookie(instance, service, monkeypatch, capsys):
     attach(instance, service, monkeypatch)
     assert instance.post('/api/v1/auth/register', json=payload(capsys)).status_code == 200
-    invitation = instance.post('/api/v1/trial/admin/invitations', json={'email': 'invite@example.com'})
+    invitation = instance.post('/api/v1/trial/admin/invitations', json={'count': 2})
     assert invitation.status_code == 200
-    assert len(instance.get('/api/v1/trial/admin/users').json()) == 1
+    assert len(invitation.json()['inviteCodes']) == 2
+    assert instance.get('/api/v1/trial/admin/users').json() == []
     instance.cookies.clear()
     body = dict(email='invite@example.com', password='trial-password', inviteCode=invitation.json()['inviteCode'])
     response = instance.post('/api/v1/trial/enroll', json=body)
     assert response.status_code == 200
+    assert len(service.users()) == 1
     cookie = response.headers['set-cookie']
     assert 'HttpOnly' in cookie and 'Path=/api/v1/trial' in cookie and 'SameSite=lax' in cookie
     assert instance.get('/api/v1/private').status_code == 401
@@ -60,3 +62,22 @@ def test_trial_csrf_is_enforced_even_in_legacy_mode(instance, service, monkeypat
     auth.refresh_auth_state()
     assert instance.post('/api/v1/trial/login', json={'email': 'x@example.com', 'password': 'password'},
                          headers={'Origin': 'https://evil.example'}).status_code == 403
+
+
+def test_admin_daily_limit_api_and_authorization(instance, service, monkeypatch, capsys):
+    attach(instance, service, monkeypatch)
+    assert instance.post('/api/v1/auth/register', json=payload(capsys)).status_code == 200
+    invitation = instance.post('/api/v1/trial/admin/invitations', json={'dailyLimit': 300000}).json()
+    identifier = invitation['invitationIds'][0]
+    route = f'/api/v1/trial/admin/invitations/{identifier}'
+    assert instance.get('/api/v1/trial/admin/invitations').json()[0]['dailyLimit'] == 300000
+    assert instance.patch(route, json={'dailyLimit': 400000}).status_code == 200
+    assert instance.patch(route, json={'dailyLimit': -1}).status_code == 422
+    assert instance.patch(route, json={'dailyLimit': True}).status_code == 422
+    assert instance.patch(route, json={'dailyLimit': 1}, headers={'Origin': 'https://evil.example'}).status_code == 403
+    instance.cookies.clear()
+    assert instance.patch(route, json={'dailyLimit': 1}).status_code == 403
+    assert instance.get('/api/v1/trial/admin/invitations').status_code == 403
+    _, token = enroll(service)
+    instance.cookies.set(TRIAL_COOKIE, token)
+    assert instance.patch(route, json={'dailyLimit': 1}).status_code == 403

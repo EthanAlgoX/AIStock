@@ -24,7 +24,7 @@ def service(tmp_path, monkeypatch):
 
 
 def enroll(service, email='guest@example.com'):
-    invite = service.invite(email)
+    invite = service.invite()
     token = service.enroll(email, 'trial-password', invite['inviteCode'])
     return service.identity(token), token
 
@@ -46,10 +46,26 @@ def test_grant_once_login_and_invite_replay(service):
     token = service.login('GUEST@example.com', 'trial-password')
     assert service.identity(token) == user
     assert service.status(user)['used'] == 100
+    unused = service.invite()['inviteCode']
     with pytest.raises(TrialError, match='already_enrolled'):
-        service.invite('guest@example.com')
+        service.enroll('guest@example.com', 'new-password', unused)
+    assert service.identity(service.enroll('other@example.com', 'new-password', unused))
     with pytest.raises(TrialError, match='invite_invalid'):
         service.enroll('guest@example.com', 'new-password', 'fake')
+
+
+def test_batch_invitations_bind_email_only_when_claimed(service):
+    invitation = service.invite(3)
+    assert len(invitation['inviteCodes']) == 3
+    assert len(set(invitation['inviteCodes'])) == 3
+    assert service.users() == []
+
+    first = service.enroll('chosen@example.com', 'trial-password', invitation['inviteCodes'][0])
+    assert service.status(service.identity(first))['email'] == 'chosen@example.com'
+    with pytest.raises(TrialError, match='invite_invalid'):
+        service.enroll('replay@example.com', 'trial-password', invitation['inviteCodes'][0])
+    second = service.enroll('another@example.com', 'trial-password', invitation['inviteCodes'][1])
+    assert service.status(service.identity(second))['email'] == 'another@example.com'
 
 
 def test_atomic_user_cap_and_idempotent_settlement(service):
@@ -198,3 +214,93 @@ def test_route_validation_uses_existing_alias_and_rejects_proxies(monkeypatch):
     params['api_base'] = 'https://proxy.example/v1'
     with pytest.raises(TrialError, match='model_unavailable'):
         module.trial_model_params()
+
+
+def test_daily_limit_adjustment_before_and_after_claim(service):
+    invitation = service.invite(daily_limit=100)
+    identifier = invitation['invitationIds'][0]
+    service.set_daily_limit(identifier, 200000)
+    user = service.identity(service.enroll('dynamic@example.com', 'trial-password', invitation['inviteCode']))
+    run = start(service, user)
+    service.reserve(user, run, 200000)
+    with pytest.raises(TrialError, match='quota_exhausted'):
+        service.reserve(user, run, 1)
+    service.set_daily_limit(identifier, 300000)
+    service.reserve(user, run, 100000)
+    assert service.status(user)['remaining'] == 0
+    service.set_daily_limit(identifier, 100000)
+    assert service.status(user)['used'] == 300000
+    with pytest.raises(TrialError, match='quota_exhausted'):
+        service.reserve(user, run, 1)
+    row = service.invitations()[0]
+    assert row['email'] == 'dynamic@example.com'
+    assert row['history'][-1]['used'] == 300000
+    assert row['history'][-1]['estimatedCalls'] == 2
+    assert row['dailyLimit'] == 100000
+
+
+def test_day_reset_and_late_settlement_preserve_history(service, monkeypatch):
+    now = utc_naive_now()
+    monkeypatch.setattr(module, 'utc_naive_now', lambda: now)
+    user, _ = enroll(service)
+    run = start(service, user)
+    call = service.reserve(user, run, 200000)
+    tomorrow = now + timedelta(days=1)
+    monkeypatch.setattr(module, 'utc_naive_now', lambda: tomorrow)
+    assert service.status(user)['used'] == 0
+    run = start(service, user)
+    service.reserve(user, run, 150000)
+    service.settle(call, 123)
+    status = service.status(user)
+    assert status['used'] == 150000
+    assert status['lifetimeUsed'] == 150123
+    assert service.users()[0]['used'] == 150000
+    assert service.users()[0]['lifetimeUsed'] == 150123
+    rows = service.invitations()[0]['history']
+    assert rows[-2]['used'] == 123 and rows[-2]['estimatedCalls'] == 0
+    assert rows[-1]['used'] == 150000
+
+
+def test_existing_invitation_and_legacy_budget_remain_adjustable(service):
+    from src.storage import TrialInvitationRecord
+    invitation = service.invite()
+    identifier = invitation['invitationIds'][0]
+    with service.db.session_scope() as session:
+        session.delete(session.get(TrialBudgetRecord, 'invite:' + identifier))
+    service.set_daily_limit(identifier, 300000)
+    user = service.identity(service.enroll('legacy@example.com', 'trial-password', invitation['inviteCode']))
+    assert service.status(user)['limit'] == 300000
+    with service.db.session_scope() as session:
+        session.delete(session.get(TrialInvitationRecord, identifier))
+    service.set_daily_limit('legacy:' + user, 0)
+    assert service.invitations()[0]['dailyLimit'] == 0
+    with pytest.raises(TrialError, match='quota_exhausted'):
+        start(service, user)
+
+
+@pytest.mark.parametrize('limit', [-1, 10000001, True, 1.5])
+def test_invalid_dynamic_limit(service, limit):
+    with pytest.raises(TrialError, match='invalid_input'):
+        service.invite(daily_limit=limit)
+
+
+def test_usage_attribution_reservation_midnight_and_legacy(service, monkeypatch):
+    from datetime import datetime
+    from src.services.user_activity_service import analytics
+    from src.storage import UserCallDetailRecord
+    now = datetime(2026, 9, 10, 23, 59)
+    monkeypatch.setattr(module, 'utc_naive_now', lambda: now)
+    user, _ = enroll(service)
+    run = start(service, user, kind='trading')
+    call = service.reserve(user, run, 100)
+    now = datetime(2026, 9, 11, 0, 1)
+    service.settle(call, 30, prompt_tokens=20, completion_tokens=10)
+    pending = service.reserve(user, run, 70)
+    report = analytics(service.db, datetime(2026, 9, 10).date(), now.date(), user)
+    assert [(r['date'], r['charged'], r['estimated']) for r in report['daily']] == [('2026-09-10', 30, 0), ('2026-09-11', 70, 70)]
+    assert sum(r['charged'] for r in report['usage']) == 100
+    with service.db.session_scope() as session:
+        session.delete(session.get(UserCallDetailRecord, pending))
+    report = analytics(service.db, now.date(), now.date(), user)
+    assert report['usage'][0]['feature'] == 'legacy_unknown'
+    assert report['usage'][0]['charged'] == 70

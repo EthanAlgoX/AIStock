@@ -8,6 +8,8 @@ from __future__ import annotations
 import logging
 import os
 import ipaddress
+import time
+import uuid
 from typing import Callable
 
 from fastapi import Request
@@ -117,9 +119,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 if path.startswith('/api/v1/auth/'):
                     return await call_next(request)
                 with service.scope(member):
-                    response = await call_next(request)
-                    response.headers['Cache-Control'] = 'private, no-store'
-                    return response
+                    return await _tracked_request(request, call_next, member['id'])
             except TrialError as exc:
                 return JSONResponse(status_code=exc.status, content={'error': exc.code, 'message': 'Private workspace access unavailable.'})
         if not cookie_val or not verify_session(cookie_val):
@@ -131,7 +131,32 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 },
             )
 
-        return await call_next(request)
+        return await _tracked_request(request, call_next, 'owner')
+
+
+async def _tracked_request(request, call_next, user_id):
+    path = request.url.path
+    from src.services.user_activity_service import activity_scope, feature_for_path, record_activity
+    request_id = uuid.uuid4().hex
+    started = time.monotonic()
+    with activity_scope(feature_for_path(path), request_id):
+        try:
+            response = await call_next(request)
+        except Exception:
+            record_activity('request_error', resource=path, status='500')
+            logger.exception('Member request failed user=%s request=%s', user_id, request_id)
+            raise
+        route = request.scope.get('route')
+        resource = getattr(route, 'path', path)
+        if request.method not in {'GET', 'HEAD', 'OPTIONS'} and path != '/api/v1/usage/activity':
+            record_activity('operation', resource=request.method + ' ' + resource,
+                            status=str(response.status_code),
+                            duration_ms=int((time.monotonic() - started) * 1000))
+        elif response.status_code >= 400:
+            record_activity('request_error', resource=resource, status=str(response.status_code))
+        response.headers['X-Request-ID'] = request_id
+        response.headers['Cache-Control'] = 'private, no-store'
+        return response
 
 
 def add_auth_middleware(app):
