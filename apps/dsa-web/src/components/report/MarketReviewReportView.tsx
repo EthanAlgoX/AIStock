@@ -1,3 +1,4 @@
+import { AnalysisChart } from './AnalysisChart';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BarChart3, Clipboard, FileText, Gauge, Layers, ShieldAlert, TrendingUp, WalletCards, Workflow } from 'lucide-react';
@@ -616,6 +617,7 @@ export const MarketReviewReportView: React.FC<MarketReviewReportViewProps> = ({
                 ) : (
                   <p className="text-sm text-secondary-text">{marketReviewText.noBreadthData}</p>
                 )}
+                {marketData.indices.filter(index=>typeof index.changePct==='number'&&Number.isFinite(index.changePct)).length>=2 && <AnalysisChart chart={{version:1,type:'bar',title:`${marketData.title||''} ${marketReviewText.index} · ${marketReviewText.change}`,basis:'observed',unit:'%',source:marketReviewText.structuredMarketData,series:[{key:'v0',name:marketReviewText.change}],data:marketData.indices.filter(index=>typeof index.changePct==='number'&&Number.isFinite(index.changePct)).slice(0,120).map(index=>({label:index.name||index.code||'—',v0:index.changePct!}))}}/>}
                 {marketData.indices.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">

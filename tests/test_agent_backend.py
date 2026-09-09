@@ -325,7 +325,7 @@ def test_codex_backend_uses_tool_surface_and_ephemeral_transport(monkeypatch) ->
     ]
 
 
-def test_production_codex_preparation_matches_the_three_phase6_tools(monkeypatch) -> None:
+def test_production_codex_preparation_exposes_only_cancellation_safe_tools(monkeypatch) -> None:
     monkeypatch.setattr(
         "src.agent.codex_agent_backend.build_hardened_command",
         lambda **kwargs: ["codex", "app-server", "--stdio"],
@@ -363,6 +363,7 @@ def test_production_codex_preparation_matches_the_three_phase6_tools(monkeypatch
     assert result.success is True
     assert _FakeTransport.last.thread_kwargs["tool_names"] == [
         "get_analysis_context",
+        "build_analysis_chart",
         "get_skill_backtest_summary",
         "get_strategy_backtest_summary",
     ]

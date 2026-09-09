@@ -34,6 +34,14 @@ export const FINANCE_TOOL_CATEGORY_META: Record<FinanceToolCategory, { label: st
 
 export const FINANCE_TOOL_CATALOG: FinanceToolCatalogItem[] = [
   {
+    id: "build_analysis_chart",
+    name: "代码计算与绘图",
+    description: "用已取得的数据和四则运算表达式生成趋势图、对比图、条件关系图，保留来源、公式和数据表，可下载 SVG。",
+    category: "research",
+    permission: "COMPUTE",
+    scope: "策略",
+  },
+  {
     id: "screen_stock_universe",
     name: "股票池筛选",
     description: "按市场和已注册筛选策略运行真实选股管线，返回排序后的候选股票。",

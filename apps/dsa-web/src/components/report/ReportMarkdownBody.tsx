@@ -1,6 +1,7 @@
 import type React from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { chartMarkdownComponents } from '../../utils/chartMarkdownComponents';
 
 interface ReportMarkdownBodyProps {
   allowImages?: boolean;
@@ -17,7 +18,7 @@ export const ReportMarkdownBody: React.FC<ReportMarkdownBodyProps> = ({
 }) => (
   <div
     data-testid={testId}
-    className={`home-markdown-prose prose prose-invert prose-sm max-w-none
+    className={`report-reading home-markdown-prose prose prose-invert prose-sm max-w-none
       prose-headings:text-foreground prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2
       prose-h1:text-xl
       prose-h2:text-lg
@@ -35,7 +36,7 @@ export const ReportMarkdownBody: React.FC<ReportMarkdownBodyProps> = ({
       ${className}
     `}
   >
-    <Markdown remarkPlugins={[remarkGfm]} components={allowImages ? undefined : { img: () => null }}>
+    <Markdown remarkPlugins={[remarkGfm]} components={{...chartMarkdownComponents, ...(!allowImages ? {img: () => null} : {})}}>
       {content}
     </Markdown>
   </div>

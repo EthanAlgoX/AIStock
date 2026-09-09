@@ -674,6 +674,7 @@ def test_default_production_registry_only_exposes_bounded_tools_to_codex() -> No
     }
 
     assert safe_names == {
+        "build_analysis_chart",
         "get_analysis_context",
         "get_skill_backtest_summary",
         "get_strategy_backtest_summary",

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Markdown from 'react-markdown';
+import { chartMarkdownComponents } from '../utils/chartMarkdownComponents';
 import remarkGfm from 'remark-gfm';
 import { ChevronDown, History, Network, Plus, SlidersHorizontal } from 'lucide-react';
 import { cn } from '../utils/cn';
@@ -1638,7 +1639,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                       renderThinkingDetails(msg.thinkingSteps)}
                     {msg.role === 'assistant' ? (
                       <div className="relative">
-                        <div className="chat-message-actions">
+                        <div className="mb-3 flex justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => copyMessageToClipboard(msg.id, msg.content)}
@@ -1656,8 +1657,8 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                             导出
                           </button>
                         </div>
-                        <div className="chat-prose pr-20 sm:pr-24">
-                          <Markdown remarkPlugins={[remarkGfm]}>
+                        <div className="chat-prose report-reading">
+                          <Markdown remarkPlugins={[remarkGfm]} components={chartMarkdownComponents}>
                             {msg.content}
                           </Markdown>
                         </div>

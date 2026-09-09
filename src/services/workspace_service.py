@@ -109,6 +109,9 @@ _DEFAULT_TOOL_IDS = {
         "search_stock_news", "search_comprehensive_intel", "get_macro_indicators",
     ),
 }
+for _kind in _DEFAULT_TOOL_IDS:
+    _DEFAULT_TOOL_IDS[_kind] += ("build_analysis_chart",)
+
 _ENV_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,159}$")
 _TIME_RE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.IGNORECASE | re.DOTALL)

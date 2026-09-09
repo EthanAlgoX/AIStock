@@ -592,6 +592,9 @@ def prepare_agent_chat(
         language_section=_build_language_section(report_language, chat_mode=True),
     )
     workflow_tools = set(((effective_context or {}).get("capability_manifest") or {}).get("toolIds") or [])
+    system_prompt += "\n面向用户的长篇内容请先给结论，再按证据、比较、风险和下一步组织；用短段落、清晰小标题和比较表，避免重复堆叠大段文字。数值来源不足时保留文字说明，不编造图表数据。\n"
+    if "build_analysis_chart" in workflow_tools or (use_codex_prompt and "capability_manifest" not in (effective_context or {})):
+        system_prompt += "\n本轮可以调用 build_analysis_chart 做受限算术计算与绘图。趋势用 line、同单位比较用 bar、条件关系用 flow；用已取得的数据和明确来源，假设标记 scenario。将工具返回的 analysis-chart Markdown 原样嵌入回答，图后解释结论和局限。只在有助理解时绘图，不将观点转换为虚构概率或分数。每份回答通常 1–3 张图。\n"
     if "list_research_workflows" in workflow_tools:
         system_prompt += """\n研究工作流使用规则：
 综合单股研究或选股任务，优先用 list_research_workflows 查找与目标和市场匹配的正式策略，

@@ -3120,3 +3120,22 @@ fieldset {
     transition: none;
   }
 }
+
+/* Shared report/chat reading layer. Structured figures keep their own scale. */
+.report-reading { font-size: 1rem; line-height: 1.8; }
+.report-reading :where(p, li, strong):not(.analysis-chart *) { font-size: 1rem; line-height: 1.8; }
+.report-reading :where(p, ul, ol, blockquote):not(.analysis-chart *) { max-width: 72ch; }
+.report-reading :where(p):not(.analysis-chart *) { margin-bottom: 1rem; }
+.report-reading :where(h1, h2, h3, h4):not(.analysis-chart *) { color: hsl(var(--foreground)); margin-top: 1.75rem; margin-bottom: .65rem; line-height: 1.4; }
+.report-reading :where(h1):not(.analysis-chart *) { font-size: 1.5rem; }
+.report-reading :where(h2):not(.analysis-chart *) { font-size: 1.25rem; }
+.report-reading :where(h3, h4):not(.analysis-chart *) { font-size: 1.0625rem; }
+.report-reading > :first-child { margin-top: 0; }
+.report-reading :where(table) { display: block; max-width: 100%; overflow-x: auto; white-space: normal; }
+.report-reading :where(th, td) { min-width: 6rem; padding: .65rem .8rem; vertical-align: top; line-height: 1.6; }
+.report-reading :where(pre) { max-width: 100%; overflow-x: auto; white-space: pre; }
+.report-reading .analysis-chart { white-space: normal; font-size: .875rem; line-height: 1.6; }
+.report-reading .analysis-chart :where(h4) { margin: 0; font-size: 1rem; color: hsl(var(--foreground)); }
+.report-reading .analysis-chart :where(p, li, th, td, strong) { font-size: inherit; line-height: inherit; }
+.report-reading .analysis-chart :where(ul, ol) { margin: 0; padding: 0; list-style: none; }
+.report-reading .analysis-chart :where(svg) { max-width: none; }
