@@ -26,11 +26,14 @@ export default function LoginPage() {
   const [error, setError] = useState<unknown>();
   const [mismatch, setMismatch] = useState(false);
   const title = joining ? l('创建你的私有工作区', 'Create your private workspace') : migrate ? l('补全管理员账户', 'Complete your admin account') : register ? l('创建管理员账户', 'Create your admin account') : l('欢迎回来', 'Welcome back');
-  useEffect(() => { document.title = title + ' · InvestCrew'; }, [title]);
+  useEffect(() => { document.title = title + ' · AI Stock'; }, [title]);
 
   return <main className="min-h-screen bg-background px-5 py-10 text-foreground sm:py-16">
     <header className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4">
-      <span className="text-xl font-semibold tracking-tight">InvestCrew</span><UiLanguageToggle />
+      <div className="min-w-0">
+        <span className="text-xl font-semibold tracking-tight">AI Stock</span>
+        <p className="mt-2 max-w-lg text-sm leading-6 text-secondary-text">{l('用 AI 赋能每一位股票交易者，成为自己的超级投研个体。', 'Empower every stock trader with AI to become a one-person research powerhouse.')}</p>
+      </div><UiLanguageToggle />
     </header>
     <section className="mx-auto mt-14 w-full max-w-md sm:mt-20" aria-labelledby="account-title">
       <ShieldCheck size={28} className="mb-5 text-primary" aria-hidden />

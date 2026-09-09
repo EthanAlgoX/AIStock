@@ -89,7 +89,7 @@ def test_schema_examples_remain_in_openapi_schema() -> None:
     history_schema = HistoryItem.model_json_schema()
     quote_schema = StockQuote.model_json_schema()
 
-    assert root_schema["properties"]["message"]["example"] == "InvestCrew API is running"
+    assert root_schema["properties"]["message"]["example"] == "AI Stock API is running"
     assert root_schema["example"]["version"] == "1.0.0"
     assert analyze_schema["properties"]["stock_code"]["example"] == "600519"
     assert analyze_schema["properties"]["skills"]["example"] == ["bull_trend", "growth_quality"]

@@ -200,7 +200,7 @@ const zh = {
   "routeError.title": "页面加载失败",
   "notFound.backHome": "返回首页",
   "notFound.description": "抱歉，您访问的页面不存在或已被移动",
-  "notFound.pageTitle": "页面未找到 - InvestCrew",
+  "notFound.pageTitle": "页面未找到 - AI Stock",
   "notFound.title": "页面未找到",
 
   "login.adminLogin": "管理员登录",
@@ -213,7 +213,7 @@ const zh = {
   "login.loginPasswordPlaceholder": "请输入密码",
   "login.loginSubmit": "授权进入工作台",
   "login.loginSubmitting": "正在建立连接...",
-  "login.pageTitle": "登录 - InvestCrew",
+  "login.pageTitle": "登录 - AI Stock",
   "login.passwordMismatch": "两次输入的密码不一致",
   "login.setupDescription": "首次启用认证，请为系统工作台设置管理员密码。",
   "login.setupFailed": "配置失败",
@@ -264,7 +264,7 @@ const zh = {
   "home.marketRegionTitle": "本次复盘市场",
   "home.marketRegionUs": "美股",
   "home.notify": "推送通知",
-  "home.pageTitle": "策略研究与验证 - InvestCrew",
+  "home.pageTitle": "策略研究与验证 - AI Stock",
   "home.placeholder": "输入股票代码或名称，如 600519、贵州茅台、AAPL",
   "home.progressActive": "进行中",
   "home.reanalyze": "重新分析",
@@ -372,7 +372,7 @@ const zh = {
   "decisionSignals.outcome.neutral": "中性",
   "decisionSignals.outcome.unable": "无法评估",
   "decisionSignals.outcomes": "后验结果",
-  "decisionSignals.pageTitle": "AI 建议 - InvestCrew",
+  "decisionSignals.pageTitle": "AI 建议 - AI Stock",
   "decisionSignals.planQuality": "计划质量",
   "decisionSignals.planQuality.complete": "完整",
   "decisionSignals.planQuality.minimal": "最小",
@@ -1121,7 +1121,7 @@ const zh = {
   "settings.notificationTestBody": "正文",
   "settings.notificationTestChannel": "渠道",
   "settings.notificationTestContent":
-    "这是一条来自 InvestCrew 设置页的通知测试消息。",
+    "这是一条来自 AI Stock 设置页的通知测试消息。",
   "settings.notificationTestDescription":
     "使用当前页面草稿发送一条真实测试通知；测试不会保存配置。",
   "settings.notificationTestFailure": "测试失败",
@@ -1129,7 +1129,7 @@ const zh = {
   "settings.notificationTestSuccess": "测试成功",
   "settings.notificationTestTimeout": "超时秒数",
   "settings.notificationTestTitle": "标题",
-  "settings.notificationTestTitleValue": "InvestCrew 通知测试",
+  "settings.notificationTestTitleValue": "AI Stock 通知测试",
   "settings.notificationTesting": "测试中...",
   "settings.openConfigItems": "查看配置项",
   "settings.pageDescription":
@@ -1379,7 +1379,7 @@ const en: Record<UiTextKey, string> = {
   "routeError.title": "Page failed to load",
   "notFound.backHome": "Back home",
   "notFound.description": "The page you requested does not exist or has moved.",
-  "notFound.pageTitle": "Page not found - InvestCrew",
+  "notFound.pageTitle": "Page not found - AI Stock",
   "notFound.title": "Page not found",
 
   "login.adminLogin": "Admin login",
@@ -1393,7 +1393,7 @@ const en: Record<UiTextKey, string> = {
   "login.loginPasswordPlaceholder": "Enter password",
   "login.loginSubmit": "Enter workspace",
   "login.loginSubmitting": "Connecting...",
-  "login.pageTitle": "Login - InvestCrew",
+  "login.pageTitle": "Login - AI Stock",
   "login.passwordMismatch": "The two passwords do not match",
   "login.setupDescription":
     "Authentication is being enabled for the first time. Set an admin password for the workspace.",
@@ -1450,7 +1450,7 @@ const en: Record<UiTextKey, string> = {
   "home.marketRegionTitle": "Markets for this review",
   "home.marketRegionUs": "US",
   "home.notify": "Send notification",
-  "home.pageTitle": "Strategy research & validation - InvestCrew",
+  "home.pageTitle": "Strategy research & validation - AI Stock",
   "home.placeholder":
     "Enter a stock code or name, e.g. 600519, Kweichow Moutai, AAPL",
   "home.progressActive": "In progress",
@@ -1561,7 +1561,7 @@ const en: Record<UiTextKey, string> = {
   "decisionSignals.outcome.neutral": "Neutral",
   "decisionSignals.outcome.unable": "Unable",
   "decisionSignals.outcomes": "Outcome results",
-  "decisionSignals.pageTitle": "AI signals - InvestCrew",
+  "decisionSignals.pageTitle": "AI signals - AI Stock",
   "decisionSignals.planQuality": "Plan quality",
   "decisionSignals.planQuality.complete": "Complete",
   "decisionSignals.planQuality.minimal": "Minimal",
@@ -2355,7 +2355,7 @@ const en: Record<UiTextKey, string> = {
   "settings.notificationTestBody": "Body",
   "settings.notificationTestChannel": "Channel",
   "settings.notificationTestContent":
-    "This is a test notification from the InvestCrew settings page.",
+    "This is a test notification from the AI Stock settings page.",
   "settings.notificationTestDescription":
     "Send a real test notification using the current page draft. This test does not save configuration.",
   "settings.notificationTestFailure": "Test failed",
@@ -2363,7 +2363,7 @@ const en: Record<UiTextKey, string> = {
   "settings.notificationTestSuccess": "Test succeeded",
   "settings.notificationTestTimeout": "Timeout seconds",
   "settings.notificationTestTitle": "Title",
-  "settings.notificationTestTitleValue": "InvestCrew notification test",
+  "settings.notificationTestTitleValue": "AI Stock notification test",
   "settings.notificationTesting": "Testing...",
   "settings.openConfigItems": "View fields",
   "settings.pageDescription":

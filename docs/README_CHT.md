@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="../apps/dsa-web/public/tradebot-mark.svg" alt="InvestCrew" width="76" height="76">
+<img src="../apps/dsa-web/public/tradebot-mark.svg" alt="AI Stock" width="76" height="76">
 
-# 投研團 · InvestCrew
+# AI Stock
 
-**以 Agent 為核心的投研工作台：從一個問題，到一份有據可查的報告**
+**用 AI 賦能每一位股票交易者，成為自己的超級投研個體。**
 
 投研助理 · 專家圓桌 · 個股研究 · 策略選股 · 交易推演
 
@@ -12,9 +12,9 @@
 
 </div>
 
-> InvestCrew 面向 A 股、港股和美股，提供研究與模擬交易實驗能力。系統不會把模型輸出包裝成投資建議，也不允許 Agent 繞過確定性風控和執行邊界。
+> AI Stock 面向 A 股、港股和美股，提供研究與模擬交易實驗能力。系統不會把模型輸出包裝成投資建議，也不允許 Agent 繞過確定性風控和執行邊界。
 
-專案原名 LLM TradeBot，現更名為「投研團 · InvestCrew」。GitHub 儲存庫已同步更名為 `EthanAlgoX/InvestCrew`。
+專案曾用名 LLM TradeBot、InvestCrew，現統一品牌為 **AI Stock**。GitHub 儲存庫暫保留 `EthanAlgoX/InvestCrew`，本機目錄使用 `AI-Stock`。
 
 ## 從提問開始，讓研究留下來
 
@@ -75,8 +75,8 @@ Agent 是統一互動與任務編排層；策略定義研究目標和執行約�
 環境要求：Python 3.10+、Node.js 20.19–26.x、npm 10+。以下命令適用於 macOS/Linux；Windows PowerShell 使用 `.venv\Scripts\Activate.ps1` 啟用虛擬環境。
 
 ```bash
-git clone https://github.com/EthanAlgoX/InvestCrew.git InvestCrew
-cd InvestCrew
+git clone https://github.com/EthanAlgoX/InvestCrew.git AI-Stock
+cd AI-Stock
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt

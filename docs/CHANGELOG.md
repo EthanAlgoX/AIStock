@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 > For user-friendly release highlights, see the [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) page.
 
 ## [Unreleased]
+- [改进] 项目品牌统一为 AI Stock，更新中英文界面、API 展示、桌面启动页及文档，传达“用 AI 赋能每一位股票交易者，成为自己的超级投研个体”的使命；保留账户、Cookie、存储键及部署数据路径兼容性。
 - [新功能] 本地部署免注册登录且限制直接回环访问；服务器模式启用 HTTPS 邮箱账户与邀请制私有工作区，对话、报告、持仓、任务、定时计划和通知偏好按会话身份隔离，后台及专家调用保留所属用户，模型调用共享原有 20 万 Token 额度。
 - [改进] 普通用户设置仅展示个人账户、剩余额度与本人邮箱通知；切换账户清除旧私有草稿和运行状态，平台密钥、外部 MCP 与可执行代码上传仅管理员可用；补充中英文部署、恢复和上线预检说明。
 - [修复] 确认弹窗显示在右侧导航与报告抽屉之上，修复退出确认按钮被遮挡；支持键盘聚焦、Tab 循环和 Escape 取消。

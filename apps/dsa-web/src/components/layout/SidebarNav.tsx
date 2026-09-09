@@ -94,7 +94,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   variant = "default",
 }) => {
   const { authEnabled, logout } = useAuth();
-  const { t, localize } = useUiLanguage();
+  const { t } = useUiLanguage();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const navItems = NAV_ITEMS;
   const isRail = variant === "rail";
@@ -143,7 +143,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                 isRail ? "text-[0.9rem] leading-none" : "text-[15px]",
               )}
             >
-              {localize("投研团", "InvestCrew")}
+              AI Stock
             </p>
             {isRail ? (
               <p className="mt-1 truncate text-[10px] text-muted-text">

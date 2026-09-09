@@ -367,7 +367,7 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
     
     # 创建 FastAPI 实例
     app = FastAPI(
-        title="InvestCrew API",
+        title="AI Stock API",
         description=(
             "面向 A 股、港股和美股的 Agent 驱动投资决策平台 API。\n\n"
             "## 功能模块\n"
@@ -442,7 +442,7 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
     else:
         _FRONTEND_NOT_BUILT_HTML = """<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>InvestCrew - Frontend Not Built</title>
+<title>AI Stock - Frontend Not Built</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{min-height:100vh;display:flex;align-items:center;justify-content:center;

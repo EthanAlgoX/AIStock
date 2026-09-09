@@ -10,7 +10,7 @@ import { accountErrorMessage } from '../utils/accountError';
 export default function MemberSettingsPage() {
   const { email, quota, refreshStatus } = useAuth();
   const { localize: l, language } = useUiLanguage();
-  useEffect(() => { document.title = l('我的账户', 'My account') + ' - InvestCrew'; }, [l]);
+  useEffect(() => { document.title = l('我的账户', 'My account') + ' - AI Stock'; }, [l]);
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

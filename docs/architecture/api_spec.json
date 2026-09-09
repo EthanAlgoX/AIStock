@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "InvestCrew API",
+    "title": "AI Stock API",
     "description": "面向 A 股、港股和美股的 Agent 驱动投资决策平台 API。\n\n## 功能模块\n- 主 Agent：会话、Skill 与受控工具调用\n- 决策工作台：市场情报、个股分析、选股和模拟交易\n- 能力中心：Tool、MCP、数据源、专家与专家团\n- 任务治理：定时计划、数据快照、Run 与 Artifact\n\n## 认证方式\n支持可选管理员认证：ADMIN_AUTH_ENABLED=true 时，除登录、状态、健康检查和 OpenAPI 文档外，/api/v1/* 需要有效管理员会话 Cookie；关闭时不强制认证。",
     "version": "1.0.0"
   },
@@ -2681,7 +2681,7 @@
         "properties": {
           "message": {
             "type": "string",
-            "example": "InvestCrew API is running"
+            "example": "AI Stock API is running"
           },
           "version": {
             "type": "string",

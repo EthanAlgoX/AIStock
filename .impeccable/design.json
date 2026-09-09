@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-08-16T00:00:00+08:00",
-  "title": "Design System: InvestCrew",
+  "title": "Design System: AI Stock",
   "extensions": {
     "colorMeta": {
       "primary": { "role": "primary", "displayName": "Control Cobalt", "canonical": "hsl(231 86% 61%)", "tonalRamp": ["hsl(231 45% 15%)", "hsl(231 55% 25%)", "hsl(231 66% 36%)", "hsl(231 76% 48%)", "hsl(231 86% 61%)", "hsl(231 90% 72%)", "hsl(231 92% 84%)", "hsl(231 94% 95%)"] },
@@ -69,7 +69,7 @@
   ],
   "narrative": {
     "northStar": "The Strategy Control Plane",
-    "overview": "InvestCrew is a precise institutional research instrument: calm enough for long sessions, dense enough for real decision work, and explicit about every state transition. Brand expression comes from alignment, restrained cobalt signals, compact labels, tabular data, and a stable operational rail.",
+    "overview": "AI Stock is a precise institutional research instrument: calm enough for long sessions, dense enough for real decision work, and explicit about every state transition. Brand expression comes from alignment, restrained cobalt signals, compact labels, tabular data, and a stable operational rail.",
     "keyCharacteristics": ["Continuous workspace rather than isolated floating canvases.", "Cool porcelain in light mode and carbon graphite in dark mode.", "Cobalt reserved for primary action, current location, focus, and selected state.", "Thin mineral rules and shallow structural elevation.", "Compact, familiar controls that disappear into the task."],
     "rules": [
       { "name": "The One Signal Rule", "body": "Cobalt should identify what is active or actionable; inactive content remains neutral.", "section": "colors" },

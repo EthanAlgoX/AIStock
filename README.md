@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="apps/dsa-web/public/tradebot-mark.svg" alt="InvestCrew" width="76" height="76">
+<img src="apps/dsa-web/public/tradebot-mark.svg" alt="AI Stock" width="76" height="76">
 
-# InvestCrew
+# AI Stock
 
-**An Agent-first investment research workspace — from a question to an evidence-backed report**
+**Empower every stock trader with AI to become a one-person research powerhouse.**
 
 Research assistant · Expert roundtable · Stock research · Strategy screening · Trade simulation
 
@@ -18,13 +18,13 @@ Research assistant · Expert roundtable · Stock research · Strategy screening 
 
 </div>
 
-> InvestCrew is a financial decision workspace for mainland China, Hong Kong, and US equities. It supports research and paper-trading experiments; it does not present model output as investment advice or bypass deterministic risk and execution controls.
+> AI Stock is a financial decision workspace for mainland China, Hong Kong, and US equities. It supports research and paper-trading experiments; it does not present model output as investment advice or bypass deterministic risk and execution controls.
 
-Previously named LLM TradeBot. The project and GitHub repository are now named InvestCrew.
+Previously named LLM TradeBot and InvestCrew. The product is now AI Stock; the GitHub repository remains `EthanAlgoX/InvestCrew`. Clone it into an `AI-Stock` directory.
 
 ## Start with a question, keep the research
 
-Ask a question in the Research assistant, invite independent experts to examine it, or run a focused research strategy. InvestCrew combines Agent reasoning with Skills, tools, MCP connections, and market data to produce reports you can revisit and discuss.
+Ask a question in the Research assistant, invite independent experts to examine it, or run a focused research strategy. AI Stock combines Agent reasoning with Skills, tools, MCP connections, and market data to produce reports you can revisit and discuss.
 
 - **Conversation first.** Create separate conversations, revisit history, and use suggested questions that combine available analysis methods with stocks recognized from recent conversations.
 - **Optional expert collaboration.** Select individual experts and their collaboration mode beside the message composer. Use the assistant for the final report or the roundtable to follow each participant's contributions.
@@ -88,8 +88,8 @@ Requirements: Python 3.10+, Node.js 20.19–26.x, and npm 10+. The commands belo
 ### 1. Install and prepare configuration
 
 ```bash
-git clone https://github.com/EthanAlgoX/InvestCrew.git InvestCrew
-cd InvestCrew
+git clone https://github.com/EthanAlgoX/InvestCrew.git AI-Stock
+cd AI-Stock
 
 python3 -m venv .venv
 source .venv/bin/activate

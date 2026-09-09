@@ -1,5 +1,5 @@
 ---
-name: InvestCrew
+name: AI Stock
 description: An instrument-grade control plane for versioned strategy validation and research operations.
 colors:
   primary: "hsl(231 86% 61%)"
@@ -70,13 +70,13 @@ components:
     padding: "20px"
 ---
 
-# Design System: InvestCrew
+# Design System: AI Stock
 
 ## Overview
 
 **Creative North Star: "The Agent Decision Desk"**
 
-InvestCrew should feel like a precise institutional research instrument: calm enough for long sessions, dense enough for real decision work, and explicit about every state transition. The main Agent conversation owns the general-purpose canvas; individual-stock analysis, screening, trading, and expert review use focused task flows. Expert review separates one-on-one consultation from group deliberation, keeps shared evidence and independent Persona sessions visible, and never fills unavailable viewpoints with sample conclusions. Trading adds a restrained paper-runtime ledger beneath its strategy definition, keeping configuration, hard risk boundaries, runtime state, and unavailable backend evidence visibly distinct. Mounted capabilities, artifacts, snapshots, approvals, and runs form a clear operational layer around it without turning the product into a decorative financial dashboard.
+AI Stock should feel like a precise institutional research instrument: calm enough for long sessions, dense enough for real decision work, and explicit about every state transition. The main Agent conversation owns the general-purpose canvas; individual-stock analysis, screening, trading, and expert review use focused task flows. Expert review separates one-on-one consultation from group deliberation, keeps shared evidence and independent Persona sessions visible, and never fills unavailable viewpoints with sample conclusions. Trading adds a restrained paper-runtime ledger beneath its strategy definition, keeping configuration, hard risk boundaries, runtime state, and unavailable backend evidence visibly distinct. Mounted capabilities, artifacts, snapshots, approvals, and runs form a clear operational layer around it without turning the product into a decorative financial dashboard.
 
 The system rejects floating neon cards, decorative glass, diffuse colored glow, and oversized rounded containers. Brand expression comes from exact alignment, restrained cobalt signals, compact labels, tabular data, and a stable application header.
 

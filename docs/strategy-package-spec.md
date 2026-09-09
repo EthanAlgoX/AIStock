@@ -1,4 +1,4 @@
-# InvestCrew 策略包规范
+# AI Stock 策略包规范
 
 本规范定义自定义策略包与平台之间的稳定边界。平台已开放 ZIP 包上传、结构解析、数据依赖核对、不可变归档和受限函数调用。API 进程不会导入用户代码；代码只在独立子进程中通过统一 `run(context)` 入口执行。内核与运行配置是两个独立对象：用户从内核创建 StrategyVersion 配置草稿，配置市场、股票范围、数据源、周期、参数和风险边界后，才形成可检查、发布和运行的完整策略。
 
@@ -111,7 +111,7 @@ def run(context: StrategyContext) -> StrategyResult:
 优先在网站打开“策略生成指南”并复制动态指南；页面会把当前数据中心目录一并写入提示词。然后交给 Claude Code 或 Codex，并补充：
 
 ```text
-请按照 InvestCrew 策略包规范生成一个完整策略包。
+请按照 AI Stock 策略包规范生成一个完整策略包。
 我的策略想法：A 股日线均值回归研究策略。
 请提供 strategy.yaml、实现代码、输入输出 Schema、STRATEGY.md、依赖锁文件、README 和可重复运行测试。strategy.yaml 与 STRATEGY.md 必须使用指南中当前可用的真实 sourceId 声明一致的数据依赖。
 不得包含密钥，不得补造行情、收益、订单或成交。

@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="../apps/dsa-web/public/tradebot-mark.svg" alt="InvestCrew" width="76" height="76">
+<img src="../apps/dsa-web/public/tradebot-mark.svg" alt="AI Stock" width="76" height="76">
 
-# 投研团 · InvestCrew
+# AI Stock
 
-**以 Agent 为核心的投研工作台：从一个问题，到一份有据可查的报告**
+**用 AI 赋能每一位股票交易者，成为自己的超级投研个体。**
 
 投研助理 · 专家圆桌 · 个股研究 · 策略选股 · 交易推演
 
@@ -18,13 +18,13 @@
 
 </div>
 
-> InvestCrew 面向 A 股、港股和美股，提供研究与模拟交易实验能力。系统不会把模型输出包装成投资建议，也不允许 Agent 绕过确定性风控和执行边界。
+> AI Stock 面向 A 股、港股和美股，提供研究与模拟交易实验能力。系统不会把模型输出包装成投资建议，也不允许 Agent 绕过确定性风控和执行边界。
 
-项目原名 LLM TradeBot，现更名为「投研团 · InvestCrew」。GitHub 仓库已同步更名为 `EthanAlgoX/InvestCrew`。
+项目曾用名 LLM TradeBot、InvestCrew，现统一品牌为 **AI Stock**。GitHub 仓库暂保留 `EthanAlgoX/InvestCrew`，本地目录使用 `AI-Stock`。
 
 ## 从提问开始，让研究留下来
 
-你可以向投研助理提出问题，邀请多位独立专家一起研究，也可以直接运行个股、选股或交易策略。InvestCrew 将 Agent 推理、Skill 方法、工具、MCP 与市场数据结合起来，形成可以回看、追问的研究成果。
+你可以向投研助理提出问题，邀请多位独立专家一起研究，也可以直接运行个股、选股或交易策略。AI Stock 将 Agent 推理、Skill 方法、工具、MCP 与市场数据结合起来，形成可以回看、追问的研究成果。
 
 - **对话为主。** 支持新建对话、历史会话，以及将近期对话中识别到的股票与可用分析方法组合起来的快捷问题。
 - **专家按需参与。** 在输入框旁选择具体专家与协作方式；投研助理侧重最终报告，专家圆桌展示各方发言与协作过程。
@@ -88,8 +88,8 @@ Agent 是统一交互与任务编排层；策略定义研究目标和执行约�
 ### 1. 安装并准备配置
 
 ```bash
-git clone https://github.com/EthanAlgoX/InvestCrew.git InvestCrew
-cd InvestCrew
+git clone https://github.com/EthanAlgoX/InvestCrew.git AI-Stock
+cd AI-Stock
 
 python3 -m venv .venv
 source .venv/bin/activate

@@ -3,7 +3,7 @@
 将以下内容直接交给当前代码库的开发 Agent。
 
 ```text
-你是一名资深 FastAPI、SQLAlchemy、React/TypeScript、Playwright、测试基础设施和 CI 工程师。请继续在当前 InvestCrew 代码库中直接实施。
+你是一名资深 FastAPI、SQLAlchemy、React/TypeScript、Playwright、测试基础设施和 CI 工程师。请继续在当前 AI Stock 代码库中直接实施。
 
 本轮不是产品功能开发，也不是 Run / Evidence / Risk Runtime 阶段。唯一目标是完成“策略定义与版本发布闭环”的最终自动化验收，并给出机器可核验结果。
 

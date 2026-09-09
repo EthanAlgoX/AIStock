@@ -45,7 +45,7 @@ export default function TrialPage() {
     void load();
     return () => { mounted = false; clearTimeout(timer); };
   }, [refresh]);
-  useEffect(() => { document.title = l('体验 InvestCrew', 'Explore InvestCrew'); }, [l]);
+  useEffect(() => { document.title = l('体验 AI Stock', 'Explore AI Stock'); }, [l]);
   const user = status?.user;
   const demoReports = [
     { role: names['warren-buffett'], content: l('**结论：先验证现金流，再讨论便宜。**\n\n演示企业“云杉科技”的收入增长不等于股东回报。应核查经营现金流、维护性资本支出及客户留存；缺少这些数据时，不给出目标价。', '**Conclusion: verify cash flow before calling it cheap.**\n\nRevenue growth at fictional Cedar Systems is not the same as shareholder returns. Review operating cash flow, maintenance capital spending and retention. Without those inputs, no target price is justified.') },
@@ -57,7 +57,7 @@ export default function TrialPage() {
   return <main className="min-h-screen bg-background px-5 py-7 text-foreground md:px-10">
     <div className="mx-auto max-w-6xl">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
-        <Link to="/try" className="text-xl font-semibold tracking-tight">InvestCrew</Link>
+        <Link to="/try" className="text-xl font-semibold tracking-tight">AI Stock</Link>
         <div className="flex items-center gap-4"><Link className="text-sm text-secondary-text hover:text-primary" to="/login">{l('管理员登录', 'Admin sign in')}</Link><UiLanguageToggle /></div>
       </header>
       <div className="py-10 md:py-14">
