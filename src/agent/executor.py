@@ -585,8 +585,8 @@ def prepare_agent_chat(
     else:
         prompt_template = CHAT_SYSTEM_PROMPT
     system_prompt = prompt_template.format(
-        market_role=get_market_role(stock_code, report_language),
-        market_guidelines=get_market_guidelines(stock_code, report_language),
+        market_role=get_market_role(stock_code, report_language, market=(effective_context or {}).get("market", "GLOBAL")),
+        market_guidelines=get_market_guidelines(stock_code, report_language, market=(effective_context or {}).get("market", "GLOBAL")),
         default_skill_policy_section=default_skill_policy_section,
         skills_section=skills_section,
         language_section=_build_language_section(report_language, chat_mode=True),

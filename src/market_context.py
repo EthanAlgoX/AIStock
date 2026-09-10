@@ -149,31 +149,39 @@ _MARKET_GUIDELINES = {
 }
 
 
-def get_market_role(stock_code: Optional[str], lang: str = "zh") -> str:
+def get_market_role(stock_code: Optional[str], lang: str = "zh", *, market: Optional[str] = None) -> str:
     """Return market-specific role description for LLM prompt.
 
     Args:
         stock_code: The stock code being analyzed.
         lang: 'zh' or 'en'.
+        market: Optional task market when no stock code is supplied; GLOBAL keeps cross-market scope.
 
     Returns:
         Role string like 'A 股投资分析' or 'US stock investment analysis'.
     """
-    market = detect_market(stock_code)
+    market = detect_market(stock_code) if stock_code else (market or "cn").lower()
     lang_key = "en" if lang in ("en", "ko") else "zh"
+    if market == "global":
+        return "跨市场投资分析（A 股、港股、美股等）" if lang_key == "zh" else "cross-market investment analysis (China A-shares, Hong Kong and US stocks)"
     return _MARKET_ROLES.get(market, _MARKET_ROLES["cn"])[lang_key]
 
 
-def get_market_guidelines(stock_code: Optional[str], lang: str = "zh") -> str:
+def get_market_guidelines(stock_code: Optional[str], lang: str = "zh", *, market: Optional[str] = None) -> str:
     """Return market-specific analysis guidelines for LLM prompt.
 
     Args:
         stock_code: The stock code being analyzed.
         lang: 'zh' or 'en'.
+        market: Optional task market when no stock code is supplied; GLOBAL keeps cross-market scope.
 
     Returns:
         Multi-line string with market-specific guidelines.
     """
-    market = detect_market(stock_code)
+    market = detect_market(stock_code) if stock_code else (market or "cn").lower()
     lang_key = "en" if lang in ("en", "ko") else "zh"
+    if market == "global":
+        return ("根据用户消息和已有资料确认标的、上市市场、币种和时间范围；名称有歧义时在正常对话中澄清。支持跨市场研究，不得自称只能分析 A 股。按实际市场选择获授权工具；某数据源不可用时说明具体缺口，不将其解释为整个市场不受支持。不要将 A 股交易规则套用到美股或港股。"
+                if lang_key == "zh" else
+                "Resolve symbols, listing markets, currencies and time ranges from the conversation; clarify ambiguous names in chat. Support cross-market research, not A-shares only. Use authorized tools appropriate to each market. Report specific unavailable data without claiming the whole market is unsupported. Do not apply A-share trading rules to US or Hong Kong stocks.")
     return _MARKET_GUIDELINES.get(market, _MARKET_GUIDELINES["cn"])[lang_key]

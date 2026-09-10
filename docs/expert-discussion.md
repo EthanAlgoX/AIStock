@@ -2,6 +2,14 @@
 
 内置 14 位研究专家及 Prompt 升级、自定义保护和公开参考见[专家研究视角](expert-personas.md)。专家数量增加不改变单次讨论人数限制或当前默认成员。
 
+## 自然语言输入与市场范围
+
+圆桌创建与追问共用底部正常消息输入框，不再要求另填股票代码或单独议题字段。直接输入“讨论美股苹果的投资逻辑”即可；股票名称有歧义时由 Agent 在对话中澄清。由报告发起的讨论仍保留已有标的和市场上下文。
+
+主持人与专家收到任务市场；有明确股票代码时使用对应市场规则，无代码时遵循任务的 US/HK/CN 范围，GLOBAL 或普通未指定标的的聊天使用跨市场提示。单个数据源缺失只说明具体限制，不代表整个系统只能研究 A 股。新提示在下一次运行生效，不改写历史发言；不新增配置或数据库迁移。
+
+The roundtable uses one normal message composer for new discussions and follow-ups, without a separate stock-code field. Describe the company or topic directly; ambiguous names can be clarified in conversation. Report-linked discussions retain their source context. Hosts and experts inherit the task market, with explicit symbols selecting their market rules and GLOBAL/unspecified chat using cross-market instructions. Unavailable provider data must be described as a specific gap, not an A-share-only platform restriction. New prompts apply to subsequent runs; historical messages are unchanged. No configuration or database migration is required.
+
 ## 可视化讨论入口
 
 `/expert-review` 位于主导航的投研助理之后。专家圆桌只用于专家协作：左侧为历史群聊，中央消息区独立滚动，顶部选择专家与协作模式，底部常驻输入框。用户、主持人、专家分别署名；专家意见与回应按原有 Markdown 章节或结构化字段阅读，默认展开首个章节，风险/反证章节以语义色标识。主持人最终总结直接显示在时间线内，并可打开宽版完整阅读窗口。追问在同一群聊中显示前几轮消息，不再只替换当前报告。公共证据、分工、质询与计票保持原展示方式。

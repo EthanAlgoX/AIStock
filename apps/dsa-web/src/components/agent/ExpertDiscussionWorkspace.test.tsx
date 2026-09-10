@@ -61,14 +61,18 @@ it("starts a real discussion task using visible team defaults and renders Markdo
   );
   const start = await screen.findByRole("button", { name: "开始讨论" });
   fireEvent.change(screen.getByRole("textbox", { name: "讨论议题" }), {
-    target: { value: "讨论半导体行业" },
+    target: { value: "讨论美股苹果的投资逻辑" },
   });
+  expect(screen.queryByText(/关联股票代码/)).not.toBeInTheDocument();
   await waitFor(() => expect(start).toBeEnabled());
   fireEvent.click(start);
   await waitFor(() =>
     expect(api.createTask).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "expert_review",
+        objective: "讨论美股苹果的投资逻辑",
+        market: "GLOBAL",
+        subject: {},
         config: expect.objectContaining({
           discussionProtocol: "cross_response_v1",
           crossExaminationRounds: 2,

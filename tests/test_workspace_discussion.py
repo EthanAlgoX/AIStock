@@ -349,3 +349,32 @@ def test_followup_does_not_silently_adopt_edited_team_or_persona(workspace):
     assert second["taskSnapshot"]["capabilitySnapshot"]["experts"] == [
         {"id": m["expert"]["id"], "version": m["expert"]["version"]} for m in frozen
     ]
+
+
+@pytest.mark.parametrize('market,subject,expected', [
+    ('GLOBAL', {}, '跨市场投资分析'),
+    ('US', {}, '美股投资分析'),
+    ('HK', {}, '港股投资分析'),
+    ('GLOBAL', {'stock': 'AAPL'}, '美股投资分析'),
+])
+def test_host_market_context_reaches_real_prompt(workspace, market, subject, expected):
+    import threading
+    from src.agent.executor import prepare_agent_chat
+
+    captured = {}
+
+    def chat(prompt, session_id, context, **kwargs):
+        captured.update(context)
+        prepared = prepare_agent_chat(
+            message='请主持本次讨论', session_id=session_id, context=context,
+            config=SimpleNamespace(), context_llm_adapter=None,
+            skill_instructions='', default_skill_policy='',
+            use_legacy_default_prompt=False, use_codex_prompt=True,
+            include_provider_trace=False,
+        )
+        assert expected in prepared.system_prompt
+        return result('完成')
+
+    with patch('src.agent.factory.build_agent_chat_executor', return_value=SimpleNamespace(chat=chat)), patch('src.agent.executor.build_visible_chat_history', return_value=[]):
+        workspace._call_agent('host', '请主持本次讨论', {'market': market, 'subject': subject, 'capabilities': _empty_bindings()}, threading.Event(), [], '')
+    assert captured['market'] == market

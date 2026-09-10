@@ -1668,6 +1668,7 @@ class WorkspaceService:
         context = {
             "stock_code": subject.get("stock") or subject.get("stockCode") or "",
             "stock_name": subject.get("stockName") or "",
+            "market": task.get("market") or "GLOBAL",
             "report_language": "zh",
             "capability_manifest": self._capability_manifest(bindings),
             "data_snapshot_as_of": (task.get("runContext") or {}).get("asOf") or _iso(utc_naive_now()),
