@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { isAxiosError } from "axios";
 import { extractErrorPayloadText, toApiErrorMessage } from "../api/error";
+import { useStockIndex } from "../hooks/useStockIndex";
+import { resolveStrategyPool } from "../utils/strategyStockPool";
 import ResearchReportsWorkspace from "./ResearchReportsWorkspace";
 import { AppPage } from "../components/common";
 import { AnalysisChart } from "../components/report/AnalysisChart";
@@ -82,6 +84,23 @@ export default function TradingWorkspacePage() {
   const [tab, setTab] = useState("trades");
   const [windowSize, setWindowSize] = useState(120);
   const [refresh, setRefresh] = useState(0);
+  const stockIndex = useStockIndex(creating);
+  const pool = useMemo(
+    () => resolveStrategyPool(symbols, stockIndex.index),
+    [symbols, stockIndex.index],
+  );
+  const poolMarkets = [
+    ...new Set(pool.flatMap((p) => (p.stock ? [p.stock.market] : []))),
+  ];
+  const poolMarket = poolMarkets.length === 1 ? poolMarkets[0] : null;
+  const poolLot =
+    poolMarket && poolMarket !== draft.market
+      ? poolMarket === "US"
+        ? 1
+        : 100
+      : draft.lotSize;
+  const marketLabels = { CN: "A 股 · CNY", HK: "港股 · HKD", US: "美股 · USD" };
+
   useEffect(() => {
     if (legacy) return;
     let alive = true;
@@ -139,7 +158,22 @@ export default function TradingWorkspacePage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    const codes = [...new Set(symbols.split(/[，,、;；\s]+/).filter(Boolean))];
+    if (stockIndex.loading) {
+      setError("股票目录正在加载，请稍后创建。");
+      return;
+    }
+    const unresolved = pool.find((p) => !p.stock);
+    if (unresolved) {
+      setError(`请确认“${unresolved.query}”对应的股票；从下方匹配结果选择。`);
+      return;
+    }
+    if (poolMarkets.length > 1) {
+      setError("识别到多个市场；每个策略账户使用同一市场，请分别创建账户。");
+      return;
+    }
+    const codes = [
+      ...new Set(pool.flatMap((p) => (p.stock ? [p.stock.code] : []))),
+    ];
     if (codes.length < 1 || codes.length > 12) {
       setError(`股票池需要 1–12 个股票代码，当前填写了 ${codes.length} 个。`);
       return;
@@ -149,6 +183,8 @@ export default function TradingWorkspacePage() {
       const p = await portfoliosApi.create({
         ...draft,
         symbols: codes,
+        market: poolMarket || draft.market,
+        lotSize: poolLot,
       });
       select(p.id);
       setRefresh((x) => x + 1);
@@ -268,31 +304,79 @@ export default function TradingWorkspacePage() {
                   <option value="backtest">历史回测（独立账户）</option>
                 </select>
               </label>
-              <label>
-                市场
-                <select
-                  className={inputClass}
-                  value={draft.market}
-                  onChange={(e) => {
-                    change("market", e.target.value as RuleConfig["market"]);
-                    change("lotSize", e.target.value === "US" ? 1 : 100);
-                  }}
-                >
-                  <option value="CN">A 股 · CNY</option>
-                  <option value="US">美股 · USD</option>
-                  <option value="HK">港股 · HKD</option>
-                </select>
-              </label>
-              <label>
-                固定股票池（最多 12 个代码）
-                <input
-                  required
-                  className={inputClass}
-                  value={symbols}
-                  onChange={(e) => setSymbols(e.target.value)}
-                  placeholder="例如 600519, 601318 或 AAPL, NVDA"
-                />
-              </label>
+              <div className="sm:col-span-2">
+                <label className="block">
+                  股票池（名称或代码，最多 12 只）
+                  <input
+                    required
+                    className={inputClass}
+                    value={symbols}
+                    onChange={(e) => setSymbols(e.target.value)}
+                    placeholder="例如 贵州茅台、平安银行，或 英伟达、苹果"
+                  />
+                </label>
+                <p className="mt-2 text-sm text-secondary-text">
+                  {stockIndex.loading
+                    ? "正在加载与个股研究共用的股票目录…"
+                    : poolMarkets.length > 1
+                      ? "包含多个市场，请分别创建策略账户。"
+                      : poolMarket
+                        ? `自动识别市场：${marketLabels[poolMarket]}`
+                        : "输入名称、代码或拼音，自动识别股票和市场。多只股票用逗号或顿号分隔。"}
+                </p>
+                {stockIndex.fallback && (
+                  <p className="mt-2 text-xs text-warning">
+                    股票目录暂时使用降级数据；未找到名称时可输入完整股票代码。
+                  </p>
+                )}
+                <div className="mt-3 space-y-2" aria-label="股票识别结果">
+                  {pool.map((p, i) => (
+                    <div
+                      key={`${i}-${p.query}`}
+                      className="rounded-lg border border-border p-3 text-sm"
+                    >
+                      {p.stock ? (
+                        <span>
+                          {p.query} → {p.stock.name} · {p.stock.code} ·{" "}
+                          {marketLabels[p.stock.market]}
+                          {p.stock.name === p.stock.code
+                            ? " · 目录未收录名称，请核对代码"
+                            : ""}
+                        </span>
+                      ) : (
+                        <>
+                          <p>
+                            {p.query}：
+                            {p.candidates.length
+                              ? "请选择匹配的股票"
+                              : "尚未识别，请补全名称或代码"}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {p.candidates.slice(0, 8).map((c) => (
+                              <button
+                                key={c.canonicalCode}
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() =>
+                                  setSymbols(
+                                    pool
+                                      .map((item, j) =>
+                                        j === i ? c.canonicalCode : item.query,
+                                      )
+                                      .join("、"),
+                                  )
+                                }
+                              >
+                                {c.nameZh} · {c.canonicalCode} · {c.market}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
               <label>
                 初始模拟资金
                 <input
@@ -367,8 +451,16 @@ export default function TradingWorkspacePage() {
                       min={min}
                       max={max}
                       step={increment}
-                      value={draft[key]}
-                      onChange={(e) => change(key, Number(e.target.value))}
+                      value={key === "lotSize" ? poolLot : draft[key]}
+                      onChange={(e) =>
+                        key === "lotSize"
+                          ? setDraft((d) => ({
+                              ...d,
+                              market: poolMarket || d.market,
+                              lotSize: Number(e.target.value),
+                            }))
+                          : change(key, Number(e.target.value))
+                      }
                     />
                   </label>
                 ))}
@@ -418,7 +510,8 @@ export default function TradingWorkspacePage() {
                       固定版本 {detail.versionId} · {status(detail)}
                     </p>
                     <p className="mt-1 text-xs text-secondary-text">
-                      观察区间：{days[0]?.date || detail.config.startDate} 至 {detail.lastDate || "等待收盘"} · {days.length} 个交易日 ·{" "}
+                      观察区间：{days[0]?.date || detail.config.startDate} 至{" "}
+                      {detail.lastDate || "等待收盘"} · {days.length} 个交易日 ·{" "}
                       {detail.currency}
                     </p>
                   </div>
@@ -827,7 +920,11 @@ export default function TradingWorkspacePage() {
                     <p>
                       股票池：{detail.config.symbols.join("、")}。最大持仓{" "}
                       {detail.config.maxPositions} 只；单股建仓上限{" "}
-                      {fmt(detail.config.maxWeight, true)}。当前版本不可修改。佣金 {fmt(detail.config.commissionRate, true)}，卖出税费 {fmt(detail.config.sellTaxRate, true)}，滑点 {fmt(detail.config.slippageRate, true)}。
+                      {fmt(detail.config.maxWeight, true)}
+                      。当前版本不可修改。佣金{" "}
+                      {fmt(detail.config.commissionRate, true)}，卖出税费{" "}
+                      {fmt(detail.config.sellTaxRate, true)}，滑点{" "}
+                      {fmt(detail.config.slippageRate, true)}。
                     </p>
                     <p>
                       区间换手率 = 买卖成交额总和 ÷ 2 ÷ 平均净资产。年化收益按

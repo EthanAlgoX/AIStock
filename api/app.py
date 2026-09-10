@@ -532,9 +532,9 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
                 status_code=404,
                 media_type="text/plain",
             )
-        return FileResponse(
-            index_path,
-            media_type="application/json",
+        from src.data.stock_index_loader import autocomplete_payload_with_aliases
+        return JSONResponse(
+            content=await run_in_threadpool(autocomplete_payload_with_aliases, index_path),
             headers=_STOCK_INDEX_HEADERS,
         )
     

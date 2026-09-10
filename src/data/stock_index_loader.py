@@ -386,3 +386,21 @@ def clear_stock_index_cache() -> None:
 
 def _clear_stock_index_cache_for_tests() -> None:
     clear_stock_index_cache()
+
+
+def autocomplete_payload_with_aliases(index_path: Path) -> list:
+    """Add shared known names without replacing vendor names or rewriting files."""
+    from src.data.stock_mapping import STOCK_NAME_MAP
+
+    items = _load_stock_index_payload(index_path)
+    for item in items:
+        if isinstance(item, list) and len(item) >= 9 and item[7] == 'stock':
+            code, display = str(item[0]), str(item[1])
+            aliases = item[5] if isinstance(item[5], list) else []
+            names = [STOCK_NAME_MAP[k] for k in sorted(_build_lookup_keys(code, display)) if k in STOCK_NAME_MAP]
+            item[5] = list(dict.fromkeys([*aliases, *names]))
+        elif isinstance(item, dict) and item.get('assetType') == 'stock':
+            code, display = str(item.get('canonicalCode', '')), str(item.get('displayCode', ''))
+            names = [STOCK_NAME_MAP[k] for k in sorted(_build_lookup_keys(code, display)) if k in STOCK_NAME_MAP]
+            item['aliases'] = list(dict.fromkeys([*(item.get('aliases') or []), *names]))
+    return items

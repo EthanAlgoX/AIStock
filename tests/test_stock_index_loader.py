@@ -339,3 +339,20 @@ class TestStockIndexLoader(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_autocomplete_aliases_reuse_shared_mapping_without_changing_source(tmp_path):
+    import json
+    from src.data.stock_index_loader import autocomplete_payload_with_aliases
+    rows = [
+        ['NVDA', 'NVDA', 'NVIDIA', '', '', [], 'US', 'stock', True, 100],
+        ['AAPL', 'AAPL', 'APPLE', '', '', ['Apple Inc.'], 'US', 'stock', True, 100],
+        ['000001.SH', '000001', '上证指数', '', '', [], 'INDEX', 'index', True, 100],
+    ]
+    path = tmp_path / 'index.json'
+    path.write_text(json.dumps(rows))
+    enriched = autocomplete_payload_with_aliases(path)
+    assert enriched[0][2] == 'NVIDIA' and '英伟达' in enriched[0][5]
+    assert enriched[1][5] == ['Apple Inc.', '苹果']
+    assert enriched[2][5] == []
+    assert json.loads(path.read_text()) == rows
