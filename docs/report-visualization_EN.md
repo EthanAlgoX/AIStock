@@ -2,6 +2,8 @@
 
 Chat, research, expert discussions and run artifacts share chart rendering and improved prose spacing, headings and wrapping tables. Market reviews also chart existing index percentage changes. Historical prose remains readable and is never converted into invented numeric data.
 
+Markdown block-separator newlines no longer create extra visible blank lines. Body line height is 1.65, paragraph spacing about 0.65rem, with tighter list paragraphs. Code indentation and explicit Markdown hard breaks remain intact. Historical reports inherit the presentation fix without rewriting stored content.
+
 Ask the Agent to calculate margins from retrieved revenue and cost, plot them and include sources. `build_analysis_chart` belongs to default task tool sets; frozen tasks retain their bindings and disabled tools stay disabled. Chart use depends on the model and available evidence.
 
 Supported charts: lines, grouped bars with one unit, and conditional relationships. Figures identify observed, scenario or illustrative data; supplied sources are not independently verified. Numeric charts offer series toggles, value/input tables, formulas and SVG downloads. Narrow screens scroll charts horizontally. Missing values and division by zero remain gaps; categories are equally spaced in input order, not proportional to elapsed time.

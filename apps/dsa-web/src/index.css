@@ -3122,11 +3122,15 @@ fieldset {
 }
 
 /* Shared report/chat reading layer. Structured figures keep their own scale. */
-.report-reading { font-size: 1rem; line-height: 1.8; }
-.report-reading :where(p, li, strong):not(.analysis-chart *) { font-size: 1rem; line-height: 1.8; }
+.report-reading { font-size: 1rem; line-height: 1.65; white-space: normal; }
+.report-reading :where(p, li, strong):not(.analysis-chart *) { font-size: 1rem; line-height: 1.65; }
 .report-reading :where(p, ul, ol, blockquote):not(.analysis-chart *) { max-width: 72ch; }
-.report-reading :where(p):not(.analysis-chart *) { margin-bottom: 1rem; }
-.report-reading :where(h1, h2, h3, h4):not(.analysis-chart *) { color: hsl(var(--foreground)); margin-top: 1.75rem; margin-bottom: .65rem; line-height: 1.4; }
+.report-reading :where(p):not(.analysis-chart *) { margin: 0 0 .65rem; }
+.report-reading :where(ul, ol):not(.analysis-chart *) { margin: .4rem 0 .65rem; }
+.report-reading :where(li):not(.analysis-chart *) { margin: .2rem 0; }
+.report-reading :where(li > p):not(.analysis-chart *) { margin: .25rem 0; }
+.report-reading > :last-child { margin-bottom: 0; }
+.report-reading :where(h1, h2, h3, h4):not(.analysis-chart *) { color: hsl(var(--foreground)); margin-top: 1.25rem; margin-bottom: .45rem; line-height: 1.4; }
 .report-reading :where(h1):not(.analysis-chart *) { font-size: 1.5rem; }
 .report-reading :where(h2):not(.analysis-chart *) { font-size: 1.25rem; }
 .report-reading :where(h3, h4):not(.analysis-chart *) { font-size: 1.0625rem; }

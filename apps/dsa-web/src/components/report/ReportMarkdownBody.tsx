@@ -32,7 +32,7 @@ export const ReportMarkdownBody: React.FC<ReportMarkdownBodyProps> = ({
       prose-hr:my-4
       prose-a:no-underline hover:prose-a:underline
       prose-blockquote:text-secondary-text
-      whitespace-pre-line break-words
+      whitespace-normal break-words
       ${className}
     `}
   >
