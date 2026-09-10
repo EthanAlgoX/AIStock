@@ -90,6 +90,27 @@ describe('stockIndexLoader', () => {
   });
 
   describe('loadStockIndex - Load stock index', () => {
+    test('allows slow transfers beyond 12 seconds but aborts after 60 seconds', async () => {
+      vi.useFakeTimers();
+      try {
+        let signal: AbortSignal;
+        mockFetch.mockImplementationOnce((_url, options) => {
+          signal = options.signal;
+          return new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(new DOMException('Timed out', 'AbortError')));
+          });
+        });
+        const pending = loadStockIndex();
+        await vi.advanceTimersByTimeAsync(12001);
+        expect(signal!.aborted).toBe(false);
+        await vi.advanceTimersByTimeAsync(47999);
+        expect((await pending).fallback).toBe(true);
+        expect(signal!.aborted).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     test('successfully loads object format index', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,

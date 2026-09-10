@@ -36,4 +36,4 @@ The trading symbol field now reuses the research stock catalog and autocomplete 
 
 The shared stock-index endpoint adds known Chinese aliases from the existing stock-name mapping (for example 英伟达 for NVIDIA), preserving vendor display names and source files. Research and trading consume the same enriched catalog.
 
-The public catalog uses gzip transfer compression and a 30-second client timeout. On failure, the trading form retains input and offers a catalog retry. Compression is limited to the public index and does not affect streaming reports or private APIs.
+The public catalog uses gzip transfer compression and a 60-second client timeout. On failure, the trading form retains input and offers a catalog retry. Compression is limited to the public index and does not affect streaming reports or private APIs.
