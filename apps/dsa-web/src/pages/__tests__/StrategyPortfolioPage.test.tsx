@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
 import TradingWorkspacePage from "../TradingWorkspacePage";
@@ -113,4 +113,45 @@ it("creates explicit fixed configuration without auto trading", async () => {
     ),
   );
   expect(api.control).not.toHaveBeenCalled();
+});
+
+async function submitDraft() {
+  fireEvent.click(screen.getByRole("button", { name: "配置策略" }));
+  await screen.findByText("量价突破");
+  fireEvent.change(screen.getByLabelText("策略名称"), { target: { value: "验证" } });
+  fireEvent.change(screen.getByLabelText("固定股票池（最多 12 个代码）"), { target: { value: "600519" } });
+  fireEvent.click(screen.getByRole("button", { name: "创建策略账户" }));
+}
+it("retains the server domain error across successful background polls", async () => {
+  api.create.mockRejectedValue({ isAxiosError: true, response: { status: 422, data: { error: "http_error", message: "请配置 1–12 个同市场股票代码", detail: null } } });
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  await submitDraft();
+  expect(await screen.findByRole("alert")).toHaveTextContent("请配置 1–12 个同市场股票代码");
+  const count = api.list.mock.calls.length;
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 5100)); });
+  expect(api.list.mock.calls.length).toBeGreaterThan(count);
+  expect(screen.getByRole("alert")).toHaveTextContent("请配置 1–12 个同市场股票代码");
+  expect(screen.getByLabelText("策略名称")).toHaveValue("验证");
+}, 10000);
+it("shows field validation details instead of a generic connection error", async () => {
+  api.create.mockRejectedValue({ isAxiosError: true, response: { status: 422, data: { error: "validation_error", message: "请求参数验证失败", detail: [{ loc: ["body", "initialCash"], msg: "Input should be greater than or equal to 1000" }] } } });
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  await submitDraft();
+  expect(await screen.findByRole("alert")).toHaveTextContent("initialCash");
+  expect(screen.getByRole("alert")).toHaveTextContent("1000");
+});
+it("validates pool limits before posting and accepts Chinese separators", async () => {
+  api.create.mockResolvedValue({ ...detail, id: 2 });
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole("button", { name: "配置策略" }));
+  await screen.findByText("量价突破");
+  fireEvent.change(screen.getByLabelText("策略名称"), { target: { value: "验证" } });
+  const input = screen.getByLabelText("固定股票池（最多 12 个代码）");
+  fireEvent.change(input, { target: { value: Array.from({length:13}, (_,i) => String(600000+i)).join("、") } });
+  fireEvent.click(screen.getByRole("button", { name: "创建策略账户" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("当前填写了 13 个");
+  expect(api.create).not.toHaveBeenCalled();
+  fireEvent.change(input, { target: { value: "600519、601318；600519" } });
+  fireEvent.click(screen.getByRole("button", { name: "创建策略账户" }));
+  await waitFor(() => expect(api.create).toHaveBeenCalledWith(expect.objectContaining({symbols:["600519", "601318"]})));
 });

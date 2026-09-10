@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { isAxiosError } from "axios";
+import { extractErrorPayloadText, toApiErrorMessage } from "../api/error";
 import ResearchReportsWorkspace from "./ResearchReportsWorkspace";
 import { AppPage } from "../components/common";
 import { AnalysisChart } from "../components/report/AnalysisChart";
@@ -24,10 +25,12 @@ const status = (p: Portfolio) =>
         : p.status === "completed"
           ? "回测完成"
           : "待运行";
-const failure = (e: unknown) =>
-  isAxiosError(e) && typeof e.response?.data?.detail === "string"
-    ? e.response.data.detail
-    : "操作失败，请检查连接后重试。";
+const failure = (e: unknown) => {
+  if (isAxiosError(e) && Array.isArray(e.response?.data?.detail)) {
+    return `请检查填写内容：${extractErrorPayloadText(e.response.data.detail)}`;
+  }
+  return toApiErrorMessage(e);
+};
 const seed: RuleConfig = {
   name: "",
   template: "volume_breakout",
@@ -72,6 +75,7 @@ export default function TradingWorkspacePage() {
   const [draft, setDraft] = useState<RuleConfig>(seed);
   const [symbols, setSymbols] = useState("");
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [date, setDate] = useState("");
@@ -93,10 +97,10 @@ export default function TradingWorkspacePage() {
           setItems(list);
           setTemplates(catalog);
           setDetail(selected);
-          setError("");
+          setLoadError("");
         }
       } catch (e) {
-        if (alive) setError(failure(e));
+        if (alive) setLoadError(failure(e));
       } finally {
         if (alive) {
           setLoading(false);
@@ -134,12 +138,17 @@ export default function TradingWorkspacePage() {
     setDraft((d) => ({ ...d, [key]: value }));
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSending(true);
     setError("");
+    const codes = [...new Set(symbols.split(/[，,、;；\s]+/).filter(Boolean))];
+    if (codes.length < 1 || codes.length > 12) {
+      setError(`股票池需要 1–12 个股票代码，当前填写了 ${codes.length} 个。`);
+      return;
+    }
+    setSending(true);
     try {
       const p = await portfoliosApi.create({
         ...draft,
-        symbols: symbols.split(/[，,\s]+/).filter(Boolean),
+        symbols: codes,
       });
       select(p.id);
       setRefresh((x) => x + 1);
@@ -152,6 +161,7 @@ export default function TradingWorkspacePage() {
   const control = async (action: "run" | "start" | "pause") => {
     if (!id) return;
     setSending(true);
+    setError("");
     try {
       setDetail(await portfoliosApi.control(id, action));
       setRefresh((x) => x + 1);
@@ -189,12 +199,12 @@ export default function TradingWorkspacePage() {
           </button>
         </div>
       </header>
-      {error && (
+      {(error || loadError) && (
         <p
           role="alert"
           className="mb-5 rounded-lg border border-danger p-3 text-danger"
         >
-          {error}
+          {error || loadError}
         </p>
       )}
       {creating ? (
