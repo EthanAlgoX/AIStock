@@ -2032,6 +2032,31 @@ class SimulationAccountRecord(Base):
     updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
 
 
+class SimulationTradingCallRecord(Base):
+    """Private model inputs/answers, including failures before ledger commit."""
+    __tablename__ = 'simulation_trading_calls'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    portfolio_id = Column(Integer, nullable=True, index=True)
+    resource = Column(String(128), nullable=False)
+    input_json = Column(Text, nullable=False)
+    output_text = Column(Text)
+    usage_json = Column(Text)
+    model = Column(String(256))
+    status = Column(String(24), nullable=False, default='started')
+    error_message = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=utc_naive_now)
+
+
+class SimulationUniverseSnapshotRecord(Base):
+    """Private, observed universe evidence; never backdated to manufacture a backtest."""
+    __tablename__ = 'simulation_universe_snapshots'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scope_key = Column(String(64), nullable=False, index=True)
+    kind = Column(String(16), nullable=False)
+    payload_json = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=utc_naive_now)
+
+
 class SimulationPortfolioDefinitionRecord(Base):
     """Saved rule configuration, independent from any validation account or mode."""
     __tablename__ = 'simulation_portfolio_definitions'

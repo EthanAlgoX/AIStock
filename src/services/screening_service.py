@@ -1757,6 +1757,7 @@ def _call_screening_screen(
     config: Config,
     *,
     selection_seed: str = "",
+    use_llm: bool = True,
     progress_callback: Callable[[int, str], None] | None = None,
     data_source_config: Optional[Dict[str, Any]] = None,
 ) -> Any:
@@ -1773,7 +1774,7 @@ def _call_screening_screen(
             strategy,
             market=market,
             max_output=max_results,
-            use_llm=True,
+            use_llm=use_llm,
             selection_seed=selection_seed,
             context=pipeline_context,
             config=pipeline_config,

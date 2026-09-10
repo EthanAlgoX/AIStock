@@ -1,5 +1,39 @@
 import client from "./index";
+export type UniverseScope = {
+  mode: "fixed" | "holdings" | "custom";
+  symbols: string[];
+  accountId?: number;
+  query: string;
+  maxCandidates: number;
+};
+export type UniversePreview = {
+  market: "CN" | "HK" | "US";
+  id: number;
+  candidates: {
+    code: string;
+    name?: string;
+    reason: string;
+    industry?: string;
+  }[];
+  source: string;
+  observedAt: string;
+  coverage: string;
+  scope: UniverseScope & { rule?: { description: string } };
+};
+export type AgentOptions = {
+  skills: { id: string; name: string; description: string }[];
+  accounts: { id: number; name: string; market: string }[];
+  defaultPrompt: string;
+};
 export type RuleConfig = {
+  engine?: "rule" | "agent";
+  skillId?: string;
+  systemPrompt?: string;
+  universePreviewId?: number;
+  scopeRefresh?: "snapshot" | "daily" | "weekly";
+  runTokenBudget?: number;
+  universe?: UniversePreview;
+  skillSnapshot?: { name: string; digest: string };
   name: string;
   template: string;
   market: "CN" | "US" | "HK";
@@ -56,6 +90,9 @@ export type PortfolioDay = {
   paused?: boolean;
   replayed?: boolean;
   recordedAt?: string;
+  universe?: UniversePreview;
+  usage?: { tokens: number; model: string };
+  validationLabel?: string;
 };
 export type Portfolio = {
   id: number;
@@ -71,6 +108,7 @@ export type Portfolio = {
   config: RuleConfig;
   nextCheck: string;
   currency?: string;
+  agentCalls?: {id:number;status:string;model:string;answer:string;input:unknown;error?:string;usage:Record<string,number>;createdAt:string}[];
   comparisons?: {
     id: number;
     name: string;
@@ -93,9 +131,27 @@ export type ValidationOptions = {
   initialCash: number;
   startDate: string | null;
   endDate: string | null;
+  historyMode?: "rules" | "ai_replay";
+  universeHistory?: "frozen" | "recorded";
 };
 const root = "/api/v1/simulation/portfolios";
 export const portfoliosApi = {
+  agentOptions: async () =>
+    (await client.get<AgentOptions>(`${root}/agent-options`)).data,
+  holdings: async (id: number) =>
+    (
+      await client.get<{ items: { symbol: string; quantity: number }[] }>(
+        `${root}/holdings/${id}`,
+      )
+    ).data.items,
+  previewUniverse: async (market: string, scope: UniverseScope) =>
+    (
+      await client.post<UniversePreview>(
+        `${root}/universe-preview`,
+        { market, scope },
+        { timeout: 180000 },
+      )
+    ).data,
   definitions: async () =>
     (await client.get<{ items: StrategyDefinition[] }>(`${root}/definitions`))
       .data.items,
@@ -114,8 +170,20 @@ export const portfoliosApi = {
       slippageRate,
       riskFreeRate,
     } = config;
+    const agentFields =
+      config.engine === "agent"
+        ? {
+            engine: config.engine,
+            skillId: config.skillId,
+            systemPrompt: config.systemPrompt,
+            universePreviewId: config.universePreviewId,
+            scopeRefresh: config.scopeRefresh,
+            runTokenBudget: config.runTokenBudget,
+          }
+        : {};
     return (
       await client.post<StrategyDefinition>(`${root}/definitions`, {
+        ...agentFields,
         name,
         template,
         market,

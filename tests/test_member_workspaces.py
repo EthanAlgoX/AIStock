@@ -418,3 +418,20 @@ def test_rule_definitions_and_validations_are_private(members):
     assert result.json()['definitionId'] == definition_id
     assert result.json()['status'] == 'ready' and not result.json()['busy']
     assert bob.get(f'{base}/{result.json()["id"]}').status_code == 404
+
+
+def test_agent_universe_previews_cannot_be_reused_by_other_users(members):
+    owner, alice, bob, _ = members
+    base = '/api/v1/simulation/portfolios'
+    preview = alice.post(base + '/universe-preview', json={'market':'US','scope':{'mode':'fixed','symbols':['AAPL']}})
+    assert preview.status_code == 200, preview.text
+    options = alice.get(base + '/agent-options')
+    assert options.status_code == 200 and options.json()['skills']
+    payload = dict(name='Private Agent',template='volume_breakout',market='US',symbols=[],lotSize=1,
+                   engine='agent',skillId=options.json()['skills'][0]['id'],universePreviewId=preview.json()['id'])
+    for other in (owner, bob):
+        response = other.post(base + '/definitions', json=payload)
+        assert response.status_code == 422, response.text
+    saved = alice.post(base + '/definitions', json=payload)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()['config']['skillSnapshot']['digest']

@@ -4,6 +4,7 @@ import { isAxiosError } from "axios";
 import { extractErrorPayloadText, toApiErrorMessage } from "../api/error";
 import { useStockIndex } from "../hooks/useStockIndex";
 import { resolveStrategyPool } from "../utils/strategyStockPool";
+import { TradingAgentConfig } from "../components/agent/TradingAgentConfig";
 import ResearchReportsWorkspace from "./ResearchReportsWorkspace";
 import { AppPage } from "../components/common";
 import { AnalysisChart } from "../components/report/AnalysisChart";
@@ -12,6 +13,7 @@ import {
   type Portfolio,
   type RuleConfig,
   type StrategyDefinition,
+  type UniversePreview,
 } from "../api/portfolios";
 
 const fmt = (v: number | null | undefined, percent = false) =>
@@ -83,6 +85,11 @@ export default function TradingWorkspacePage() {
     { id: string; name: string; description: string }[]
   >([]);
   const [detail, setDetail] = useState<Portfolio | null>(null);
+  const [universePreview, setUniversePreview] =
+    useState<UniversePreview | null>(null);
+  const [universeHistory, setUniverseHistory] = useState<"frozen" | "recorded">(
+    "frozen",
+  );
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<RuleConfig>(seed);
   const [symbols, setSymbols] = useState("");
@@ -179,18 +186,23 @@ export default function TradingWorkspacePage() {
       setError("股票目录正在加载，请稍后创建。");
       return;
     }
+    if (draft.engine === "agent" && !universePreview) {
+      setError("请先预览并确认股票范围。");
+      return;
+    }
     const unresolved = pool.find((p) => !p.stock);
-    if (unresolved) {
+    if (draft.engine !== "agent" && unresolved) {
       setError(`请确认“${unresolved.query}”对应的股票；从下方匹配结果选择。`);
       return;
     }
-    if (poolMarkets.length > 1) {
+    if (draft.engine !== "agent" && poolMarkets.length > 1) {
       setError("识别到多个市场；每个策略账户使用同一市场，请分别创建账户。");
       return;
     }
-    const codes = [
-      ...new Set(pool.flatMap((p) => (p.stock ? [p.stock.code] : []))),
-    ];
+    const codes =
+      draft.engine === "agent"
+        ? universePreview!.candidates.map((c) => c.code)
+        : [...new Set(pool.flatMap((p) => (p.stock ? [p.stock.code] : [])))];
     if (codes.length < 1 || codes.length > 12) {
       setError(`股票池需要 1–12 个股票代码，当前填写了 ${codes.length} 个。`);
       return;
@@ -200,8 +212,17 @@ export default function TradingWorkspacePage() {
       const p = await portfoliosApi.saveDefinition({
         ...draft,
         symbols: codes,
-        market: poolMarket || draft.market,
-        lotSize: poolLot,
+        market:
+          draft.engine === "agent"
+            ? universePreview!.market
+            : poolMarket || draft.market,
+        lotSize:
+          draft.engine === "agent" && universePreview!.market !== draft.market
+            ? universePreview!.market === "US"
+              ? 1
+              : 100
+            : poolLot,
+        universePreviewId: universePreview?.id,
       });
       setParams({ strategy: String(p.id) });
       setCreating(false);
@@ -246,7 +267,7 @@ export default function TradingWorkspacePage() {
             className="btn-primary"
             onClick={() => {
               setCreating(true);
-              setDraft(seed);
+              setDraft({ ...seed, engine: "agent" });
               setSymbols("");
             }}
           >
@@ -265,7 +286,7 @@ export default function TradingWorkspacePage() {
       {creating ? (
         <section>
           <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">从规则模板开始</h2>
+            <h2 className="text-xl font-semibold">配置策略方法与范围</h2>
             <button
               className="btn-secondary"
               onClick={() => setCreating(false)}
@@ -273,31 +294,49 @@ export default function TradingWorkspacePage() {
               取消
             </button>
           </div>
-          <div className="mb-6 grid gap-3 md:grid-cols-3">
-            {templates.map((t) => (
-              <button
-                type="button"
-                key={t.id}
-                aria-pressed={draft.template === t.id}
-                className={`rounded-lg border p-4 text-left ${draft.template === t.id ? "border-primary bg-primary/5" : "border-border"}`}
-                onClick={() =>
-                  setDraft((d) => ({
-                    ...d,
-                    template: t.id,
-                    name: d.name || t.name,
-                  }))
-                }
-              >
-                <strong>{t.name}</strong>
-                <p className="mt-2 text-sm leading-6 text-secondary-text">
-                  {t.description}
-                </p>
-                <span className="mt-3 block text-xs text-secondary-text">
-                  固定规则 · 日线决策
-                </span>
-              </button>
-            ))}
-          </div>
+          <label className="mb-5 block">
+            执行方式
+            <select
+              className={inputClass}
+              value={draft.engine || "rule"}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  engine: e.target.value as "rule" | "agent",
+                }))
+              }
+            >
+              <option value="agent">Agent + 策略 Skill</option>
+              <option value="rule">固定价格规则（兼容原策略）</option>
+            </select>
+          </label>
+          {draft.engine !== "agent" && (
+            <div className="mb-6 grid gap-3 md:grid-cols-3">
+              {templates.map((t) => (
+                <button
+                  type="button"
+                  key={t.id}
+                  aria-pressed={draft.template === t.id}
+                  className={`rounded-lg border p-4 text-left ${draft.template === t.id ? "border-primary bg-primary/5" : "border-border"}`}
+                  onClick={() =>
+                    setDraft((d) => ({
+                      ...d,
+                      template: t.id,
+                      name: d.name || t.name,
+                    }))
+                  }
+                >
+                  <strong>{t.name}</strong>
+                  <p className="mt-2 text-sm leading-6 text-secondary-text">
+                    {t.description}
+                  </p>
+                  <span className="mt-3 block text-xs text-secondary-text">
+                    固定规则 · 日线决策
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
           <form onSubmit={submit} className="max-w-4xl space-y-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <label>
@@ -314,7 +353,7 @@ export default function TradingWorkspacePage() {
                 <label className="block">
                   股票池（名称或代码，最多 12 只）
                   <input
-                    required
+                    required={draft.engine !== "agent"}
                     className={inputClass}
                     value={symbols}
                     onChange={(e) => setSymbols(e.target.value)}
@@ -391,6 +430,20 @@ export default function TradingWorkspacePage() {
                   ))}
                 </div>
               </div>
+            {draft.engine === "agent" && (
+              <div className="sm:col-span-2"><TradingAgentConfig
+                config={draft}
+                inputText={symbols}
+                codes={
+                  pool.some((p) => !p.stock)
+                    ? null
+                    : pool.flatMap((p) => (p.stock ? [p.stock.code] : []))
+                }
+                inferredMarket={poolMarket}
+                onConfig={(patch) => setDraft((d) => ({ ...d, ...patch }))}
+                onPreview={setUniversePreview}
+              /></div>
+            )}
               <label>
                 默认验证资金
                 <input
@@ -521,7 +574,7 @@ export default function TradingWorkspacePage() {
                 <h2 className="text-xl font-semibold">{definition.name}</h2>
                 <p className="mt-2 text-sm text-secondary-text">
                   {
-                    templates.find((t) => t.id === definition.config.template)
+                    definition.config.skillSnapshot?.name || templates.find((t) => t.id === definition.config.template)
                       ?.name
                   }{" "}
                   · {definition.config.symbols.join("、")} ·{" "}
@@ -576,6 +629,34 @@ export default function TradingWorkspacePage() {
                     复制策略
                   </button>
                 </div>
+                {launch === "backtest" &&
+                  definition.config.engine === "agent" && (
+                    <div className="mt-4 border-y border-border py-4">
+                      <p className="text-sm text-warning">
+                        AI
+                        历史回放：模型可能知道后来的事件，不能等同严格规则回测。每次最多处理20个交易日，预算不足时可继续运行。
+                      </p>
+                      <label className="mt-3 block">
+                        历史股票范围
+                        <select
+                          className={inputClass}
+                          value={universeHistory}
+                          onChange={(e) =>
+                            setUniverseHistory(
+                              e.target.value as "frozen" | "recorded",
+                            )
+                          }
+                        >
+                          <option value="frozen">
+                            固定保存时名单（存在名单偏差）
+                          </option>
+                          <option value="recorded">
+                            当日已归档范围（缺失即停止）
+                          </option>
+                        </select>
+                      </label>
+                    </div>
+                  )}
                 {launch && (
                   <form
                     className="mt-5 space-y-4 border-y border-border py-5"
@@ -591,6 +672,12 @@ export default function TradingWorkspacePage() {
                           {
                             mode: launch === "backtest" ? "backtest" : "paper",
                             initialCash: validationCash,
+                            ...(definition.config.engine === "agent"
+                              ? {
+                                  historyMode: "ai_replay" as const,
+                                  universeHistory,
+                                }
+                              : {}),
                             startDate:
                               launch === "backtest" ? validationStart : null,
                             endDate:
@@ -718,8 +805,12 @@ export default function TradingWorkspacePage() {
                   <div>
                     <h2 className="text-xl font-semibold">{detail.name}</h2>
                     <p className="mt-2 text-sm text-secondary-text">
-                      {detail.mode === "paper" ? "每日持续模拟" : "历史回测"} ·
-                      固定版本 {detail.versionId} · {status(detail)}
+                      {detail.mode === "paper"
+                        ? "每日持续模拟"
+                        : detail.config.engine === "agent"
+                          ? "AI 历史回放"
+                          : "历史回测"}{" "}
+                      · 固定版本 {detail.versionId} · {status(detail)}
                     </p>
                     <p className="mt-1 text-xs text-secondary-text">
                       观察区间：{days[0]?.date || detail.config.startDate} 至{" "}
@@ -763,6 +854,7 @@ export default function TradingWorkspacePage() {
                     </button>
                   </div>
                 </div>
+                {!!detail.agentCalls?.length && <details className="mb-5 border-y border-border py-4"><summary className="cursor-pointer">Agent 调用记录（含未成交和失败，最近20次）</summary>{detail.agentCalls.map(c=><details key={c.id} className="mt-3"><summary className="cursor-pointer text-sm">{c.createdAt} · {c.model} · {c.usage.total_tokens ?? "未知"} Token · {c.status === "rejected" ? "计划未通过校验" : c.status === "failed" ? "调用失败" : "已收到回答，成交见账本"}</summary>{c.error && <p className="mt-2 text-sm text-danger">{c.error}</p>}<pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{c.answer}</pre><details><summary className="cursor-pointer text-xs">本次输入与 Prompt</summary><pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(c.input,null,2)}</pre></details></details>)}</details>}
                 {detail.error && (
                   <p
                     role="alert"
@@ -1102,6 +1194,30 @@ export default function TradingWorkspacePage() {
                     </p>
                   </div>
                 )}
+                {selected?.universe && (
+                  <details className="mt-5 border-y border-border py-4">
+                    <summary className="cursor-pointer">
+                      当日范围、决策与 Token
+                    </summary>
+                    <p className="mt-3 text-sm">
+                      {selected.validationLabel} ·{" "}
+                      {selected.usage
+                        ? `${selected.usage.model} · ${selected.usage.tokens} Token`
+                        : "本日无模型决策"}
+                    </p>
+                    <p className="mt-2 text-xs text-secondary-text">
+                      {selected.universe.coverage} · {selected.universe.source}{" "}
+                      · {selected.universe.observedAt}
+                    </p>
+                    <ul className="mt-3 space-y-2">
+                      {selected.universe.candidates.map((c) => (
+                        <li key={c.code} className="text-sm">
+                          {c.code}：{c.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
                 <details className="mt-7 border-t border-border py-4">
                   <summary className="cursor-pointer font-medium">
                     策略规则、指标口径与边界
@@ -1146,9 +1262,9 @@ export default function TradingWorkspacePage() {
                 </p>
                 <button
                   className="btn-primary mt-5"
-                  onClick={() => setCreating(true)}
+                  onClick={() => { setDraft({ ...seed, engine: "agent" }); setCreating(true); }}
                 >
-                  浏览规则模板
+                  创建新策略
                 </button>
               </div>
             )}

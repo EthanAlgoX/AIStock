@@ -30,12 +30,15 @@ _LOG = logging.getLogger(__name__)
 
 
 class SimulationPortfolioService:
-    def __init__(self, db=None, fetcher=None):
+    def __init__(self, db=None, fetcher=None, agent=None):
         self.db = db or DatabaseManager.get_instance()
         self.fetcher = fetcher
+        self.agent = agent
 
     def _prepare_config(self, payload):
         market, template = payload["market"], payload["template"]
+        if payload.get('engine') == 'agent' and not payload.get('skillSnapshot'):
+            raise ValueError('Agent 策略请先保存 Skill 和已确认范围，再创建验证。')
         if market not in BENCHMARKS or template not in {t["id"] for t in TEMPLATES}:
             raise ValueError("不支持的市场或规则模板")
         from src.agent.tools.execution import _normalize_tool_stock_code
@@ -81,6 +84,12 @@ class SimulationPortfolioService:
         return config
 
     def save_definition(self, payload):
+        if payload.get('engine') == 'agent':
+            from src.services.trading_agent_service import TradingAgentService
+            agent = self.agent or TradingAgentService(self.db)
+            preview = agent.approved(payload.get('universePreviewId'), payload['market'])
+            payload = dict(payload, symbols=[c['code'] for c in preview['candidates']],
+                           universe=preview, skillSnapshot=agent.skill_snapshot(payload.get('skillId')))
         config = self._prepare_config(dict(payload, mode="paper"))
         for key in ("mode", "startDate", "endDate"):
             config.pop(key, None)
@@ -103,6 +112,8 @@ class SimulationPortfolioService:
             if definition is None:
                 raise LookupError("策略不存在")
             config = json.loads(definition.config_json)
+        if config.get('engine') == 'agent' and options['mode'] == 'backtest' and options.get('historyMode') != 'ai_replay':
+            raise ValueError('Agent 历史验证必须选择 AI 历史回放；模型可能含有未来知识，不能标为严格规则回测。')
         return self.create(dict(config, **options, definitionId=definition_id))
 
     def create(self, payload):
@@ -186,6 +197,13 @@ class SimulationPortfolioService:
             ).all()
             days = [json.loads(r.result_snapshot_json) for r in runs if r.status == "completed"]
             result["days"] = days
+            from src.storage import SimulationTradingCallRecord
+            calls = session.scalars(select(SimulationTradingCallRecord).where(
+                SimulationTradingCallRecord.portfolio_id == portfolio_id
+            ).order_by(SimulationTradingCallRecord.id.desc()).limit(20)).all()
+            result['agentCalls'] = [dict(id=c.id, status=c.status, model=c.model, error=c.error_message,
+                input=json.loads(c.input_json), answer=c.output_text, usage=json.loads(c.usage_json or '{}'),
+                createdAt=c.created_at.isoformat()) for c in calls]
             result["metrics"] = metrics(days, result["config"]["initialCash"], result["config"]["riskFreeRate"])
             result["currency"] = BENCHMARKS[result["market"]][2]
             signature_keys = (
@@ -200,9 +218,9 @@ class SimulationPortfolioService:
                 "commissionRate",
                 "sellTaxRate",
                 "slippageRate",
-                "riskFreeRate",
+                "riskFreeRate", "engine", "skillSnapshot", "systemPrompt", "universe", "scopeRefresh",
             )
-            signature = [result["config"][k] for k in signature_keys]
+            signature = [result["config"].get(k, "rule" if k == "engine" else None) for k in signature_keys]
             result["comparisons"] = []
             others = session.scalars(
                 select(SimulationPortfolioRunRecord)
@@ -211,7 +229,7 @@ class SimulationPortfolioService:
             ).all()
             for other in others:
                 other_config = json.loads(other.config_json)
-                if [other_config[k] for k in signature_keys] != signature:
+                if [other_config.get(k, "rule" if k == "engine" else None) for k in signature_keys] != signature:
                     continue
                 snapshots = session.scalars(
                     select(SimulationRunRecord.result_snapshot_json)
@@ -327,13 +345,13 @@ class SimulationPortfolioService:
             session = calendar.previous_session(session)
         return session.date()
 
-    def _load(self, config, last):
+    def _load(self, config, last, through=None):
         from data_provider import DataFetcherManager
         import pandas as pd
 
         fetcher = self.fetcher or DataFetcherManager()
         start = date.fromisoformat(last or config["startDate"]) - timedelta(days=150)
-        end = self._last_closed(config["market"])
+        end = min(self._last_closed(config["market"]), date.fromisoformat(through)) if through else self._last_closed(config["market"])
         if config["endDate"]:
             import exchange_calendars as xcals
             from src.core.trading_calendar import MARKET_EXCHANGE
@@ -383,6 +401,151 @@ class SimulationPortfolioService:
             raise ValueError("基准交易日行情不完整，未继续记账")
         return data, sources, end
 
+    def _persist_day(self, session, row, state, output, day, histories, baseline, sources):
+        run = SimulationRunRecord(
+            strategy_version_id=row.strategy_version_id,
+            execution_mode="portfolio_day",
+            status="completed",
+            input_snapshot_json=json.dumps(
+                {"date": day, "bars": histories, "benchmarkClose": baseline, "sources": sources}
+            ),
+            result_snapshot_json=json.dumps(output),
+            started_at=utc_naive_now(),
+            completed_at=utc_naive_now(),
+        )
+        session.add(run)
+        session.flush()
+        for trade in output["trades"]:
+            order = SimulationOrderRecord(
+                account_id=row.account_id,
+                simulation_run_id=run.id,
+                strategy_version_id=row.strategy_version_id,
+                stock_code=trade["code"],
+                side=trade["side"],
+                quantity=trade["quantity"],
+                status=trade["status"],
+                reject_reason=trade["reason"],
+            )
+            session.add(order)
+            session.flush()
+            if trade["status"] == "filled":
+                session.add(
+                    SimulationFillRecord(
+                        order_id=order.id,
+                        fill_price=trade["price"],
+                        quantity=trade["quantity"],
+                        commission=trade["fee"],
+                        slippage=trade["slippage"],
+                        filled_at=datetime.fromisoformat(day),
+                    )
+                )
+        session.execute(
+            delete(SimulationPositionRecord).where(SimulationPositionRecord.account_id == row.account_id)
+        )
+        for holding in output["holdings"]:
+            session.add(
+                SimulationPositionRecord(
+                    account_id=row.account_id,
+                    stock_code=holding["code"],
+                    quantity=holding["quantity"],
+                    average_cost=holding["averageCost"],
+                )
+            )
+        account = session.get(SimulationAccountRecord, row.account_id)
+        account.cash_balance = state["cash"]
+        session.add(
+            SimulationEquitySnapshotRecord(
+                account_id=row.account_id,
+                simulation_run_id=run.id,
+                cash_balance=state["cash"],
+                market_value=output["marketValue"],
+                equity=output["equity"],
+                created_at=datetime.fromisoformat(day),
+            )
+        )
+        row.state_json, row.last_date = json.dumps(state), day
+
+    def _execute_agent(self, portfolio_id, token, config, last, audit_id, automatic):
+        import exchange_calendars as xcals
+        from src.core.trading_calendar import MARKET_EXCHANGE
+        from src.services.trading_agent_service import TradingAgentService
+        from src.services.member_service import recheck_member
+
+        agent = self.agent or TradingAgentService(self.db)
+        end = self._last_closed(config['market'])
+        if config.get('endDate'):
+            end = min(end, date.fromisoformat(config['endDate']))
+        first = max(date.fromisoformat(config['startDate']), date.fromisoformat(last) + timedelta(days=1) if last else date.fromisoformat(config['startDate']))
+        if first > end:
+            return 0
+        calendar = xcals.get_calendar(MARKET_EXCHANGE[config['market'].lower()])
+        dates = [d.date().isoformat() for d in calendar.sessions_in_range(first, end)]
+        remaining, processed = config['runTokenBudget'], 0
+        for day in dates[:20]:
+            recheck_member()
+            with self.db.get_session() as session:
+                row = session.get(SimulationPortfolioRunRecord, portfolio_id)
+                if row.lease_token != token or (automatic and row.status not in {'running', 'paused'}):
+                    break
+                previous, previous_date, previous_status = json.loads(row.state_json), row.last_date, row.status
+            paused = automatic and previous_status == 'paused'
+            if paused:
+                previous['pending'] = None
+            snapshot = previous.get('universe') or config['universe']
+            current = day == dates[-1] and config['mode'] == 'paper'
+            archive = current and not paused
+            if config['mode'] == 'backtest' and config.get('universeHistory') == 'recorded':
+                snapshot = agent.recorded(config['market'], config['universe']['scope'], day)
+            elif current and not paused:
+                refresh = config.get('scopeRefresh', 'snapshot')
+                previous_day = snapshot.get('decisionDate')
+                due = refresh == 'daily' and previous_day != day
+                if refresh == 'weekly':
+                    due = not previous_day or date.fromisoformat(previous_day).isocalendar()[:2] != date.fromisoformat(day).isocalendar()[:2]
+                if due:
+                    snapshot = agent.resolve(config['market'], config['universe']['scope'], allow_empty=True)
+                snapshot = dict(snapshot, decisionDate=day)
+            candidates = [c['code'] for c in snapshot['candidates']]
+            pending_codes = (previous.get('pending') or {}).get('selected', [])
+            symbols = list(dict.fromkeys(candidates + list(previous.get('positions', {})) + pending_codes))
+            daily_config = dict(config, symbols=symbols)
+            data, sources, _ = self._load(daily_config, previous_date, through=day)
+            histories = {code: data[code][-21:] for code in symbols}
+            baseline = data[config['benchmark']][-1]['close']
+            state, output = step(daily_config, previous, day, histories, baseline)
+            usage = None
+            if histories and not paused and (current or config['mode'] == 'backtest'):
+                opinions, usage = agent.decide(dict(config, portfolioId=portfolio_id), state, day, histories, candidates, remaining, audit_id)
+                remaining -= usage['tokens']
+                state['pending'] = dict(date=day, selected=[o['code'] for o in opinions if o['targetWeight'] > 0],
+                                        weights={o['code']: o['targetWeight'] for o in opinions},
+                                        reasons={o['code']: o['reason'] for o in opinions})
+                state['agentModel'] = usage['model']
+                output['opinions'] = opinions
+            state['universe'], state['universeDate'] = snapshot, day
+            output.update(sources=sources, universe=snapshot, usage=usage, workspaceRunId=audit_id,
+                          recordedAt=datetime.now(timezone.utc).isoformat(), paused=paused,
+                          replayed=config['mode'] == 'backtest' or not current,
+                          validationLabel='AI 历史回放（非严格规则回测）' if config['mode'] == 'backtest' else 'Agent 每日模拟',
+                          skillDigest=config['skillSnapshot']['digest'])
+            with self.db.session_scope() as session:
+                row = session.get(SimulationPortfolioRunRecord, portfolio_id)
+                if row.lease_token != token or row.last_date != previous_date or row.status != previous_status:
+                    raise ValueError('运行状态已改变，本日未记账；可在当前状态下重试。')
+                if archive:
+                    snapshot = agent.store(config['market'], config['universe']['scope'], snapshot, session=session)
+                    state['universe'] = output['universe'] = snapshot
+                self._persist_day(session, row, state, output, day, histories, baseline, sources)
+            processed += 1
+            if remaining < 10000:
+                break
+        if config['mode'] == 'backtest':
+            with self.db.session_scope() as session:
+                row = session.get(SimulationPortfolioRunRecord, portfolio_id)
+                if row.lease_token == token:
+                    row.status = 'completed' if dates and row.last_date == dates[-1] else 'ready'
+        return processed
+
     def execute(self, portfolio_id, token, automatic=False):
         workspace, audit_id, failure = None, None, None
         processed = 0
@@ -410,6 +573,9 @@ class SimulationPortfolioService:
             from src.services.member_service import recheck_member
 
             recheck_member()
+            if config.get('engine') == 'agent':
+                processed = self._execute_agent(portfolio_id, token, config, last, audit_id, automatic)
+                return
             data, sources, end = self._load(config, last)
             if not data:
                 return
@@ -445,68 +611,7 @@ class SimulationPortfolioService:
                     output["recordedAt"] = datetime.now(timezone.utc).isoformat()
                     output["replayed"] = row.mode == "paper" and day < end.isoformat()
                     output["workspaceRunId"] = audit_id
-                    run = SimulationRunRecord(
-                        strategy_version_id=row.strategy_version_id,
-                        execution_mode="portfolio_day",
-                        status="completed",
-                        input_snapshot_json=json.dumps(
-                            {"date": day, "bars": histories, "benchmarkClose": baseline, "sources": sources}
-                        ),
-                        result_snapshot_json=json.dumps(output),
-                        started_at=utc_naive_now(),
-                        completed_at=utc_naive_now(),
-                    )
-                    session.add(run)
-                    session.flush()
-                    for trade in output["trades"]:
-                        order = SimulationOrderRecord(
-                            account_id=row.account_id,
-                            simulation_run_id=run.id,
-                            strategy_version_id=row.strategy_version_id,
-                            stock_code=trade["code"],
-                            side=trade["side"],
-                            quantity=trade["quantity"],
-                            status=trade["status"],
-                            reject_reason=trade["reason"],
-                        )
-                        session.add(order)
-                        session.flush()
-                        if trade["status"] == "filled":
-                            session.add(
-                                SimulationFillRecord(
-                                    order_id=order.id,
-                                    fill_price=trade["price"],
-                                    quantity=trade["quantity"],
-                                    commission=trade["fee"],
-                                    slippage=trade["slippage"],
-                                    filled_at=datetime.fromisoformat(day),
-                                )
-                            )
-                    session.execute(
-                        delete(SimulationPositionRecord).where(SimulationPositionRecord.account_id == row.account_id)
-                    )
-                    for holding in output["holdings"]:
-                        session.add(
-                            SimulationPositionRecord(
-                                account_id=row.account_id,
-                                stock_code=holding["code"],
-                                quantity=holding["quantity"],
-                                average_cost=holding["averageCost"],
-                            )
-                        )
-                    account = session.get(SimulationAccountRecord, row.account_id)
-                    account.cash_balance = state["cash"]
-                    session.add(
-                        SimulationEquitySnapshotRecord(
-                            account_id=row.account_id,
-                            simulation_run_id=run.id,
-                            cash_balance=state["cash"],
-                            market_value=output["marketValue"],
-                            equity=output["equity"],
-                            created_at=datetime.fromisoformat(day),
-                        )
-                    )
-                    row.state_json, row.last_date = json.dumps(state), day
+                    self._persist_day(session, row, state, output, day, histories, baseline, sources)
                     processed += 1
             with self.db.session_scope() as session:
                 row = session.get(SimulationPortfolioRunRecord, portfolio_id)
@@ -527,7 +632,7 @@ class SimulationPortfolioService:
                             audit_id,
                             "PortfolioUpdate",
                             "策略账户更新",
-                            {"portfolioId": portfolio_id, "processedDays": processed, "engineVersion": 1, "modelCalls": 0},
+                            {"portfolioId": portfolio_id, "processedDays": processed, "engineVersion": 1, "decisionEngine": config.get("engine", "rule")},
                             text=f"策略账户 #{portfolio_id} 检查完成，本次新增 {processed} 个交易日记录。请在交易推演查看净值、持仓与逐日买卖。",
                         )
                     workspace._finish_run(audit_id, "failed" if failure else "completed", error_message=failure)

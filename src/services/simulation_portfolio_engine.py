@@ -95,10 +95,14 @@ def step(config, state, day, history, benchmark_close):
         fee = gross * config["commissionRate"] + (gross * config["sellTaxRate"] if side == "sell" else 0)
         if side == "buy":
             cash -= gross + fee
-            positions[code] = dict(quantity=quantity, averageCost=(gross + fee) / quantity)
+            old = positions.get(code, dict(quantity=0, averageCost=0))
+            positions[code] = dict(quantity=old['quantity'] + quantity,
+                averageCost=(old['quantity'] * old['averageCost'] + gross + fee) / (old['quantity'] + quantity))
         else:
             cash += gross - fee
-            del positions[code]
+            positions[code]['quantity'] -= quantity
+            if positions[code]['quantity'] == 0:
+                del positions[code]
         trades.append(
             dict(
                 code=code,
@@ -115,7 +119,25 @@ def step(config, state, day, history, benchmark_close):
             )
         )
 
-    if pending and pending["date"] < day:
+    if pending and pending["date"] < day and 'weights' in pending:
+        equity_open = cash + sum(p['quantity'] * prices[c]['open'] for c, p in positions.items())
+        targets = {code: math.floor(equity_open * weight / prices[code]['open'] / config['lotSize']) * config['lotSize']
+                   for code, weight in pending['weights'].items() if weight > 0}
+        for code in list(positions):
+            quantity = positions[code]['quantity'] - targets.get(code, 0)
+            if quantity > 0:
+                trade(code, 'sell', quantity, pending['reasons'][code])
+        for code, target in targets.items():
+            wanted = target - positions.get(code, {}).get('quantity', 0)
+            price = prices[code]['open'] * (1 + config['slippageRate']) * (1 + config['commissionRate'])
+            quantity = min(wanted, math.floor(cash / price / config['lotSize']) * config['lotSize'])
+            if quantity > 0:
+                trade(code, 'buy', quantity, pending['reasons'][code])
+            elif wanted > 0:
+                trades.append(dict(code=code, side='buy', quantity=0, price=None, rawPrice=prices[code]['open'], fee=0,
+                    gross=0, slippage=0, reason='资金或整手限制，未成交。' + pending['reasons'][code],
+                    signalDate=pending['date'], status='rejected'))
+    elif pending and pending["date"] < day:
         selected = pending["selected"]
         for code in list(positions):
             if code not in selected:
@@ -148,7 +170,7 @@ def step(config, state, day, history, benchmark_close):
     ranked, opinions = [], []
     for code in config["symbols"]:
         rows = history[code]
-        score = StrategyValidationService._score(config["template"], rows)
+        score = None if config.get("engine") == "agent" else StrategyValidationService._score(config["template"], rows)
         momentum = rows[-1]["close"] / rows[-21]["close"] - 1 if len(rows) >= 21 else None
         reason = (
             "历史样本不足 21 个交易日，保持观察。"
@@ -197,10 +219,14 @@ def step(config, state, day, history, benchmark_close):
         dailyReturn=equity / state.get("equity", config["initialCash"]) - 1,
     )
     next_state = dict(
+        state,
         cash=cash,
         equity=equity,
         positions=positions,
         benchmarkBase=base,
         pending=dict(date=day, selected=selected, reasons={o["code"]: o["reason"] for o in opinions}),
     )
+    if config.get('engine') == 'agent':
+        next_state['pending'] = None
+        output['opinions'] = [dict(code=c, stance='neutral', reason='本日仅补记估值，未重建历史 Agent 决策。', held=c in positions) for c in config['symbols']]
     return next_state, output

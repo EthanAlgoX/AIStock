@@ -39,7 +39,7 @@ def member_api_allowed(path, method):
         return read or (resource == 'portfolios' and method == 'POST' and (
             len(parts) == 4
             or (len(parts) == 6 and parts[4].isdigit() and parts[5] == 'control')
-            or parts[4:] == ['definitions']
+            or parts[4:] in (['definitions'], ['universe-preview'])
             or (len(parts) == 7 and parts[4] == 'definitions' and parts[5].isdigit() and parts[6] == 'validations')
         ))
     if group == 'alerts':

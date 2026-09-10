@@ -14,7 +14,13 @@ class StrategyConfig(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     template: Literal["volume_breakout", "shrink_pullback", "low_volatility_quality"]
     market: Literal["CN", "US", "HK"]
-    symbols: list[str] = Field(min_length=1, max_length=12)
+    symbols: list[str] = Field(default_factory=list, max_length=12)
+    engine: Literal['rule', 'agent'] = 'rule'
+    skillId: str | None = None
+    systemPrompt: str = Field(default='', max_length=6000)
+    universePreviewId: int | None = None
+    scopeRefresh: Literal['snapshot', 'daily', 'weekly'] = 'snapshot'
+    runTokenBudget: int = Field(default=100000, ge=10000, le=500000)
     initialCash: float = Field(default=100000, ge=1000, le=100000000)
     maxPositions: int = Field(default=3, ge=1, le=12)
     maxWeight: float = Field(default=0.25, ge=0.01, le=1)
@@ -37,6 +43,22 @@ class ValidationCreate(BaseModel):
     initialCash: float = Field(default=100000, ge=1000, le=100000000)
     startDate: str | None = None
     endDate: str | None = None
+    historyMode: Literal["rules", "ai_replay"] = "rules"
+    universeHistory: Literal["frozen", "recorded"] = "frozen"
+
+
+class Scope(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    mode: Literal['fixed', 'holdings', 'custom']
+    symbols: list[str] = Field(default_factory=list, max_length=12)
+    accountId: int | None = None
+    query: str = Field(default='', max_length=500)
+    maxCandidates: int = Field(default=12, ge=1, le=12)
+
+
+class UniversePreview(BaseModel):
+    market: Literal['CN', 'US', 'HK']
+    scope: Scope
 
 
 class Control(BaseModel):
@@ -68,6 +90,27 @@ def portfolios():
 @router.post("")
 def create(body: PortfolioCreate):
     return call(SimulationPortfolioService().create, body.model_dump())
+
+
+@router.get('/agent-options')
+def agent_options():
+    from src.services.workspace_service import WorkspaceService
+    from src.services.portfolio_service import PortfolioService
+    from src.services.trading_agent_service import TRADING_PROMPT
+    return dict(skills=[s for s in WorkspaceService().list_skills() if s['enabled']],
+                accounts=PortfolioService().list_accounts(), defaultPrompt=TRADING_PROMPT)
+
+
+@router.get('/holdings/{account_id}')
+def holdings(account_id: int):
+    from src.services.trading_agent_service import TradingAgentService
+    return {'items': call(TradingAgentService().holdings, account_id)}
+
+
+@router.post('/universe-preview')
+def preview_universe(body: UniversePreview):
+    from src.services.trading_agent_service import TradingAgentService
+    return call(TradingAgentService().preview, body.market, body.scope.model_dump())
 
 
 @router.get("/definitions")

@@ -17,6 +17,8 @@ const api = vi.hoisted(() => ({
   definitions: vi.fn(),
   saveDefinition: vi.fn(),
   createValidation: vi.fn(),
+  agentOptions: vi.fn(),
+  previewUniverse: vi.fn(),
 }));
 vi.mock("../../api/portfolios", () => ({ portfoliosApi: api }));
 vi.mock("../../hooks/useStockIndex", () => ({
@@ -99,6 +101,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   api.list.mockResolvedValue([detail]);
   api.definitions.mockResolvedValue([]);
+  api.agentOptions.mockResolvedValue({skills:[{id:"price",name:"价格策略",description:"依据日线"}],accounts:[],defaultPrompt:"交易"});
   api.detail.mockResolvedValue(detail);
   api.templates.mockResolvedValue([
     { id: "volume_breakout", name: "量价突破", description: "突破条件" },
@@ -130,6 +133,7 @@ it("creates explicit fixed configuration without auto trading", async () => {
     </MemoryRouter>,
   );
   fireEvent.click(screen.getByRole("button", { name: "配置策略" }));
+  fireEvent.change(screen.getByLabelText("执行方式"), {target:{value:"rule"}});
   await screen.findByText("量价突破");
   fireEvent.change(screen.getByLabelText("策略名称"), {
     target: { value: "规则验证" },
@@ -154,6 +158,7 @@ it("creates explicit fixed configuration without auto trading", async () => {
 
 async function submitDraft() {
   fireEvent.click(screen.getByRole("button", { name: "配置策略" }));
+  fireEvent.change(screen.getByLabelText("执行方式"), {target:{value:"rule"}});
   await screen.findByText("量价突破");
   fireEvent.change(screen.getByLabelText("策略名称"), {
     target: { value: "验证" },
@@ -228,6 +233,7 @@ it("validates pool limits before posting and accepts Chinese separators", async 
     </MemoryRouter>,
   );
   fireEvent.click(screen.getByRole("button", { name: "配置策略" }));
+  fireEvent.change(screen.getByLabelText("执行方式"), {target:{value:"rule"}});
   await screen.findByText("量价突破");
   fireEvent.change(screen.getByLabelText("策略名称"), {
     target: { value: "验证" },
@@ -260,6 +266,7 @@ it("recognizes names and automatically uses the US market and lot size", async (
     </MemoryRouter>,
   );
   fireEvent.click(screen.getByRole("button", { name: "配置策略" }));
+  fireEvent.change(screen.getByLabelText("执行方式"), {target:{value:"rule"}});
   await screen.findByText("量价突破");
   fireEvent.change(screen.getByLabelText("策略名称"), {
     target: { value: "美股验证" },
@@ -286,6 +293,7 @@ it("blocks mixed markets before account creation", async () => {
     </MemoryRouter>,
   );
   fireEvent.click(screen.getByRole("button", { name: "配置策略" }));
+  fireEvent.change(screen.getByLabelText("执行方式"), {target:{value:"rule"}});
   await screen.findByText("量价突破");
   fireEvent.change(screen.getByLabelText("策略名称"), {
     target: { value: "混合" },
@@ -357,5 +365,21 @@ it("continues the existing simulation when switching to continuous mode", async 
   await screen.findByRole("heading", { name: "已保存规则" });
   fireEvent.click(screen.getByRole("button", { name: "持续模拟" }));
   await waitFor(() => expect(api.control).toHaveBeenCalledWith(1, "start"));
+  expect(api.createValidation).not.toHaveBeenCalled();
+});
+
+it("saves the selected Agent Skill and approved universe without launching", async () => {
+  api.previewUniverse.mockResolvedValue({id:9,market:"US",candidates:[{code:"NVDA",reason:"用户指定"}],scope:{mode:"fixed",symbols:["NVDA"]},source:"specified",observedAt:"2026-09-10"});
+  api.saveDefinition.mockResolvedValue({id:2,name:"Agent试验",config:{...config,engine:"agent"}});
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole("button", {name:"配置策略"}));
+  await screen.findByRole("option", {name:"价格策略"});
+  fireEvent.change(screen.getByLabelText("策略 Skill"), {target:{value:"price"}});
+  fireEvent.change(screen.getByLabelText("策略名称"), {target:{value:"Agent试验"}});
+  fireEvent.change(screen.getByLabelText("股票池（名称或代码，最多 12 只）"), {target:{value:"英伟达"}});
+  fireEvent.click(screen.getByRole("button", {name:"预览范围与筛选依据"}));
+  await screen.findByLabelText("范围预览");
+  fireEvent.click(screen.getByRole("button", {name:"保存策略"}));
+  await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({engine:"agent",skillId:"price",universePreviewId:9,market:"US",symbols:["NVDA"]})));
   expect(api.createValidation).not.toHaveBeenCalled();
 });
