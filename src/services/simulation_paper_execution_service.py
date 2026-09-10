@@ -51,6 +51,8 @@ class SimulationPaperExecutionService:
             run = session.get(SimulationRunRecord, run_id)
             if account is None or run is None:
                 raise SimulationPaperExecutionError("paper account or simulation run not found")
+            if run.execution_mode == 'portfolio_day':
+                raise SimulationPaperExecutionError('每日策略已通过独立账本记账，不能重复提交旧版执行接口。')
             existing = session.execute(select(SimulationOrderRecord).where(SimulationOrderRecord.account_id == account_id, SimulationOrderRecord.simulation_run_id == run_id)).scalar_one_or_none()
             if existing is not None:
                 return {"order_id": existing.id, "status": existing.status, "idempotent": True, "reason": existing.reject_reason}

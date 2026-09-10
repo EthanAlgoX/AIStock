@@ -121,6 +121,12 @@ def business_outcome(status: str, kind: str, artifacts: list[dict], *, formal: b
                      and a["content"]["result"]["report"].get("summary") for a in formal_results):
             return result("unverified", "正式报告结构不完整，请核对运行详情。")
         return result("produced", "已生成正式策略成果；投资判断仍需结合证据与风险核实。")
+    portfolio = next((a.get("content") for a in artifacts if kind == "trading" and a.get("type") == "PortfolioUpdate"
+                      and isinstance(a.get("content"), dict) and a["content"].get("engineVersion") == 1
+                      and isinstance(a["content"].get("processedDays"), int) and a["content"]["processedDays"] >= 0), None)
+    if portfolio is not None:
+        return result("produced" if portfolio["processedDays"] else "empty",
+                      f"策略账户检查完成，新增 {portfolio['processedDays']} 个交易日记录；业绩、持仓和买卖见策略详情。")
     if kind == "trading" and any(a.get("type") == "TradeProposal" and valid_artifact("TradeProposal", a.get("content")) for a in artifacts):
         return result("proposal", "仅生成交易提案，尚未完成账户风控评估，也未创建订单或模拟成交。")
     if kind == "expert_review" and any(a.get("type") == "ExpertReview" for a in artifacts):

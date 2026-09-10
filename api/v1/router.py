@@ -17,6 +17,7 @@ from api.v1.endpoints import (
     alerts,
     screening,
     simulation,
+    simulation_portfolios,
     analysis,
     auth,
     backtest,
@@ -137,3 +138,5 @@ router.include_router(
 )
 
 router.include_router(trial.router, prefix='/trial', tags=['Trial'])
+
+router.include_router(simulation_portfolios.router, prefix="/simulation/portfolios", tags=["Simulation portfolios"])

@@ -309,6 +309,8 @@ async def app_lifespan(app: FastAPI):
     app.state.strategy_continuous_runs = strategy_continuous_runs
     from src.services.workspace_service import WorkspaceSchedulerService, WorkspaceService
 
+    from src.services.simulation_portfolio_service import SimulationPortfolioService
+    SimulationPortfolioService().recover()
     interrupted_workspace_runs = WorkspaceService().reconcile_interrupted_runs()
     if interrupted_workspace_runs:
         logger.warning("Marked %s interrupted Agent workspace run(s) as failed", interrupted_workspace_runs)

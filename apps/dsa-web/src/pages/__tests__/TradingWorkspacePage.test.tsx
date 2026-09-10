@@ -3,7 +3,8 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { workspaceCatalogFixture, workspaceRunFixture, workspaceTaskFixture } from "../../testWorkspaceFixtures";
-import TradingWorkspacePage from "../TradingWorkspacePage";
+import ResearchReportsWorkspace from "../ResearchReportsWorkspace";
+const TradingWorkspacePage = () => <ResearchReportsWorkspace mode="trading" />;
 import { useWorkspaceRunStore } from "../../stores/workspaceRunStore";
 
 const ScheduleDestination = () => {
@@ -19,6 +20,7 @@ const api = vi.hoisted(() => ({
   runTask: vi.fn(),
   getRun: vi.fn(),
   listRuns: vi.fn(),
+  runHistory: vi.fn(),
   cancelRun: vi.fn(),
 }));
 
@@ -43,6 +45,7 @@ describe("TradingWorkspacePage", () => {
     vi.clearAllMocks();
     useWorkspaceRunStore.setState({ runs: {} });
     api.listRuns.mockResolvedValue([]);
+    api.runHistory.mockResolvedValue({items:[],total:0});
     task = null;
     api.getCapabilities.mockResolvedValue(workspaceCatalogFixture);
     api.listTasks.mockImplementation(async () => task ? [task] : []);
@@ -67,6 +70,7 @@ describe("TradingWorkspacePage", () => {
 
   const fillStrategy = () => {
     fireEvent.change(screen.getByRole("textbox", { name: "策略名称" }), { target: { value: "高质量趋势跟踪" } });
+    fireEvent.change(screen.getByLabelText("候选范围"), { target: { value: "watchlist" } });
     fireEvent.change(screen.getByRole("textbox", { name: "交易逻辑" }), { target: { value: "从高质量候选池中寻找趋势确认的公司" } });
     fireEvent.click(screen.getByRole("button", { name: "选择巴菲特专家" }));
   };
@@ -79,7 +83,7 @@ describe("TradingWorkspacePage", () => {
     expect(screen.getByRole("button", { name: "选择巴菲特专家" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "配置策略能力" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    const startButton = screen.getByRole("button", { name: "启动模拟运行" });
+    const startButton = screen.getByRole("button", { name: "生成交易提案" });
     expect(startButton).toBeDisabled();
     fillStrategy();
     fireEvent.click(startButton);
@@ -173,7 +177,7 @@ describe("TradingWorkspacePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "新建交易推演" }));
     await screen.findByText("skills:2");
     fillStrategy();
-    fireEvent.click(screen.getByRole("button", { name: "启动模拟运行" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成交易提案" }));
     await waitFor(() => expect(api.runTask).toHaveBeenCalledTimes(1));
     view.unmount();
     const run = workspaceRunFixture(task!, { id: "background", status: "running" });

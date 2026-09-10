@@ -82,6 +82,7 @@ export default function TaskRunDetailPage() {
   const symbol = String(subject.stock || subject.stockCode || subject.symbol || "");
   const universe = subject.resolvedUniverse as {symbols?:string[]; sourceRunId?:string;asOf?:string} | undefined;
   const sourceId = String(universe?.sourceRunId || run.taskSnapshot.config?.sourceRunId || run.taskSnapshot.config?.parentDiscussionRunId || run.resultSummary?.parentRunId || "");
+  const portfolioId = Number(run.taskSnapshot.config?.portfolioId) || null;
   const kinds = {research:"个股研究",screening:"选股",trading:"交易提案",expert_review:"专家讨论",market_analysis:"市场分析",industry_analysis:"产业分析"};
   const active = ["queued", "running"].includes(run.status);
   const act = async () => {
@@ -108,13 +109,14 @@ export default function TaskRunDetailPage() {
 
       <section className="grid gap-px overflow-hidden rounded-[12px] border border-border bg-border sm:grid-cols-4" aria-label="运行信息">
         <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">运行状态</p><p className={cn("mt-2 text-sm font-semibold", statusTone)}>{workspaceRunLabel(run)}</p></div>
-        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">任务类型</p><p className="mt-2 text-sm font-semibold text-foreground">{kinds[run.kind]}</p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">任务类型</p><p className="mt-2 text-sm font-semibold text-foreground">{portfolioId ? "策略账户更新" : kinds[run.kind]}</p></div>
         <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">触发方式</p><p className="mt-2 text-sm font-semibold text-foreground">{run.triggerType === "schedule" ? "定时任务" : run.triggerType === "agent_tool" ? "主 Agent" : "手动运行"}</p></div>
         <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">完成时间</p><p className="mt-2 text-sm font-semibold text-foreground">{run.completedAt ? formatTime(run.completedAt) : "尚未完成"}</p></div>
       </section>
 
       <section className="space-y-3 rounded-xl border border-border bg-card p-4" aria-label="继续处理这份结果">
         <div className="flex flex-wrap gap-3">
+          {portfolioId && <Link className="btn-primary" to={`/trading?portfolio=${portfolioId}`}>查看策略业绩、持仓与买卖</Link>}
           {symbol && <Link className="btn-secondary" to={`/stock-research?stock=${encodeURIComponent(symbol)}`}>查看 {symbol} 的股票档案</Link>}
           {sourceId && <Link className="btn-secondary" to={`/runs/${encodeURIComponent(sourceId)}`}>查看来源运行</Link>}
           {!active && run.kind === "screening" && <Link className="btn-secondary" to={`/trading?sourceRun=${encodeURIComponent(run.id)}`}>以此候选生成交易提案</Link>}
@@ -122,7 +124,7 @@ export default function TaskRunDetailPage() {
           {!run.resultSummary?.externalExecutor && <button className="btn-secondary" disabled={acting || Boolean(run.cancelRequested)} onClick={() => void act()}>{acting ? "处理中…" : active ? run.cancelRequested ? "已请求停止" : "停止本次运行" : "按原配置重新运行（产生新消耗）"}</button>}
         </div>
         {universe && <p className="text-sm text-secondary-text">本次冻结股票：{universe.symbols?.join("、")} · 来源时点：{universe.asOf ? formatTime(universe.asOf) : "提交时的自选 / 持仓"}。仅生成提案，无订单与模拟成交。</p>}
-        <p className="text-sm text-secondary-text">本次模型用量：{run.usage?.recorded ? `${run.usage.tokens.toLocaleString()} tokens · ${run.usage.calls} 次调用 · 其中估算 ${run.usage.estimatedTokens.toLocaleString()} tokens` : "暂无可归属的用量记录，不能视为零消耗"}。独立子运行用量在各自详情查看。</p>
+        <p className="text-sm text-secondary-text">本次模型用量：{run.artifacts.some(a => a.type === "PortfolioUpdate") ? "固定规则运行，未调用模型，Token 消耗为 0" : run.usage?.recorded ? `${run.usage.tokens.toLocaleString()} tokens · ${run.usage.calls} 次调用 · 其中估算 ${run.usage.estimatedTokens.toLocaleString()} tokens` : "暂无可归属的用量记录，不能视为零消耗"}。独立子运行用量在各自详情查看。</p>
         {actionError && <p role="alert" className="text-sm text-danger">{actionError}</p>}
       </section>
       <RunStages run={run} />

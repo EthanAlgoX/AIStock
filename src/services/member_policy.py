@@ -36,7 +36,7 @@ def member_api_allowed(path, method):
     if group == 'simulation':
         # Executable package intake, arbitrary strategy source editing and live
         # broker operations are administrative. Built-in versions remain readable.
-        return read
+        return read or (resource == 'portfolios' and method == 'POST' and (len(parts) == 4 or (len(parts) == 6 and parts[4].isdigit() and parts[5] == 'control')))
     if group == 'alerts':
         return True
     if group == 'intelligence':

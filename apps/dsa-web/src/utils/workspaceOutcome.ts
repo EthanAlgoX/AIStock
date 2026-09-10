@@ -8,6 +8,7 @@ const OUTCOMES = {
 export function workspaceRunLabel(run: WorkspaceRun): string {
   if (run.status === "queued") return "排队中";
   if (run.status === "running") return "运行中";
+  if (run.outcome?.status === "empty" && run.kind === "trading" && run.taskSnapshot.config?.portfolioId) return "暂无新交易日";
   if (run.outcome) return OUTCOMES[run.outcome.status];
   return run.status === "completed" ? "运行结束 · 成果待核实" : run.status === "failed" ? "运行失败" : "已停止";
 }

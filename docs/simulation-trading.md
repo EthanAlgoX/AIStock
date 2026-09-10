@@ -1,5 +1,7 @@
 # 策略实验与模拟交易页面（预览）
 
+> 当前可运行的每日规则组合位于 `/trading`，见 [策略验证与运行](strategy-portfolios.md)。本文以下内容仅描述旧预览工作台。
+
 > 本文记录旧 `/simulation` 预览边界。当前 StrategyVersion 的发布前历史验证已迁移到独立 `/backtests` 工作台和持久化 API，详见 [StrategyVersion 历史验证](strategy-version-validation.md)；旧 `/validation` 路由继续兼容，该能力仍不属于模拟账户或真实交易运行时。
 
 策略实验室的整体目标、阶段和完成度见 [strategy-lab-roadmap.md](strategy-lab-roadmap.md)。

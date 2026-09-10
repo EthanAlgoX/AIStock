@@ -2032,6 +2032,24 @@ class SimulationAccountRecord(Base):
     updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
 
 
+class SimulationPortfolioRunRecord(Base):
+    """Durable fixed-version paper/backtest account and cooperative execution lease."""
+    __tablename__ = 'simulation_portfolio_runs'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    account_id = Column(Integer, ForeignKey('simulation_accounts.id'), nullable=False, unique=True)
+    strategy_version_id = Column(Integer, ForeignKey('simulation_strategy_versions.id'), nullable=False, index=True)
+    mode = Column(String(16), nullable=False)
+    status = Column(String(16), nullable=False, default='ready')
+    config_json = Column(Text, nullable=False)
+    state_json = Column(Text, nullable=False)
+    last_date = Column(String(10))
+    next_check_at = Column(DateTime, nullable=False, default=utc_naive_now)
+    lease_until = Column(DateTime)
+    lease_token = Column(String(40))
+    error_message = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=utc_naive_now)
+
+
 class SimulationOrderRecord(Base):
     """Paper order sourced from one completed simulation run."""
     __tablename__ = 'simulation_orders'

@@ -53,7 +53,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
   const [query, setQuery] = useState("");
   const [detail, setDetail] = useState<{ id: string; run?: WorkspaceRun; error?: string }>({ id: "" });
   const ledgerEntries = (activeRun ? [runs.find((run) => run.id === activeRun.id) || activeRun, ...runs.filter((run) => run.id !== activeRun.id)] : [...runs]);
-  const entries = ledgerEntries.filter((run) => !run.primaryReportRunId)
+  const entries = ledgerEntries.filter((run) => !run.primaryReportRunId && !(trading && run.taskSnapshot.config?.portfolioId))
     .sort((left, right) => Number(isRunActive(right)) - Number(isRunActive(left)) || Date.parse(right.createdAt) - Date.parse(left.createdAt));
   const requestedId = params.get("run") || (isRunActive(activeRun) ? activeRun?.id : undefined) || entries[0]?.id || "";
   const selectedId = ledgerEntries.find((run) => run.id === requestedId)?.primaryReportRunId || requestedId;

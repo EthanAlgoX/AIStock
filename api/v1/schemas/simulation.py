@@ -83,7 +83,7 @@ class SimulationRunItem(BaseModel):
     id: int
     strategy_version_id: int
     status: SimulationRunStatus
-    execution_mode: SimulationExecutionMode
+    execution_mode: Literal["preview", "paper", "portfolio_day"]
     input_snapshot: Dict[str, Any] = Field(default_factory=dict)
     result_snapshot: Optional[Dict[str, Any]] = None
     error_message: Optional[str] = None

@@ -2498,6 +2498,8 @@ class WorkspaceSchedulerService:
         while not self._stop.wait(self.interval_seconds):
             try:
                 self.service_factory().run_due_schedules()
+                from src.services.simulation_portfolio_service import SimulationPortfolioService
+                SimulationPortfolioService().due()
                 from src.services.member_service import run_member_maintenance
                 run_member_maintenance()
             except Exception:  # noqa: BLE001 - scheduler must survive one database failure.

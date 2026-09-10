@@ -195,10 +195,14 @@ def run_member_maintenance(*, alerts=False, reconcile=False):
                 workspace = WorkspaceService()
                 if reconcile:
                     workspace.reconcile_interrupted_runs()
+                    from src.services.simulation_portfolio_service import SimulationPortfolioService
+                    SimulationPortfolioService().recover()
                 elif alerts:
                     AlertWorker().run_once()
                 else:
                     workspace.run_due_schedules()
+                    from src.services.simulation_portfolio_service import SimulationPortfolioService
+                    SimulationPortfolioService().due()
         except Exception:
             logging.getLogger(__name__).exception('Private workspace maintenance failed for %s', user['id'])
 
