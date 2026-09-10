@@ -8,6 +8,7 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
 import TradingWorkspacePage from "../TradingWorkspacePage";
+const stockState = vi.hoisted(() => ({ loading: false }));
 const api = vi.hoisted(() => ({
   list: vi.fn(),
   templates: vi.fn(),
@@ -19,11 +20,12 @@ const api = vi.hoisted(() => ({
   createValidation: vi.fn(),
   agentOptions: vi.fn(),
   previewUniverse: vi.fn(),
+  holdings: vi.fn(),
 }));
 vi.mock("../../api/portfolios", () => ({ portfoliosApi: api }));
 vi.mock("../../hooks/useStockIndex", () => ({
   useStockIndex: () => ({
-    loading: false,
+    loading: stockState.loading,
     fallback: false,
     index: [
       {
@@ -99,6 +101,7 @@ const detail = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  stockState.loading = false;
   api.list.mockResolvedValue([detail]);
   api.definitions.mockResolvedValue([]);
   api.agentOptions.mockResolvedValue({skills:[{id:"price",name:"价格策略",description:"依据日线"}],accounts:[],defaultPrompt:"交易"});
@@ -376,10 +379,50 @@ it("saves the selected Agent Skill and approved universe without launching", asy
   await screen.findByRole("option", {name:"价格策略"});
   fireEvent.change(screen.getByLabelText("策略 Skill"), {target:{value:"price"}});
   fireEvent.change(screen.getByLabelText("策略名称"), {target:{value:"Agent试验"}});
-  fireEvent.change(screen.getByLabelText("股票池（名称或代码，最多 12 只）"), {target:{value:"英伟达"}});
+  fireEvent.change(screen.getByLabelText("股票池（可选，名称或代码，最多 12 只）"), {target:{value:"英伟达"}});
+  fireEvent.change(screen.getByLabelText("范围来源"), {target:{value:"fixed"}});
   fireEvent.click(screen.getByRole("button", {name:"预览范围与筛选依据"}));
   await screen.findByLabelText("范围预览");
   fireEvent.click(screen.getByRole("button", {name:"保存策略"}));
   await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({engine:"agent",skillId:"price",universePreviewId:9,market:"US",symbols:["NVDA"]})));
   expect(api.createValidation).not.toHaveBeenCalled();
+});
+
+
+it("saves a scope-only strategy with an empty optional pool while the name catalog is loading", async () => {
+  stockState.loading = true;
+  api.previewUniverse.mockResolvedValue({id:10,market:"CN",candidates:[{code:"688981",reason:"半导体行业"}],scope:{mode:"custom",symbols:[],query:"半导体行业"},source:"fixture",observedAt:"2026-09-11"});
+  api.saveDefinition.mockResolvedValue({id:3,name:"行业策略",config:{...config,engine:"agent"}});
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole("button", {name:"配置策略"}));
+  await screen.findByRole("option", {name:"价格策略"});
+  const poolInput = screen.getByLabelText("股票池（可选，名称或代码，最多 12 只）");
+  expect(poolInput).not.toBeRequired();
+  expect(poolInput).toHaveValue("");
+  expect(screen.getByLabelText("范围来源")).toHaveValue("custom");
+  fireEvent.change(screen.getByLabelText("范围描述"), {target:{value:"半导体行业"}});
+  fireEvent.change(screen.getByLabelText("策略 Skill"), {target:{value:"price"}});
+  fireEvent.change(screen.getByLabelText("策略名称"), {target:{value:"行业策略"}});
+  fireEvent.click(screen.getByRole("button", {name:"预览范围与筛选依据"}));
+  await screen.findByLabelText("范围预览");
+  expect(api.previewUniverse).toHaveBeenCalledWith("CN", expect.objectContaining({mode:"custom",symbols:[],query:"半导体行业"}));
+  fireEvent.click(screen.getByRole("button", {name:"保存策略"}));
+  await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({engine:"agent",universePreviewId:10,symbols:["688981"]})));
+  expect(api.createValidation).not.toHaveBeenCalled();
+});
+
+
+it("does not widen a holdings scope when its optional stock restriction has no intersection", async () => {
+  api.agentOptions.mockResolvedValue({skills:[{id:"price",name:"价格策略"}],accounts:[{id:1,name:"美股持仓",market:"US"}],defaultPrompt:"交易"});
+  api.holdings.mockResolvedValue([{symbol:"NVDA",quantity:1}]);
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole("button", {name:"配置策略"}));
+  await screen.findByRole("option", {name:"价格策略"});
+  fireEvent.change(screen.getByLabelText("范围来源"), {target:{value:"holdings"}});
+  fireEvent.change(screen.getByLabelText("持仓账户"), {target:{value:"1"}});
+  fireEvent.click(await screen.findByRole("checkbox", {name:/NVDA/}));
+  fireEvent.change(screen.getByLabelText("股票池（可选，名称或代码，最多 12 只）"), {target:{value:"苹果"}});
+  fireEvent.click(screen.getByRole("button", {name:"预览范围与筛选依据"}));
+  await screen.findByText(/填写的股票与所选持仓没有交集/);
+  expect(api.previewUniverse).not.toHaveBeenCalled();
 });

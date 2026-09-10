@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   portfoliosApi,
   type AgentOptions,
@@ -6,10 +6,12 @@ import {
   type UniversePreview,
   type UniverseScope,
 } from "../../api/portfolios";
+import { includesStockCode } from "../../utils/stockCode";
 import { toApiErrorMessage } from "../../api/error";
 
 export function TradingAgentConfig({
   config,
+  strategySelector,
   inputText,
   codes,
   inferredMarket,
@@ -17,6 +19,7 @@ export function TradingAgentConfig({
   onPreview,
 }: {
   config: RuleConfig;
+  strategySelector: ReactNode;
   inputText: string;
   codes: string[] | null;
   inferredMarket: RuleConfig["market"] | null;
@@ -26,7 +29,7 @@ export function TradingAgentConfig({
   const [options, setOptions] = useState<AgentOptions | null>(null);
   const [scope, setScope] = useState<UniverseScope>(
     config.universe?.scope || {
-      mode: "fixed",
+      mode: "custom",
       symbols: [],
       query: "",
       maxCandidates: 12,
@@ -62,26 +65,6 @@ export function TradingAgentConfig({
     "mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
   return (
     <div className="space-y-5 border-y border-border py-5">
-      <label className="block">
-        策略 Skill
-        <select
-          required
-          className={input}
-          value={config.skillId || ""}
-          onChange={(e) => onConfig({ skillId: e.target.value })}
-        >
-          <option value="">选择策略方法</option>
-          {options?.skills.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p className="text-sm text-secondary-text">
-        {options?.skills.find((s) => s.id === config.skillId)?.description ||
-          "Skill 决定分析方法；交易输出规范和程序风控共同约束买卖计划。保存后固定 Skill 内容。"}
-      </p>
       <fieldset disabled={busy} className="space-y-4">
         <legend className="mb-3 font-semibold">股票范围</legend>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -235,14 +218,19 @@ export function TradingAgentConfig({
           disabled={busy}
           onClick={async () => {
             setError("");
-            if (scope.mode !== "holdings" && !codes) {
+            if (inputText.trim() && !codes) {
               setError("请先确认上方股票识别结果。");
               return;
             }
-            const request = {
-              ...scope,
-              symbols: scope.mode === "holdings" ? scope.symbols : codes || [],
-            };
+            let selectedCodes = scope.mode === "holdings" ? scope.symbols : codes || [];
+            if (scope.mode === "holdings" && codes?.length) {
+              selectedCodes = scope.symbols.length ? scope.symbols.filter((s) => includesStockCode(codes, s)) : codes;
+              if (!selectedCodes.length) {
+                setError("填写的股票与所选持仓没有交集，请调整股票池或持仓范围。");
+                return;
+              }
+            }
+            const request = { ...scope, symbols: selectedCodes };
             const market =
               scope.mode === "fixed"
                 ? inferredMarket || config.market
@@ -294,9 +282,31 @@ export function TradingAgentConfig({
           </ul>
         </div>
       )}
+      <h3 className="pt-4 text-lg font-semibold">2. 策略配置</h3>
+      {strategySelector}
+      <label className="block">
+        策略 Skill
+        <select
+          required
+          className={input}
+          value={config.skillId || ""}
+          onChange={(e) => onConfig({ skillId: e.target.value })}
+        >
+          <option value="">选择策略方法</option>
+          {options?.skills.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="text-sm text-secondary-text">
+        {options?.skills.find((s) => s.id === config.skillId)?.description ||
+          "Skill 决定分析方法；交易输出规范和程序风控共同约束买卖计划。保存后固定 Skill 内容。"}
+      </p>
       <details>
         <summary className="cursor-pointer font-medium">
-          交易 System Prompt 与运行预算
+          交易 System Prompt
         </summary>
         <label className="mt-3 block">
           自定义交易指令
@@ -312,20 +322,6 @@ export function TradingAgentConfig({
         <p className="mt-2 text-xs text-secondary-text">
           {options?.defaultPrompt}
         </p>
-        <label className="mt-3 block">
-          每次运行 Token 预算
-          <input
-            className={input}
-            type="number"
-            min={10000}
-            max={500000}
-            step={10000}
-            value={config.runTokenBudget || 100000}
-            onChange={(e) =>
-              onConfig({ runTokenBudget: Number(e.target.value) })
-            }
-          />
-        </label>
       </details>
     </div>
   );

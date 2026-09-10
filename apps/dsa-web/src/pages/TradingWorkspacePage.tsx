@@ -182,7 +182,7 @@ export default function TradingWorkspacePage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (stockIndex.loading) {
+    if (draft.engine !== "agent" && stockIndex.loading) {
       setError("股票目录正在加载，请稍后创建。");
       return;
     }
@@ -250,6 +250,51 @@ export default function TradingWorkspacePage() {
   const visible = days.slice(-windowSize);
   const inputClass =
     "mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
+  const strategySelector = (<>
+          <label className="mb-5 block">
+            执行方式
+            <select
+              className={inputClass}
+              value={draft.engine || "rule"}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  engine: e.target.value as "rule" | "agent",
+                }))
+              }
+            >
+              <option value="agent">Agent + 策略 Skill</option>
+              <option value="rule">固定价格规则（兼容原策略）</option>
+            </select>
+          </label>
+          {draft.engine !== "agent" && (
+            <div className="mb-6 grid gap-3 md:grid-cols-3">
+              {templates.map((t) => (
+                <button
+                  type="button"
+                  key={t.id}
+                  aria-pressed={draft.template === t.id}
+                  className={`rounded-lg border p-4 text-left ${draft.template === t.id ? "border-primary bg-primary/5" : "border-border"}`}
+                  onClick={() =>
+                    setDraft((d) => ({
+                      ...d,
+                      template: t.id,
+                      name: d.name || t.name,
+                    }))
+                  }
+                >
+                  <strong>{t.name}</strong>
+                  <p className="mt-2 text-sm leading-6 text-secondary-text">
+                    {t.description}
+                  </p>
+                  <span className="mt-3 block text-xs text-secondary-text">
+                    固定规则 · 日线决策
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+  </>);
   return (
     <AppPage>
       <header className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
@@ -294,49 +339,6 @@ export default function TradingWorkspacePage() {
               取消
             </button>
           </div>
-          <label className="mb-5 block">
-            执行方式
-            <select
-              className={inputClass}
-              value={draft.engine || "rule"}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  engine: e.target.value as "rule" | "agent",
-                }))
-              }
-            >
-              <option value="agent">Agent + 策略 Skill</option>
-              <option value="rule">固定价格规则（兼容原策略）</option>
-            </select>
-          </label>
-          {draft.engine !== "agent" && (
-            <div className="mb-6 grid gap-3 md:grid-cols-3">
-              {templates.map((t) => (
-                <button
-                  type="button"
-                  key={t.id}
-                  aria-pressed={draft.template === t.id}
-                  className={`rounded-lg border p-4 text-left ${draft.template === t.id ? "border-primary bg-primary/5" : "border-border"}`}
-                  onClick={() =>
-                    setDraft((d) => ({
-                      ...d,
-                      template: t.id,
-                      name: d.name || t.name,
-                    }))
-                  }
-                >
-                  <strong>{t.name}</strong>
-                  <p className="mt-2 text-sm leading-6 text-secondary-text">
-                    {t.description}
-                  </p>
-                  <span className="mt-3 block text-xs text-secondary-text">
-                    固定规则 · 日线决策
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
           <form onSubmit={submit} className="max-w-4xl space-y-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <label>
@@ -349,9 +351,10 @@ export default function TradingWorkspacePage() {
                   onChange={(e) => change("name", e.target.value)}
                 />
               </label>
+              <h3 className="sm:col-span-2 text-lg font-semibold mt-3">1. 选股配置</h3>
               <div className="sm:col-span-2">
                 <label className="block">
-                  股票池（名称或代码，最多 12 只）
+                  {draft.engine === "agent" ? "股票池（可选，名称或代码，最多 12 只）" : "股票池（名称或代码，最多 12 只）"}
                   <input
                     required={draft.engine !== "agent"}
                     className={inputClass}
@@ -360,6 +363,9 @@ export default function TradingWorkspacePage() {
                     placeholder="例如 贵州茅台、平安银行，或 英伟达、苹果"
                   />
                 </label>
+                {draft.engine === "agent" && (
+                  <p className="mt-2 text-sm text-secondary-text">可留空，直接按下方股票范围寻找候选；填写后会进一步限定范围，不会自动补入范围外的股票。</p>
+                )}
                 <p className="mt-2 text-sm text-secondary-text">
                   {stockIndex.loading
                     ? "正在加载与个股研究共用的股票目录…"
@@ -433,6 +439,7 @@ export default function TradingWorkspacePage() {
             {draft.engine === "agent" && (
               <div className="sm:col-span-2"><TradingAgentConfig
                 config={draft}
+                strategySelector={strategySelector}
                 inputText={symbols}
                 codes={
                   pool.some((p) => !p.stock)
@@ -444,6 +451,8 @@ export default function TradingWorkspacePage() {
                 onPreview={setUniversePreview}
               /></div>
             )}
+              {draft.engine !== "agent" && <div className="sm:col-span-2"><h3 className="mb-4 text-lg font-semibold">2. 策略配置</h3>{strategySelector}</div>}
+              <h3 className="sm:col-span-2 text-lg font-semibold mt-3">3. 运行与风控配置</h3>
               <label>
                 默认验证资金
                 <input
@@ -471,6 +480,10 @@ export default function TradingWorkspacePage() {
                 />
               </label>
             </div>
+            {draft.engine === "agent" && <label className="block">每次运行 Token 预算
+              <input className={inputClass} type="number" min={10000} max={500000} step={10000}
+                value={draft.runTokenBudget || 100000} onChange={(e) => change("runTokenBudget", Number(e.target.value))} />
+            </label>}
             <details className="border-y border-border py-4">
               <summary className="cursor-pointer font-medium">
                 仓位、交易成本与指标假设
