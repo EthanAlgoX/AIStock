@@ -20,7 +20,7 @@ TRADING_PROMPT = """你是模拟交易决策 Agent。依据本次冻结的 Skill
 
 class RangeRule(BaseModel):
     model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
-    industryTerms: list[str] = Field(default_factory=list, max_length=12)
+    industryTerms: list[str] = Field(default_factory=list, max_length=32)
     minVolatility: float | None = Field(default=None, ge=0, le=100)
     description: str = Field(min_length=1, max_length=1000)
 
@@ -59,7 +59,7 @@ class TradingAgentService:
         response = None
         try:
             with activity_scope('trading', resource):
-                response = (self.adapter or LLMToolAdapter()).call_text(messages, temperature=0, max_tokens=2048, timeout=45)
+                response = (self.adapter or LLMToolAdapter()).call_text(messages, temperature=0, max_tokens=4096, timeout=45)
                 usage = getattr(response, 'usage', None) or {}
                 if usage:
                     persist_llm_usage(usage, response.model or response.provider, call_type=resource, usage_scope='trading')
@@ -73,7 +73,12 @@ class TradingAgentService:
             raw = str(response.content).strip()
             if raw.startswith('```'):
                 raw = raw.split('\n', 1)[1].rsplit('```', 1)[0].strip()
-            parsed = json.loads(raw)
+            if not raw:
+                raise ValueError('模型未返回完整回答，本次未生成计划；请重试或调整模型输出配置。')
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise ValueError('模型回答不是有效 JSON，本次未生成计划；原始回答已记录，可重试或调整指令。') from exc
             return parsed, dict(model=response.model or response.provider, tokens=tokens, callId=call_id)
         except Exception as exc:
             with self.db.session_scope() as session:
@@ -120,18 +125,24 @@ class TradingAgentService:
             raise ValueError('请选择持仓账户。')
         if scope['mode'] == 'custom' and not scope.get('query', '').strip():
             raise ValueError('请输入范围描述。')
+        if scope['mode'] == 'custom' and market == 'HK' and not scope.get('symbols'):
+            raise ValueError('港股暂缺行业候选目录，请先指定股票，再按行业或弹性条件筛选。')
         if scope['mode'] == 'custom':
             result, usage = self.call(
-                '将股票范围描述转成严格 JSON：industryTerms（行业英文/中文匹配词列表），minVolatility（20日收益率标准差的百分数下限或null），description（明确筛选含义）。'
-                '行业词作用于数据源行业/概念字段，不是股票名称。弹性大可解释为较高20日波动率，必须说明这不是收益保证。不能表达的条件不要伪装支持，description说明并返回空条件。',
+                '将股票范围描述转成严格 JSON：industryTerms（最多32个非空行业英文/中文匹配词，去除重复词），minVolatility（基于最近20日收益率的年化波动率百分数下限或null），description（明确筛选含义）。'
+                '只返回一个JSON对象，不要Markdown、前言或分析过程。行业词作用于数据源行业/概念字段，不是股票名称。弹性大可解释为较高20日波动率，必须说明这不是收益保证。不能表达的条件不要伪装支持，description说明并返回空条件。',
                 {'query': scope['query'], 'market': market}, 30000, 'trading_range')
             rule = RangeRule.model_validate(result).model_dump()
+            rule['industryTerms'] = list(dict.fromkeys(t.strip() for t in rule['industryTerms'] if t.strip()))
             if not rule['industryTerms'] and rule['minVolatility'] is None:
                 raise ValueError('当前范围支持行业/概念和20日波动率条件，请具体描述行业或弹性范围。')
             scope['rule'] = rule
         else:
             usage = None
-        snapshot = self.resolve(market, scope)
+        try:
+            snapshot = self.resolve(market, scope)
+        except (RuntimeError, TimeoutError) as exc:
+            raise ValueError('范围数据源暂时不可用，未编造候选；请稍后重试，或改用指定股票/持仓范围。') from exc
         snapshot['scope'] = scope
         snapshot['market'] = market
         snapshot['usage'] = usage
@@ -156,6 +167,14 @@ class TradingAgentService:
             from src.services.screening_service import _call_screening_screen, _normalize_candidates, _to_plain
             if self.screener:
                 data = self.screener(market)
+            elif market in {'US', 'HK'}:
+                import os
+                from src.services.screening.snapshot_us import fetch_us_snapshot, fetch_us_universe
+                from src.services.screening.source_guard import call_with_timeout
+                tickers = scope.get('symbols') or fetch_us_universe('env' if os.getenv('SCREENING_US_TICKERS') else 'default')
+                tickers = [str(int(s[2:])).zfill(4) + '.HK' if s.upper().startswith('HK') else s for s in tickers[:50]]
+                frame = call_with_timeout(lambda: fetch_us_snapshot(tickers=tickers), timeout_sec=90, label='trading scope snapshot')
+                data = dict(candidates=json.loads(frame.to_json(orient='records')), snapshot_source='yfinance:bounded_universe')
             else:
                 raw = _to_plain(_call_screening_screen('balanced_alpha', market.lower(), 50, get_config(), use_llm=False))
                 data = dict(candidates=_normalize_candidates(raw), snapshot_source=raw.get('snapshot_source', 'screening'))
@@ -179,7 +198,8 @@ class TradingAgentService:
         if scope['mode'] == 'custom' and scope.get('symbols'):
             restricted = {_normalize_tool_stock_code(s) for s in scope['symbols']}
             normalized = {k: v for k, v in normalized.items() if k in restricted}
-        selected = list(normalized.values())[:scope.get('maxCandidates', 12)]
+        ordered = [normalized[k] for k in sorted(normalized)] if scope['mode'] == 'custom' else list(normalized.values())
+        selected = ordered[:scope.get('maxCandidates', 12)]
         if not selected and not allow_empty:
             raise ValueError('数据源未找到符合范围的同市场股票，未扩大范围或编造候选；请调整条件或指定股票。')
         return dict(candidates=selected, source=source, observedAt=datetime.now(timezone.utc).isoformat(),

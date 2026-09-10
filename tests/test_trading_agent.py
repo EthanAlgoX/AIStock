@@ -18,7 +18,7 @@ def fixed():
 
 
 def test_range_filters_use_source_fields_and_freeze_interpretation(workspace):
-    adapter = SimpleNamespace(call_text=lambda *a, **k: SimpleNamespace(content=json.dumps(dict(industryTerms=['Tech'], minVolatility=2, description='Tech行业且20日波动率至少2%')), usage={'total_tokens':100}, model='fixture', provider='fixture'))
+    adapter = SimpleNamespace(call_text=lambda *a, **k: SimpleNamespace(content=json.dumps(dict(industryTerms=['Tech'] + [f'Technology synonym {i}' for i in range(24)], minVolatility=2, description='Tech行业且20日波动率至少2%')), usage={'total_tokens':100}, model='fixture', provider='fixture'))
     agent = TradingAgentService(workspace.db, adapter, lambda market: dict(snapshot_source='fixture-source', candidates=[
         dict(code='AAPL', industry='Technology', volatility_20d_pct=3),
         dict(code='MSFT', industry='Technology', volatility_20d_pct=1),
@@ -136,3 +136,48 @@ def test_daily_empty_scope_still_manages_previous_holdings(workspace):
     assert not result['error'], result['error']
     assert calls[-1]['candidates'] == [] and 'AAPL' in calls[-1]['bars']
     assert result['days'][-1]['opinions'][0]['targetWeight'] == 0
+
+
+def test_us_scope_uses_us_snapshot_instead_of_cn_only_strategy(workspace):
+    import pandas as pd
+    from src.services.screening import snapshot_us
+    agent = TradingAgentService(workspace.db)
+    scope = dict(mode='custom', symbols=['NVDA'], maxCandidates=3,
+                 rule=dict(industryTerms=['Semiconductor'], minVolatility=20, description='半导体且年化波动率至少20%'))
+    with patch.object(snapshot_us, 'fetch_us_snapshot', return_value=pd.DataFrame([
+        dict(code='NVDA', industry='Semiconductors', volatility_20d_pct=35),
+    ])) as fetch:
+        result = agent.resolve('US', scope)
+    assert result['candidates'][0]['code'] == 'NVDA'
+    fetch.assert_called_once_with(tickers=['NVDA'])
+    with pytest.raises(ValueError, match='港股'):
+        agent.preview('HK', dict(mode='custom', query='科技行业', symbols=[]))
+
+
+def test_us_scope_volatility_and_industry_come_from_provider_data():
+    import pandas as pd
+    import yfinance as yf
+    from src.services.screening.snapshot_us import fetch_us_snapshot
+    from src.services.screening.daily import _volatility_20d_pct
+    bars = pd.DataFrame({'Close':[100+i for i in range(21)],'Volume':[1000]*21})
+    ticker = SimpleNamespace(fast_info=SimpleNamespace(market_cap=1000000, shares=10000),
+                             info=dict(industry='Semiconductors', shortName='Fixture', trailingPE=20, priceToBook=3))
+    with patch.object(yf, 'download', return_value=bars), patch.object(yf, 'Ticker', return_value=ticker):
+        frame = fetch_us_snapshot(tickers=['NVDA'])
+    assert frame.iloc[0]['industry'] == 'Semiconductors'
+    assert frame.iloc[0]['volatility_20d_pct'] == pytest.approx(_volatility_20d_pct(bars['Close']))
+
+
+def test_range_source_failure_is_actionable_and_preserves_model_usage(workspace):
+    from src.storage import SimulationTradingCallRecord
+    response = SimpleNamespace(content=json.dumps(dict(industryTerms=['Tech'], minVolatility=None, description='科技')),
+                               usage={'total_tokens':100}, model='fixture', provider='fixture')
+    def unavailable(market):
+        raise TimeoutError('provider timeout')
+    agent = TradingAgentService(workspace.db, SimpleNamespace(call_text=lambda *a, **k: response), unavailable)
+    with pytest.raises(ValueError, match='数据源暂时不可用'):
+        agent.preview('US', dict(mode='custom', query='科技行业', symbols=[]))
+    with workspace.db.get_session() as session:
+        call = session.scalar(select(SimulationTradingCallRecord))
+        assert json.loads(call.usage_json)['total_tokens'] == 100
+        assert session.scalar(select(func.count()).select_from(SimulationUniverseSnapshotRecord)) == 0

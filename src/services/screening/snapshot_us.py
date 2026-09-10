@@ -139,7 +139,10 @@ def fetch_us_snapshot(
             shares = getattr(info, "shares", None) or 0
             turnover_rate = (volume / shares * 100) if shares > 0 else 0.0
 
+            from src.services.screening.daily import _volatility_20d_pct
+
             return {
+                "volatility_20d_pct": _volatility_20d_pct(hist["Close"].tail(21)),
                 "code": ticker,
                 "name": ticker,
                 "price": price,
