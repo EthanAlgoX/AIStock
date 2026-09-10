@@ -5,7 +5,6 @@
  */
 
 import {
-  loadStockIndex,
   compressIndex,
   findStockInIndex,
   getPopularStocks,
@@ -13,6 +12,8 @@ import {
 } from '../stockIndexLoader';
 import type { StockIndexItem } from '../../types/stockIndex';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+
+let loadStockIndex: typeof import("../stockIndexLoader").loadStockIndex;
 
 // Mock fetch
 const mockFetch = vi.fn();
@@ -82,8 +83,10 @@ describe('stockIndexLoader', () => {
     },
   ];
 
-  beforeEach(() => {
-    vi.clearAllMocks();
+  beforeEach(async () => {
+    vi.resetModules();
+    mockFetch.mockReset();
+    ({ loadStockIndex } = await import("../stockIndexLoader"));
   });
 
   describe('loadStockIndex - Load stock index', () => {

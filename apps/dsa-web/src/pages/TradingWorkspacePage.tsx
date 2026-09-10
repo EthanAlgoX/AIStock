@@ -326,7 +326,15 @@ export default function TradingWorkspacePage() {
                 </p>
                 {stockIndex.fallback && (
                   <p className="mt-2 text-xs text-warning">
-                    股票目录暂时使用降级数据；未找到名称时可输入完整股票代码。
+                    股票目录加载失败，名称识别暂不可用。请重试加载。
+                    <button
+                      type="button"
+                      className="btn-secondary ml-2"
+                      onClick={stockIndex.retry}
+                      disabled={stockIndex.loading}
+                    >
+                      {stockIndex.loading ? "正在加载…" : "重新加载股票目录"}
+                    </button>
                   </p>
                 )}
                 <div className="mt-3 space-y-2" aria-label="股票识别结果">

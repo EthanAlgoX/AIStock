@@ -504,3 +504,24 @@ def test_asset_traversal_attempts_are_rejected(
     assert response.status_code == 404
     assert response.text == "not found"
     assert "top secret" not in response.text
+
+
+def test_stock_index_compression_preserves_payload_and_other_routes(tmp_path: Path) -> None:
+    from api import app as app_module
+    from api.app import create_app
+
+    static_dir = tmp_path / 'static'
+    _write_stock_index(static_dir / 'stocks.index.json', size=100)
+    client = TestClient(create_app(static_dir=static_dir))
+    with patch.object(app_module, 'get_remote_stock_index_cache_path', return_value=tmp_path / 'missing'), \
+         patch.object(app_module, '_schedule_stock_index_background_refresh'):
+        compressed = client.get('/stocks.index.json', headers={'Accept-Encoding': 'gzip'})
+        plain = client.get('/stocks.index.json', headers={'Accept-Encoding': 'identity'})
+        health = client.get('/api/health', headers={'Accept-Encoding': 'gzip'})
+    assert compressed.status_code == plain.status_code == 200
+    assert compressed.json() == plain.json()
+    assert compressed.headers['content-encoding'] == 'gzip'
+    assert 'Accept-Encoding' in compressed.headers['vary']
+    assert int(compressed.headers['content-length']) < int(plain.headers['content-length']) / 2
+    assert 'content-encoding' not in plain.headers
+    assert 'content-encoding' not in health.headers

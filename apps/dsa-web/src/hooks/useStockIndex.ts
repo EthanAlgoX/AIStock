@@ -20,6 +20,7 @@ export interface UseStockIndexResult {
   fallback: boolean;
   /** Is loaded */
   loaded: boolean;
+  retry: () => void;
 }
 
 /**
@@ -28,6 +29,7 @@ export interface UseStockIndexResult {
  * @returns Index state and data
  */
 export function useStockIndex(enabled = true): UseStockIndexResult {
+  const [attempt, setAttempt] = useState(0);
   const [index, setIndex] = useState<StockIndexItem[]>([]);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<Error | null>(null);
@@ -61,9 +63,10 @@ export function useStockIndex(enabled = true): UseStockIndexResult {
     return () => {
       mounted = false;
     };
-  }, [enabled]);
+  }, [enabled, attempt]);
 
   return {
+    retry: () => setAttempt(value => value + 1),
     index: enabled ? index : [],
     loading: enabled ? loading : false,
     error: enabled ? error : null,

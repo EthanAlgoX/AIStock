@@ -37,7 +37,7 @@ export function loadStockIndex(): Promise<IndexLoadResult> {
 
 async function fetchStockIndex(): Promise<IndexLoadResult> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 12000);
+  const timeout = window.setTimeout(() => controller.abort(), 30000);
   try {
     // Add time parameter to bypass cache (in case the backend doesn't handle ETag/Cache-Control)
     const response = await fetch(`/stocks.index.json?_t=${Math.floor(Date.now() / 3600000)}`, {signal: controller.signal});

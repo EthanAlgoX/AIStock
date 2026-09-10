@@ -43,6 +43,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
+from starlette.middleware.gzip import GZipMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -189,6 +190,20 @@ _STOCK_INDEX_FILENAME = "stocks.index.json"
 _STOCK_INDEX_HEADERS = {
     "Cache-Control": "no-cache",
 }
+
+
+class StockIndexCompressionMiddleware:
+    """Compress only the public catalog; leave streaming and private APIs unchanged."""
+
+    def __init__(self, app):
+        self.app = app
+        self.compressed = GZipMiddleware(app, minimum_size=500, compresslevel=6)
+
+    async def __call__(self, scope, receive, send):
+        target = self.compressed if (
+            scope["type"] == "http" and scope["path"] == f"/{_STOCK_INDEX_FILENAME}"
+        ) else self.app
+        await target(scope, receive, send)
 
 
 def _bundled_stock_index_path() -> Path:
@@ -417,6 +432,7 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.add_middleware(StockIndexCompressionMiddleware)
     add_auth_middleware(app)
     
     # ============================================================

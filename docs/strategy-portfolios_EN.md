@@ -35,3 +35,5 @@ Creation failures retain the form and server error; background refresh does not 
 The trading symbol field now reuses the research stock catalog and autocomplete matching for names, aliases, pinyin and codes. It displays resolved symbols and automatically selects the market/currency. Ambiguous names require a candidate choice; unknown names and mixed-market pools are blocked before submission. Deduplication uses normalized codes. The API still receives canonical symbols and the existing market field. Unlisted codes are marked for verification. Changing markets resets the default lot (US 1, CN/HK 100); HK lot sizes still need verification in advanced settings.
 
 The shared stock-index endpoint adds known Chinese aliases from the existing stock-name mapping (for example 英伟达 for NVIDIA), preserving vendor display names and source files. Research and trading consume the same enriched catalog.
+
+The public catalog uses gzip transfer compression and a 30-second client timeout. On failure, the trading form retains input and offers a catalog retry. Compression is limited to the public index and does not affect streaming reports or private APIs.
