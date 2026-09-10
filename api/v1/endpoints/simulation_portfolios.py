@@ -9,13 +9,12 @@ from src.services.simulation_portfolio_engine import TEMPLATES, BENCHMARKS
 router = APIRouter()
 
 
-class PortfolioCreate(BaseModel):
+class StrategyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     name: str = Field(min_length=1, max_length=80)
     template: Literal["volume_breakout", "shrink_pullback", "low_volatility_quality"]
     market: Literal["CN", "US", "HK"]
     symbols: list[str] = Field(min_length=1, max_length=12)
-    mode: Literal["paper", "backtest"] = "paper"
     initialCash: float = Field(default=100000, ge=1000, le=100000000)
     maxPositions: int = Field(default=3, ge=1, le=12)
     maxWeight: float = Field(default=0.25, ge=0.01, le=1)
@@ -24,6 +23,18 @@ class PortfolioCreate(BaseModel):
     sellTaxRate: float = Field(default=0, ge=0, le=0.05)
     slippageRate: float = Field(default=0.001, ge=0, le=0.05)
     riskFreeRate: float = Field(default=0, ge=-0.1, le=0.3)
+
+
+class PortfolioCreate(StrategyConfig):
+    mode: Literal["paper", "backtest"] = "paper"
+    startDate: str | None = None
+    endDate: str | None = None
+
+
+class ValidationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    mode: Literal["paper", "backtest"]
+    initialCash: float = Field(default=100000, ge=1000, le=100000000)
     startDate: str | None = None
     endDate: str | None = None
 
@@ -57,6 +68,21 @@ def portfolios():
 @router.post("")
 def create(body: PortfolioCreate):
     return call(SimulationPortfolioService().create, body.model_dump())
+
+
+@router.get("/definitions")
+def definitions():
+    return {"items": SimulationPortfolioService().definitions()}
+
+
+@router.post("/definitions")
+def save_definition(body: StrategyConfig):
+    return call(SimulationPortfolioService().save_definition, body.model_dump())
+
+
+@router.post("/definitions/{definition_id}/validations")
+def create_validation(definition_id: int, body: ValidationCreate):
+    return call(SimulationPortfolioService().create_validation, definition_id, body.model_dump())
 
 
 @router.get("/{portfolio_id}")

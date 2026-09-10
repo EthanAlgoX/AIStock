@@ -1,6 +1,6 @@
 # Strategy validation and daily simulation
 
-`/trading` now opens persisted strategy accounts: choose a rule template, configure symbols and capital, create an account, then run once or start continuous daily simulation. Creation does not execute anything. Legacy research proposals remain at `/trading?view=reports`; existing `run` and `sourceRun` links still work. Proposals do not automatically become orders.
+`/trading` saves a strategy first: choose a rule template, configure symbols and default parameters, and save without selecting a validation mode. Afterwards choose historical backtest, run once, or continuous simulation and confirm the corresponding validation parameters. Saving a strategy creates no account or execution. Legacy research proposals remain at `/trading?view=reports`; existing `run` and `sourceRun` links still work. Proposals do not automatically become orders.
 
 The initial templates are volume breakout, trend pullback and low-volatility momentum, reusing the existing historical-validation scoring rules. The latter uses price, volatility and liquidity rather than fundamental quality. Accounts accept 1–12 fixed symbols in one market (CN/CNY, US/USD, HK/HKD). CN supports 100-share lots only; users must verify HK lot sizes and configured costs.
 
@@ -37,3 +37,11 @@ The trading symbol field now reuses the research stock catalog and autocomplete 
 The shared stock-index endpoint adds known Chinese aliases from the existing stock-name mapping (for example 英伟达 for NVIDIA), preserving vendor display names and source files. Research and trading consume the same enriched catalog.
 
 The public catalog uses gzip transfer compression and a 60-second client timeout. On failure, the trading form retains input and offers a catalog retry. Compression is limited to the public index and does not affect streaming reports or private APIs.
+
+## Save rules before choosing validation
+
+The trading form now saves a private strategy definition without selecting backtest/paper mode or creating an account, task, or order. Choose historical backtest, run once, or continuous simulation afterwards, then confirm validation capital and (for backtests) dates. Each validation has an independent account and appears under its strategy. Existing simulations can continue or pause. Copy rules into a new definition to change them; old standalone records and portfolio links remain accessible.
+
+`GET/POST /api/v1/simulation/portfolios/definitions` lists/saves definitions and rejects mode/date inputs. `POST /definitions/{id}/validations` creates a ready account; the client then uses the existing control endpoint. If starting fails, the account remains available for retry. Responses add nullable `definitionId`; old creation requests remain compatible. Definitions use the existing per-user database isolation, including the owner. Initialization adds `simulation_portfolio_definitions` without changing old columns. Image rollback preserves the new table and account records; the old client can still read accounts.
+
+Top-level run-once and continuous actions resume the latest paper account for that strategy. Only the first simulation asks for capital and creates an account; changing run mode preserves positions and equity.

@@ -399,3 +399,22 @@ def test_paginated_run_history_and_usage_remain_private(members):
         assert page.status_code == 200 and page.json()['total'] == 0
         assert other.get(f'/api/v1/workspace/runs/{run_id}').status_code == 404
     assert alice.post('/api/v1/workspace/run-history', json={}).status_code == 403
+
+
+def test_rule_definitions_and_validations_are_private(members):
+    owner, alice, bob, _ = members
+    base = '/api/v1/simulation/portfolios'
+    payload = dict(name='Private rule', template='volume_breakout', market='US', symbols=['AAPL'], lotSize=1)
+    saved = alice.post(base + '/definitions', json=payload)
+    assert saved.status_code == 200, saved.text
+    definition_id = saved.json()['id']
+    assert alice.get(base).json()['items'] == []
+    for other in (owner, bob):
+        assert other.get(base + '/definitions').json()['items'] == []
+        assert other.post(f'{base}/definitions/{definition_id}/validations', json={'mode': 'paper'}).status_code == 404
+    assert alice.post(base + '/definitions', json=dict(payload, mode='backtest')).status_code == 422
+    result = alice.post(f'{base}/definitions/{definition_id}/validations', json={'mode': 'paper'})
+    assert result.status_code == 200, result.text
+    assert result.json()['definitionId'] == definition_id
+    assert result.json()['status'] == 'ready' and not result.json()['busy']
+    assert bob.get(f'{base}/{result.json()["id"]}').status_code == 404

@@ -238,3 +238,37 @@ def test_portfolio_outcome_reports_account_updates_without_claiming_a_proposal()
     artifact['content']['processedDays'] = 0
     assert business_outcome('completed', 'trading', [artifact])['status'] == 'empty'
     assert business_outcome('failed', 'trading', [artifact])['status'] == 'failed'
+
+
+def test_saved_definition_has_no_account_and_spawns_independent_validations(workspace):
+    from api.v1.endpoints.simulation_portfolios import StrategyConfig
+    service = SimulationPortfolioService(workspace.db, fetcher())
+    payload = {k: v for k, v in config().items() if k not in {'mode', 'startDate', 'endDate'}}
+    saved = service.save_definition(StrategyConfig(**payload).model_dump())
+    assert not {'mode', 'startDate', 'endDate'} & saved['config'].keys()
+    assert service.definitions() == [saved]
+    with workspace.db.get_session() as session:
+        assert session.scalar(select(func.count()).select_from(SimulationAccountRecord)) == 0
+        assert session.scalar(select(func.count()).select_from(SimulationRunRecord)) == 0
+    historical = service.create_validation(saved['id'], dict(mode='backtest', initialCash=200000,
+        startDate='2025-02-10', endDate='2025-02-14'))
+    paper = service.create_validation(saved['id'], dict(mode='paper', initialCash=100000,
+        startDate=None, endDate=None))
+    assert historical['definitionId'] == paper['definitionId'] == saved['id']
+    assert historical['id'] != paper['id'] and historical['versionId'] != paper['versionId']
+    assert paper['config']['startDate'] != historical['config']['startDate']
+    with patch.object(service, '_last_closed', return_value=date(2025, 2, 14)):
+        run_sync(service, historical['id'])
+    assert len(service.detail(historical['id'])['days']) == 5
+    assert service.detail(paper['id'])['days'] == []
+    assert service.definitions() == [saved]
+
+
+def test_invalid_validation_does_not_create_account(workspace):
+    service = SimulationPortfolioService(workspace.db)
+    saved = service.save_definition(config())
+    with pytest.raises(ValueError):
+        service.create_validation(saved['id'], dict(mode='backtest', startDate=None, endDate=None))
+    with pytest.raises(LookupError):
+        service.create_validation(99999, dict(mode='paper'))
+    assert service.list() == []

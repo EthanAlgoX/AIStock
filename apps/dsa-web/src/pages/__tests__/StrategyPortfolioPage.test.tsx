@@ -14,6 +14,9 @@ const api = vi.hoisted(() => ({
   detail: vi.fn(),
   control: vi.fn(),
   create: vi.fn(),
+  definitions: vi.fn(),
+  saveDefinition: vi.fn(),
+  createValidation: vi.fn(),
 }));
 vi.mock("../../api/portfolios", () => ({ portfoliosApi: api }));
 vi.mock("../../hooks/useStockIndex", () => ({
@@ -95,6 +98,7 @@ const detail = {
 beforeEach(() => {
   vi.clearAllMocks();
   api.list.mockResolvedValue([detail]);
+  api.definitions.mockResolvedValue([]);
   api.detail.mockResolvedValue(detail);
   api.templates.mockResolvedValue([
     { id: "volume_breakout", name: "量价突破", description: "突破条件" },
@@ -119,7 +123,7 @@ it("shows real zero metrics, daily opinions and current positions without invent
   );
 });
 it("creates explicit fixed configuration without auto trading", async () => {
-  api.create.mockResolvedValue({ ...detail, id: 2 });
+  api.saveDefinition.mockResolvedValue({ ...detail, id: 2 });
   render(
     <MemoryRouter>
       <TradingWorkspacePage />
@@ -133,9 +137,9 @@ it("creates explicit fixed configuration without auto trading", async () => {
   fireEvent.change(screen.getByLabelText("股票池（名称或代码，最多 12 只）"), {
     target: { value: "600519, 601318" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "创建策略账户" }));
+  fireEvent.click(screen.getByRole("button", { name: "保存策略" }));
   await waitFor(() =>
-    expect(api.create).toHaveBeenCalledWith(
+    expect(api.saveDefinition).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "规则验证",
         symbols: ["600519", "601318"],
@@ -143,6 +147,8 @@ it("creates explicit fixed configuration without auto trading", async () => {
       }),
     ),
   );
+  expect(screen.queryByLabelText("验证方式")).not.toBeInTheDocument();
+  expect(api.createValidation).not.toHaveBeenCalled();
   expect(api.control).not.toHaveBeenCalled();
 });
 
@@ -155,10 +161,10 @@ async function submitDraft() {
   fireEvent.change(screen.getByLabelText("股票池（名称或代码，最多 12 只）"), {
     target: { value: "600519" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "创建策略账户" }));
+  fireEvent.click(screen.getByRole("button", { name: "保存策略" }));
 }
 it("retains the server domain error across successful background polls", async () => {
-  api.create.mockRejectedValue({
+  api.saveDefinition.mockRejectedValue({
     isAxiosError: true,
     response: {
       status: 422,
@@ -189,7 +195,7 @@ it("retains the server domain error across successful background polls", async (
   expect(screen.getByLabelText("策略名称")).toHaveValue("验证");
 }, 10000);
 it("shows field validation details instead of a generic connection error", async () => {
-  api.create.mockRejectedValue({
+  api.saveDefinition.mockRejectedValue({
     isAxiosError: true,
     response: {
       status: 422,
@@ -215,7 +221,7 @@ it("shows field validation details instead of a generic connection error", async
   expect(screen.getByRole("alert")).toHaveTextContent("1000");
 });
 it("validates pool limits before posting and accepts Chinese separators", async () => {
-  api.create.mockResolvedValue({ ...detail, id: 2 });
+  api.saveDefinition.mockResolvedValue({ ...detail, id: 2 });
   render(
     <MemoryRouter>
       <TradingWorkspacePage />
@@ -234,20 +240,20 @@ it("validates pool limits before posting and accepts Chinese separators", async 
       ),
     },
   });
-  fireEvent.click(screen.getByRole("button", { name: "创建策略账户" }));
+  fireEvent.click(screen.getByRole("button", { name: "保存策略" }));
   expect(screen.getByRole("alert")).toHaveTextContent("当前填写了 13 个");
-  expect(api.create).not.toHaveBeenCalled();
+  expect(api.saveDefinition).not.toHaveBeenCalled();
   fireEvent.change(input, { target: { value: "600519、601318；600519" } });
-  fireEvent.click(screen.getByRole("button", { name: "创建策略账户" }));
+  fireEvent.click(screen.getByRole("button", { name: "保存策略" }));
   await waitFor(() =>
-    expect(api.create).toHaveBeenCalledWith(
+    expect(api.saveDefinition).toHaveBeenCalledWith(
       expect.objectContaining({ symbols: ["600519", "601318"] }),
     ),
   );
 });
 
 it("recognizes names and automatically uses the US market and lot size", async () => {
-  api.create.mockResolvedValue({ ...detail, id: 2 });
+  api.saveDefinition.mockResolvedValue({ ...detail, id: 2 });
   render(
     <MemoryRouter>
       <TradingWorkspacePage />
@@ -262,9 +268,9 @@ it("recognizes names and automatically uses the US market and lot size", async (
     target: { value: "英伟达、苹果" },
   });
   expect(screen.getByText("自动识别市场：美股 · USD")).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "创建策略账户" }));
+  fireEvent.click(screen.getByRole("button", { name: "保存策略" }));
   await waitFor(() =>
-    expect(api.create).toHaveBeenCalledWith(
+    expect(api.saveDefinition).toHaveBeenCalledWith(
       expect.objectContaining({
         symbols: ["NVDA", "AAPL"],
         market: "US",
@@ -287,7 +293,69 @@ it("blocks mixed markets before account creation", async () => {
   fireEvent.change(screen.getByLabelText("股票池（名称或代码，最多 12 只）"), {
     target: { value: "英伟达、600519" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "创建策略账户" }));
+  fireEvent.click(screen.getByRole("button", { name: "保存策略" }));
   expect(screen.getByRole("alert")).toHaveTextContent("多个市场");
-  expect(api.create).not.toHaveBeenCalled();
+  expect(api.saveDefinition).not.toHaveBeenCalled();
+});
+
+it.each([
+  ["历史回测", "backtest", "run"],
+  ["运行一次", "paper", "run"],
+  ["持续模拟", "paper", "start"],
+])(
+  "launches %s only after confirming validation parameters",
+  async (label, mode, action) => {
+    api.definitions.mockResolvedValue([{ id: 7, name: "已保存规则", config }]);
+    api.createValidation.mockResolvedValue({
+      ...detail,
+      id: 8,
+      definitionId: 7,
+      mode,
+    });
+    api.control.mockResolvedValue({ ...detail, id: 8, definitionId: 7, mode });
+    render(
+      <MemoryRouter initialEntries={["/trading?strategy=7"]}>
+        <TradingWorkspacePage />
+      </MemoryRouter>,
+    );
+    await screen.findByRole("heading", { name: "已保存规则" });
+    fireEvent.click(screen.getByRole("button", { name: label }));
+    expect(api.createValidation).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("验证初始资金"), {
+      target: { value: "200000" },
+    });
+    if (mode === "backtest") {
+      fireEvent.change(screen.getByLabelText("回测开始"), {
+        target: { value: "2025-02-10" },
+      });
+      fireEvent.change(screen.getByLabelText("回测结束"), {
+        target: { value: "2025-02-14" },
+      });
+    }
+    fireEvent.click(screen.getByRole("button", { name: "确认并开始验证" }));
+    await waitFor(() =>
+      expect(api.createValidation).toHaveBeenCalledWith(7, {
+        mode,
+        initialCash: 200000,
+        startDate: mode === "backtest" ? "2025-02-10" : null,
+        endDate: mode === "backtest" ? "2025-02-14" : null,
+      }),
+    );
+    await waitFor(() => expect(api.control).toHaveBeenCalledWith(8, action));
+  },
+);
+
+it("continues the existing simulation when switching to continuous mode", async () => {
+  api.definitions.mockResolvedValue([{ id: 7, name: "已保存规则", config }]);
+  api.list.mockResolvedValue([{ ...detail, definitionId: 7 }]);
+  api.control.mockResolvedValue({ ...detail, definitionId: 7 });
+  render(
+    <MemoryRouter initialEntries={["/trading?strategy=7"]}>
+      <TradingWorkspacePage />
+    </MemoryRouter>,
+  );
+  await screen.findByRole("heading", { name: "已保存规则" });
+  fireEvent.click(screen.getByRole("button", { name: "持续模拟" }));
+  await waitFor(() => expect(api.control).toHaveBeenCalledWith(1, "start"));
+  expect(api.createValidation).not.toHaveBeenCalled();
 });

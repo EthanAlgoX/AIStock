@@ -11,6 +11,7 @@ import {
   portfoliosApi,
   type Portfolio,
   type RuleConfig,
+  type StrategyDefinition,
 } from "../api/portfolios";
 
 const fmt = (v: number | null | undefined, percent = false) =>
@@ -68,6 +69,15 @@ export default function TradingWorkspacePage() {
     params.has("sourceRun") ||
     params.has("run");
   const id = Number(params.get("portfolio")) || null;
+  const definitionId = Number(params.get("strategy")) || null;
+  const [definitions, setDefinitions] = useState<StrategyDefinition[]>([]);
+  const definition = definitions.find((d) => d.id === definitionId);
+  const [launch, setLaunch] = useState<"run" | "start" | "backtest" | null>(
+    null,
+  );
+  const [validationCash, setValidationCash] = useState(100000);
+  const [validationStart, setValidationStart] = useState("");
+  const [validationEnd, setValidationEnd] = useState("");
   const [items, setItems] = useState<Portfolio[]>([]);
   const [templates, setTemplates] = useState<
     { id: string; name: string; description: string }[]
@@ -107,13 +117,15 @@ export default function TradingWorkspacePage() {
     let timer: ReturnType<typeof setTimeout>;
     const load = async () => {
       try {
-        const [list, catalog, selected] = await Promise.all([
+        const [list, catalog, selected, saved] = await Promise.all([
           portfoliosApi.list(),
           portfoliosApi.templates(),
           id ? portfoliosApi.detail(id) : Promise.resolve(null),
+          portfoliosApi.definitions(),
         ]);
         if (alive) {
           setItems(list);
+          setDefinitions(saved);
           setTemplates(catalog);
           setDetail(selected);
           setLoadError("");
@@ -145,7 +157,12 @@ export default function TradingWorkspacePage() {
       </>
     );
   const select = (next: number) => {
-    setParams({ portfolio: String(next) });
+    const owner = items.find((p) => p.id === next)?.definitionId;
+    setParams({
+      portfolio: String(next),
+      ...(owner ? { strategy: String(owner) } : {}),
+    });
+    setLaunch(null);
     setCreating(false);
     setDate("");
     setDetail(null);
@@ -180,13 +197,15 @@ export default function TradingWorkspacePage() {
     }
     setSending(true);
     try {
-      const p = await portfoliosApi.create({
+      const p = await portfoliosApi.saveDefinition({
         ...draft,
         symbols: codes,
         market: poolMarket || draft.market,
         lotSize: poolLot,
       });
-      select(p.id);
+      setParams({ strategy: String(p.id) });
+      setCreating(false);
+      setLaunch(null);
       setRefresh((x) => x + 1);
     } catch (e) {
       setError(failure(e));
@@ -194,12 +213,12 @@ export default function TradingWorkspacePage() {
       setSending(false);
     }
   };
-  const control = async (action: "run" | "start" | "pause") => {
-    if (!id) return;
+  const control = async (action: "run" | "start" | "pause", targetId = id) => {
+    if (!targetId) return;
     setSending(true);
     setError("");
     try {
-      setDetail(await portfoliosApi.control(id, action));
+      setDetail(await portfoliosApi.control(targetId, action));
       setRefresh((x) => x + 1);
     } catch (e) {
       setError(failure(e));
@@ -291,19 +310,6 @@ export default function TradingWorkspacePage() {
                   onChange={(e) => change("name", e.target.value)}
                 />
               </label>
-              <label>
-                验证方式
-                <select
-                  className={inputClass}
-                  value={draft.mode}
-                  onChange={(e) =>
-                    change("mode", e.target.value as RuleConfig["mode"])
-                  }
-                >
-                  <option value="paper">持续模拟（从今天开始）</option>
-                  <option value="backtest">历史回测（独立账户）</option>
-                </select>
-              </label>
               <div className="sm:col-span-2">
                 <label className="block">
                   股票池（名称或代码，最多 12 只）
@@ -386,7 +392,7 @@ export default function TradingWorkspacePage() {
                 </div>
               </div>
               <label>
-                初始模拟资金
+                默认验证资金
                 <input
                   className={inputClass}
                   type="number"
@@ -411,30 +417,6 @@ export default function TradingWorkspacePage() {
                   }
                 />
               </label>
-              {draft.mode === "backtest" && (
-                <>
-                  <label>
-                    回测开始
-                    <input
-                      required
-                      type="date"
-                      className={inputClass}
-                      value={draft.startDate || ""}
-                      onChange={(e) => change("startDate", e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    回测结束
-                    <input
-                      required
-                      type="date"
-                      className={inputClass}
-                      value={draft.endDate || ""}
-                      onChange={(e) => change("endDate", e.target.value)}
-                    />
-                  </label>
-                </>
-              )}
             </div>
             <details className="border-y border-border py-4">
               <summary className="cursor-pointer font-medium">
@@ -475,39 +457,261 @@ export default function TradingWorkspacePage() {
               </div>
             </details>
             <p className="text-sm leading-6 text-secondary-text">
-              按已收盘日线产生观点，下一交易日开盘价加减滑点模拟成交。参数保存后固定；修改参数请创建新账户。基准使用同市场指数
+              按已收盘日线产生观点，下一交易日开盘价加减滑点模拟成交。规则保存后固定；修改规则请复制策略。保存后再选择回测或模拟。基准使用同市场指数
               ETF 的价格表现，不含分红。请核对税费和每手股数。
             </p>
             <button disabled={sending} className="btn-primary">
-              {sending ? "保存中…" : "创建策略账户"}
+              {sending ? "保存中…" : "保存策略"}
             </button>
           </form>
         </section>
       ) : (
         <div className="grid gap-7 lg:grid-cols-[250px_minmax(0,1fr)]">
           <aside>
-            <h2 className="mb-3 font-semibold">我的策略账户</h2>
-            {loading && <p role="status">加载中…</p>}
-            {items.map((p) => (
+            <h2 className="mb-3 font-semibold">我的策略</h2>
+            {definitions.map((d) => (
               <button
-                key={p.id}
-                onClick={() => select(p.id)}
-                className={`mb-2 w-full rounded-lg border p-3 text-left ${id === p.id ? "border-primary bg-primary/5" : "border-border"}`}
+                key={d.id}
+                className={`mb-2 w-full rounded-lg border p-3 text-left ${definitionId === d.id ? "border-primary bg-primary/5" : "border-border"}`}
+                onClick={() => {
+                  setParams({ strategy: String(d.id) });
+                  setLaunch(null);
+                }}
               >
-                <strong className="block truncate">{p.name}</strong>
+                <strong className="block">{d.name}</strong>
                 <span className="mt-2 block text-xs text-secondary-text">
-                  {p.mode === "paper" ? "实时模拟" : "历史回测"} · {p.market} ·{" "}
-                  {status(p)}
+                  {d.config.market} · {d.config.symbols.length} 只股票 ·{" "}
+                  {items.filter((p) => p.definitionId === d.id).length} 次验证
                 </span>
               </button>
             ))}
-            {!loading && !items.length && (
+            {items.some((p) => !p.definitionId) && (
+              <h3 className="mt-6 mb-3 text-sm text-secondary-text">
+                已有独立验证记录
+              </h3>
+            )}
+            {loading && <p role="status">加载中…</p>}
+            {items
+              .filter((p) => !p.definitionId)
+              .map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => select(p.id)}
+                  className={`mb-2 w-full rounded-lg border p-3 text-left ${id === p.id ? "border-primary bg-primary/5" : "border-border"}`}
+                >
+                  <strong className="block truncate">{p.name}</strong>
+                  <span className="mt-2 block text-xs text-secondary-text">
+                    {p.mode === "paper" ? "实时模拟" : "历史回测"} · {p.market}{" "}
+                    · {status(p)}
+                  </span>
+                </button>
+              ))}
+            {!loading && !items.length && !definitions.length && (
               <p className="text-sm text-secondary-text">
-                尚无策略账户。选择模板，开始验证。
+                尚无策略。先保存规则，再选择回测或模拟。
               </p>
             )}
           </aside>
           <section className="min-w-0" aria-label="策略详情">
+            {definition && (
+              <section
+                className="mb-7 border-b border-border pb-6"
+                aria-label="已保存策略"
+              >
+                <h2 className="text-xl font-semibold">{definition.name}</h2>
+                <p className="mt-2 text-sm text-secondary-text">
+                  {
+                    templates.find((t) => t.id === definition.config.template)
+                      ?.name
+                  }{" "}
+                  · {definition.config.symbols.join("、")} ·{" "}
+                  {definition.config.market}
+                </p>
+                <p className="mt-2 text-sm text-secondary-text">
+                  策略已保存。回测独立记账；运行一次和持续模拟共用最近的模拟账户，不会重置已有持仓。
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["backtest", "历史回测"],
+                      ["run", "运行一次"],
+                      ["start", "持续模拟"],
+                    ] as const
+                  ).map(([action, label]) => (
+                    <button
+                      key={action}
+                      className="btn-secondary"
+                      disabled={sending}
+                      onClick={() => {
+                        const paper = items.find(
+                          (p) =>
+                            p.definitionId === definition.id &&
+                            p.mode === "paper",
+                        );
+                        if (action !== "backtest" && paper) {
+                          select(paper.id);
+                          void control(action, paper.id);
+                          return;
+                        }
+                        setLaunch(action);
+                        setValidationCash(definition.config.initialCash);
+                        setError("");
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <button
+                    className="btn-secondary"
+                    onClick={() => {
+                      setDraft({
+                        ...seed,
+                        ...definition.config,
+                        name: `${definition.name} · 新版本`,
+                      });
+                      setSymbols(definition.config.symbols.join("、"));
+                      setCreating(true);
+                    }}
+                  >
+                    复制策略
+                  </button>
+                </div>
+                {launch && (
+                  <form
+                    className="mt-5 space-y-4 border-y border-border py-5"
+                    aria-label="验证参数"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setSending(true);
+                      setError("");
+                      let created: Portfolio | null = null;
+                      try {
+                        created = await portfoliosApi.createValidation(
+                          definition.id,
+                          {
+                            mode: launch === "backtest" ? "backtest" : "paper",
+                            initialCash: validationCash,
+                            startDate:
+                              launch === "backtest" ? validationStart : null,
+                            endDate:
+                              launch === "backtest" ? validationEnd : null,
+                          },
+                        );
+                        setParams({
+                          strategy: String(definition.id),
+                          portfolio: String(created.id),
+                        });
+                        setDetail(created);
+                        setLaunch(null);
+                        setDate("");
+                        await portfoliosApi.control(
+                          created.id,
+                          launch === "start" ? "start" : "run",
+                        );
+                      } catch (e) {
+                        setError(
+                          `${created ? "验证记录已保存，可在记录中重试运行。" : ""}${failure(e)}`,
+                        );
+                      } finally {
+                        setSending(false);
+                        setRefresh((x) => x + 1);
+                      }
+                    }}
+                  >
+                    <h3 className="font-semibold">
+                      {launch === "backtest"
+                        ? "历史回测参数"
+                        : launch === "start"
+                          ? "持续模拟参数"
+                          : "单次模拟参数"}
+                    </h3>
+                    <p className="text-sm text-secondary-text">
+                      {launch === "backtest"
+                        ? "选择过去的日期区间（跨度最多两年），按历史日线验证规则。"
+                        : "从今天开始模拟。运行一次只检查最新已收盘行情；持续模拟会自动检查，未收盘时等待。"}
+                    </p>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <label>
+                        验证初始资金
+                        <input
+                          className={inputClass}
+                          type="number"
+                          required
+                          min={1000}
+                          max={100000000}
+                          value={validationCash}
+                          onChange={(e) =>
+                            setValidationCash(Number(e.target.value))
+                          }
+                        />
+                      </label>
+                      {launch === "backtest" && (
+                        <>
+                          <label>
+                            回测开始
+                            <input
+                              className={inputClass}
+                              type="date"
+                              required
+                              value={validationStart}
+                              onChange={(e) =>
+                                setValidationStart(e.target.value)
+                              }
+                            />
+                          </label>
+                          <label>
+                            回测结束
+                            <input
+                              className={inputClass}
+                              type="date"
+                              required
+                              value={validationEnd}
+                              onChange={(e) => setValidationEnd(e.target.value)}
+                            />
+                          </label>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="btn-primary" disabled={sending}>
+                        {sending ? "启动中…" : "确认并开始验证"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={sending}
+                        onClick={() => setLaunch(null)}
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </form>
+                )}
+                <h3 className="mt-6 font-semibold">验证记录</h3>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {items
+                    .filter((p) => p.definitionId === definition.id)
+                    .map((p) => (
+                      <button
+                        className={
+                          p.id === id ? "btn-primary" : "btn-secondary"
+                        }
+                        key={p.id}
+                        onClick={() => select(p.id)}
+                      >
+                        {p.mode === "backtest" ? "回测" : "模拟"} #{p.id} ·{" "}
+                        {status(p)}
+                      </button>
+                    ))}
+                </div>
+                {!items.some((p) => p.definitionId === definition.id) && (
+                  <p className="mt-3 text-sm text-secondary-text">
+                    尚未验证。保存策略不会自动运行或创建模拟账户。
+                  </p>
+                )}
+              </section>
+            )}
+
             {detail?.id === id ? (
               <>
                 <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -529,7 +733,7 @@ export default function TradingWorkspacePage() {
                       disabled={sending || detail.busy}
                       onClick={() => void control("run")}
                     >
-                      运行一次
+                      {detail.mode === "backtest" ? "运行回测" : "继续运行一次"}
                     </button>
                     {detail.mode === "paper" && (
                       <button
@@ -556,22 +760,6 @@ export default function TradingWorkspacePage() {
                       }}
                     >
                       复制配置
-                    </button>
-                    <button
-                      className="btn-secondary"
-                      onClick={() => {
-                        setDraft({
-                          ...detail.config,
-                          name: `${detail.name} · ${detail.mode === "paper" ? "回测" : "模拟"}`,
-                          mode: detail.mode === "paper" ? "backtest" : "paper",
-                          startDate: null,
-                          endDate: null,
-                        });
-                        setSymbols(detail.config.symbols.join(", "));
-                        setCreating(true);
-                      }}
-                    >
-                      {detail.mode === "paper" ? "回测此配置" : "创建实时模拟"}
                     </button>
                   </div>
                 </div>
@@ -655,7 +843,7 @@ export default function TradingWorkspacePage() {
                     <p className="mt-2 text-sm text-secondary-text">
                       尚无同配置的
                       {detail.mode === "paper" ? "历史回测" : "实时模拟"}
-                      。使用上方按钮创建，两种验证分别保留账户与日期范围。
+                      。在所属策略中选择另一种验证；旧记录可先复制配置并保存为策略。
                     </p>
                   )}
                 </section>
@@ -948,13 +1136,13 @@ export default function TradingWorkspacePage() {
                   </div>
                 </details>
               </>
-            ) : (
+            ) : definition ? null : (
               <div className="py-20 text-center">
                 <h2 className="text-xl font-semibold">
                   选择一个策略，观察它如何运行
                 </h2>
                 <p className="mt-3 text-secondary-text">
-                  先回测，再创建同配置的实时模拟账户，分别积累验证记录。
+                  先保存策略，再选择历史回测、运行一次或持续模拟，分别积累验证记录。
                 </p>
                 <button
                   className="btn-primary mt-5"

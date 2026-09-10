@@ -2032,6 +2032,15 @@ class SimulationAccountRecord(Base):
     updated_at = Column(DateTime, default=utc_naive_now, onupdate=utc_naive_now, nullable=False, index=True)
 
 
+class SimulationPortfolioDefinitionRecord(Base):
+    """Saved rule configuration, independent from any validation account or mode."""
+    __tablename__ = 'simulation_portfolio_definitions'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(80), nullable=False)
+    config_json = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=utc_naive_now)
+
+
 class SimulationPortfolioRunRecord(Base):
     """Durable fixed-version paper/backtest account and cooperative execution lease."""
     __tablename__ = 'simulation_portfolio_runs'

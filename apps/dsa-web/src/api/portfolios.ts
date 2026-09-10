@@ -59,6 +59,7 @@ export type PortfolioDay = {
 };
 export type Portfolio = {
   id: number;
+  definitionId?: number | null;
   name: string;
   market: string;
   mode: "paper" | "backtest";
@@ -82,8 +83,61 @@ export type Portfolio = {
   metrics?: Record<string, number | null>;
   days?: PortfolioDay[];
 };
+export type StrategyDefinition = {
+  id: number;
+  name: string;
+  config: Omit<RuleConfig, "mode" | "startDate" | "endDate">;
+};
+export type ValidationOptions = {
+  mode: "paper" | "backtest";
+  initialCash: number;
+  startDate: string | null;
+  endDate: string | null;
+};
 const root = "/api/v1/simulation/portfolios";
 export const portfoliosApi = {
+  definitions: async () =>
+    (await client.get<{ items: StrategyDefinition[] }>(`${root}/definitions`))
+      .data.items,
+  saveDefinition: async (config: RuleConfig) => {
+    const {
+      name,
+      template,
+      market,
+      symbols,
+      initialCash,
+      maxPositions,
+      maxWeight,
+      lotSize,
+      commissionRate,
+      sellTaxRate,
+      slippageRate,
+      riskFreeRate,
+    } = config;
+    return (
+      await client.post<StrategyDefinition>(`${root}/definitions`, {
+        name,
+        template,
+        market,
+        symbols,
+        initialCash,
+        maxPositions,
+        maxWeight,
+        lotSize,
+        commissionRate,
+        sellTaxRate,
+        slippageRate,
+        riskFreeRate,
+      })
+    ).data;
+  },
+  createValidation: async (id: number, options: ValidationOptions) =>
+    (
+      await client.post<Portfolio>(
+        `${root}/definitions/${id}/validations`,
+        options,
+      )
+    ).data,
   list: async () => (await client.get<{ items: Portfolio[] }>(root)).data.items,
   templates: async () =>
     (

@@ -11,6 +11,7 @@ from sqlalchemy import select, update, or_, delete
 from src.storage import (
     DatabaseManager,
     SimulationAccountRecord,
+    SimulationPortfolioDefinitionRecord,
     SimulationStrategyRecord,
     SimulationStrategyVersionRecord,
     SimulationPortfolioRunRecord,
@@ -33,7 +34,7 @@ class SimulationPortfolioService:
         self.db = db or DatabaseManager.get_instance()
         self.fetcher = fetcher
 
-    def create(self, payload):
+    def _prepare_config(self, payload):
         market, template = payload["market"], payload["template"]
         if market not in BENCHMARKS or template not in {t["id"] for t in TEMPLATES}:
             raise ValueError("不支持的市场或规则模板")
@@ -76,6 +77,37 @@ class SimulationPortfolioService:
         name = config["name"].strip()
         if not name:
             raise ValueError("请输入策略名称")
+        config["name"] = name
+        return config
+
+    def save_definition(self, payload):
+        config = self._prepare_config(dict(payload, mode="paper"))
+        for key in ("mode", "startDate", "endDate"):
+            config.pop(key, None)
+        with self.db.session_scope() as session:
+            row = SimulationPortfolioDefinitionRecord(name=config["name"], config_json=json.dumps(config))
+            session.add(row)
+            session.flush()
+            return dict(id=row.id, name=row.name, config=config)
+
+    def definitions(self):
+        with self.db.get_session() as session:
+            rows = session.scalars(select(SimulationPortfolioDefinitionRecord).order_by(
+                SimulationPortfolioDefinitionRecord.id.desc()
+            )).all()
+            return [dict(id=r.id, name=r.name, config=json.loads(r.config_json)) for r in rows]
+
+    def create_validation(self, definition_id, options):
+        with self.db.get_session() as session:
+            definition = session.get(SimulationPortfolioDefinitionRecord, definition_id)
+            if definition is None:
+                raise LookupError("策略不存在")
+            config = json.loads(definition.config_json)
+        return self.create(dict(config, **options, definitionId=definition_id))
+
+    def create(self, payload):
+        config = self._prepare_config(payload)
+        market, name = config["market"], config["name"]
         with self.db.session_scope() as session:
             strategy = SimulationStrategyRecord(
                 name=f"{name} · {uuid.uuid4().hex[:8]}", description="每日价格规则组合；独立模拟账户"
@@ -124,6 +156,7 @@ class SimulationPortfolioService:
         config = json.loads(row.config_json)
         return dict(
             id=row.id,
+            definitionId=config.get("definitionId"),
             name=config["name"],
             mode=row.mode,
             status=row.status,
