@@ -5,6 +5,7 @@ import type { AgentCapabilityBindings } from '../types/capabilities';
 export type HoldingRules = { lossPct: number; profitPct: number; dailyMovePct: number };
 export type HoldingRecommendation = { category: 'increase' | 'hold_positive' | 'hold_watch' | 'reduce' | 'exit'; label: string; score: number; basis: string; source: string };
 export type HoldingRecommendationPoint = { session: string; createdAt: string; category: HoldingRecommendation['category']; label: string; score: number };
+export type ResearchScorePoint = { session: string; createdAt: string; category: string; label: string; score: number };
 export type HoldingPlan = { task: WorkspaceTask; schedule: WorkspaceSchedule | null; timezone: string; runAt: string };
 export type HoldingItem = {
   accountId: number; accountName: string; stockName?: string | null; taskId: string | null; supported: boolean;
@@ -18,7 +19,13 @@ export type HoldingItem = {
     holdingRecommendation?: HoldingRecommendation | null; recommendationHistory?: HoldingRecommendationPoint[];
     recommendationTrend?: { direction: 'rising' | 'falling' | 'stable' | 'insufficient'; change: number | null; sessions: number } } | null;
 };
-export type HoldingsDashboard = { asOf: string; items: HoldingItem[]; rules: HoldingRules };
+export type WatchItem = {
+  symbol: string; market: string; stockName?: string | null; taskId: string; supported: boolean; schedule: WorkspaceSchedule | null;
+  run: { id: string; status: string; createdAt: string; error: string | null; currentSession: boolean } | null;
+  brief: { name: string | null; summary: string; score: number | null; trend: string | null; strategy: Record<string, unknown> | null;
+    scoreHistory: ResearchScorePoint[]; scoreTrend: { direction: 'rising' | 'falling' | 'stable' | 'insufficient'; change: number | null; sessions: number } } | null;
+};
+export type HoldingsDashboard = { asOf: string; items: HoldingItem[]; watches: WatchItem[]; rules: HoldingRules };
 const root = '/api/v1/workspace/portfolio-research';
 const positionUrl = (accountId: number, symbol: string) => `${root}/${accountId}/${encodeURIComponent(symbol)}`;
 export const portfolioResearchApi = {
@@ -28,4 +35,9 @@ export const portfolioResearchApi = {
     return (await apiClient.put<HoldingPlan>(`${positionUrl(account, symbol)}/plan`, payload)).data;
   },
   async run(account: number, symbol: string) { return (await apiClient.post<WorkspaceRun>(`${positionUrl(account, symbol)}/run`)).data; },
+  async createWatch(payload: { symbol: string; market: 'cn' | 'hk' | 'us' }) { return (await apiClient.post<HoldingPlan>(`${root}/watch`, payload)).data; },
+  async watchPlan(symbol: string) { return (await apiClient.get<HoldingPlan>(`${root}/watch/${encodeURIComponent(symbol)}/plan`)).data; },
+  async configureWatch(symbol: string, payload: { strategyVersionId: number; capabilities: AgentCapabilityBindings; dailyEnabled: boolean; intervalDays: number; runAt: string }) { return (await apiClient.put<HoldingPlan>(`${root}/watch/${encodeURIComponent(symbol)}/plan`, payload)).data; },
+  async runWatch(symbol: string) { return (await apiClient.post<WorkspaceRun>(`${root}/watch/${encodeURIComponent(symbol)}/run`)).data; },
+  async removeWatch(symbol: string) { return (await apiClient.delete(`${root}/watch/${encodeURIComponent(symbol)}`)).data; },
 };

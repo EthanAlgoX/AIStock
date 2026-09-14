@@ -6,6 +6,18 @@ from datetime import datetime, timezone
 from typing import Any
 
 
+def _remove_watch_actions(result: dict[str, Any]) -> dict[str, Any]:
+    """Keep watch reports informational: no portfolio-operation field survives."""
+    from copy import deepcopy
+    cleaned = deepcopy(result)
+    report = cleaned.get("report") if isinstance(cleaned, dict) else None
+    summary = report.get("summary") if isinstance(report, dict) else None
+    if isinstance(summary, dict):
+        for field in ("operation_advice", "action", "action_label", "holding_recommendation"):
+            summary.pop(field, None)
+    return cleaned
+
+
 def run(context: dict[str, Any]) -> dict[str, Any]:
     inputs = context.get("inputs") if isinstance(context.get("inputs"), dict) else {}
     symbol = str(inputs.get("symbol") or inputs.get("stockCode") or inputs.get("stock_code") or "").strip()
@@ -23,6 +35,10 @@ def run(context: dict[str, Any]) -> dict[str, Any]:
 
     parameters = context.get("parameters") if isinstance(context.get("parameters"), dict) else {}
     portfolio_context = inputs.get("portfolioContext")
+    if inputs.get("watchResearch"):
+        # An empty mapping suppresses AnalysisService's automatic ledger lookup.
+        # Watch research must remain independent of any account holding.
+        portfolio_context = {}
     if inputs.get("holdingResearch") and not isinstance(portfolio_context, dict):
         return {
             "status": "failed", "contract": "ResearchReport", "reasonCode": "HOLDING_CONTEXT_REQUIRED",
@@ -73,7 +89,7 @@ def run(context: dict[str, Any]) -> dict[str, Any]:
         "strategyId": context.get("strategyId"),
         "strategyVersion": context.get("strategyVersion"),
         "asOf": context.get("asOf") or datetime.now(timezone.utc).isoformat(),
-        "result": result,
+        "result": _remove_watch_actions(result) if inputs.get("watchResearch") else result,
         "researchSkills": skills or [],
         "dataCoverage": {
             key: {**value, "configured": value.get("available"), "available": None, "verification": "see_run_diagnostics"}

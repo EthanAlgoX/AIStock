@@ -1582,6 +1582,8 @@ class WorkspaceService:
                 if not isinstance(context, dict):
                     return {"success": False, "errorCode": "holding_context_required", "error": "持仓研究必须冻结并传入持仓数据。"}
                 workflow_inputs.update({"portfolioContext": context, "holdingResearch": True})
+            elif task.get("config", {}).get("portfolioWatch"):
+                workflow_inputs.update({"portfolioContext": {}, "watchResearch": True})
             workflow = execute_research_workflow(
                 int(version_id), "research_report" if kind == "research" else "candidate_screening",
                 workflow_inputs if kind == "research" else {},
@@ -1796,6 +1798,9 @@ class WorkspaceService:
     @staticmethod
     def _validate_task_contract(kind: str, subject: dict[str, Any], config: dict[str, Any], bindings: dict[str, list[Any]]) -> None:
         holding = config.get("portfolioHolding")
+        watch = config.get("portfolioWatch")
+        if holding is not None and watch is not None:
+            raise WorkspaceError("portfolio_binding_conflict", "同一研究任务不能同时绑定持仓和关注股票。", 422)
         if holding is not None:
             from src.services.portfolio_research_service import research_symbol, DEFAULT_RULES, _number
             if (kind != "research" or not isinstance(holding, dict)
@@ -1809,6 +1814,12 @@ class WorkspaceService:
             if (not isinstance(rules, dict) or set(rules) != set(DEFAULT_RULES)
                     or any(type(value) not in {int, float} or _number(value) is None or not 0.1 <= value <= 100 for value in rules.values())):
                 raise WorkspaceError("holding_rules_invalid", "持仓风险复核阈值必须为 0.1% 至 100%。", 422)
+        if watch is not None:
+            from src.services.portfolio_research_service import research_symbol
+            if (kind != "research" or not isinstance(watch, dict) or not isinstance(watch.get("symbol"), str)
+                    or watch["symbol"] != research_symbol(watch["symbol"])
+                    or research_symbol(watch["symbol"]) != research_symbol(str(subject.get("stock") or subject.get("stockCode") or ""))):
+                raise WorkspaceError("watch_binding_invalid", "关注研究必须绑定同一只规范股票代码。", 422)
         version_id = config.get("strategyVersionId")
         depth = config.get("deepResearchCount", 0)
         if type(depth) is not int or not 0 <= depth <= 3:

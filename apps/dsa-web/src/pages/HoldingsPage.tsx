@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, RefreshCw, Settings2, ArrowUpRight, ShieldAlert } from 'lucide-react';
+import { Plus, RefreshCw, Settings2, ArrowUpRight, ShieldAlert, Star, Trash2 } from 'lucide-react';
 import { AppPage, PageHeader } from '../components/common';
-import { portfolioResearchApi, type HoldingItem, type HoldingsDashboard } from '../api/portfolioResearch';
+import { portfolioResearchApi, type HoldingItem, type HoldingsDashboard, type WatchItem } from '../api/portfolioResearch';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import HoldingPlanEditor from '../components/portfolio/HoldingPlanEditor';
 import HoldingEntryForm from '../components/portfolio/HoldingEntryForm';
+import WatchEntryForm from '../components/portfolio/WatchEntryForm';
 import PriceAlertPanel from '../components/portfolio/PriceAlertPanel';
 import HoldingRecommendationTrend from '../components/portfolio/HoldingRecommendationTrend';
 import { getParsedApiError } from '../api/error';
 
-const active = (item: HoldingItem) => ['queued', 'running'].includes(item.run?.status || '');
+const active = (item: { run: { status: string } | null }) => ['queued', 'running'].includes(item.run?.status || '');
 const keyOf = (item: HoldingItem) => `${item.accountId}:${item.position.symbol}`;
+const watchKey = (item: WatchItem) => `watch:${item.symbol}`;
 const number = (value: number | null | undefined) => value != null && Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—';
 
 function HoldingNumbers({ item }: { item: HoldingItem }) {
@@ -35,6 +37,7 @@ export default function HoldingsPage() {
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState('');
   const [entryOpen, setEntryOpen] = useState(false);
+  const [watchEntryOpen, setWatchEntryOpen] = useState(false);
   const [editing, setEditing] = useState('');
   const [alertEditing, setAlertEditing] = useState('');
   const [filter, setFilter] = useState('all');
@@ -81,13 +84,14 @@ export default function HoldingsPage() {
 
   return <AppPage data-design-contract="operate: holdings brief ledger; neutral/cobalt; evidence before configuration">
     <PageHeader title={l('持仓管理', 'Portfolio')} description={l('把研究放回你的持仓中。先看风险与今日简报，需要时再展开完整研究。', 'Research in the context of what you own. Scan risks and daily briefs, then open the full evidence when needed.')}
-      actions={<><button className="btn-secondary" onClick={() => setEntryOpen(!entryOpen)} aria-expanded={entryOpen}><Plus size={16} aria-hidden />{l('录入持仓', 'Add holding')}</button><button className="btn-primary" disabled={!!busy || !data?.items.some(i => i.supported && !active(i))} onClick={() => void act('all', runAll)}>{busy === 'all' ? l('正在提交…', 'Submitting…') : l('研究全部持仓', 'Research all holdings')}</button></>} />
+      actions={<><button className="btn-secondary" onClick={() => setEntryOpen(!entryOpen)} aria-expanded={entryOpen}><Plus size={16} aria-hidden />{l('录入持仓', 'Add holding')}</button><button className="btn-secondary" onClick={() => setWatchEntryOpen(!watchEntryOpen)} aria-expanded={watchEntryOpen}><Star size={16} aria-hidden />{l('添加关注股票', 'Add watch stock')}</button><button className="btn-primary" disabled={!!busy || !data?.items.some(i => i.supported && !active(i))} onClick={() => void act('all', runAll)}>{busy === 'all' ? l('正在提交…', 'Submitting…') : l('研究全部持仓', 'Research all holdings')}</button></>} />
     <div className="my-4 flex flex-wrap items-center justify-between gap-3 text-xs text-secondary-text">
       <p>{l('研究调用真实模型，可能产生费用。建议仅供人工复核，不会自动下单。', 'Research uses real models and may incur costs. Suggestions require human review; no orders are placed.')}</p>
       <Link className="text-primary hover:underline" to="/portfolio/ledger">{l('账户与交易流水', 'Accounts & transactions')} <ArrowUpRight className="inline h-3 w-3" aria-hidden /></Link>
     </div>
     <Link to="/alerts" className="inline-block min-h-11 py-2 text-sm text-primary">{l('告警中心 · 配置上下限与通知渠道', 'Alert center · thresholds & delivery channels')}</Link>
     {entryOpen && <HoldingEntryForm onSaved={() => { setEntryOpen(false); setNotice(l('持仓已更新。要接收价格提醒吗？点击对应股票的“设置价格告警”，配置上下限与渠道。', 'Holding updated. Want price alerts? Open “Set price alerts” on the stock to choose thresholds and channels.')); void load(); }} />}
+    {watchEntryOpen && <WatchEntryForm onSaved={() => { setWatchEntryOpen(false); setNotice(l('关注股票已添加。可直接研究一次，或展开设置后保存并开启自动跟踪。', 'Watch stock added. Run once now, or open settings and save to enable tracking.')); void load(); }} />}
     {error && <div role="alert" className="my-4 rounded-lg border border-danger/30 p-4 text-sm"><p>{error}</p><button className="mt-2 text-primary underline" onClick={() => void load()}>{l('重试读取', 'Retry loading')}</button></div>}
     {notice && <p role="status" className="my-4 text-sm text-warning">{notice}</p>}
     <section aria-label={l('持仓概览', 'Portfolio overview')} className="my-6 flex flex-wrap items-center gap-x-8 gap-y-3 border-y border-border py-4 text-sm">
@@ -101,6 +105,7 @@ export default function HoldingsPage() {
       <label className="sr-only" htmlFor="holding-search">{l('搜索持仓', 'Search holdings')}</label><input id="holding-search" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={l('股票或账户', 'Stock or account')} className="h-11 min-w-0 rounded-lg border border-border bg-background px-3 text-sm" />
       <select aria-label={l('筛选持仓', 'Filter holdings')} value={filter} onChange={e => setFilter(e.target.value)} className="h-11 rounded-lg border border-border bg-background px-3 text-sm"><option value="all">{l('全部市场', 'All markets')}</option><option value="risk">{l('需要复核', 'Needs review')}</option><option value="cn">{l('A 股', 'China A')}</option><option value="hk">{l('港股', 'Hong Kong')}</option><option value="us">{l('美股', 'US')}</option></select>
     </div>
+    {!!data?.watches.length && <section className="mb-8 border-y border-border py-5" aria-label={l('关注股票简报', 'Watch stock briefs')}><div className="mb-3 flex items-baseline gap-2"><Star size={16} className="text-primary" aria-hidden /><h2 className="text-lg font-semibold">{l('关注股票简报', 'Watch stock briefs')}</h2><p className="text-xs text-secondary-text">{l('仅显示独立研究评分和依据，不使用持仓数据，也不提供持仓操作建议。', 'Independent research scores and evidence only; no holdings data or holding actions.')}</p></div><div className="divide-y divide-border">{data.watches.map(watch => { const key = watchKey(watch), name = watch.stockName || watch.brief?.name; return <article key={key} className="grid gap-4 py-4 lg:grid-cols-[190px_minmax(0,1fr)_180px]"><div><h3 className="text-lg font-semibold">{name || l('名称待识别', 'Name pending identification')}</h3><p className="mt-1 text-xs text-secondary-text">{watch.symbol} · {watch.market.toUpperCase()}</p><p className="mt-3 text-xs text-secondary-text">{l('未持仓关注', 'Watch only')}</p></div><div className="min-w-0">{watch.brief ? <><p className="text-sm font-medium">{l('研究评分', 'Research score')}{watch.brief.score != null ? ` · ${watch.brief.score}` : ''}</p><p className="mt-2 whitespace-pre-line text-sm leading-7 text-secondary-text">{watch.brief.summary || l('未提供摘要，请查看完整研究。', 'No summary provided. Open the full research.')}</p><HoldingRecommendationTrend watch history={watch.brief.scoreHistory || []} trend={watch.brief.scoreTrend || { direction: 'insufficient', change: null, sessions: 0 }} /></> : <p className="text-sm leading-7 text-secondary-text">{active(watch) ? l('正在后台获取数据并研究。', 'Fetching evidence and researching.') : l('尚无关注研究。运行后将展示独立评分、摘要和评分轨迹。', 'No watch research yet. Run once to see an independent score, summary, and score history.')}</p>}{watch.run?.error && <p role="alert" className="mt-3 text-sm text-danger">{watch.run.error}</p>}</div><div className="flex flex-wrap items-start gap-2 lg:flex-col"><button className="btn-secondary w-full" disabled={!!busy || active(watch)} onClick={() => void act(key, () => portfolioResearchApi.runWatch(watch.symbol))}>{active(watch) ? states[watch.run!.status] : l('研究这只关注股', 'Research watch stock')}</button><button className="flex min-h-11 items-center gap-2 text-sm text-secondary-text hover:text-primary" aria-expanded={editing === key} onClick={() => setEditing(editing === key ? '' : key)}><Settings2 size={15} aria-hidden />{l('跟踪周期与策略', 'Tracking schedule & strategy')}</button><button className="flex min-h-11 items-center gap-2 text-sm text-danger" disabled={!!busy} onClick={() => void act(key, () => portfolioResearchApi.removeWatch(watch.symbol))}><Trash2 size={15} aria-hidden />{l('移除关注', 'Remove watch')}</button>{watch.run && <Link className="inline-flex min-h-11 items-center gap-1 text-sm text-primary" to={`/stock-research?run=${watch.run.id}`}>{l('完整研究与进度', 'Full research & progress')}<ArrowUpRight size={14} aria-hidden /></Link>}<p className="text-xs leading-5 text-secondary-text">{watch.schedule?.enabled ? `${l(`每 ${watch.schedule.intervalDays || 1} 天`, `Every ${watch.schedule.intervalDays || 1} days`)} ${watch.schedule.runAt} · ${watch.schedule.timezone}` : l('自动跟踪未开启', 'Scheduled tracking is off')}</p></div>{editing === key && <div className="lg:col-span-3"><HoldingPlanEditor watch={watch} onSaved={() => { setEditing(''); void load(); }} /></div>}</article>; })}</div></section>}
     {!data && !error && <p role="status" className="py-12 text-secondary-text">{l('正在读取持仓…', 'Loading holdings…')}</p>}
     {data && !items.length && <div className="border-y border-border py-14"><h3 className="text-lg font-medium">{data.items.length ? l('没有匹配的持仓', 'No matching holdings') : l('从你已经持有的股票开始', 'Start with what you own')}</h3><p className="mt-3 max-w-[65ch] text-sm leading-7 text-secondary-text">{l('录入股票、数量和成本后，这里会显示成本风险，并可以生成每日短简报。默认使用综合研究，不要求选择 Skill 或专家。', 'Add a stock, quantity and cost to review cost-related risks and generate short daily briefs. Balanced research works without selecting Skills or experts.')}</p><button className="btn-secondary mt-5" onClick={() => setEntryOpen(true)}>{l('录入第一笔持仓', 'Add a holding')}</button></div>}
     <div className="divide-y divide-border border-t border-border">

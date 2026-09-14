@@ -9,7 +9,8 @@ const api = vi.hoisted(() => ({ dashboard: vi.fn(), run: vi.fn() }));
 vi.mock('../../api/portfolioResearch', () => ({ portfolioResearchApi: api }));
 vi.mock('../../components/portfolio/HoldingPlanEditor', () => ({ default: () => <div>Plan editor</div> }));
 vi.mock('../../components/portfolio/HoldingEntryForm', () => ({ default: () => <div>Entry form</div> }));
-const data: HoldingsDashboard = { asOf: '2026-09-08', rules: { lossPct: 10, profitPct: 20, dailyMovePct: 5 }, items: [{
+const data: HoldingsDashboard = { asOf: '2026-09-08', rules: { lossPct: 10, profitPct: 20, dailyMovePct: 5 }, watches: [],
+  items: [{
   accountId: 1, accountName: 'Test account', stockName: 'Apple Inc.', taskId: 'task', supported: true, alerts: ['loss_review'], schedule: null,
   position: { symbol: 'AAPL', market: 'us', currency: 'USD', quantity: 10, avg_cost: 100, last_price: 89, unrealized_pnl_pct: -11, price_available: true, price_stale: false, price_date: '2026-09-08', price_source: 'history_close' },
   run: { id: 'run', status: 'completed', createdAt: '2026-09-08T08:00:00Z', error: null, currentSession: true },

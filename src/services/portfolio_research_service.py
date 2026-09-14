@@ -154,6 +154,19 @@ class PortfolioResearchService:
         return next((task for task in self.workspace.list_tasks("research")
                      if task["config"].get("portfolioHolding") == {"accountId": account_id, "symbol": target}), None)
 
+    def _watch_task(self, symbol):
+        target = research_symbol(symbol)
+        return next((task for task in self.workspace.list_tasks("research")
+                     if task["config"].get("portfolioWatch") == {"symbol": target}), None)
+
+    def _watch_market(self, symbol, market):
+        from src.services.workspace_service import WorkspaceError
+        target = research_symbol(symbol)
+        actual = (get_market_for_stock(target) or "").lower()
+        if actual not in MARKETS or actual != str(market).lower():
+            raise WorkspaceError("watch_stock_invalid", "请选择代码与市场一致的 A 股、港股或美股。", 422)
+        return target, actual
+
     def plan(self, account_id, symbol):
         from src.services.workspace_defaults import default_task_plan
         context = self._position(account_id, symbol)
@@ -217,6 +230,83 @@ class PortfolioResearchService:
                                                 "timezone": plan["timezone"], **schedule_data})
             return self.plan(account_id, symbol)
 
+    def watch_plan(self, symbol):
+        task = self._watch_task(symbol)
+        if not task:
+            from src.services.workspace_service import WorkspaceError
+            raise WorkspaceError("watch_not_found", "未找到该关注股票。", 404)
+        market = task["market"].lower()
+        schedule = next((s for s in self.workspace.list_schedules() if s["taskId"] == task["id"]), None)
+        tz, run_at = MARKETS[market]
+        return {"task": task, "schedule": schedule, "timezone": tz, "runAt": run_at}
+
+    def create_watch(self, symbol, market):
+        from src.services.workspace_defaults import default_task_plan
+        with _PLAN_LOCK:
+            target, market = self._watch_market(symbol, market)
+            saved = self._watch_task(target)
+            if saved:
+                return self.watch_plan(target)
+            task = default_task_plan(self.workspace, "research", market.upper(), target)["task"]
+            task["capabilities"]["expertIds"] = []
+            task["capabilities"]["expertTeamIds"] = []
+            task["name"] = f"{target} · 关注跟踪"
+            task["objective"] = ("基于当次真实市场数据独立研究该关注股票，输出摘要、0–100 综合评分、趋势、催化、风险和失效条件。"
+                                 "该标的未提供实际持仓；不得读取、推断或引用账户、成本、数量或盈亏，"
+                                 "也不得输出买入、卖出、加仓、减仓、止损或持仓建议。不要引用历史研究结论。")
+            task["config"]["portfolioWatch"] = {"symbol": target}
+            task = self.workspace.create_task(task)
+            tz, run_at = MARKETS[market]
+            return {"task": task, "schedule": None, "timezone": tz, "runAt": run_at}
+
+    def configure_watch(self, symbol, payload):
+        from src.services.workspace_service import WorkspaceError
+        from src.services.strategy_definition_service import StrategyDefinitionService, StrategyDefinitionError
+        with _PLAN_LOCK:
+            plan = self.watch_plan(symbol)
+            task = plan["task"]
+            bindings = payload.get("capabilities") or task["capabilities"]
+            version_id = payload.get("strategyVersionId") or task["config"]["strategyVersionId"]
+            try:
+                version = StrategyDefinitionService(self.workspace.db).get_version(version_id)
+            except StrategyDefinitionError as exc:
+                raise WorkspaceError("watch_strategy_invalid", "研究策略不存在，请重新选择。", 422) from exc
+            if len(bindings.get("expertIds", [])) > 3 or bindings.get("expertTeamIds"):
+                raise WorkspaceError("watch_expert_limit", "关注研究最多选择三位补充专家，不绑定专家小组。", 422)
+            if (version.get("status") != "PUBLISHED" or version.get("strategyPurpose") != "research_report"
+                    or str(version.get("screeningPolicy", {}).get("market", "")).upper() != task["market"]):
+                raise WorkspaceError("watch_strategy_invalid", "请选择同市场已发布的单股研究策略。", 422)
+            fixed = version.get("decisionPolicy", {}).get("packageParameters", {}).get("skills") or []
+            if fixed and bindings.get("skillIds"):
+                raise WorkspaceError("watch_skill_conflict", "正式策略已定义 Skill；自选 Skill 请改用综合研究策略。", 422)
+            run_at = payload.get("runAt") or (plan["schedule"] or {}).get("runAt") or plan["runAt"]
+            interval_days = self.workspace._validate_interval_days(payload.get("intervalDays") if payload.get("intervalDays") is not None else (plan["schedule"] or {}).get("intervalDays", 1))
+            self.workspace._next_run("daily", run_at, None, plan["timezone"], datetime.now(timezone.utc).replace(tzinfo=None))
+            config = {**task["config"], "strategyVersionId": version_id}
+            task = self.workspace.update_task(task["id"], {"config": config, "capabilities": bindings})
+            schedule_data = {"intervalDays": interval_days, "runAt": run_at, "enabled": payload.get("dailyEnabled", False)}
+            if plan["schedule"]:
+                self.workspace.update_schedule(plan["schedule"]["id"], schedule_data)
+            else:
+                self.workspace.create_schedule({"taskId": task["id"], "name": task["name"], "scheduleMode": "daily", "timezone": plan["timezone"], **schedule_data})
+            return self.watch_plan(symbol)
+
+    def run_watch(self, symbol):
+        with _PLAN_LOCK:
+            task = self._watch_task(symbol)
+            if not task:
+                from src.services.workspace_service import WorkspaceError
+                raise WorkspaceError("watch_not_found", "请先添加关注股票。", 404)
+            return self.workspace.create_run(task["id"], trigger_type="manual")
+
+    def remove_watch(self, symbol):
+        with _PLAN_LOCK:
+            task = self._watch_task(symbol)
+            if not task:
+                from src.services.workspace_service import WorkspaceError
+                raise WorkspaceError("watch_not_found", "未找到该关注股票。", 404)
+            return self.workspace.archive_task(task["id"])
+
     def run(self, account_id, symbol):
         with _PLAN_LOCK:
             self._position(account_id, symbol)
@@ -229,14 +319,15 @@ class PortfolioResearchService:
         """Re-read inventory each day; closed positions must never keep consuming LLM calls."""
         from src.services.workspace_service import WorkspaceError
         binding = task["config"].get("portfolioHolding")
+        watch = task["config"].get("portfolioWatch")
         symbol = str(task.get("subject", {}).get("stock") or task.get("subject", {}).get("stockCode") or "")
-        context = matching_context(self.portfolio, symbol, binding["accountId"] if binding else None, task["market"])
+        context = None if watch else matching_context(self.portfolio, symbol, binding["accountId"] if binding else None, task["market"])
         if binding and not context:
             for schedule in self.workspace.list_schedules():
                 if schedule["taskId"] == task["id"] and schedule["enabled"]:
                     self.workspace.update_schedule(schedule["id"], {"enabled": False})
             raise WorkspaceError("holding_closed", "该持仓已清仓，自动研究已暂停。", 409)
-        if binding:
+        if binding or watch:
             # Dedupe both manual double-clicks and scheduler overlap, including
             # completed-session reuse on weekends/holidays. Failed runs may retry.
             with self.workspace.db.get_session() as session:
@@ -246,12 +337,30 @@ class PortfolioResearchService:
                 import json
                 for row in rows:
                     if row.status in {"queued", "running"}:
-                        return context, row.id
+                        return context if binding else None, row.id
                     if (trigger_type == "schedule" and row.status == "completed"
                             and json.loads(row.task_snapshot_json).get("portfolioSession") == effective):
-                        return context, row.id
+                        return context if binding else None, row.id
                 task["portfolioSession"] = effective
-        return context, None
+        return (None if watch else context), None
+
+    def _watch_history(self, task_id):
+        with self.workspace.db.get_session() as session:
+            rows = session.execute(select(WorkspaceRunRecord).where(WorkspaceRunRecord.task_id == task_id, WorkspaceRunRecord.status == "completed").order_by(WorkspaceRunRecord.created_at.desc()).limit(90)).scalars().all()
+            artifacts = session.execute(select(WorkspaceArtifactRecord).where(WorkspaceArtifactRecord.run_id.in_([row.id for row in rows]), WorkspaceArtifactRecord.artifact_type == "ResearchReport")).scalars().all() if rows else []
+        rows.reverse()
+        reports = {artifact.run_id: json.loads(artifact.content_json) for artifact in artifacts}
+        points = {}
+        for row in rows:
+            content = reports.get(row.id, {})
+            report = content.get("result", {}).get("report", {}) if isinstance(content, dict) else {}
+            score = normalize_score(report.get("summary", {}).get("sentiment_score")) if isinstance(report, dict) else None
+            if score is None:
+                continue
+            created_at = row.created_at.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+            session_key = json.loads(row.task_snapshot_json).get("portfolioSession") or created_at
+            points[session_key] = {"session": session_key, "createdAt": created_at, "category": "research_score", "label": "研究评分", "score": score}
+        return list(points.values())[-30:]
 
     def _recommendation_history(self, task_id):
         """Read completed artifacts only; never feed this series into research."""
@@ -351,4 +460,37 @@ class PortfolioResearchService:
                                           "recommendationHistory": recommendation_history,
                                           "recommendationTrend": holding_recommendation_trend(recommendation_history)}
                                          if report else None)})
-        return {"asOf": snapshot["as_of"], "items": result, "rules": DEFAULT_RULES}
+        watches = []
+        for task in tasks:
+            binding = task["config"].get("portfolioWatch")
+            if not isinstance(binding, dict):
+                continue
+            latest = None
+            with self.workspace.db.get_session() as session:
+                row = session.execute(select(WorkspaceRunRecord).where(WorkspaceRunRecord.task_id == task["id"])
+                                      .order_by(WorkspaceRunRecord.created_at.desc()).limit(1)).scalar_one_or_none()
+                run_id = row.id if row else None
+            if run_id:
+                latest = self.workspace.get_run(run_id)
+            report = None
+            interpretation = ""
+            if latest:
+                artifact = next((a for a in latest["artifacts"] if a["type"] == "ResearchReport" and isinstance(a.get("content"), dict) and isinstance(a["content"].get("result"), dict)), None)
+                report = artifact["content"]["result"].get("report") if artifact else None
+                for artifact in latest["artifacts"]:
+                    if artifact["type"] == "ResearchInterpretation" and isinstance(artifact.get("content"), dict):
+                        interpretation = _brief_text(artifact["content"].get("conclusion")) or interpretation
+            summary = report.get("summary", {}) if isinstance(report, dict) and isinstance(report.get("summary"), dict) else {}
+            meta = report.get("meta", {}) if isinstance(report, dict) and isinstance(report.get("meta"), dict) else {}
+            history = self._watch_history(task["id"])
+            market = task["market"].lower()
+            watches.append({"symbol": binding["symbol"], "market": market, "stockName": get_index_stock_name(binding["symbol"]) or meta.get("stock_name"),
+                            "taskId": task["id"], "supported": market in MARKETS,
+                            "schedule": next((s for s in schedules if s["taskId"] == task["id"]), None),
+                            "run": ({"id": latest["id"], "status": latest["status"], "createdAt": latest["createdAt"], "error": latest.get("errorMessage"),
+                                     "currentSession": bool(latest["taskSnapshot"].get("portfolioSession") == str(get_effective_trading_date(market)))} if latest else None),
+                            "brief": ({"name": meta.get("stock_name"), "summary": interpretation or _brief_text(summary.get("analysis_summary")),
+                                       "score": normalize_score(summary.get("sentiment_score")), "trend": _brief_text(summary.get("trend_prediction")),
+                                       "strategy": report.get("strategy"), "scoreHistory": history,
+                                       "scoreTrend": holding_recommendation_trend(history)} if report else None)})
+        return {"asOf": snapshot["as_of"], "items": result, "watches": watches, "rules": DEFAULT_RULES}

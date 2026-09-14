@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 import pytest
 from pydantic import ValidationError
 
-from api.v1.schemas.workspace import PortfolioResearchRequest
+from api.v1.schemas.workspace import PortfolioResearchRequest, PortfolioWatchCreateRequest
 from src.services.portfolio_research_service import PortfolioResearchService, matching_context, portfolio_alerts, DEFAULT_RULES
 from src.services.workspace_service import WorkspaceError
 from tests.test_workspace_service import workspace, _empty_bindings  # noqa: F401
@@ -222,6 +222,53 @@ def test_holding_kernel_requires_and_forwards_frozen_portfolio_context():
 
     assert result["status"] == "success"
     assert analyze.call_args.kwargs["portfolio_context"] == context
+
+
+def test_watch_research_never_freezes_or_reads_holding_context(workspace):
+    service = PortfolioResearchService(workspace)
+    holding(service)
+    plan = service.create_watch("600519", "cn")
+    assert plan["task"]["config"]["portfolioWatch"] == {"symbol": "600519"}
+    assert "portfolioHolding" not in plan["task"]["config"]
+    with patch("src.services.workspace_service._WORKERS", Mock()), patch.object(service.portfolio, "get_portfolio_snapshot", side_effect=AssertionError("watch must not read holdings")):
+        run = service.run_watch("600519")
+    assert "portfolioContext" not in run["taskSnapshot"]
+    assert run["taskSnapshot"]["portfolioSession"]
+
+
+def test_watch_kernel_uses_empty_context_and_removes_operation_advice():
+    from src.strategy_kernels.single_stock_research import run
+
+    response = {"query_id": "query-1", "report": {"summary": {
+        "sentiment_score": 72, "operation_advice": "考虑买入", "action": "buy",
+    }}}
+    with patch("src.services.analysis_service.AnalysisService.analyze_stock", return_value=response) as analyze:
+        result = run({"inputs": {"symbol": "600519", "watchResearch": True}})
+    assert result["status"] == "success"
+    assert analyze.call_args.kwargs["portfolio_context"] == {}
+    assert result["result"]["report"]["summary"] == {"sentiment_score": 72}
+
+
+def test_watch_dashboard_has_scores_but_no_holding_recommendation(workspace):
+    service = PortfolioResearchService(workspace)
+    service.create_watch("600519", "cn")
+    with patch("src.services.workspace_service._WORKERS", Mock()):
+        run = service.run_watch("600519")
+    workspace._finish_run(run["id"], "completed", summary={})
+    workspace._store_artifact(run["id"], "ResearchReport", "watch report", {"result": {"report": {
+        "meta": {"stock_name": "贵州茅台"}, "summary": {"analysis_summary": "基本面稳健", "sentiment_score": 72,
+        "operation_advice": "考虑买入"}}}})
+    item = service.dashboard()["watches"][0]
+    assert item["stockName"] == "贵州茅台"
+    assert item["brief"]["score"] == 72
+    assert item["brief"]["scoreHistory"][0]["score"] == 72
+    assert "holdingRecommendation" not in item["brief"]
+
+
+def test_watch_request_requires_supported_market():
+    assert PortfolioWatchCreateRequest(symbol="600519", market="cn").symbol == "600519"
+    with pytest.raises(ValidationError):
+        PortfolioWatchCreateRequest(symbol="600519", market="global")
 
 
 def test_api_plan_contract_and_unsupported_request_do_not_start_models(workspace):

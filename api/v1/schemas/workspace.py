@@ -41,6 +41,11 @@ class PortfolioResearchRequest(WorkspaceModel):
     runAt: Optional[str] = Field(None, pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
+class PortfolioWatchCreateRequest(WorkspaceModel):
+    symbol: str = Field(..., min_length=1, max_length=32)
+    market: Literal["cn", "hk", "us"]
+
+
 class DataSourceCreateRequest(WorkspaceModel):
     name: str = Field(..., min_length=1, max_length=120)
     description: Optional[str] = Field(None, max_length=1000)

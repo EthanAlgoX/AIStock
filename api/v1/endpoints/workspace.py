@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from api.v1.schemas.workspace import (
     CapabilityPreferenceRequest,
     PortfolioResearchRequest,
+    PortfolioWatchCreateRequest,
     DataSourceCreateRequest,
     ExpertCreateRequest,
     ExpertTeamCreateRequest,
@@ -174,6 +175,31 @@ def holdings_dashboard() -> dict[str, Any]:
 @router.post("/portfolio-research/refresh")
 def refresh_holdings_dashboard() -> dict[str, Any]:
     return _call(lambda: _holding_service().dashboard(refresh=True))
+
+
+@router.post("/portfolio-research/watch", status_code=201)
+def create_portfolio_watch(request: PortfolioWatchCreateRequest) -> dict[str, Any]:
+    return _call(lambda: _holding_service().create_watch(request.symbol, request.market))
+
+
+@router.get("/portfolio-research/watch/{symbol}/plan")
+def watch_plan(symbol: str) -> dict[str, Any]:
+    return _call(lambda: _holding_service().watch_plan(symbol))
+
+
+@router.put("/portfolio-research/watch/{symbol}/plan")
+def configure_watch_plan(symbol: str, request: PortfolioResearchRequest) -> dict[str, Any]:
+    return _call(lambda: _holding_service().configure_watch(symbol, request.model_dump(exclude_none=True)))
+
+
+@router.post("/portfolio-research/watch/{symbol}/run", status_code=202)
+def run_watch_research(symbol: str) -> dict[str, Any]:
+    return _call(lambda: _holding_service().run_watch(symbol))
+
+
+@router.delete("/portfolio-research/watch/{symbol}")
+def delete_portfolio_watch(symbol: str) -> dict[str, Any]:
+    return _call(lambda: _holding_service().remove_watch(symbol))
 
 
 @router.get("/portfolio-research/{account_id}/{symbol}/plan")
