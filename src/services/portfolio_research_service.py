@@ -311,11 +311,14 @@ class PortfolioResearchService:
                     if run_id:
                         latest = self.workspace.get_run(run_id)
                 report = None
+                diagnostic_summary = None
                 recommendation = None
                 if latest:
                     artifact = next((a for a in latest["artifacts"] if a["type"] == "ResearchReport"
                                      and isinstance(a.get("content"), dict) and isinstance(a["content"].get("result"), dict)), None)
-                    report = artifact["content"]["result"] if artifact else None
+                    analysis_result = artifact["content"]["result"] if artifact else None
+                    report = analysis_result.get("report") if isinstance(analysis_result, dict) else None
+                    diagnostic_summary = analysis_result.get("diagnostic_summary") if isinstance(analysis_result, dict) else None
                     recommendation = artifact["content"].get("holdingRecommendation") if artifact else None
                 raw_summary, raw_meta = (report or {}).get("summary"), (report or {}).get("meta")
                 summary = raw_summary if isinstance(raw_summary, dict) else {}
@@ -348,7 +351,7 @@ class PortfolioResearchService:
                                           "action": "" if interpretation else _brief_text(summary.get("action")),
                                           "advice": "" if interpretation else _brief_text(summary.get("operation_advice")),
                                           "trend": _brief_text(summary.get("trend_prediction")), "changePct": meta.get("change_pct"),
-                                          "strategy": report.get("strategy"), "diagnostics": report.get("diagnostic_summary"),
+                                          "strategy": report.get("strategy"), "diagnostics": diagnostic_summary,
                                           "holdingRecommendation": recommendation,
                                           "recommendationHistory": recommendation_history,
                                           "recommendationTrend": holding_recommendation_trend(recommendation_history)}

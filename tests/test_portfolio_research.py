@@ -182,7 +182,9 @@ def test_dashboard_exposes_recommendation_history_without_using_it_as_input(work
     workspace._finish_run(run["id"], "completed", summary={})
     workflow = {
         "status": "success", "contract": "ResearchReport",
-        "result": {"report": {"meta": {}, "summary": {"operation_advice": "考虑减仓"}}},
+        "result": {"report": {"meta": {"stock_name": "贵州茅台"}, "summary": {
+            "analysis_summary": "趋势转弱，优先控制仓位。", "operation_advice": "考虑减仓",
+        }}},
         "holdingRecommendation": {"category": "reduce", "label": "考虑减仓", "score": 40,
                                   "basis": "考虑减仓", "source": "current_independent_report"},
     }
@@ -191,6 +193,8 @@ def test_dashboard_exposes_recommendation_history_without_using_it_as_input(work
     brief = service.dashboard()["items"][0]["brief"]
 
     assert brief["holdingRecommendation"]["category"] == "reduce"
+    assert brief["summary"] == "趋势转弱，优先控制仓位。"
+    assert brief["advice"] == "考虑减仓"
     assert brief["recommendationHistory"] == [{
         "session": run["taskSnapshot"]["portfolioSession"], "createdAt": run["createdAt"],
         "category": "reduce", "label": "考虑减仓", "score": 40,
