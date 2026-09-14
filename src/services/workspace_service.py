@@ -1575,9 +1575,16 @@ class WorkspaceService:
                 return {"success": False, "errorCode": "cancelled", "error": "任务已取消。"}
             self._set_run_stage(run_id, "workflow", "正式研究流程", "running")
             subject = task.get("subject") or {}
+            workflow_inputs = {"symbol": subject.get("stock") or subject.get("stockCode"),
+                               **({"skills": builtin_skills} if builtin_skills else {})}
+            if task.get("config", {}).get("portfolioHolding"):
+                context = task.get("portfolioContext")
+                if not isinstance(context, dict):
+                    return {"success": False, "errorCode": "holding_context_required", "error": "持仓研究必须冻结并传入持仓数据。"}
+                workflow_inputs.update({"portfolioContext": context, "holdingResearch": True})
             workflow = execute_research_workflow(
                 int(version_id), "research_report" if kind == "research" else "candidate_screening",
-                {"symbol": subject.get("stock") or subject.get("stockCode"), **({"skills": builtin_skills} if builtin_skills else {})} if kind == "research" else {},
+                workflow_inputs if kind == "research" else {},
                 market=task.get("market"),
             )
             if cancel_event.is_set():
@@ -1585,6 +1592,9 @@ class WorkspaceService:
             if workflow.get("status") != "success":
                 self._set_run_stage(run_id, "workflow", "正式研究流程", "failed")
                 return {"success": False, "errorCode": workflow.get("reasonCode", "workflow_failed"), "error": workflow.get("message", "研究工作流未成功完成。")}
+            if task.get("config", {}).get("portfolioHolding"):
+                from src.services.portfolio_research_service import holding_recommendation
+                workflow["holdingRecommendation"] = holding_recommendation(workflow.get("result"))
             self._set_run_stage(run_id, "workflow", "正式研究流程", "completed")
             self._store_artifact(run_id, workflow["contract"], f"{task['name']} · 策略结果", workflow)
             if kind == "research" and workflow.get("researchSkills"):

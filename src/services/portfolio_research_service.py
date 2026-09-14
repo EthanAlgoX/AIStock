@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from contextvars import ContextVar
+import json
 import math
 import threading
 
@@ -13,15 +14,23 @@ from sqlalchemy import select
 from data_provider.base import normalize_stock_code
 
 from src.core.trading_calendar import get_market_for_stock, get_effective_trading_date
+from src.data.stock_index_loader import get_index_stock_name
 from src.repositories.portfolio_repo import PortfolioRepository
 from src.services.portfolio_service import PortfolioService
-from src.storage import WorkspaceRunRecord
+from src.storage import WorkspaceArtifactRecord, WorkspaceRunRecord
 
 _PLAN_LOCK = threading.RLock()
 ACTIVE_HOLDING_CONTEXT = ContextVar("active_holding_context", default=None)
 MARKETS = {"cn": ("Asia/Shanghai", "16:30"), "hk": ("Asia/Hong_Kong", "17:30"),
            "us": ("America/New_York", "17:00")}
 DEFAULT_RULES = {"lossPct": 10.0, "profitPct": 20.0, "dailyMovePct": 5.0}
+HOLDING_RECOMMENDATIONS = {
+    "increase": {"label": "考虑增持", "score": 80},
+    "hold": {"label": "持有观察", "score": 60},
+    "review": {"label": "证据不足待复核", "score": 50},
+    "reduce": {"label": "考虑减仓", "score": 40},
+    "exit": {"label": "考虑退出", "score": 20},
+}
 
 
 def research_symbol(symbol):
@@ -47,6 +56,51 @@ def _brief_text(value):
     if text.startswith(("{", "[", "```")):
         return ""
     return text[:400] + ("…" if len(text) > 400 else "")
+
+
+def holding_recommendation(result):
+    """Normalize one independent holding report into a comparable outcome.
+
+    This intentionally reads only the current report.  History is assembled by
+    the dashboard after runs complete, so previous conclusions never become an
+    input to the next day's research.
+    """
+    report = result.get("report") if isinstance(result, dict) else {}
+    summary = report.get("summary") if isinstance(report, dict) else {}
+    summary = summary if isinstance(summary, dict) else {}
+    advice = _brief_text(summary.get("operation_advice"))
+    action = _brief_text(summary.get("action"))
+    text = f"{advice} {action}".lower()
+    if any(term in text for term in ("清仓", "卖出", "退出", "止损", "exit", "sell")):
+        category = "exit"
+    elif any(term in text for term in ("减仓", "止盈", "降低仓位", "reduce", "trim")):
+        category = "reduce"
+    elif any(term in text for term in ("增持", "加仓", "买入", "建仓", "increase", "buy")):
+        category = "increase"
+    elif any(term in text for term in ("持有", "继续持", "hold")):
+        category = "hold"
+    else:
+        category = "review"
+    definition = HOLDING_RECOMMENDATIONS[category]
+    return {
+        "category": category,
+        "label": definition["label"],
+        "score": definition["score"],
+        "basis": advice or action or "本次报告未给出可归类的持仓行动结论。",
+        "source": "current_independent_report",
+    }
+
+
+def holding_recommendation_trend(history):
+    scores = [entry.get("score") for entry in history if _number(entry.get("score")) is not None]
+    if len(scores) < 2:
+        return {"direction": "insufficient", "change": None, "sessions": len(scores)}
+    change = round(scores[-1] - scores[0], 1)
+    return {
+        "direction": "rising" if change >= 10 else "falling" if change <= -10 else "stable",
+        "change": change,
+        "sessions": len(scores),
+    }
 
 
 def matching_context(portfolio, symbol, account_id=None, market=None):
@@ -205,6 +259,40 @@ class PortfolioResearchService:
                 task["portfolioSession"] = effective
         return context, None
 
+    def _recommendation_history(self, task_id):
+        """Read completed artifacts only; never feed this series into research."""
+        with self.workspace.db.get_session() as session:
+            rows = session.execute(
+                select(WorkspaceRunRecord).where(
+                    WorkspaceRunRecord.task_id == task_id,
+                    WorkspaceRunRecord.status == "completed",
+                ).order_by(WorkspaceRunRecord.created_at.desc()).limit(90)
+            ).scalars().all()
+            artifacts = session.execute(
+                select(WorkspaceArtifactRecord).where(
+                    WorkspaceArtifactRecord.run_id.in_([row.id for row in rows]),
+                    WorkspaceArtifactRecord.artifact_type == "ResearchReport",
+                )
+            ).scalars().all() if rows else []
+        rows.reverse()
+        reports = {artifact.run_id: json.loads(artifact.content_json) for artifact in artifacts}
+        by_session = {}
+        for row in rows:
+            recommendation = reports.get(row.id, {}).get("holdingRecommendation")
+            if not isinstance(recommendation, dict) or _number(recommendation.get("score")) is None:
+                continue
+            snapshot = json.loads(row.task_snapshot_json)
+            created_at = row.created_at.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+            session_key = snapshot.get("portfolioSession") or created_at
+            by_session[session_key] = {
+                "session": session_key,
+                "createdAt": created_at,
+                "category": recommendation.get("category"),
+                "label": recommendation.get("label"),
+                "score": recommendation.get("score"),
+            }
+        return list(by_session.values())[-30:]
+
     def dashboard(self, refresh=False):
         snapshot = self.portfolio.get_portfolio_snapshot(include_realtime=refresh)
         tasks = self.workspace.list_tasks("research")
@@ -223,13 +311,16 @@ class PortfolioResearchService:
                     if run_id:
                         latest = self.workspace.get_run(run_id)
                 report = None
+                recommendation = None
                 if latest:
                     artifact = next((a for a in latest["artifacts"] if a["type"] == "ResearchReport"
                                      and isinstance(a.get("content"), dict) and isinstance(a["content"].get("result"), dict)), None)
                     report = artifact["content"]["result"] if artifact else None
+                    recommendation = artifact["content"].get("holdingRecommendation") if artifact else None
                 raw_summary, raw_meta = (report or {}).get("summary"), (report or {}).get("meta")
                 summary = raw_summary if isinstance(raw_summary, dict) else {}
                 meta = raw_meta if isinstance(raw_meta, dict) else {}
+                stock_name = get_index_stock_name(position["symbol"]) or meta.get("stock_name")
                 interpretation = ""
                 if latest:
                     for artifact in latest["artifacts"]:
@@ -242,10 +333,12 @@ class PortfolioResearchService:
                             if isinstance(conclusion, dict):
                                 interpretation = _brief_text(conclusion.get("conclusion")) or interpretation
                 rules = task["config"].get("portfolioRules", DEFAULT_RULES) if task else DEFAULT_RULES
+                recommendation_history = self._recommendation_history(task["id"]) if task else []
                 # Daily movement belongs to the research quote, not today's cached price.
                 report_current = bool(latest and latest["taskSnapshot"].get("portfolioSession") == str(get_effective_trading_date(position["market"])))
                 alerts = portfolio_alerts(position, rules, meta.get("change_pct") if report_current else None)
                 result.append({"accountId": account["account_id"], "accountName": account["account_name"],
+                               "stockName": stock_name,
                                "position": position, "taskId": task["id"] if task else None,
                                "schedule": next((s for s in schedules if task and s["taskId"] == task["id"]), None),
                                "alerts": alerts, "supported": position["market"] in MARKETS,
@@ -255,6 +348,9 @@ class PortfolioResearchService:
                                           "action": "" if interpretation else _brief_text(summary.get("action")),
                                           "advice": "" if interpretation else _brief_text(summary.get("operation_advice")),
                                           "trend": _brief_text(summary.get("trend_prediction")), "changePct": meta.get("change_pct"),
-                                          "strategy": report.get("strategy"), "diagnostics": report.get("diagnostic_summary")}
+                                          "strategy": report.get("strategy"), "diagnostics": report.get("diagnostic_summary"),
+                                          "holdingRecommendation": recommendation,
+                                          "recommendationHistory": recommendation_history,
+                                          "recommendationTrend": holding_recommendation_trend(recommendation_history)}
                                          if report else None)})
         return {"asOf": snapshot["as_of"], "items": result, "rules": DEFAULT_RULES}

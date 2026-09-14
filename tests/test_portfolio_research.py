@@ -90,6 +90,7 @@ def test_dashboard_no_llm_and_run_failure_remains_visible(workspace):
     dashboard = service.dashboard()
     item = dashboard["items"][0]
     assert item["accountId"] == account_id
+    assert item["stockName"] == "贵州茅台"
     assert item["run"]["error"] == "No prices"
     assert item["run"]["status"] == "failed"
     assert item["brief"] is None
@@ -156,6 +157,59 @@ def test_analysis_pipeline_receives_scoped_holdings(workspace):
         assert len(pipeline.call_args.kwargs["portfolio_context"]["positions"]) == 1
     finally:
         ACTIVE_HOLDING_CONTEXT.reset(token)
+
+
+@pytest.mark.parametrize(("advice", "category", "score"), [
+    ("考虑增持", "increase", 80), ("继续持有", "hold", 60),
+    ("考虑减仓", "reduce", 40), ("建议卖出", "exit", 20), ("等待更多证据", "review", 50),
+])
+def test_holding_recommendation_normalizes_each_independent_report(advice, category, score):
+    from src.services.portfolio_research_service import holding_recommendation
+
+    recommendation = holding_recommendation({"report": {"summary": {"operation_advice": advice}}})
+
+    assert recommendation["category"] == category
+    assert recommendation["score"] == score
+    assert recommendation["source"] == "current_independent_report"
+
+
+def test_dashboard_exposes_recommendation_history_without_using_it_as_input(workspace):
+    service = PortfolioResearchService(workspace)
+    account_id = holding(service)
+    task = make_task(workspace, account_id)
+    with patch("src.services.workspace_service._WORKERS", Mock()):
+        run = service.run(account_id, "600519")
+    workspace._finish_run(run["id"], "completed", summary={})
+    workflow = {
+        "status": "success", "contract": "ResearchReport",
+        "result": {"report": {"meta": {}, "summary": {"operation_advice": "考虑减仓"}}},
+        "holdingRecommendation": {"category": "reduce", "label": "考虑减仓", "score": 40,
+                                  "basis": "考虑减仓", "source": "current_independent_report"},
+    }
+    workspace._store_artifact(run["id"], "ResearchReport", "holding report", workflow)
+
+    brief = service.dashboard()["items"][0]["brief"]
+
+    assert brief["holdingRecommendation"]["category"] == "reduce"
+    assert brief["recommendationHistory"] == [{
+        "session": run["taskSnapshot"]["portfolioSession"], "createdAt": run["createdAt"],
+        "category": "reduce", "label": "考虑减仓", "score": 40,
+    }]
+    assert brief["recommendationTrend"] == {"direction": "insufficient", "change": None, "sessions": 1}
+
+
+def test_holding_kernel_requires_and_forwards_frozen_portfolio_context():
+    from src.strategy_kernels.single_stock_research import run
+
+    missing = run({"inputs": {"symbol": "600519", "holdingResearch": True}})
+    assert missing["reasonCode"] == "HOLDING_CONTEXT_REQUIRED"
+
+    context = {"symbol": "600519", "account_id": 7, "avg_cost": 100, "positions": [{"quantity": 10}]}
+    with patch("src.services.analysis_service.AnalysisService.analyze_stock", return_value={"query_id": "query-1"}) as analyze:
+        result = run({"inputs": {"symbol": "600519", "holdingResearch": True, "portfolioContext": context}})
+
+    assert result["status"] == "success"
+    assert analyze.call_args.kwargs["portfolio_context"] == context
 
 
 def test_api_plan_contract_and_unsupported_request_do_not_start_models(workspace):

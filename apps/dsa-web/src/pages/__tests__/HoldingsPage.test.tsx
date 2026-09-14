@@ -10,7 +10,7 @@ vi.mock('../../api/portfolioResearch', () => ({ portfolioResearchApi: api }));
 vi.mock('../../components/portfolio/HoldingPlanEditor', () => ({ default: () => <div>Plan editor</div> }));
 vi.mock('../../components/portfolio/HoldingEntryForm', () => ({ default: () => <div>Entry form</div> }));
 const data: HoldingsDashboard = { asOf: '2026-09-08', rules: { lossPct: 10, profitPct: 20, dailyMovePct: 5 }, items: [{
-  accountId: 1, accountName: 'Test account', taskId: 'task', supported: true, alerts: ['loss_review'], schedule: null,
+  accountId: 1, accountName: 'Test account', stockName: 'Apple Inc.', taskId: 'task', supported: true, alerts: ['loss_review'], schedule: null,
   position: { symbol: 'AAPL', market: 'us', currency: 'USD', quantity: 10, avg_cost: 100, last_price: 89, unrealized_pnl_pct: -11, price_available: true, price_stale: false, price_date: '2026-09-08', price_source: 'history_close' },
   run: { id: 'run', status: 'completed', createdAt: '2026-09-08T08:00:00Z', error: null, currentSession: true },
   brief: { name: 'Apple', summary: 'Review the trend before reducing exposure.', action: 'hold', advice: 'Observe', trend: 'Sideways', changePct: -4, strategy: null },
@@ -28,6 +28,8 @@ describe('holdings research desk', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tracking schedule & strategy' }));
     expect(screen.getByText('Plan editor')).toBeVisible();
     expect(screen.getByRole('link', { name: 'Full research & progress' })).toHaveAttribute('href', '/stock-research?run=run');
+    expect(screen.getByRole('heading', { name: 'Apple Inc.' })).toBeVisible();
+    expect(screen.getByText('AAPL · US · USD')).toBeVisible();
   });
   it('restores background state after mounting and prevents duplicate submission', async () => {
     api.dashboard.mockResolvedValue({ ...data, items: [{ ...data.items[0], run: { ...data.items[0].run, status: 'running' }, brief: null }] });
@@ -37,7 +39,7 @@ describe('holdings research desk', () => {
     expect(api.run).not.toHaveBeenCalled();
   });
   it('refreshes quotes explicitly and does not immediately overwrite them with a cached read', async () => {
-    mount(); await screen.findByText('Apple');
+    mount(); await screen.findByText('Apple Inc.');
     fireEvent.click(screen.getByRole('button', { name: 'Refresh prices' }));
     await waitFor(() => expect(api.dashboard).toHaveBeenLastCalledWith(true));
     expect(api.dashboard).toHaveBeenCalledTimes(2);
@@ -48,8 +50,22 @@ describe('holdings research desk', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('No market data');
   });
   it('submits a holding by account and stock, not just a stock symbol', async () => {
-    mount(); await screen.findByText('Apple');
+    mount(); await screen.findByText('Apple Inc.');
     fireEvent.click(screen.getByRole('button', { name: 'Research holding' }));
     await waitFor(() => expect(api.run).toHaveBeenCalledWith(1, 'AAPL'));
+  });
+  it('shows a separately aggregated recommendation trajectory without changing the report summary', async () => {
+    api.dashboard.mockResolvedValue({ ...data, items: [{ ...data.items[0], brief: {
+      ...data.items[0].brief!, holdingRecommendation: { category: 'reduce', label: 'Reduce exposure', score: 40, basis: 'Risk limits weakened.', source: 'current_independent_report' },
+      recommendationHistory: [
+        { session: '2026-09-05', createdAt: '2026-09-05T08:00:00Z', category: 'hold', label: 'Hold', score: 60 },
+        { session: '2026-09-08', createdAt: '2026-09-08T08:00:00Z', category: 'reduce', label: 'Reduce exposure', score: 40 },
+      ], recommendationTrend: { direction: 'falling', change: -20, sessions: 2 },
+    } }] });
+    mount();
+    expect(await screen.findByText('Model view · Reduce exposure（40）')).toBeVisible();
+    expect(screen.getByText('Holding recommendation trajectory')).toBeVisible();
+    expect(screen.getByText('Aggregates completed independent reports; never used as input to the next run.')).toBeVisible();
+    expect(screen.getByText('Review the trend before reducing exposure.')).toBeVisible();
   });
 });

@@ -3,16 +3,20 @@ import type { WorkspaceTask, WorkspaceRun, WorkspaceSchedule } from './workspace
 import type { AgentCapabilityBindings } from '../types/capabilities';
 
 export type HoldingRules = { lossPct: number; profitPct: number; dailyMovePct: number };
+export type HoldingRecommendation = { category: 'increase' | 'hold' | 'review' | 'reduce' | 'exit'; label: string; score: number; basis: string; source: string };
+export type HoldingRecommendationPoint = { session: string; createdAt: string; category: HoldingRecommendation['category']; label: string; score: number };
 export type HoldingPlan = { task: WorkspaceTask; schedule: WorkspaceSchedule | null; timezone: string; runAt: string };
 export type HoldingItem = {
-  accountId: number; accountName: string; taskId: string | null; supported: boolean;
+  accountId: number; accountName: string; stockName?: string | null; taskId: string | null; supported: boolean;
   position: { symbol: string; market: string; currency: string; quantity: number; avg_cost: number;
     last_price: number; unrealized_pnl_pct: number | null; price_available: boolean; price_stale: boolean;
     price_date: string | null; price_source: string; };
   alerts: string[]; schedule: WorkspaceSchedule | null;
   run: { id: string; status: string; createdAt: string; error: string | null; currentSession: boolean } | null;
   brief: { name: string | null; summary: string; action: string | null; advice: string | null;
-    trend: string | null; changePct: number | null; strategy: Record<string, unknown> | null } | null;
+    trend: string | null; changePct: number | null; strategy: Record<string, unknown> | null;
+    holdingRecommendation?: HoldingRecommendation | null; recommendationHistory?: HoldingRecommendationPoint[];
+    recommendationTrend?: { direction: 'rising' | 'falling' | 'stable' | 'insufficient'; change: number | null; sessions: number } } | null;
 };
 export type HoldingsDashboard = { asOf: string; items: HoldingItem[]; rules: HoldingRules };
 const root = '/api/v1/workspace/portfolio-research';

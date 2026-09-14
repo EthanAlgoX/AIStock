@@ -22,6 +22,19 @@ def run(context: dict[str, Any]) -> dict[str, Any]:
     from src.services.analysis_service import AnalysisService
 
     parameters = context.get("parameters") if isinstance(context.get("parameters"), dict) else {}
+    portfolio_context = inputs.get("portfolioContext")
+    if inputs.get("holdingResearch") and not isinstance(portfolio_context, dict):
+        return {
+            "status": "failed", "contract": "ResearchReport", "reasonCode": "HOLDING_CONTEXT_REQUIRED",
+            "message": "持仓研究必须包含冻结的持仓数据。", "missingInputs": ["portfolioContext"],
+            "dataCoverage": context.get("dataCoverage") or {}, "warnings": [],
+        }
+    if portfolio_context is not None and not isinstance(portfolio_context, dict):
+        return {
+            "status": "failed", "contract": "ResearchReport", "reasonCode": "HOLDING_CONTEXT_INVALID",
+            "message": "持仓数据格式无效。", "missingInputs": ["portfolioContext"],
+            "dataCoverage": context.get("dataCoverage") or {}, "warnings": [],
+        }
     skills = parameters.get("skills") or inputs.get("skills")
     if skills is not None:
         from src.agent.factory import get_skill_manager
@@ -42,6 +55,7 @@ def run(context: dict[str, Any]) -> dict[str, Any]:
         query_source="strategy_kernel",
         agent_mode=analysis_mode == "agent",
         skills=skills,
+        portfolio_context=portfolio_context,
     )
     if result is None:
         return {
