@@ -16,6 +16,7 @@ from data_provider.base import normalize_stock_code
 from src.core.trading_calendar import get_market_for_stock, get_effective_trading_date
 from src.data.stock_index_loader import get_index_stock_name
 from src.repositories.portfolio_repo import PortfolioRepository
+from src.schemas.decision_scale import normalize_score
 from src.services.portfolio_service import PortfolioService
 from src.storage import WorkspaceArtifactRecord, WorkspaceRunRecord
 
@@ -25,11 +26,11 @@ MARKETS = {"cn": ("Asia/Shanghai", "16:30"), "hk": ("Asia/Hong_Kong", "17:30"),
            "us": ("America/New_York", "17:00")}
 DEFAULT_RULES = {"lossPct": 10.0, "profitPct": 20.0, "dailyMovePct": 5.0}
 HOLDING_RECOMMENDATIONS = {
-    "increase": {"label": "考虑增持", "score": 80},
-    "hold": {"label": "持有观察", "score": 60},
-    "review": {"label": "证据不足待复核", "score": 50},
-    "reduce": {"label": "考虑减仓", "score": 40},
-    "exit": {"label": "考虑退出", "score": 20},
+    "increase": {"label": "考虑增持", "minimum": 80},
+    "hold_positive": {"label": "持有偏多", "minimum": 60},
+    "hold_watch": {"label": "持有观察", "minimum": 40},
+    "reduce": {"label": "考虑减仓", "minimum": 20},
+    "exit": {"label": "考虑退出", "minimum": 0},
 }
 
 
@@ -61,33 +62,26 @@ def _brief_text(value):
 def holding_recommendation(result):
     """Normalize one independent holding report into a comparable outcome.
 
-    This intentionally reads only the current report.  History is assembled by
-    the dashboard after runs complete, so previous conclusions never become an
-    input to the next day's research.
+    The report's 0-100 sentiment score is the source of truth.  The category is
+    derived from that score only; history is assembled after runs complete and
+    never becomes an input to the next day's research.
     """
     report = result.get("report") if isinstance(result, dict) else {}
     summary = report.get("summary") if isinstance(report, dict) else {}
     summary = summary if isinstance(summary, dict) else {}
     advice = _brief_text(summary.get("operation_advice"))
-    action = _brief_text(summary.get("action"))
-    text = f"{advice} {action}".lower()
-    if any(term in text for term in ("清仓", "卖出", "退出", "止损", "exit", "sell")):
-        category = "exit"
-    elif any(term in text for term in ("减仓", "止盈", "降低仓位", "reduce", "trim")):
-        category = "reduce"
-    elif any(term in text for term in ("增持", "加仓", "买入", "建仓", "increase", "buy")):
-        category = "increase"
-    elif any(term in text for term in ("持有", "继续持", "hold")):
-        category = "hold"
-    else:
-        category = "review"
+    score = normalize_score(summary.get("sentiment_score"))
+    if score is None:
+        return None
+    category = next(key for key, definition in HOLDING_RECOMMENDATIONS.items()
+                    if score >= definition["minimum"])
     definition = HOLDING_RECOMMENDATIONS[category]
     return {
         "category": category,
         "label": definition["label"],
-        "score": definition["score"],
-        "basis": advice or action or "本次报告未给出可归类的持仓行动结论。",
-        "source": "current_independent_report",
+        "score": score,
+        "basis": advice or _brief_text(summary.get("analysis_summary")) or "本次报告未给出操作建议。",
+        "source": "current_report_sentiment_score",
     }
 
 
@@ -278,7 +272,8 @@ class PortfolioResearchService:
         reports = {artifact.run_id: json.loads(artifact.content_json) for artifact in artifacts}
         by_session = {}
         for row in rows:
-            recommendation = reports.get(row.id, {}).get("holdingRecommendation")
+            content = reports.get(row.id, {})
+            recommendation = holding_recommendation(content.get("result"))
             if not isinstance(recommendation, dict) or _number(recommendation.get("score")) is None:
                 continue
             snapshot = json.loads(row.task_snapshot_json)
@@ -319,7 +314,7 @@ class PortfolioResearchService:
                     analysis_result = artifact["content"]["result"] if artifact else None
                     report = analysis_result.get("report") if isinstance(analysis_result, dict) else None
                     diagnostic_summary = analysis_result.get("diagnostic_summary") if isinstance(analysis_result, dict) else None
-                    recommendation = artifact["content"].get("holdingRecommendation") if artifact else None
+                    recommendation = holding_recommendation(analysis_result)
                 raw_summary, raw_meta = (report or {}).get("summary"), (report or {}).get("meta")
                 summary = raw_summary if isinstance(raw_summary, dict) else {}
                 meta = raw_meta if isinstance(raw_meta, dict) else {}

@@ -159,18 +159,26 @@ def test_analysis_pipeline_receives_scoped_holdings(workspace):
         ACTIVE_HOLDING_CONTEXT.reset(token)
 
 
-@pytest.mark.parametrize(("advice", "category", "score"), [
-    ("考虑增持", "increase", 80), ("继续持有", "hold", 60),
-    ("考虑减仓", "reduce", 40), ("建议卖出", "exit", 20), ("等待更多证据", "review", 50),
+@pytest.mark.parametrize(("score", "category"), [
+    (80, "increase"), (60, "hold_positive"), (40, "hold_watch"),
+    (20, "reduce"), (0, "exit"),
 ])
-def test_holding_recommendation_normalizes_each_independent_report(advice, category, score):
+def test_holding_recommendation_derives_category_from_current_report_score(score, category):
     from src.services.portfolio_research_service import holding_recommendation
 
-    recommendation = holding_recommendation({"report": {"summary": {"operation_advice": advice}}})
+    recommendation = holding_recommendation({"report": {"summary": {
+        "sentiment_score": score, "operation_advice": "当次操作建议",
+    }}})
 
     assert recommendation["category"] == category
     assert recommendation["score"] == score
-    assert recommendation["source"] == "current_independent_report"
+    assert recommendation["source"] == "current_report_sentiment_score"
+
+
+def test_holding_recommendation_skips_reports_without_a_valid_score():
+    from src.services.portfolio_research_service import holding_recommendation
+
+    assert holding_recommendation({"report": {"summary": {"sentiment_score": "unknown"}}}) is None
 
 
 def test_dashboard_exposes_recommendation_history_without_using_it_as_input(workspace):
@@ -183,10 +191,10 @@ def test_dashboard_exposes_recommendation_history_without_using_it_as_input(work
     workflow = {
         "status": "success", "contract": "ResearchReport",
         "result": {"report": {"meta": {"stock_name": "贵州茅台"}, "summary": {
-            "analysis_summary": "趋势转弱，优先控制仓位。", "operation_advice": "考虑减仓",
+            "analysis_summary": "趋势转弱，优先控制仓位。", "operation_advice": "考虑减仓", "sentiment_score": 30,
         }}},
-        "holdingRecommendation": {"category": "reduce", "label": "考虑减仓", "score": 40,
-                                  "basis": "考虑减仓", "source": "current_independent_report"},
+        "holdingRecommendation": {"category": "review", "label": "证据不足待复核", "score": 50,
+                                  "basis": "旧版固定分值", "source": "current_independent_report"},
     }
     workspace._store_artifact(run["id"], "ResearchReport", "holding report", workflow)
 
@@ -197,7 +205,7 @@ def test_dashboard_exposes_recommendation_history_without_using_it_as_input(work
     assert brief["advice"] == "考虑减仓"
     assert brief["recommendationHistory"] == [{
         "session": run["taskSnapshot"]["portfolioSession"], "createdAt": run["createdAt"],
-        "category": "reduce", "label": "考虑减仓", "score": 40,
+        "category": "reduce", "label": "考虑减仓", "score": 30,
     }]
     assert brief["recommendationTrend"] == {"direction": "insufficient", "change": None, "sessions": 1}
 

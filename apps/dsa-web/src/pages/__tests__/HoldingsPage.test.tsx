@@ -58,7 +58,7 @@ describe('holdings research desk', () => {
     api.dashboard.mockResolvedValue({ ...data, items: [{ ...data.items[0], brief: {
       ...data.items[0].brief!, holdingRecommendation: { category: 'reduce', label: 'Reduce exposure', score: 40, basis: 'Risk limits weakened.', source: 'current_independent_report' },
       recommendationHistory: [
-        { session: '2026-09-05', createdAt: '2026-09-05T08:00:00Z', category: 'hold', label: 'Hold', score: 60 },
+        { session: '2026-09-05', createdAt: '2026-09-05T08:00:00Z', category: 'hold_positive', label: 'Hold positive', score: 60 },
         { session: '2026-09-08', createdAt: '2026-09-08T08:00:00Z', category: 'reduce', label: 'Reduce exposure', score: 40 },
       ], recommendationTrend: { direction: 'falling', change: -20, sessions: 2 },
     } }] });

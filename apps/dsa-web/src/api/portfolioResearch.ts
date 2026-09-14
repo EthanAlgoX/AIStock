@@ -3,7 +3,7 @@ import type { WorkspaceTask, WorkspaceRun, WorkspaceSchedule } from './workspace
 import type { AgentCapabilityBindings } from '../types/capabilities';
 
 export type HoldingRules = { lossPct: number; profitPct: number; dailyMovePct: number };
-export type HoldingRecommendation = { category: 'increase' | 'hold' | 'review' | 'reduce' | 'exit'; label: string; score: number; basis: string; source: string };
+export type HoldingRecommendation = { category: 'increase' | 'hold_positive' | 'hold_watch' | 'reduce' | 'exit'; label: string; score: number; basis: string; source: string };
 export type HoldingRecommendationPoint = { session: string; createdAt: string; category: HoldingRecommendation['category']; label: string; score: number };
 export type HoldingPlan = { task: WorkspaceTask; schedule: WorkspaceSchedule | null; timezone: string; runAt: string };
 export type HoldingItem = {
