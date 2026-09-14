@@ -19,6 +19,19 @@ import {
 import { cn } from '../utils/cn';
 
 type PlatformSettingsTab = 'model' | 'system' | 'notifications';
+type NotificationChannelChoice = 'feishu' | 'email' | 'wechat' | 'dingtalk' | 'telegram' | 'slack' | 'discord' | 'custom' | 'mobile';
+
+const NOTIFICATION_CHANNEL_CHOICES: Array<{ id: NotificationChannelChoice; zh: string; en: string; prefixes: string[] }> = [
+  { id: 'feishu', zh: '飞书', en: 'Feishu', prefixes: ['FEISHU_'] },
+  { id: 'email', zh: '邮件', en: 'Email', prefixes: ['EMAIL_'] },
+  { id: 'wechat', zh: '企业微信', en: 'WeCom', prefixes: ['WECHAT_'] },
+  { id: 'dingtalk', zh: '钉钉', en: 'DingTalk', prefixes: ['DINGTALK_'] },
+  { id: 'telegram', zh: 'Telegram', en: 'Telegram', prefixes: ['TELEGRAM_'] },
+  { id: 'slack', zh: 'Slack', en: 'Slack', prefixes: ['SLACK_'] },
+  { id: 'discord', zh: 'Discord', en: 'Discord', prefixes: ['DISCORD_'] },
+  { id: 'custom', zh: '自定义 Webhook', en: 'Custom webhook', prefixes: ['CUSTOM_WEBHOOK_'] },
+  { id: 'mobile', zh: '手机推送', en: 'Mobile push', prefixes: ['PUSHPLUS_', 'PUSHOVER_', 'NTFY_', 'GOTIFY_', 'SERVERCHAN'] },
+];
 
 const PLATFORM_SYSTEM_KEYS = new Set([
   'HTTP_PROXY',
@@ -65,6 +78,7 @@ const PlatformSettingsPage: React.FC = () => {
   const { passwordChangeable } = useAuth();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<PlatformSettingsTab>(searchParams.get('tab') === 'notifications' ? 'notifications' : 'model');
+  const [notificationChannel, setNotificationChannel] = useState<NotificationChannelChoice>('feishu');
   const {
     configVersion,
     maskToken,
@@ -90,7 +104,18 @@ const PlatformSettingsPage: React.FC = () => {
 
   const isZh = language === 'zh';
   const modelItems = itemsByCategory.ai_model ?? [];
-  const notificationItems = itemsByCategory.notification ?? [];
+  const notificationItems = useMemo(() => itemsByCategory.notification ?? [], [itemsByCategory.notification]);
+  const notificationByKey = useMemo(() => new Map(notificationItems.map(item => [item.key, item])), [notificationItems]);
+  const notificationFields = (keys: string[]) => keys.flatMap(key => {
+    const item = notificationByKey.get(key);
+    return item ? [<SettingsField key={item.key} item={item} value={item.value} disabled={isSaving} onChange={setDraftValue} issues={issueByKey[item.key]} />] : [];
+  });
+  const feishuWebhookKeys = ['FEISHU_WEBHOOK_URL', 'FEISHU_WEBHOOK_SECRET', 'FEISHU_WEBHOOK_KEYWORD'];
+  const feishuAppKeys = ['FEISHU_APP_ID', 'FEISHU_APP_SECRET', 'FEISHU_CHAT_ID', 'FEISHU_RECEIVE_ID_TYPE'];
+  const feishuAdvancedKeys = ['FEISHU_DOMAIN', 'FEISHU_STREAM_ENABLED', 'FEISHU_FOLDER_TOKEN', 'FEISHU_SEND_AS_FILE'];
+  const routeKeys = ['NOTIFICATION_REPORT_CHANNELS', 'NOTIFICATION_ALERT_CHANNELS', 'NOTIFICATION_SYSTEM_ERROR_CHANNELS'];
+  const selectedChannel = NOTIFICATION_CHANNEL_CHOICES.find(channel => channel.id === notificationChannel)!;
+  const selectedChannelItems = notificationItems.filter(item => selectedChannel.prefixes.some(prefix => item.key.startsWith(prefix)));
   const alertItems = Object.values(itemsByCategory).flat().filter(item => ['AGENT_EVENT_MONITOR_ENABLED', 'AGENT_EVENT_MONITOR_INTERVAL_MINUTES'].includes(item.key));
   const systemItems = useMemo(
     () => (itemsByCategory.system ?? []).filter((item) => PLATFORM_SYSTEM_KEYS.has(item.key)),
@@ -192,10 +217,25 @@ const PlatformSettingsPage: React.FC = () => {
                 <SettingsLoading />
               </div>
             ) : activeTab === 'notifications' ? (
-              <SettingsSectionCard title={isZh ? '通知渠道与告警' : 'Notification channels & alerts'} description={isZh ? '先配置渠道凭据，再设置告警路由。空路由使用全部可用渠道；规则可进一步缩小发送范围。' : 'Configure channel credentials, then the alert route. An empty route uses all available channels; individual rules may narrow delivery.'}>
+              <SettingsSectionCard title={isZh ? '通知渠道与告警' : 'Notification channels & alerts'} description={isZh ? '先选择一个通知渠道并完成其最小配置，再测试发送；报告与告警最后再决定走哪些已启用渠道。' : 'Choose one channel and complete its minimum setup, then test it. Choose which enabled channels receive reports and alerts last.'}>
                 <Link to="/alerts" className="inline-block min-h-11 py-2 text-primary">{isZh ? '管理股票告警' : 'Manage stock alerts'}</Link>
                 <div className="divide-y divide-border">{alertItems.map(item => <SettingsField key={item.key} item={item} value={item.value} disabled={isSaving} onChange={setDraftValue} issues={issueByKey[item.key]} />)}</div>
-                <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer py-3 font-medium">{isZh ? '渠道凭据、路由与通知选项' : 'Channel credentials, routing & delivery options'}</summary><div className="divide-y divide-border">{notificationItems.map(item => <SettingsField key={item.key} item={item} value={item.value} disabled={isSaving} onChange={setDraftValue} issues={issueByKey[item.key]} />)}</div></details>
+                <section className="mt-5 border-y border-border py-5" aria-label={isZh ? '选择通知渠道' : 'Choose a notification channel'}>
+                  <h3 className="text-base font-semibold">{isZh ? '选择通知渠道' : 'Choose a notification channel'}</h3>
+                  <p className="mt-2 text-sm leading-6 text-secondary-text">{isZh ? '选择后只显示这个渠道的配置。先完成配置并测试，再在下方设置报告和告警分别发往哪些渠道。' : 'Choose a channel to see only its setup. Configure and test it first, then set report and alert routes below.'}</p>
+                  <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label={isZh ? '通知渠道列表' : 'Notification channel list'}>{NOTIFICATION_CHANNEL_CHOICES.map(channel => <button key={channel.id} type="button" role="tab" aria-selected={notificationChannel === channel.id} onClick={() => setNotificationChannel(channel.id)} className={cn('min-h-11 rounded-lg border px-3 text-sm font-medium', notificationChannel === channel.id ? 'border-cyan/35 bg-cyan/10 text-foreground' : 'border-border text-secondary-text hover:bg-hover hover:text-foreground')}>{isZh ? channel.zh : channel.en}</button>)}</div>
+                </section>
+                {notificationChannel === 'feishu' && <section className="mt-5 border-t border-border pt-5" aria-label={isZh ? '飞书通知配置' : 'Feishu notification setup'}>
+                  <h3 className="text-base font-semibold">{isZh ? '飞书：先选一种推送方式' : 'Feishu: choose one delivery method first'}</h3>
+                  <p className="mt-2 max-w-[72ch] text-sm leading-6 text-secondary-text">{isZh ? '大多数情况下只需使用“群机器人 Webhook”。应用机器人适合需要主动发到指定群或私聊的场景；两种方式互不替代，也无需同时配置。' : 'Most teams only need a group bot webhook. App Bot is for proactive delivery to a selected chat or direct message. The two methods are independent; you do not need both.'}</p>
+                  <div className="mt-4 grid gap-5 lg:grid-cols-2">
+                    <div className="border-y border-border py-4"><h4 className="font-medium">{isZh ? '推荐：群机器人 Webhook' : 'Recommended: group bot webhook'}</h4><p className="mt-1 text-sm leading-6 text-secondary-text">{isZh ? '在目标群添加自定义机器人，复制 Webhook 地址。仅 URL 是必填项；机器人开启签名或关键词时，才补填对应字段。' : 'Add a custom bot to the target group and paste its webhook URL. Only the URL is required; add the matching fields only if the bot enables signature or keyword security.'}</p><div className="mt-3 divide-y divide-border">{notificationFields(feishuWebhookKeys)}</div></div>
+                    <div className="border-y border-border py-4"><h4 className="font-medium">{isZh ? '按需：应用机器人主动推送' : 'Optional: App Bot delivery'}</h4><p className="mt-1 text-sm leading-6 text-secondary-text">{isZh ? '仅在不用 Webhook、需要向指定群或用户主动发送时使用。必须同时填写应用 ID、应用 Secret 和接收目标。' : 'Use only when you need proactive delivery to a selected chat or user without a webhook. App ID, App Secret, and a recipient target are all required.'}</p><div className="mt-3 divide-y divide-border">{notificationFields(feishuAppKeys)}</div></div>
+                  </div>
+                  <details className="mt-3 border-b border-border"><summary className="cursor-pointer py-3 text-sm font-medium">{isZh ? '飞书高级功能：国际版、Stream Bot、云文档与文件发送' : 'Feishu advanced: Lark, Stream Bot, cloud docs, and file delivery'}</summary><div className="divide-y divide-border">{notificationFields(feishuAdvancedKeys)}</div></details>
+                </section>}
+                {notificationChannel !== 'feishu' && <div className="mt-5 divide-y divide-border border-y border-border" role="tabpanel">{selectedChannelItems.length ? selectedChannelItems.map(item => <SettingsField key={item.key} item={item} value={item.value} disabled={isSaving} onChange={setDraftValue} issues={issueByKey[item.key]} />) : <p className="py-4 text-sm text-secondary-text">{isZh ? '当前版本没有可编辑的渠道字段。' : 'This version has no editable fields for this channel.'}</p>}</div>}
+                <details className="mt-4 border-b border-border"><summary className="cursor-pointer py-3 text-sm font-medium">{isZh ? '报告与告警发送范围' : 'Report and alert delivery routes'}</summary><p className="pb-2 text-xs leading-5 text-secondary-text">{isZh ? '先完成渠道配置并测试，再选择报告、告警分别发送到哪些渠道。留空会使用所有已配置渠道。' : 'Finish and test channel setup first, then choose which channels receive reports or alerts. Leaving a route blank uses every configured channel.'}</p><div className="divide-y divide-border">{notificationFields(routeKeys)}</div></details>
                 <NotificationTestPanel items={notificationItems.map(item => ({ key: item.key, value: item.value }))} maskToken={maskToken} disabled={isSaving} />
               </SettingsSectionCard>
             ) : activeTab === 'model' ? (
