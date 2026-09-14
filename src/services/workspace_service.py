@@ -1547,6 +1547,12 @@ class WorkspaceService:
             elif result["success"]:
                 self._finish_run(run_id, "completed", summary=result["summary"])
                 self._mark_snapshot_quality(run_id, "unverified", ["执行结束不等于数据质量已验证；实际覆盖与缺失见报告。", *(result.get("warnings") or [])])
+                if task.get("config", {}).get("portfolioHolding") or task.get("config", {}).get("portfolioWatch"):
+                    try:
+                        from src.services.portfolio_research_service import PortfolioResearchService
+                        PortfolioResearchService(self).notify_scheduled_brief(run_id, task)
+                    except Exception:  # Notification failure must never change completed research.
+                        logger.exception("Failed to send scheduled portfolio research notification for %s", run_id)
             else:
                 self._finish_run(run_id, "failed", error_code=result.get("errorCode") or "agent_failed", error_message=result.get("error") or "Agent 任务执行失败。")
                 self._mark_snapshot_quality(run_id, "degraded", [result.get("error") or "Agent 任务执行失败。"])
@@ -1814,6 +1820,8 @@ class WorkspaceService:
             if (not isinstance(rules, dict) or set(rules) != set(DEFAULT_RULES)
                     or any(type(value) not in {int, float} or _number(value) is None or not 0.1 <= value <= 100 for value in rules.values())):
                 raise WorkspaceError("holding_rules_invalid", "持仓风险复核阈值必须为 0.1% 至 100%。", 422)
+        if (holding is not None or watch is not None) and type(config.get("portfolioDailyNotify", False)) is not bool:
+            raise WorkspaceError("portfolio_notification_invalid", "每日研究通知开关必须为布尔值。", 422)
         if watch is not None:
             from src.services.portfolio_research_service import research_symbol
             if (kind != "research" or not isinstance(watch, dict) or not isinstance(watch.get("symbol"), str)

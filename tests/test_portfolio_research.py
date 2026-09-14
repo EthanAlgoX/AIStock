@@ -271,6 +271,30 @@ def test_watch_request_requires_supported_market():
         PortfolioWatchCreateRequest(symbol="600519", market="global")
 
 
+def test_scheduled_holding_notification_uses_report_channel_only(workspace):
+    service = PortfolioResearchService(workspace)
+    account_id = holding(service)
+    task = make_task(workspace, account_id)
+    task = workspace.update_task(task["id"], {"config": {**task["config"], "portfolioDailyNotify": True}})
+    with patch("src.services.workspace_service._WORKERS", Mock()):
+        run = workspace.create_run(task["id"], "schedule")
+    workspace._finish_run(run["id"], "completed", summary={})
+    workspace._store_artifact(run["id"], "ResearchReport", "report", {"result": {"report": {"meta": {"stock_name": "贵州茅台"}, "summary": {"sentiment_score": 70, "analysis_summary": "趋势改善"}}}})
+    dispatch = Mock(success=True)
+    with patch("src.notification.NotificationService.send_with_results", return_value=dispatch) as send:
+        assert service.notify_scheduled_brief(run["id"], task) is True
+    assert send.call_args.kwargs["route_type"] == "report"
+    assert "持仓建议：**持有偏多**" in send.call_args.args[0]
+
+
+def test_manual_or_disabled_portfolio_runs_do_not_notify(workspace):
+    service = PortfolioResearchService(workspace)
+    task = make_task(workspace, holding(service))
+    with patch("src.services.workspace_service._WORKERS", Mock()):
+        run = workspace.create_run(task["id"], "manual")
+    assert service.notify_scheduled_brief(run["id"], task) is False
+
+
 def test_api_plan_contract_and_unsupported_request_do_not_start_models(workspace):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient

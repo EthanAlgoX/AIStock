@@ -184,6 +184,7 @@ class PortfolioResearchService:
                                  "数据过期或证据不足只提示核查，不给确定性交易指令。禁止下单。")
             task["config"]["portfolioHolding"] = {"accountId": account_id, "symbol": context["symbol"]}
             task["config"]["portfolioRules"] = dict(DEFAULT_RULES)
+            task["config"]["portfolioDailyNotify"] = False
         schedule = next((s for s in self.workspace.list_schedules() if s["taskId"] == task.get("id")), None)
         tz, run_at = MARKETS[context["market"]]
         return {"task": task, "schedule": schedule, "timezone": tz, "runAt": run_at}
@@ -212,6 +213,8 @@ class PortfolioResearchService:
             if set(rules) != set(DEFAULT_RULES) or any(_number(v) is None or not 0.1 <= v <= 100 for v in rules.values()):
                 raise WorkspaceError("holding_rules_invalid", "提醒阈值必须在 0.1% 至 100% 之间。", 422)
             config = {**task["config"], "strategyVersionId": version_id, "portfolioRules": rules}
+            if "dailyNotify" in payload:
+                config["portfolioDailyNotify"] = bool(payload["dailyNotify"])
             update = {"config": config, "capabilities": bindings}
             # Validate scheduling before writing the task.
             run_at = payload.get("runAt") or (plan["schedule"] or {}).get("runAt") or plan["runAt"]
@@ -255,6 +258,7 @@ class PortfolioResearchService:
                                  "该标的未提供实际持仓；不得读取、推断或引用账户、成本、数量或盈亏，"
                                  "也不得输出买入、卖出、加仓、减仓、止损或持仓建议。不要引用历史研究结论。")
             task["config"]["portfolioWatch"] = {"symbol": target}
+            task["config"]["portfolioDailyNotify"] = False
             task = self.workspace.create_task(task)
             tz, run_at = MARKETS[market]
             return {"task": task, "schedule": None, "timezone": tz, "runAt": run_at}
@@ -283,6 +287,8 @@ class PortfolioResearchService:
             interval_days = self.workspace._validate_interval_days(payload.get("intervalDays") if payload.get("intervalDays") is not None else (plan["schedule"] or {}).get("intervalDays", 1))
             self.workspace._next_run("daily", run_at, None, plan["timezone"], datetime.now(timezone.utc).replace(tzinfo=None))
             config = {**task["config"], "strategyVersionId": version_id}
+            if "dailyNotify" in payload:
+                config["portfolioDailyNotify"] = bool(payload["dailyNotify"])
             task = self.workspace.update_task(task["id"], {"config": config, "capabilities": bindings})
             schedule_data = {"intervalDays": interval_days, "runAt": run_at, "enabled": payload.get("dailyEnabled", False)}
             if plan["schedule"]:
@@ -361,6 +367,37 @@ class PortfolioResearchService:
             session_key = json.loads(row.task_snapshot_json).get("portfolioSession") or created_at
             points[session_key] = {"session": session_key, "createdAt": created_at, "category": "research_score", "label": "研究评分", "score": score}
         return list(points.values())[-30:]
+
+    def notify_scheduled_brief(self, run_id, task):
+        """Deliver a completed scheduled holding/watch brief without affecting the run."""
+        if not task.get("config", {}).get("portfolioDailyNotify"):
+            return False
+        run = self.workspace.get_run(run_id)
+        if run.get("triggerType") != "schedule":
+            return False
+        artifact = next((item for item in run.get("artifacts", []) if item.get("type") == "ResearchReport" and isinstance(item.get("content"), dict)), None)
+        result = artifact.get("content", {}).get("result", {}) if artifact else {}
+        report = result.get("report", {}) if isinstance(result, dict) else {}
+        summary = report.get("summary", {}) if isinstance(report, dict) else {}
+        meta = report.get("meta", {}) if isinstance(report, dict) else {}
+        symbol = str(task.get("subject", {}).get("stock") or task.get("subject", {}).get("stockCode") or "")
+        watch = bool(task.get("config", {}).get("portfolioWatch"))
+        score = normalize_score(summary.get("sentiment_score")) if isinstance(summary, dict) else None
+        title = "关注股票每日研究" if watch else "持仓每日研究"
+        lines = [f"# {title}", f"**{get_index_stock_name(symbol) or meta.get('stock_name') or symbol}** · {symbol}"]
+        if score is not None:
+            lines.append(f"综合评分：**{score}/100**")
+        if not watch:
+            recommendation = holding_recommendation(result)
+            if recommendation:
+                lines.append(f"持仓建议：**{recommendation['label']}**")
+        brief = _brief_text(summary.get("analysis_summary")) if isinstance(summary, dict) else ""
+        if brief:
+            lines.extend(["", brief])
+        if watch:
+            lines.extend(["", "该标的为关注股票，未读取持仓数据，也不提供持仓操作建议。"])
+        from src.notification import NotificationService
+        return bool(NotificationService().send_with_results("\n".join(lines), email_stock_codes=[symbol], route_type="report", severity="info", dedup_key=f"portfolio-brief:{run_id}").success)
 
     def _recommendation_history(self, task_id):
         """Read completed artifacts only; never feed this series into research."""

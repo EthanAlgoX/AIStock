@@ -37,6 +37,7 @@ class PortfolioResearchRequest(WorkspaceModel):
     capabilities: Optional[CapabilityBindings] = None
     rules: Optional[PortfolioResearchRules] = None
     dailyEnabled: bool = False
+    dailyNotify: Optional[bool] = None
     intervalDays: Optional[int] = Field(None, strict=True, ge=1, le=365)
     runAt: Optional[str] = Field(None, pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
