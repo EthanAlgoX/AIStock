@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [新功能] Web LLM 渠道编辑器新增可选 Atlas Cloud 预设，使用 OpenAI-compatible `/v1` 接口并支持实时获取模型列表；默认 provider 和已有配置保持不变。
+
 - [改进] 平台“通知与告警”改为先选择渠道后显示对应配置；飞书明确区分群机器人 Webhook、应用机器人主动推送和高级功能，报告与告警路由独立置后。
 
 - [新功能] 持仓及关注股票的自动研究可选择在成功完成后发送每日简报到“通知与告警”已配置的报告渠道；持仓简报包含评分和建议，关注简报只包含独立评分与研究摘要。

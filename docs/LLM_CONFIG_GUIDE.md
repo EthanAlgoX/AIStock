@@ -215,6 +215,7 @@ LITELLM_MODEL=ollama/qwen3:8b
 ### 常用官方文档来源（用于核对预设 provider / Base URL / 模型命名）
 
 - OpenAI Compatible 规范（LiteLLM）：<https://docs.litellm.ai/docs/providers/openai_compatible>
+- Atlas Cloud API 文档：<https://www.atlascloud.ai/docs>
 - OpenAI 官方：<https://platform.openai.com/docs/api-reference/chat>
 - DeepSeek 官方：<https://api-docs.deepseek.com/>
 - Anspire Open：<https://open.anspire.cn/?share_code=QFBC0FYC>
@@ -235,6 +236,19 @@ LITELLM_MODEL=ollama/qwen3:8b
 
 1. **先声明你有几个渠道**：`LLM_CHANNELS=渠道名称1,渠道名称2`
 2. **给每个渠道分别填写配置**（注意全大写）：`LLM_{渠道名}_XXX`
+
+### 示例：Atlas Cloud OpenAI-compatible 渠道
+
+```env
+LLM_CHANNELS=atlascloud
+LLM_ATLASCLOUD_PROTOCOL=openai
+LLM_ATLASCLOUD_BASE_URL=https://api.atlascloud.ai/v1
+LLM_ATLASCLOUD_API_KEY=your-atlas-cloud-api-key
+LLM_ATLASCLOUD_MODELS=qwen/qwen3.5-flash
+LITELLM_MODEL=openai/qwen/qwen3.5-flash
+```
+
+Web 设置页可以通过 `https://api.atlascloud.ai/v1/models` 获取当前 Key 可用的模型。模型 ID 和账号权限可能变化，因此上面的 ID 只作为配置示例；生产保存前应以实时模型列表为准，并执行“测试连接”。移除 `atlascloud` 渠道即可恢复原 provider 选择，不需要执行迁移。
 
 ### 示例：Anspire Responses API（GPT-5.6 名称为观测样本）
 
