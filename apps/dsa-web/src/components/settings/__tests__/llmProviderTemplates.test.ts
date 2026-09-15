@@ -13,6 +13,7 @@ describe('llmProviderTemplates', () => {
     expect(LLM_PROVIDER_TEMPLATES.map((template) => template.channelId)).toEqual([
       'aihubmix',
       'anspire',
+      'atlascloud',
       'deepseek',
       'dashscope',
       'zhipu',
@@ -78,6 +79,12 @@ describe('llmProviderTemplates', () => {
   });
 
   it('keeps focused config hints on providers with common setup pitfalls', () => {
+    expect(LLM_PROVIDER_TEMPLATE_BY_ID.atlascloud).toMatchObject({
+      protocol: 'openai',
+      baseUrl: 'https://api.atlascloud.ai/v1',
+      capabilities: ['openai-compatible', 'aggregator', 'model-discovery'],
+    });
+    expect(LLM_PROVIDER_TEMPLATE_BY_ID.atlascloud.configHint).toContain('当前模型列表');
     expect(LLM_PROVIDER_TEMPLATE_BY_ID.ollama.configHint).toContain('Ollama 服务');
     expect(LLM_PROVIDER_TEMPLATE_BY_ID.siliconflow.configHint).toContain('API Key');
     expect(LLM_PROVIDER_TEMPLATE_BY_ID.openrouter.configHint).toContain('API Key');

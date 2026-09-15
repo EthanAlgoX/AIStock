@@ -208,6 +208,7 @@ The backend exposes a read-only status endpoint at `GET /api/v1/system/config/se
 ### Official references for provider presets / Base URLs / model naming
 
 - OpenAI-compatible routing in LiteLLM: <https://docs.litellm.ai/docs/providers/openai_compatible>
+- Atlas Cloud API documentation: <https://www.atlascloud.ai/docs>
 - OpenAI official API docs: <https://platform.openai.com/docs/api-reference/chat>
 - DeepSeek official API docs: <https://api-docs.deepseek.com/>
 - Anspire Open: <https://open.anspire.cn/?share_code=QFBC0FYC>
@@ -228,6 +229,19 @@ If you prefer modifying files, configuring this in the `.env` file is also very 
 
 1. **Declare your channels first**: `LLM_CHANNELS=channel_name_1,channel_name_2`
 2. **Provide configurations for each channel** (Note the uppercase): `LLM_{CHANNEL_NAME}_XXX`
+
+### Example: Atlas Cloud OpenAI-compatible channel
+
+```env
+LLM_CHANNELS=atlascloud
+LLM_ATLASCLOUD_PROTOCOL=openai
+LLM_ATLASCLOUD_BASE_URL=https://api.atlascloud.ai/v1
+LLM_ATLASCLOUD_API_KEY=your-atlas-cloud-api-key
+LLM_ATLASCLOUD_MODELS=qwen/qwen3.5-flash
+LITELLM_MODEL=openai/qwen/qwen3.5-flash
+```
+
+The Web editor can discover the models currently available to the key through `https://api.atlascloud.ai/v1/models`. Model IDs and account access can change, so treat the ID above as a configuration example and use the live model list plus "Test connection" before saving a production setup. Removing the `atlascloud` channel restores the previous provider selection; no migration is required.
 
 ### Example: Anspire Responses API (observed GPT-5.6 model names)
 

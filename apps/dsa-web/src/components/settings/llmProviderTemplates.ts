@@ -76,6 +76,16 @@ export const LLM_PROVIDER_TEMPLATES: LLMProviderTemplate[] = [
     ],
   },
   {
+    channelId: 'atlascloud',
+    label: 'Atlas Cloud（聚合平台）',
+    protocol: 'openai',
+    baseUrl: 'https://api.atlascloud.ai/v1',
+    placeholderModels: 'qwen/qwen3.5-flash,deepseek-ai/deepseek-v4-flash',
+    capabilities: ['openai-compatible', 'aggregator', 'model-discovery'],
+    configHint: '模型目录和可用性会变化；请先获取当前模型列表，再测试所选模型。',
+    officialSources: [{ label: 'Atlas Cloud Docs', url: 'https://www.atlascloud.ai/docs' }],
+  },
+  {
     channelId: 'deepseek',
     label: 'DeepSeek 官方',
     protocol: 'deepseek',
