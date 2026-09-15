@@ -1,4 +1,5 @@
 from datetime import date
+import json
 from unittest.mock import Mock, patch
 
 import pytest
@@ -7,6 +8,7 @@ from pydantic import ValidationError
 from api.v1.schemas.workspace import PortfolioResearchRequest, PortfolioWatchCreateRequest
 from src.services.portfolio_research_service import PortfolioResearchService, matching_context, portfolio_alerts, DEFAULT_RULES
 from src.services.workspace_service import WorkspaceError
+from src.storage import WorkspaceRunRecord
 from tests.test_workspace_service import workspace, _empty_bindings  # noqa: F401
 
 
@@ -208,6 +210,31 @@ def test_dashboard_exposes_recommendation_history_without_using_it_as_input(work
         "category": "reduce", "label": "考虑减仓", "score": 30,
     }]
     assert brief["recommendationTrend"] == {"direction": "insufficient", "change": None, "sessions": 1}
+
+
+def test_recommendation_history_accumulates_days_and_manual_replaces_schedule(workspace):
+    service = PortfolioResearchService(workspace)
+    task = make_task(workspace, holding(service))
+    reports = []
+    for trigger, score in (("schedule", 30), ("manual", 70), ("manual", 55)):
+        with patch("src.services.workspace_service._WORKERS", Mock()):
+            run = workspace.create_run(task["id"], trigger)
+        workspace._finish_run(run["id"], "completed", summary={})
+        reports.append((run, score))
+    # Give the third run its own effective date; the first two are the same day.
+    first, second, third = reports
+    with workspace.db.session_scope() as session:
+        for run, session_date in ((first[0], "2026-09-14"), (second[0], "2026-09-14"), (third[0], "2026-09-15")):
+            row = session.get(WorkspaceRunRecord, run["id"])
+            snapshot = json.loads(row.task_snapshot_json)
+            snapshot["portfolioSession"] = session_date
+            row.task_snapshot_json = json.dumps(snapshot)
+    for run, score in reports:
+        workspace._store_artifact(run["id"], "ResearchReport", "report", {"result": {"report": {"summary": {"sentiment_score": score}}}})
+    assert service._recommendation_history(task["id"]) == [
+        {"session": "2026-09-14", "createdAt": second[0]["createdAt"], "category": "hold_positive", "label": "持有偏多", "score": 70},
+        {"session": "2026-09-15", "createdAt": third[0]["createdAt"], "category": "hold_watch", "label": "持有观察", "score": 55},
+    ]
 
 
 def test_holding_kernel_requires_and_forwards_frozen_portfolio_context():

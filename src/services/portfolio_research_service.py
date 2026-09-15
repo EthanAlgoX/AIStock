@@ -425,14 +425,23 @@ class PortfolioResearchService:
             snapshot = json.loads(row.task_snapshot_json)
             created_at = row.created_at.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
             session_key = snapshot.get("portfolioSession") or created_at
+            # One point per effective trading day. Manual review is a deliberate
+            # replacement for the scheduler's same-day view, even when the
+            # scheduler happened to finish later.
+            priority = 2 if row.trigger_type == "manual" else 1 if row.trigger_type == "schedule" else 0
+            previous = by_session.get(session_key)
+            if previous and previous["_priority"] > priority:
+                continue
             by_session[session_key] = {
                 "session": session_key,
                 "createdAt": created_at,
                 "category": recommendation.get("category"),
                 "label": recommendation.get("label"),
                 "score": recommendation.get("score"),
+                "_priority": priority,
             }
-        return list(by_session.values())[-30:]
+        return [{key: value for key, value in entry.items() if key != "_priority"}
+                for entry in list(by_session.values())[-30:]]
 
     def dashboard(self, refresh=False):
         snapshot = self.portfolio.get_portfolio_snapshot(include_realtime=refresh)
