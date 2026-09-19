@@ -1,0 +1,23 @@
+name: high_volume_volatility_grid
+display_name: 高量高波动网格
+description: 在放量且价格区间足够大的股票中，按区间位置分档低买高卖的日线网格策略。
+category: framework
+core_rules: [1, 2, 5]
+required_tools:
+  - get_daily_history
+aliases: [高量高波动网格, 波动网格, 网格交易]
+default_priority: 70
+market_regimes: [volatile, sideways]
+
+instructions: |
+  **高量高波动网格策略**
+
+  只使用本次输入中冻结的日线和 `grid` 参数，不得引用盘中价格、新闻或未来数据。
+
+  1. 以 `grid.lookbackDays` 个最近交易日计算价格区间：下沿为最低价，上沿为最高价；区间波动率为 `(上沿 - 下沿) / 下沿`。
+  2. 当日成交量与此前 `lookbackDays - 1` 日平均成交量的比值必须不低于 `grid.minVolumeRatio`，且区间波动率必须不低于 `grid.minRange`。任一条件不满足时，该股票的 `targetWeight` 必须为 `0`。
+  3. 条件满足时，将收盘价从下沿到上沿划分为 `grid.levels` 档。价格越接近下沿，目标仓位越高；越接近上沿，目标仓位越低。目标仓位不得超过输入的 `maxWeight`。
+  4. 输出每只股票的 `targetWeight`。说明中必须写出观察区间、成交量倍数、区间波动率、当前档位和目标仓位。
+  5. 这是每日收盘决策：输出只会在下一交易日开盘由模拟账本执行。它不是盘中实时网格，也不得将网格视为收益保证。
+
+  只返回要求的 JSON，不要附加 Markdown 或解释文字。

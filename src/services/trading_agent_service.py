@@ -239,6 +239,13 @@ class TradingAgentService:
         payload = dict(date=day, market=config['market'], cash=state['cash'], equity=state['equity'],
                        holdings=state['positions'], candidates=candidates, bars=histories,
                        maxPositions=config['maxPositions'], maxWeight=config['maxWeight'])
+        if config['skillSnapshot']['id'] == 'high_volume_volatility_grid':
+            payload['grid'] = dict(
+                lookbackDays=config.get('gridLookbackDays', 5),
+                minVolumeRatio=config.get('gridMinVolumeRatio', 1.3),
+                minRange=config.get('gridMinRange', 0.05),
+                levels=config.get('gridLevels', 5),
+            )
         system = TRADING_PROMPT + '\n策略 Skill：\n' + config['skillSnapshot']['instructions'] + '\n用户交易指令：\n' + config.get('systemPrompt', '')
         system += '\n只返回JSON：{"opinions":[{"code":"股票代码","targetWeight":0.0,"reason":"依据"}]}。必须覆盖输入中的所有股票且不重复，仓位和不能超过1。'
         result, usage = self.call(system, payload, budget, run_id, config.get("portfolioId"))

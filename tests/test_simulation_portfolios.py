@@ -59,28 +59,6 @@ def test_next_open_costs_positions_and_daily_opinions():
     assert third["opinions"][0]["held"]
 
 
-def test_high_volume_volatility_grid_scales_in_then_exits_when_conditions_fail():
-    c = config()
-    c.update(template="high_volume_volatility_grid", gridLookbackDays=5,
-             gridMinVolumeRatio=1.2, gridMinRange=0.05, gridLevels=5,
-             maxWeight=0.25, lotSize=1)
-    rows = history("2025-02-10", 100)
-    for index, row in enumerate(rows[-5:]):
-        row.update(low=90, high=110, close=90 + index, open=90 + index,
-                   volume=100 if index < 4 else 200)
-    state, first = step(c, {"cash": 100000}, "2025-02-10", {"AAPL": rows}, 100)
-    assert first["opinions"][0]["score"] == pytest.approx(0.20)
-    assert "成交量 2.00×均量" in first["opinions"][0]["reason"]
-    tomorrow = history("2025-02-11", 94)
-    for row in tomorrow[-5:]:
-        row.update(low=90, high=110, close=94, open=94, volume=100)
-    state, second = step(c, state, "2025-02-11", {"AAPL": tomorrow}, 101)
-    assert second["trades"][0]["side"] == "buy"
-    assert second["holdings"]
-    assert "未启用网格" in second["opinions"][0]["reason"]
-    assert state["pending"]["weights"] == {}
-
-
 def test_missing_bar_does_not_mutate_account():
     state = {"cash": 100000}
     with pytest.raises(ValueError, match="缺少"):

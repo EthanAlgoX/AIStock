@@ -10,7 +10,7 @@ from src.services.trading_agent_service import TradingAgentService
 from src.services.simulation_portfolio_service import SimulationPortfolioService
 from src.storage import SimulationAccountRecord, SimulationFillRecord, SimulationUniverseSnapshotRecord
 from tests.test_workspace_service import workspace  # noqa: F401
-from tests.test_simulation_portfolios import config, fetcher, run_sync
+from tests.test_simulation_portfolios import config, fetcher, history, run_sync
 
 
 def fixed():
@@ -31,6 +31,25 @@ def test_range_filters_use_source_fields_and_freeze_interpretation(workspace):
         agent.approved(preview['id'], 'CN')
     with pytest.raises(ValueError, match='缺少'):
         agent.recorded('US', preview['scope'], '2025-02-10')
+
+
+def test_grid_skill_is_available_to_agent_and_receives_frozen_parameters(workspace):
+    captured = []
+    response = SimpleNamespace(
+        content=json.dumps({'opinions': [{'code': 'AAPL', 'targetWeight': 0.2, 'reason': '网格条件满足'}]}),
+        usage={'total_tokens': 100}, model='fixture-model', provider='fixture',
+    )
+    agent = TradingAgentService(workspace.db, SimpleNamespace(call_text=lambda messages, **kwargs: captured.append(json.loads(messages[-1]['content'])) or response))
+    snapshot = agent.skill_snapshot('high_volume_volatility_grid')
+    assert snapshot['name'] == '高量高波动网格'
+    opinions, _ = agent.decide(
+        dict(market='US', maxPositions=1, maxWeight=0.25, portfolioId=1, skillSnapshot=snapshot,
+             gridLookbackDays=5, gridMinVolumeRatio=1.2, gridMinRange=0.05, gridLevels=5),
+        {'cash': 100000, 'equity': 100000, 'positions': {}}, '2025-02-10',
+        {'AAPL': history()}, ['AAPL'], 100000, 'run-1',
+    )
+    assert opinions[0]['targetWeight'] == 0.2
+    assert captured[0]['grid'] == {'lookbackDays': 5, 'minVolumeRatio': 1.2, 'minRange': 0.05, 'levels': 5}
 
 
 def setup_agent(workspace, bad=False):

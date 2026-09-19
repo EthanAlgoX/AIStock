@@ -12,7 +12,7 @@ router = APIRouter()
 class StrategyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     name: str = Field(min_length=1, max_length=80)
-    template: Literal["volume_breakout", "shrink_pullback", "low_volatility_quality", "high_volume_volatility_grid"]
+    template: Literal["volume_breakout", "shrink_pullback", "low_volatility_quality"]
     market: Literal["CN", "US", "HK"]
     symbols: list[str] = Field(default_factory=list, max_length=12)
     engine: Literal['rule', 'agent'] = 'rule'

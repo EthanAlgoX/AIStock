@@ -304,6 +304,36 @@ export function TradingAgentConfig({
         {options?.skills.find((s) => s.id === config.skillId)?.description ||
           "Skill 决定分析方法；交易输出规范和程序风控共同约束买卖计划。保存后固定 Skill 内容。"}
       </p>
+      {config.skillId === "high_volume_volatility_grid" && (
+        <div className="rounded-lg border border-border p-4">
+          <h4 className="font-medium">高量高波动网格参数</h4>
+          <p className="mt-1 text-sm leading-6 text-secondary-text">
+            Agent 只使用冻结日线和这些参数形成目标仓位；成交仍在下一交易日开盘由模拟账本执行。
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {([
+              ["gridLookbackDays", "观察周期（交易日）", 3, 20, 1],
+              ["gridMinVolumeRatio", "最低成交量倍数", 1, 10, 0.1],
+              ["gridMinRange", "最低区间波动率", 0.005, 0.5, 0.005],
+              ["gridLevels", "网格档数", 2, 10, 1],
+            ] as const).map(([key, label, min, max, step]) => (
+              <label key={key} className="text-sm">
+                {label}
+                <input
+                  className={input}
+                  type="number"
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={config[key] ?? (key === "gridLookbackDays" ? 5 : key === "gridMinVolumeRatio" ? 1.3 : key === "gridMinRange" ? 0.05 : 5)}
+                  onChange={(e) => onConfig({ [key]: Number(e.target.value) })}
+                />
+                {key === "gridMinRange" && <span className="mt-1 block text-xs text-secondary-text">0.05 表示 5%</span>}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
       <details>
         <summary className="cursor-pointer font-medium">
           交易 System Prompt
