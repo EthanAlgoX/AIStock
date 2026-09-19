@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 > For user-friendly release highlights, see the [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) page.
 
 ## [Unreleased]
+- [改进] 交易推演的自定义范围改由 LLM 在冻结候选集合内结合行业、自然语言描述和市值数据选择股票，程序只校验范围与数量并冻结结果。
 - [修复] 交易推演预设行业扩展为常见细分行业与概念词，避免上层行业名称与数据源分类不一致而找不到候选。
 - [新功能] 交易推演的自定义股票范围支持预设行业单选、多选与全选；行业选择可直接预览，补充文字仅用于增加行业/概念或波动率条件。
 - [修复] 交易推演新建策略默认使用指定股票范围，避免已填写股票却因默认自定义范围缺少描述而无法预览和保存。

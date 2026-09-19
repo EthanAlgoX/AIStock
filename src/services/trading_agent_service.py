@@ -49,6 +49,18 @@ class RangeRule(BaseModel):
     description: str = Field(min_length=1, max_length=1000)
 
 
+class RangeSelectionItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    code: str
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class RangeSelection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    candidates: list[RangeSelectionItem] = Field(default_factory=list, max_length=12)
+    summary: str = Field(default='')
+
+
 class StockDecision(BaseModel):
     model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
     code: str
@@ -159,28 +171,44 @@ class TradingAgentService:
             raise ValueError('港股暂缺行业候选目录，请先指定股票，再按行业或弹性条件筛选。')
         if scope['mode'] == 'custom':
             query = scope.get('query', '').strip()
-            if query:
-                result, usage = self.call(
-                    '将股票范围描述转成严格 JSON：industryTerms（最多32个非空行业英文/中文匹配词，去除重复词），minVolatility（基于最近20日收益率的年化波动率百分数下限或null），description（明确筛选含义）。'
-                    '只返回一个JSON对象，不要Markdown、前言或分析过程。行业词作用于数据源行业/概念字段，不是股票名称。弹性大可解释为较高20日波动率，必须说明这不是收益保证。不能表达的条件不要伪装支持，description说明并返回空条件。',
-                    {'query': query, 'market': market}, 30000, 'trading_range')
-                rule = RangeRule.model_validate(result).model_dump()
-            else:
-                usage = None
-                rule = dict(industryTerms=[], minVolatility=None, description='全行业' if scope.get('allIndustries') else f"行业：{'、'.join(selected_industries)}")
-            explicit_terms = [] if scope.get('allIndustries') else _industry_terms(selected_industries)
-            rule['industryTerms'] = list(dict.fromkeys(explicit_terms + [
-                t.strip() for t in rule['industryTerms'] if t.strip()
-            ]))[:32]
-            if not rule['industryTerms'] and rule['minVolatility'] is None and not scope.get('allIndustries'):
-                raise ValueError('当前范围支持行业/概念和20日波动率条件，请具体描述行业或弹性范围。')
-            scope['rule'] = rule
+            discovery_scope = dict(scope, maxCandidates=50,
+                rule=dict(industryTerms=[], minVolatility=None, description='候选发现'))
+            try:
+                discovered = self.resolve(market, discovery_scope)
+            except (RuntimeError, TimeoutError) as exc:
+                raise ValueError('范围数据源暂时不可用，未编造候选；请稍后重试，或改用指定股票/持仓范围。') from exc
+            evidence = []
+            for candidate in discovered['candidates']:
+                raw = candidate.get('raw') or {}
+                evidence.append(dict(code=candidate['code'], name=candidate.get('name') or '',
+                    industry=candidate.get('industry') or '', concepts=raw.get('concepts') or '',
+                    totalMarketValue=raw.get('total_mv') or raw.get('market_cap') or raw.get('market_value'),
+                    circulatingMarketValue=raw.get('circ_mv'), volatility20dPct=candidate.get('volatility')))
+            result, usage = self.call(
+                '你是股票范围选择器。仅从候选列表选择符合用户范围的股票，绝不可编造或返回范围外代码。'
+                '行业、市场和市值要求均由你结合候选证据判断；市值单位未知时只比较候选间相对规模。'
+                '中市值以上表示排除候选集中市值较小的一档。若证据不足，可保守返回空列表并在summary说明。'
+                '只返回严格JSON：candidates（最多12项，每项code和reason）和summary。',
+                dict(market=market, requestedIndustries=selected_industries,
+                    allIndustries=bool(scope.get('allIndustries')), query=query,
+                    maxCandidates=scope.get('maxCandidates', 12), candidates=evidence),
+                30000, 'trading_range')
+            selection = RangeSelection.model_validate(result)
+            by_code = {item['code']: item for item in discovered['candidates']}
+            chosen = []
+            for item in selection.candidates:
+                code = item.code
+                if code in by_code and len(chosen) < scope.get('maxCandidates', 12):
+                    chosen.append(dict(by_code[code], reason=item.reason))
+            if not chosen:
+                raise ValueError('模型未能从当前候选集中确认符合范围的股票；请放宽描述、选择全行业或指定股票。')
+            scope['selection'] = dict(summary=selection.summary, candidates=[item.code for item in selection.candidates])
+            scope['rule'] = dict(industryTerms=[], minVolatility=None, description=selection.summary or '模型根据冻结候选范围选择')
+            snapshot = dict(candidates=chosen, source=discovered['source'], observedAt=discovered['observedAt'],
+                coverage='LLM 仅从冻结候选集中选择，程序已校验返回代码。')
         else:
             usage = None
-        try:
             snapshot = self.resolve(market, scope)
-        except (RuntimeError, TimeoutError) as exc:
-            raise ValueError('范围数据源暂时不可用，未编造候选；请稍后重试，或改用指定股票/持仓范围。') from exc
         snapshot['scope'] = scope
         snapshot['market'] = market
         snapshot['usage'] = usage

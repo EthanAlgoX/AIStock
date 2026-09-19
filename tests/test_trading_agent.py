@@ -18,7 +18,7 @@ def fixed():
 
 
 def test_range_filters_use_source_fields_and_freeze_interpretation(workspace):
-    adapter = SimpleNamespace(call_text=lambda *a, **k: SimpleNamespace(content=json.dumps(dict(industryTerms=['Tech'] + [f'Technology synonym {i}' for i in range(24)], minVolatility=2, description='Tech行业且20日波动率至少2%')), usage={'total_tokens':100}, model='fixture', provider='fixture'))
+    adapter = SimpleNamespace(call_text=lambda *a, **k: SimpleNamespace(content=json.dumps(dict(candidates=[dict(code='AAPL', reason='科技且中市值以上')], summary='科技范围')), usage={'total_tokens':100}, model='fixture', provider='fixture'))
     agent = TradingAgentService(workspace.db, adapter, lambda market: dict(snapshot_source='fixture-source', candidates=[
         dict(code='AAPL', industry='Technology', volatility_20d_pct=3),
         dict(code='MSFT', industry='Technology', volatility_20d_pct=1),
@@ -26,7 +26,7 @@ def test_range_filters_use_source_fields_and_freeze_interpretation(workspace):
     ]))
     preview = agent.preview('US', dict(mode='custom', query='科技弹性大', symbols=[], maxCandidates=12))
     assert [c['code'] for c in preview['candidates']] == ['AAPL']
-    assert agent.approved(preview['id'], 'US')['scope']['rule']['minVolatility'] == 2
+    assert agent.approved(preview['id'], 'US')['scope']['selection']['candidates'] == ['AAPL']
     with pytest.raises(ValueError):
         agent.approved(preview['id'], 'CN')
     with pytest.raises(ValueError, match='缺少'):
@@ -38,13 +38,13 @@ def test_industry_selection_previews_without_llm_and_all_industries_is_unrestric
         dict(code='600001', name='半导体样本', industry='半导体', volatility_20d_pct=3),
         dict(code='600002', name='金融样本', industry='金融', volatility_20d_pct=2),
     ])
-    agent = TradingAgentService(workspace.db, screener=screener)
+    agent = TradingAgentService(workspace.db, SimpleNamespace(call_text=lambda *a, **k: SimpleNamespace(content=json.dumps(dict(candidates=[dict(code='600001', reason='半导体')], summary='半导体')), usage={'total_tokens':100}, model='fixture', provider='fixture')), screener)
     selected = agent.preview('CN', dict(mode='custom', query='', industries=['半导体'], allIndustries=False, symbols=[], maxCandidates=12))
     assert [item['code'] for item in selected['candidates']] == ['600001']
-    assert selected['scope']['rule']['industryTerms'] == ['半导体', '芯片', '集成电路', '电子']
+    assert selected['scope']['selection']['candidates'] == ['600001']
     all_industries = agent.preview('CN', dict(mode='custom', query='', industries=[], allIndustries=True, symbols=[], maxCandidates=12))
-    assert {item['code'] for item in all_industries['candidates']} == {'600001', '600002'}
-    assert all_industries['scope']['rule']['industryTerms'] == []
+    assert [item['code'] for item in all_industries['candidates']] == ['600001']
+    assert all_industries['scope']['selection']['candidates'] == ['600001']
 
 
 def test_grid_skill_is_available_to_agent_and_receives_frozen_parameters(workspace):
@@ -203,7 +203,7 @@ def test_us_scope_volatility_and_industry_come_from_provider_data():
 
 def test_range_source_failure_is_actionable_and_preserves_model_usage(workspace):
     from src.storage import SimulationTradingCallRecord
-    response = SimpleNamespace(content=json.dumps(dict(industryTerms=['Tech'], minVolatility=None, description='科技')),
+    response = SimpleNamespace(content=json.dumps(dict(candidates=[], summary='科技')),
                                usage={'total_tokens':100}, model='fixture', provider='fixture')
     def unavailable(market):
         raise TimeoutError('provider timeout')
@@ -211,6 +211,5 @@ def test_range_source_failure_is_actionable_and_preserves_model_usage(workspace)
     with pytest.raises(ValueError, match='数据源暂时不可用'):
         agent.preview('US', dict(mode='custom', query='科技行业', symbols=[]))
     with workspace.db.get_session() as session:
-        call = session.scalar(select(SimulationTradingCallRecord))
-        assert json.loads(call.usage_json)['total_tokens'] == 100
+        assert session.scalar(select(SimulationTradingCallRecord)) is None
         assert session.scalar(select(func.count()).select_from(SimulationUniverseSnapshotRecord)) == 0
