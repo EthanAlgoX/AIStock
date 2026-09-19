@@ -8,7 +8,6 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 from sqlalchemy import select, func
-from api.v1.endpoints.simulation_portfolios import PortfolioCreate
 from src.services.simulation_portfolio_engine import metrics, step
 from src.services.simulation_portfolio_service import SimulationPortfolioService
 from src.storage import SimulationFillRecord, SimulationPortfolioRunRecord, SimulationRunRecord, SimulationAccountRecord
@@ -16,17 +15,27 @@ from tests.test_workspace_service import workspace  # noqa: F401
 
 
 def config(**kwargs):
-    return PortfolioCreate(
+    payload = dict(
         name="Test portfolio",
         template="low_volatility_quality",
         market="US",
         symbols=["AAPL"],
         mode="backtest",
         lotSize=1,
+        initialCash=100000,
+        maxPositions=3,
+        maxWeight=0.25,
+        commissionRate=0.0003,
+        sellTaxRate=0,
+        slippageRate=0.001,
+        riskFreeRate=0,
         startDate="2025-02-10",
         endDate="2025-02-14",
-        **kwargs,
-    ).model_dump()
+    )
+    payload.update(kwargs)
+    if payload.get('engine') == 'agent':
+        payload['template'] = 'agent'
+    return payload
 
 
 def history(day="2025-02-10", close=100):
@@ -156,14 +165,12 @@ def test_configuration_is_immutable_and_member_policy_narrow(workspace):
         service.create({**config(), "market": "CN"})
 
 
-def test_api_accounts_are_private_and_legacy_contract_still_serializes(members):
+def test_api_accounts_are_private_and_rejects_retired_fixed_rules(members):
     owner, alice, bob, service = members
     result = alice.post("/api/v1/simulation/portfolios", json=config())
-    assert result.status_code == 200, result.text
-    pid = result.json()["id"]
-    assert len(alice.get("/api/v1/simulation/portfolios").json()["items"]) == 1
+    assert result.status_code == 422
+    assert alice.get("/api/v1/simulation/portfolios").json()["items"] == []
     assert bob.get("/api/v1/simulation/portfolios").json()["items"] == []
-    assert bob.get(f"/api/v1/simulation/portfolios/{pid}").status_code == 404
     assert owner.get("/api/v1/simulation/portfolios").json()["items"] == []
     assert alice.post("/api/v1/simulation/portfolios", json={**config(), "symbols": ["../../etc"]}).status_code == 422
 
@@ -240,28 +247,18 @@ def test_portfolio_outcome_reports_account_updates_without_claiming_a_proposal()
     assert business_outcome('failed', 'trading', [artifact])['status'] == 'failed'
 
 
-def test_saved_definition_has_no_account_and_spawns_independent_validations(workspace):
-    from api.v1.endpoints.simulation_portfolios import StrategyConfig
+def test_saved_fixed_definition_has_no_account_and_cannot_start_new_validations(workspace):
     service = SimulationPortfolioService(workspace.db, fetcher())
     payload = {k: v for k, v in config().items() if k not in {'mode', 'startDate', 'endDate'}}
-    saved = service.save_definition(StrategyConfig(**payload).model_dump())
+    saved = service.save_definition(payload)
     assert not {'mode', 'startDate', 'endDate'} & saved['config'].keys()
     assert service.definitions() == [saved]
     with workspace.db.get_session() as session:
         assert session.scalar(select(func.count()).select_from(SimulationAccountRecord)) == 0
         assert session.scalar(select(func.count()).select_from(SimulationRunRecord)) == 0
-    historical = service.create_validation(saved['id'], dict(mode='backtest', initialCash=200000,
-        startDate='2025-02-10', endDate='2025-02-14'))
-    paper = service.create_validation(saved['id'], dict(mode='paper', initialCash=100000,
-        startDate=None, endDate=None))
-    assert historical['definitionId'] == paper['definitionId'] == saved['id']
-    assert historical['id'] != paper['id'] and historical['versionId'] != paper['versionId']
-    assert paper['config']['startDate'] != historical['config']['startDate']
-    with patch.object(service, '_last_closed', return_value=date(2025, 2, 14)):
-        run_sync(service, historical['id'])
-    assert len(service.detail(historical['id'])['days']) == 5
-    assert service.detail(paper['id'])['days'] == []
-    assert service.definitions() == [saved]
+    with pytest.raises(ValueError, match='固定规则策略已下线'):
+        service.create_validation(saved['id'], dict(mode='paper', initialCash=100000))
+    assert service.list() == []
 
 
 def test_invalid_validation_does_not_create_account(workspace):

@@ -38,7 +38,8 @@ const failure = (e: unknown) => {
 };
 const seed: RuleConfig = {
   name: "",
-  template: "volume_breakout",
+  template: "agent",
+  engine: "agent",
   market: "CN",
   symbols: [],
   mode: "paper",
@@ -85,9 +86,6 @@ export default function TradingWorkspacePage() {
   const [validationStart, setValidationStart] = useState("");
   const [validationEnd, setValidationEnd] = useState("");
   const [items, setItems] = useState<Portfolio[]>([]);
-  const [templates, setTemplates] = useState<
-    { id: string; name: string; description: string }[]
-  >([]);
   const [detail, setDetail] = useState<Portfolio | null>(null);
   const [universePreview, setUniversePreview] =
     useState<UniversePreview | null>(null);
@@ -128,16 +126,14 @@ export default function TradingWorkspacePage() {
     let timer: ReturnType<typeof setTimeout>;
     const load = async () => {
       try {
-        const [list, catalog, selected, saved] = await Promise.all([
+        const [list, selected, saved] = await Promise.all([
           portfoliosApi.list(),
-          portfoliosApi.templates(),
           id ? portfoliosApi.detail(id) : Promise.resolve(null),
           portfoliosApi.definitions(),
         ]);
         if (alive) {
           setItems(list);
           setDefinitions(saved);
-          setTemplates(catalog);
           setDetail(selected);
           setLoadError("");
         }
@@ -186,27 +182,11 @@ export default function TradingWorkspacePage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (draft.engine !== "agent" && stockIndex.loading) {
-      setError("股票目录正在加载，请稍后创建。");
-      return;
-    }
-    if (draft.engine === "agent" && !universePreview) {
+    if (!universePreview) {
       setError("请先预览并确认股票范围。");
       return;
     }
-    const unresolved = pool.find((p) => !p.stock);
-    if (draft.engine !== "agent" && unresolved) {
-      setError(`请确认“${unresolved.query}”对应的股票；从下方匹配结果选择。`);
-      return;
-    }
-    if (draft.engine !== "agent" && poolMarkets.length > 1) {
-      setError("识别到多个市场；每个策略账户使用同一市场，请分别创建账户。");
-      return;
-    }
-    const codes =
-      draft.engine === "agent"
-        ? universePreview!.candidates.map((c) => c.code)
-        : [...new Set(pool.flatMap((p) => (p.stock ? [p.stock.code] : [])))];
+    const codes = universePreview.candidates.map((c) => c.code);
     if (codes.length < 1 || codes.length > 12) {
       setError(`股票池需要 1–12 个股票代码，当前填写了 ${codes.length} 个。`);
       return;
@@ -217,11 +197,9 @@ export default function TradingWorkspacePage() {
         ...draft,
         symbols: codes,
         market:
-          draft.engine === "agent"
-            ? universePreview!.market
-            : poolMarket || draft.market,
+          universePreview.market,
         lotSize:
-          draft.engine === "agent" && universePreview!.market !== draft.market
+          universePreview.market !== draft.market
             ? universePreview!.market === "US"
               ? 1
               : 100
@@ -254,51 +232,6 @@ export default function TradingWorkspacePage() {
   const visible = days.slice(-windowSize);
   const inputClass =
     "mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
-  const strategySelector = (<>
-          <label className="mb-5 block">
-            执行方式
-            <select
-              className={inputClass}
-              value={draft.engine || "rule"}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  engine: e.target.value as "rule" | "agent",
-                }))
-              }
-            >
-              <option value="agent">Agent + 策略 Skill</option>
-              <option value="rule">固定价格规则（兼容原策略）</option>
-            </select>
-          </label>
-          {draft.engine !== "agent" && (
-            <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {templates.map((t) => (
-                <button
-                  type="button"
-                  key={t.id}
-                  aria-pressed={draft.template === t.id}
-                  className={`rounded-lg border p-4 text-left ${draft.template === t.id ? "border-primary bg-primary/5" : "border-border"}`}
-                  onClick={() =>
-                    setDraft((d) => ({
-                      ...d,
-                      template: t.id,
-                      name: d.name || t.name,
-                    }))
-                  }
-                >
-                  <strong>{t.name}</strong>
-                  <p className="mt-2 text-sm leading-6 text-secondary-text">
-                    {t.description}
-                  </p>
-                  <span className="mt-3 block text-xs text-secondary-text">
-                    固定规则 · 日线决策
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-  </>);
   return (
     <AppPage>
       <header className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
@@ -358,18 +291,15 @@ export default function TradingWorkspacePage() {
               <h3 className="sm:col-span-2 text-lg font-semibold mt-3">1. 选股配置</h3>
               <div className="sm:col-span-2">
                 <label className="block">
-                  {draft.engine === "agent" ? "股票池（可选，名称或代码，最多 12 只）" : "股票池（名称或代码，最多 12 只）"}
+                  股票池（可选，名称或代码，最多 12 只）
                   <input
-                    required={draft.engine !== "agent"}
                     className={inputClass}
                     value={symbols}
                     onChange={(e) => setSymbols(e.target.value)}
                     placeholder="例如 贵州茅台、平安银行，或 英伟达、苹果"
                   />
                 </label>
-                {draft.engine === "agent" && (
-                  <p className="mt-2 text-sm text-secondary-text">可留空，直接按下方股票范围寻找候选；填写后会进一步限定范围，不会自动补入范围外的股票。</p>
-                )}
+                <p className="mt-2 text-sm text-secondary-text">可留空，直接按下方股票范围寻找候选；填写后会进一步限定范围，不会自动补入范围外的股票。</p>
                 <p className="mt-2 text-sm text-secondary-text">
                   {stockIndex.loading
                     ? "正在加载与个股研究共用的股票目录…"
@@ -440,10 +370,8 @@ export default function TradingWorkspacePage() {
                   ))}
                 </div>
               </div>
-            {draft.engine === "agent" && (
               <div className="sm:col-span-2"><TradingAgentConfig
                 config={draft}
-                strategySelector={strategySelector}
                 inputText={symbols}
                 codes={
                   pool.some((p) => !p.stock)
@@ -454,8 +382,6 @@ export default function TradingWorkspacePage() {
                 onConfig={(patch) => setDraft((d) => ({ ...d, ...patch }))}
                 onPreview={setUniversePreview}
               /></div>
-            )}
-              {draft.engine !== "agent" && <div className="sm:col-span-2"><h3 className="mb-4 text-lg font-semibold">2. 策略配置</h3>{strategySelector}</div>}
               <h3 className="sm:col-span-2 text-lg font-semibold mt-3">3. 运行与风控配置</h3>
               <label>
                 默认验证资金
@@ -484,10 +410,10 @@ export default function TradingWorkspacePage() {
                 />
               </label>
             </div>
-            {draft.engine === "agent" && <label className="block">每次运行 Token 预算
+            <label className="block">每次运行 Token 预算
               <input className={inputClass} type="number" min={10000} max={500000} step={10000}
                 value={draft.runTokenBudget || 100000} onChange={(e) => change("runTokenBudget", Number(e.target.value))} />
-            </label>}
+            </label>
             <details className="border-y border-border py-4">
               <summary className="cursor-pointer font-medium">
                 仓位、交易成本与指标假设
@@ -590,10 +516,9 @@ export default function TradingWorkspacePage() {
               >
                 <h2 className="text-xl font-semibold">{definition.name}</h2>
                 <p className="mt-2 text-sm text-secondary-text">
-                  {
-                    definition.config.skillSnapshot?.name || templates.find((t) => t.id === definition.config.template)
-                      ?.name
-                  }{" "}
+                  {definition.config.engine === "agent"
+                    ? definition.config.skillSnapshot?.name || "Agent 策略 Skill"
+                    : "已下线固定规则"}{" "}
                   · {definition.config.symbols.join("、")} ·{" "}
                   {definition.config.market}
                 </p>
@@ -601,6 +526,7 @@ export default function TradingWorkspacePage() {
                   策略已保存。回测独立记账；运行一次和持续模拟共用最近的模拟账户，不会重置已有持仓。
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
+                  {definition.config.engine === "agent" ? <>
                   {(
                     [
                       ["backtest", "历史回测"],
@@ -631,13 +557,15 @@ export default function TradingWorkspacePage() {
                       {label}
                     </button>
                   ))}
+                  </> : <p className="text-sm text-secondary-text">此策略的固定规则已下线，历史记录可查看，但不能创建或继续运行。</p>}
                   <button
                     className="btn-secondary"
                     onClick={() => {
                       setDraft({
                         ...seed,
-                        ...definition.config,
                         name: `${definition.name} · 新版本`,
+                        market: definition.config.market,
+                        symbols: definition.config.symbols,
                       });
                       setSymbols(definition.config.symbols.join("、"));
                       setCreating(true);
@@ -836,14 +764,14 @@ export default function TradingWorkspacePage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button
+                    {detail.config.engine === "agent" && <button
                       className="btn-secondary"
                       disabled={sending || detail.busy}
                       onClick={() => void control("run")}
                     >
                       {detail.mode === "backtest" ? "运行回测" : "继续运行一次"}
-                    </button>
-                    {detail.mode === "paper" && (
+                    </button>}
+                    {detail.config.engine === "agent" && detail.mode === "paper" && (
                       <button
                         className="btn-primary"
                         disabled={sending}
@@ -856,13 +784,15 @@ export default function TradingWorkspacePage() {
                         {detail.status === "running" ? "暂停交易" : "持续运行"}
                       </button>
                     )}
-                    <button
-                      className="btn-secondary"
-                      onClick={() => {
-                        setDraft({
-                          ...detail.config,
+                      <button
+                        className="btn-secondary"
+                        onClick={() => {
+                          setDraft({
+                          ...seed,
                           name: `${detail.name} · 新版本`,
-                        });
+                          market: detail.config.market as RuleConfig["market"],
+                          symbols: detail.config.symbols,
+                          });
                         setSymbols(detail.config.symbols.join(", "));
                         setCreating(true);
                       }}
@@ -1134,7 +1064,7 @@ export default function TradingWorkspacePage() {
                           </article>
                         ))}
                         <p className="py-3 text-xs text-secondary-text">
-                          观点由固定价格规则生成，不冒充专家或模型判断；每个股票池成员每天都有记录。
+                          观点由保存时冻结的 Agent Skill 生成；每个股票池成员每天都有记录。
                         </p>
                       </div>
                     ) : (
@@ -1241,10 +1171,9 @@ export default function TradingWorkspacePage() {
                   </summary>
                   <div className="mt-4 space-y-3 text-sm leading-6 text-secondary-text">
                     <p>
-                      {
-                        templates.find((t) => t.id === detail.config.template)
-                          ?.description
-                      }
+                      {detail.config.engine === "agent"
+                        ? `${detail.config.skillSnapshot?.name || "Agent 策略 Skill"}：使用保存时冻结的 Skill、交易指令和范围生成每日目标仓位，并由程序风控与模拟账本执行。`
+                        : "固定规则策略已下线；此处仅保留历史账本与指标供查看。"}
                     </p>
                     <p>
                       股票池：{detail.config.symbols.join("、")}。最大持仓{" "}

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [改进] 交易推演移除固定价格规则的创建入口和模板接口，统一通过 Agent + Strategy Skill 配置新策略；旧固定规则记录保留查看并停止继续运行。
 - [新功能] 交易推演在默认的 Agent + Strategy Skill 流程新增“高量高波动网格”：将可配置的观察周期、成交量倍数、区间波动率和网格档数与冻结日线一并传给 Agent，由既有风控和模拟账本在下一交易日开盘执行目标仓位。
 
 - [修复] 持仓建议曲线按交易日持续累积，手动研究在同一交易日优先替换自动研究结果，避免定时任务完成顺序覆盖人工复核。

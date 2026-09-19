@@ -39,8 +39,8 @@ class SimulationPortfolioService:
         market, template = payload["market"], payload["template"]
         if payload.get('engine') == 'agent' and not payload.get('skillSnapshot'):
             raise ValueError('Agent 策略请先保存 Skill 和已确认范围，再创建验证。')
-        if market not in BENCHMARKS or template not in {t["id"] for t in TEMPLATES}:
-            raise ValueError("不支持的市场或规则模板")
+        if market not in BENCHMARKS or template not in {t["id"] for t in TEMPLATES} | {'agent'}:
+            raise ValueError("不支持的市场或策略模板")
         from src.agent.tools.execution import _normalize_tool_stock_code
         from src.market_context import detect_market
 
@@ -112,6 +112,8 @@ class SimulationPortfolioService:
             if definition is None:
                 raise LookupError("策略不存在")
             config = json.loads(definition.config_json)
+        if config.get('engine') != 'agent' or config.get('template') != 'agent':
+            raise ValueError('固定规则策略已下线，历史记录仅供查看。请新建 Agent + 策略 Skill。')
         if config.get('engine') == 'agent' and options['mode'] == 'backtest' and options.get('historyMode') != 'ai_replay':
             raise ValueError('Agent 历史验证必须选择 AI 历史回放；模型可能含有未来知识，不能标为严格规则回测。')
         return self.create(dict(config, **options, definitionId=definition_id))
@@ -261,6 +263,9 @@ class SimulationPortfolioService:
             row = session.get(SimulationPortfolioRunRecord, portfolio_id)
             if row is None:
                 raise LookupError("策略账户不存在")
+            config = json.loads(row.config_json)
+            if action in {'start', 'run'} and config.get('engine') != 'agent':
+                raise ValueError('固定规则策略已下线，历史记录仅供查看。请新建 Agent + 策略 Skill。')
             if action == "start":
                 if row.mode != "paper":
                     raise ValueError("历史回测只能单次运行")
@@ -324,6 +329,12 @@ class SimulationPortfolioService:
                 row = session.get(SimulationPortfolioRunRecord, portfolio_id)
                 config = json.loads(row.config_json)
                 last = row.last_date
+            if config.get('engine') != 'agent':
+                with self.db.session_scope() as session:
+                    legacy = session.get(SimulationPortfolioRunRecord, portfolio_id)
+                    legacy.status = 'paused'
+                    legacy.error_message = '固定规则策略已下线，已暂停；历史记录仍可查看。'
+                continue
             try:
                 closed = self._last_closed(config["market"]).isoformat()
                 if (last and last >= closed) or closed < config["startDate"]:

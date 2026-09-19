@@ -26,7 +26,7 @@ export type AgentOptions = {
   defaultPrompt: string;
 };
 export type RuleConfig = {
-  engine?: "rule" | "agent";
+  engine?: "agent";
   skillId?: string;
   systemPrompt?: string;
   universePreviewId?: number;
@@ -35,7 +35,7 @@ export type RuleConfig = {
   universe?: UniversePreview;
   skillSnapshot?: { name: string; digest: string };
   name: string;
-  template: string;
+  template: "agent";
   market: "CN" | "US" | "HK";
   symbols: string[];
   mode: "paper" | "backtest";
@@ -178,20 +178,14 @@ export const portfoliosApi = {
       gridMinRange,
       gridLevels,
     } = config;
-    const agentFields =
-      config.engine === "agent"
-        ? {
-            engine: config.engine,
-            skillId: config.skillId,
-            systemPrompt: config.systemPrompt,
-            universePreviewId: config.universePreviewId,
-            scopeRefresh: config.scopeRefresh,
-            runTokenBudget: config.runTokenBudget,
-          }
-        : {};
     return (
       await client.post<StrategyDefinition>(`${root}/definitions`, {
-        ...agentFields,
+        engine: "agent",
+        skillId: config.skillId,
+        systemPrompt: config.systemPrompt,
+        universePreviewId: config.universePreviewId,
+        scopeRefresh: config.scopeRefresh,
+        runTokenBudget: config.runTokenBudget,
         name,
         template,
         market,
@@ -219,12 +213,6 @@ export const portfoliosApi = {
       )
     ).data,
   list: async () => (await client.get<{ items: Portfolio[] }>(root)).data.items,
-  templates: async () =>
-    (
-      await client.get<{
-        items: { id: string; name: string; description: string }[];
-      }>(`${root}/templates`)
-    ).data.items,
   detail: async (id: number) =>
     (await client.get<Portfolio>(`${root}/${id}`)).data,
   create: async (config: RuleConfig) => {
@@ -249,6 +237,11 @@ export const portfoliosApi = {
       gridLevels,
       startDate,
       endDate,
+      skillId,
+      systemPrompt,
+      universePreviewId,
+      scopeRefresh,
+      runTokenBudget,
     } = config;
     return (
       await client.post<Portfolio>(root, {
@@ -271,6 +264,12 @@ export const portfoliosApi = {
         gridLevels,
         startDate,
         endDate,
+        engine: "agent",
+        skillId,
+        systemPrompt,
+        universePreviewId,
+        scopeRefresh,
+        runTokenBudget,
       })
     ).data;
   },

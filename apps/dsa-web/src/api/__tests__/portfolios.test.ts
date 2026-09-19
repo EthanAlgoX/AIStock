@@ -9,7 +9,10 @@ it("uses the versioned endpoint and strips server metadata when copying an accou
   expect(client.get).toHaveBeenCalledWith("/api/v1/simulation/portfolios");
   const config = {
     name: "Copy",
-    template: "volume_breakout",
+    template: "agent",
+    engine: "agent",
+    skillId: "price",
+    universePreviewId: 1,
     market: "US",
     mode: "paper",
     symbols: ["AAPL"],
@@ -36,11 +39,14 @@ it("uses the versioned endpoint and strips server metadata when copying an accou
   );
 });
 
-it("saves rules without a validation mode or server metadata", async () => {
+it("saves Agent strategies without a validation mode or server metadata", async () => {
   client.post.mockResolvedValue({ data: { id: 3 } });
   await portfoliosApi.saveDefinition({
     name: "Saved",
-    template: "volume_breakout",
+    template: "agent",
+    engine: "agent",
+    skillId: "price",
+    universePreviewId: 1,
     market: "US",
     symbols: ["AAPL"],
     mode: "backtest",

@@ -4,7 +4,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 from src.services.simulation_portfolio_service import SimulationPortfolioService
-from src.services.simulation_portfolio_engine import TEMPLATES, BENCHMARKS
+from src.services.simulation_portfolio_engine import BENCHMARKS
 
 router = APIRouter()
 
@@ -12,10 +12,10 @@ router = APIRouter()
 class StrategyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     name: str = Field(min_length=1, max_length=80)
-    template: Literal["volume_breakout", "shrink_pullback", "low_volatility_quality"]
+    template: Literal["agent"] = "agent"
     market: Literal["CN", "US", "HK"]
     symbols: list[str] = Field(default_factory=list, max_length=12)
-    engine: Literal['rule', 'agent'] = 'rule'
+    engine: Literal['agent'] = 'agent'
     skillId: str | None = None
     systemPrompt: str = Field(default='', max_length=6000)
     universePreviewId: int | None = None
@@ -76,14 +76,6 @@ def call(fn, *args):
         raise HTTPException(404, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-
-
-@router.get("/templates")
-def templates():
-    return {
-        "items": TEMPLATES,
-        "benchmarks": {k: {"code": v[0], "name": v[1], "currency": v[2]} for k, v in BENCHMARKS.items()},
-    }
 
 
 @router.get("")

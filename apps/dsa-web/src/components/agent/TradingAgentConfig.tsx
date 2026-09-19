@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   portfoliosApi,
   type AgentOptions,
@@ -11,7 +11,6 @@ import { toApiErrorMessage } from "../../api/error";
 
 export function TradingAgentConfig({
   config,
-  strategySelector,
   inputText,
   codes,
   inferredMarket,
@@ -19,7 +18,6 @@ export function TradingAgentConfig({
   onPreview,
 }: {
   config: RuleConfig;
-  strategySelector: ReactNode;
   inputText: string;
   codes: string[] | null;
   inferredMarket: RuleConfig["market"] | null;
@@ -283,7 +281,6 @@ export function TradingAgentConfig({
         </div>
       )}
       <h3 className="pt-4 text-lg font-semibold">2. 策略配置</h3>
-      {strategySelector}
       <label className="block">
         策略 Skill
         <select
