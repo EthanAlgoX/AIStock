@@ -60,6 +60,6 @@ Tables are additive and old rule accounts remain compatible. Back up data before
 
 US custom scopes reuse Yahoo snapshots over configured US tickers or the built-in large-cap universe (at most 50), without applying CN-only screening strategies. Explicit tickers are inspected directly. HK custom scopes require explicit tickers because there is no HK industry universe source. Volatility means annualized percentage volatility based on the latest 20 daily returns.
 
-New Agent strategies default to a custom scope. Explicit stocks are optional: an empty list lets the scope determine candidates, while a supplied list restricts the scope by intersection. Saving an approved Agent scope does not wait for the stock-name catalog. Explicit-only scopes and legacy rules still require symbols.
+New Agent strategies default to an explicit-symbol scope: enter symbols, preview and confirm the list, then save. Switch to a custom industry/volatility scope and enter a scope description when screening is intended; explicit symbols may then be omitted or used as an intersection restriction. Saving an approved Agent scope does not wait for the stock-name catalog.
 
 Configuration is ordered as stock selection, strategy, then execution/risk: confirm the universe, choose the Skill/instructions, and finally set capital, position limits, costs and Token budget.

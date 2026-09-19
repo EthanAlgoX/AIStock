@@ -27,7 +27,7 @@ export function TradingAgentConfig({
   const [options, setOptions] = useState<AgentOptions | null>(null);
   const [scope, setScope] = useState<UniverseScope>(
     config.universe?.scope || {
-      mode: "custom",
+      mode: "fixed",
       symbols: [],
       query: "",
       maxCandidates: 12,
@@ -104,7 +104,7 @@ export function TradingAgentConfig({
         </div>
         {scope.mode === "fixed" && (
           <p className="text-sm text-secondary-text">
-            在上方股票输入框填写名称或代码，市场随代码识别。
+            在上方股票输入框填写名称或代码，市场随代码识别。预览成功后，保存策略会固定这份股票名单。
           </p>
         )}
         {scope.mode === "holdings" && (
@@ -251,7 +251,7 @@ export function TradingAgentConfig({
             }
           }}
         >
-          {busy ? "正在解析并查找候选…" : "预览范围与筛选依据"}
+          {busy ? "正在解析并查找候选…" : "预览并确认股票范围"}
         </button>
         <p className="text-xs text-secondary-text">
           自定义范围解析会调用模型并记录 Token

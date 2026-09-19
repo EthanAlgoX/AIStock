@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 > For user-friendly release highlights, see the [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) page.
 
 ## [Unreleased]
+- [修复] 交易推演新建策略默认使用指定股票范围，避免已填写股票却因默认自定义范围缺少描述而无法预览和保存。
 
 - [改进] 交易推演移除固定价格规则的创建入口和模板接口，统一通过 Agent + Strategy Skill 配置新策略；旧固定规则记录保留查看并停止继续运行。
 - [新功能] 交易推演在默认的 Agent + Strategy Skill 流程新增“高量高波动网格”：将可配置的观察周期、成交量倍数、区间波动率和网格档数与冻结日线一并传给 Agent，由既有风控和模拟账本在下一交易日开盘执行目标仓位。

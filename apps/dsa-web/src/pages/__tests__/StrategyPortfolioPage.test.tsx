@@ -199,7 +199,7 @@ it("saves the selected Agent Skill and approved universe without launching", asy
   fireEvent.change(screen.getByLabelText("策略名称"), {target:{value:"Agent试验"}});
   fireEvent.change(screen.getByLabelText("股票池（可选，名称或代码，最多 12 只）"), {target:{value:"英伟达"}});
   fireEvent.change(screen.getByLabelText("范围来源"), {target:{value:"fixed"}});
-  fireEvent.click(screen.getByRole("button", {name:"预览范围与筛选依据"}));
+  fireEvent.click(screen.getByRole("button", {name:"预览并确认股票范围"}));
   await screen.findByLabelText("范围预览");
   fireEvent.click(screen.getByRole("button", {name:"保存策略"}));
   await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({engine:"agent",skillId:"price",universePreviewId:9,market:"US",symbols:["NVDA"]})));
@@ -217,11 +217,12 @@ it("saves a scope-only strategy with an empty optional pool while the name catal
   const poolInput = screen.getByLabelText("股票池（可选，名称或代码，最多 12 只）");
   expect(poolInput).not.toBeRequired();
   expect(poolInput).toHaveValue("");
-  expect(screen.getByLabelText("范围来源")).toHaveValue("custom");
+  expect(screen.getByLabelText("范围来源")).toHaveValue("fixed");
+  fireEvent.change(screen.getByLabelText("范围来源"), {target:{value:"custom"}});
   fireEvent.change(screen.getByLabelText("范围描述"), {target:{value:"半导体行业"}});
   fireEvent.change(screen.getByLabelText("策略 Skill"), {target:{value:"price"}});
   fireEvent.change(screen.getByLabelText("策略名称"), {target:{value:"行业策略"}});
-  fireEvent.click(screen.getByRole("button", {name:"预览范围与筛选依据"}));
+  fireEvent.click(screen.getByRole("button", {name:"预览并确认股票范围"}));
   await screen.findByLabelText("范围预览");
   expect(api.previewUniverse).toHaveBeenCalledWith("CN", expect.objectContaining({mode:"custom",symbols:[],query:"半导体行业"}));
   fireEvent.click(screen.getByRole("button", {name:"保存策略"}));
@@ -240,7 +241,7 @@ it("does not widen a holdings scope when its optional stock restriction has no i
   fireEvent.change(screen.getByLabelText("持仓账户"), {target:{value:"1"}});
   fireEvent.click(await screen.findByRole("checkbox", {name:/NVDA/}));
   fireEvent.change(screen.getByLabelText("股票池（可选，名称或代码，最多 12 只）"), {target:{value:"苹果"}});
-  fireEvent.click(screen.getByRole("button", {name:"预览范围与筛选依据"}));
+  fireEvent.click(screen.getByRole("button", {name:"预览并确认股票范围"}));
   await screen.findByText(/填写的股票与所选持仓没有交集/);
   expect(api.previewUniverse).not.toHaveBeenCalled();
 });
