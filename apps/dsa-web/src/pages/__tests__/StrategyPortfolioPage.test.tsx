@@ -209,7 +209,7 @@ it("saves the selected Agent Skill and approved universe without launching", asy
 
 it("saves a scope-only strategy with an empty optional pool while the name catalog is loading", async () => {
   stockState.loading = true;
-  api.previewUniverse.mockResolvedValue({id:10,market:"CN",candidates:[{code:"688981",reason:"半导体行业"}],scope:{mode:"custom",symbols:[],query:"半导体行业"},source:"fixture",observedAt:"2026-09-11"});
+  api.previewUniverse.mockResolvedValue({id:10,market:"CN",candidates:[{code:"688981",reason:"半导体行业"}],scope:{mode:"custom",symbols:[],query:"",industries:["半导体"]},source:"fixture",observedAt:"2026-09-11"});
   api.saveDefinition.mockResolvedValue({id:3,name:"行业策略",config:{...config,engine:"agent"}});
   render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(screen.getByRole("button", {name:"配置策略"}));
@@ -219,12 +219,12 @@ it("saves a scope-only strategy with an empty optional pool while the name catal
   expect(poolInput).toHaveValue("");
   expect(screen.getByLabelText("范围来源")).toHaveValue("fixed");
   fireEvent.change(screen.getByLabelText("范围来源"), {target:{value:"custom"}});
-  fireEvent.change(screen.getByLabelText("范围描述"), {target:{value:"半导体行业"}});
+  fireEvent.click(screen.getByRole("checkbox", {name:"半导体"}));
   fireEvent.change(screen.getByLabelText("策略 Skill"), {target:{value:"price"}});
   fireEvent.change(screen.getByLabelText("策略名称"), {target:{value:"行业策略"}});
   fireEvent.click(screen.getByRole("button", {name:"预览并确认股票范围"}));
   await screen.findByLabelText("范围预览");
-  expect(api.previewUniverse).toHaveBeenCalledWith("CN", expect.objectContaining({mode:"custom",symbols:[],query:"半导体行业"}));
+  expect(api.previewUniverse).toHaveBeenCalledWith("CN", expect.objectContaining({mode:"custom",symbols:[],query:"",industries:["半导体"]}));
   fireEvent.click(screen.getByRole("button", {name:"保存策略"}));
   await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({engine:"agent",universePreviewId:10,symbols:["688981"]})));
   expect(api.createValidation).not.toHaveBeenCalled();

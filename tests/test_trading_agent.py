@@ -33,6 +33,20 @@ def test_range_filters_use_source_fields_and_freeze_interpretation(workspace):
         agent.recorded('US', preview['scope'], '2025-02-10')
 
 
+def test_industry_selection_previews_without_llm_and_all_industries_is_unrestricted(workspace):
+    screener = lambda market: dict(snapshot_source='fixture', candidates=[
+        dict(code='600001', name='半导体样本', industry='半导体', volatility_20d_pct=3),
+        dict(code='600002', name='金融样本', industry='金融', volatility_20d_pct=2),
+    ])
+    agent = TradingAgentService(workspace.db, screener=screener)
+    selected = agent.preview('CN', dict(mode='custom', query='', industries=['半导体'], allIndustries=False, symbols=[], maxCandidates=12))
+    assert [item['code'] for item in selected['candidates']] == ['600001']
+    assert selected['scope']['rule']['industryTerms'] == ['半导体']
+    all_industries = agent.preview('CN', dict(mode='custom', query='', industries=[], allIndustries=True, symbols=[], maxCandidates=12))
+    assert {item['code'] for item in all_industries['candidates']} == {'600001', '600002'}
+    assert all_industries['scope']['rule']['industryTerms'] == []
+
+
 def test_grid_skill_is_available_to_agent_and_receives_frozen_parameters(workspace):
     captured = []
     response = SimpleNamespace(

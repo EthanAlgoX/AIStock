@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 > For user-friendly release highlights, see the [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) page.
 
 ## [Unreleased]
+- [新功能] 交易推演的自定义股票范围支持预设行业单选、多选与全选；行业选择可直接预览，补充文字仅用于增加行业/概念或波动率条件。
 - [修复] 交易推演新建策略默认使用指定股票范围，避免已填写股票却因默认自定义范围缺少描述而无法预览和保存。
 
 - [改进] 交易推演移除固定价格规则的创建入口和模板接口，统一通过 Agent + Strategy Skill 配置新策略；旧固定规则记录保留查看并停止继续运行。

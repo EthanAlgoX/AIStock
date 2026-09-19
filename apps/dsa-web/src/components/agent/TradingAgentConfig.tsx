@@ -9,6 +9,11 @@ import {
 import { includesStockCode } from "../../utils/stockCode";
 import { toApiErrorMessage } from "../../api/error";
 
+const INDUSTRIES = [
+  "金融", "医药生物", "信息技术", "半导体", "通信", "能源", "原材料",
+  "工业制造", "可选消费", "必选消费", "公用事业", "房地产", "传媒教育",
+];
+
 export function TradingAgentConfig({
   config,
   inputText,
@@ -163,19 +168,58 @@ export function TradingAgentConfig({
         )}
         {scope.mode === "custom" && (
           <>
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium">行业（可多选）</span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() =>
+                    setScope({
+                      ...scope,
+                      allIndustries: !scope.allIndustries,
+                      industries: !scope.allIndustries ? [] : scope.industries,
+                    })
+                  }
+                >
+                  {scope.allIndustries ? "取消全选" : "全选"}
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2" aria-label="行业选择">
+                {INDUSTRIES.map((industry) => (
+                  <label key={industry} className="text-sm">
+                    <input
+                      type="checkbox"
+                      checked={scope.allIndustries || (scope.industries || []).includes(industry)}
+                      disabled={scope.allIndustries}
+                      onChange={(e) =>
+                        setScope({
+                          ...scope,
+                          industries: e.target.checked
+                            ? [...(scope.industries || []), industry]
+                            : (scope.industries || []).filter((item) => item !== industry),
+                        })
+                      }
+                    />{" "}{industry}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-2 text-sm text-secondary-text">
+                可选择一个或多个行业；全选表示不限行业。所选行业按并集筛选。
+              </p>
+            </div>
             <label className="block">
-              范围描述
+              补充范围描述（可选）
               <textarea
                 className={input}
                 maxLength={500}
                 value={scope.query}
                 onChange={(e) => setScope({ ...scope, query: e.target.value })}
-                placeholder="例如 科技行业，或20日波动较大的股票"
+                placeholder="例如 20日波动较大的股票"
               />
             </label>
             <p className="text-sm text-secondary-text">
-              AI
-              将描述转成行业关键词或20日年化波动率条件。上方股票可不填；填写则进一步限制在这些股票中。候选来自现有数据源，不保证覆盖全市场；港股需先指定股票。
+              行业可直接预览；补充描述可增加行业/概念或20日年化波动率条件。上方股票可不填；填写则进一步限制在这些股票中。候选来自现有数据源，不保证覆盖全市场；港股需先指定股票。
             </p>
           </>
         )}

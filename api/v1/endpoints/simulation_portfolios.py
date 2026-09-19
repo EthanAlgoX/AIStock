@@ -57,6 +57,8 @@ class Scope(BaseModel):
     symbols: list[str] = Field(default_factory=list, max_length=12)
     accountId: int | None = None
     query: str = Field(default='', max_length=500)
+    industries: list[str] = Field(default_factory=list, max_length=24)
+    allIndustries: bool = False
     maxCandidates: int = Field(default=12, ge=1, le=12)
 
 

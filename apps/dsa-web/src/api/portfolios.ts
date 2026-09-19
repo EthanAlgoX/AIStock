@@ -4,6 +4,8 @@ export type UniverseScope = {
   symbols: string[];
   accountId?: number;
   query: string;
+  industries?: string[];
+  allIndustries?: boolean;
   maxCandidates: number;
 };
 export type UniversePreview = {

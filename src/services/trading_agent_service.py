@@ -123,18 +123,32 @@ class TradingAgentService:
         scope = dict(scope)
         if scope['mode'] == 'holdings' and not scope.get('accountId'):
             raise ValueError('请选择持仓账户。')
-        if scope['mode'] == 'custom' and not scope.get('query', '').strip():
-            raise ValueError('请输入范围描述。')
+        selected_industries = list(dict.fromkeys(
+            str(item).strip() for item in scope.get('industries', []) if str(item).strip()
+        ))
+        scope['industries'] = selected_industries
+        if scope['mode'] == 'custom' and not (
+            scope.get('query', '').strip() or selected_industries or scope.get('allIndustries')
+        ):
+            raise ValueError('请选择行业、选择全行业，或输入行业/波动率范围描述。')
         if scope['mode'] == 'custom' and market == 'HK' and not scope.get('symbols'):
             raise ValueError('港股暂缺行业候选目录，请先指定股票，再按行业或弹性条件筛选。')
         if scope['mode'] == 'custom':
-            result, usage = self.call(
-                '将股票范围描述转成严格 JSON：industryTerms（最多32个非空行业英文/中文匹配词，去除重复词），minVolatility（基于最近20日收益率的年化波动率百分数下限或null），description（明确筛选含义）。'
-                '只返回一个JSON对象，不要Markdown、前言或分析过程。行业词作用于数据源行业/概念字段，不是股票名称。弹性大可解释为较高20日波动率，必须说明这不是收益保证。不能表达的条件不要伪装支持，description说明并返回空条件。',
-                {'query': scope['query'], 'market': market}, 30000, 'trading_range')
-            rule = RangeRule.model_validate(result).model_dump()
-            rule['industryTerms'] = list(dict.fromkeys(t.strip() for t in rule['industryTerms'] if t.strip()))
-            if not rule['industryTerms'] and rule['minVolatility'] is None:
+            query = scope.get('query', '').strip()
+            if query:
+                result, usage = self.call(
+                    '将股票范围描述转成严格 JSON：industryTerms（最多32个非空行业英文/中文匹配词，去除重复词），minVolatility（基于最近20日收益率的年化波动率百分数下限或null），description（明确筛选含义）。'
+                    '只返回一个JSON对象，不要Markdown、前言或分析过程。行业词作用于数据源行业/概念字段，不是股票名称。弹性大可解释为较高20日波动率，必须说明这不是收益保证。不能表达的条件不要伪装支持，description说明并返回空条件。',
+                    {'query': query, 'market': market}, 30000, 'trading_range')
+                rule = RangeRule.model_validate(result).model_dump()
+            else:
+                usage = None
+                rule = dict(industryTerms=[], minVolatility=None, description='全行业' if scope.get('allIndustries') else f"行业：{'、'.join(selected_industries)}")
+            explicit_terms = [] if scope.get('allIndustries') else selected_industries
+            rule['industryTerms'] = list(dict.fromkeys(explicit_terms + [
+                t.strip() for t in rule['industryTerms'] if t.strip()
+            ]))[:32]
+            if not rule['industryTerms'] and rule['minVolatility'] is None and not scope.get('allIndustries'):
                 raise ValueError('当前范围支持行业/概念和20日波动率条件，请具体描述行业或弹性范围。')
             scope['rule'] = rule
         else:
