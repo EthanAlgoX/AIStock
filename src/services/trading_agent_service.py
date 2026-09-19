@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 from datetime import datetime, timezone
 from contextlib import nullcontext
 
@@ -26,6 +27,21 @@ INDUSTRY_ALIASES = {
     '房地产': ('房地产', '地产', '建筑装饰'),
     '传媒教育': ('传媒', '教育', '文化', '游戏'),
 }
+
+
+def _broader_cn_candidates(limit):
+    """Use the cached market snapshot as a broad, market-value-bearing LLM pool."""
+    path = os.path.join(os.getenv('SCREENING_DATA_DIR', 'data/screening'), 'snapshot.last_good.json')
+    try:
+        frame = json.loads(open(path, encoding='utf-8').read())['frame']
+        columns, rows = frame['columns'], frame['data']
+        records = [dict(zip(columns, row)) for row in rows]
+        records = [row for row in records if str(row.get('code') or '').zfill(6).isdigit()]
+        records.sort(key=lambda row: float(row.get('total_mv') or 0), reverse=True)
+        return [dict(code=str(row['code']).zfill(6), name=row.get('name') or '', industry='',
+                     volatility=None, raw=row, reason='市场快照候选') for row in records[:limit]]
+    except (OSError, KeyError, TypeError, ValueError):
+        return []
 
 
 def _industry_terms(selected_industries):
@@ -177,6 +193,9 @@ class TradingAgentService:
                 discovered = self.resolve(market, discovery_scope)
             except (RuntimeError, TimeoutError) as exc:
                 raise ValueError('范围数据源暂时不可用，未编造候选；请稍后重试，或改用指定股票/持仓范围。') from exc
+            broader = _broader_cn_candidates(80) if market == 'CN' and self.screener is None and not scope.get('symbols') else []
+            if broader:
+                discovered = dict(discovered, candidates=broader, source='market_snapshot')
             evidence = []
             for candidate in discovered['candidates']:
                 raw = candidate.get('raw') or {}
