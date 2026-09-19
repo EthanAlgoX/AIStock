@@ -12,7 +12,7 @@ router = APIRouter()
 class StrategyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     name: str = Field(min_length=1, max_length=80)
-    template: Literal["volume_breakout", "shrink_pullback", "low_volatility_quality"]
+    template: Literal["volume_breakout", "shrink_pullback", "low_volatility_quality", "high_volume_volatility_grid"]
     market: Literal["CN", "US", "HK"]
     symbols: list[str] = Field(default_factory=list, max_length=12)
     engine: Literal['rule', 'agent'] = 'rule'
@@ -29,6 +29,10 @@ class StrategyConfig(BaseModel):
     sellTaxRate: float = Field(default=0, ge=0, le=0.05)
     slippageRate: float = Field(default=0.001, ge=0, le=0.05)
     riskFreeRate: float = Field(default=0, ge=-0.1, le=0.3)
+    gridLookbackDays: int = Field(default=5, ge=3, le=20)
+    gridMinVolumeRatio: float = Field(default=1.3, ge=1, le=10)
+    gridMinRange: float = Field(default=0.05, ge=0.005, le=0.5)
+    gridLevels: int = Field(default=5, ge=2, le=10)
 
 
 class PortfolioCreate(StrategyConfig):

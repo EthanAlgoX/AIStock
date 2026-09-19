@@ -50,6 +50,10 @@ const seed: RuleConfig = {
   sellTaxRate: 0,
   slippageRate: 0.001,
   riskFreeRate: 0,
+  gridLookbackDays: 5,
+  gridMinVolumeRatio: 1.3,
+  gridMinRange: 0.05,
+  gridLevels: 5,
   startDate: null,
   endDate: null,
 };
@@ -268,7 +272,7 @@ export default function TradingWorkspacePage() {
             </select>
           </label>
           {draft.engine !== "agent" && (
-            <div className="mb-6 grid gap-3 md:grid-cols-3">
+            <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {templates.map((t) => (
                 <button
                   type="button"
@@ -292,6 +296,36 @@ export default function TradingWorkspacePage() {
                   </span>
                 </button>
               ))}
+            </div>
+          )}
+          {draft.engine !== "agent" && draft.template === "high_volume_volatility_grid" && (
+            <div className="mb-6 rounded-lg border border-border p-4">
+              <h4 className="font-medium">高量高波动网格参数</h4>
+              <p className="mt-1 text-sm leading-6 text-secondary-text">
+                收盘后按近期区间形成目标仓位，下一交易日开盘按整手、费用和滑点模拟调仓。它是每日网格，不是盘中自动下单。
+              </p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {([
+                  ["gridLookbackDays", "观察周期（交易日）", 3, 20, 1],
+                  ["gridMinVolumeRatio", "最低成交量倍数", 1, 10, 0.1],
+                  ["gridMinRange", "最低区间波动率", 0.005, 0.5, 0.005],
+                  ["gridLevels", "网格档数", 2, 10, 1],
+                ] as const).map(([key, label, min, max, step]) => (
+                  <label key={key} className="text-sm">
+                    {label}
+                    <input
+                      className={inputClass}
+                      type="number"
+                      min={min}
+                      max={max}
+                      step={step}
+                      value={draft[key] ?? seed[key]}
+                      onChange={(e) => change(key, Number(e.target.value))}
+                    />
+                    {key === "gridMinRange" && <span className="mt-1 block text-xs text-secondary-text">0.05 表示 5%</span>}
+                  </label>
+                ))}
+              </div>
             </div>
           )}
   </>);

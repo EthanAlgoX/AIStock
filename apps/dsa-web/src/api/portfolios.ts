@@ -47,6 +47,10 @@ export type RuleConfig = {
   sellTaxRate: number;
   slippageRate: number;
   riskFreeRate: number;
+  gridLookbackDays?: number;
+  gridMinVolumeRatio?: number;
+  gridMinRange?: number;
+  gridLevels?: number;
   startDate: string | null;
   endDate: string | null;
   benchmarkName?: string;
@@ -169,6 +173,10 @@ export const portfoliosApi = {
       sellTaxRate,
       slippageRate,
       riskFreeRate,
+      gridLookbackDays,
+      gridMinVolumeRatio,
+      gridMinRange,
+      gridLevels,
     } = config;
     const agentFields =
       config.engine === "agent"
@@ -196,6 +204,10 @@ export const portfoliosApi = {
         sellTaxRate,
         slippageRate,
         riskFreeRate,
+        gridLookbackDays,
+        gridMinVolumeRatio,
+        gridMinRange,
+        gridLevels,
       })
     ).data;
   },
@@ -231,6 +243,10 @@ export const portfoliosApi = {
       sellTaxRate,
       slippageRate,
       riskFreeRate,
+      gridLookbackDays,
+      gridMinVolumeRatio,
+      gridMinRange,
+      gridLevels,
       startDate,
       endDate,
     } = config;
@@ -249,6 +265,10 @@ export const portfoliosApi = {
         sellTaxRate,
         slippageRate,
         riskFreeRate,
+        gridLookbackDays,
+        gridMinVolumeRatio,
+        gridMinRange,
+        gridLevels,
         startDate,
         endDate,
       })
