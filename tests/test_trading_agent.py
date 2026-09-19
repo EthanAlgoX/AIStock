@@ -41,7 +41,7 @@ def test_industry_selection_previews_without_llm_and_all_industries_is_unrestric
     agent = TradingAgentService(workspace.db, screener=screener)
     selected = agent.preview('CN', dict(mode='custom', query='', industries=['半导体'], allIndustries=False, symbols=[], maxCandidates=12))
     assert [item['code'] for item in selected['candidates']] == ['600001']
-    assert selected['scope']['rule']['industryTerms'] == ['半导体']
+    assert selected['scope']['rule']['industryTerms'] == ['半导体', '芯片', '集成电路', '电子']
     all_industries = agent.preview('CN', dict(mode='custom', query='', industries=[], allIndustries=True, symbols=[], maxCandidates=12))
     assert {item['code'] for item in all_industries['candidates']} == {'600001', '600002'}
     assert all_industries['scope']['rule']['industryTerms'] == []

@@ -11,6 +11,30 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from src.storage import DatabaseManager, SimulationUniverseSnapshotRecord, SimulationTradingCallRecord, persist_llm_usage
 
+INDUSTRY_ALIASES = {
+    '金融': ('金融', '银行', '证券', '保险', '多元金融'),
+    '医药生物': ('医药', '医疗', '生物', '制药'),
+    '信息技术': ('信息技术', '计算机', '软件', 'IT服务'),
+    '半导体': ('半导体', '芯片', '集成电路', '电子'),
+    '通信': ('通信', '电信', '通信设备'),
+    '能源': ('能源', '煤炭', '石油', '油气'),
+    '原材料': ('原材料', '化工', '有色', '钢铁', '建材'),
+    '工业制造': ('工业', '机械', '制造', '设备', '军工'),
+    '可选消费': ('可选消费', '汽车', '家电', '消费电子', '零售'),
+    '必选消费': ('必选消费', '食品饮料', '农林牧渔', '日用'),
+    '公用事业': ('公用事业', '电力', '环保', '燃气'),
+    '房地产': ('房地产', '地产', '建筑装饰'),
+    '传媒教育': ('传媒', '教育', '文化', '游戏'),
+}
+
+
+def _industry_terms(selected_industries):
+    terms = []
+    for industry in selected_industries:
+        terms.extend(INDUSTRY_ALIASES.get(industry, (industry,)))
+    return list(dict.fromkeys(terms))
+
+
 TRADING_PROMPT = """你是模拟交易决策 Agent。依据本次冻结的 Skill、截止决策日的行情和账户状态，
 逐股判断买入、持有、减仓或退出，输出目标仓位和简明依据。可以不交易。
 不得虚构消息、价格、持仓或成交；缺少 Skill 所需证据时说明缺口并保持现有仓位。
@@ -144,7 +168,7 @@ class TradingAgentService:
             else:
                 usage = None
                 rule = dict(industryTerms=[], minVolatility=None, description='全行业' if scope.get('allIndustries') else f"行业：{'、'.join(selected_industries)}")
-            explicit_terms = [] if scope.get('allIndustries') else selected_industries
+            explicit_terms = [] if scope.get('allIndustries') else _industry_terms(selected_industries)
             rule['industryTerms'] = list(dict.fromkeys(explicit_terms + [
                 t.strip() for t in rule['industryTerms'] if t.strip()
             ]))[:32]
