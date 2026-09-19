@@ -95,12 +95,12 @@ class TradingAgentService:
         self.adapter = adapter
         self.screener = screener
 
-    def call(self, system, payload, budget, resource='trading_agent', portfolio_id=None):
+    def call(self, system, payload, budget, resource='trading_agent', portfolio_id=None, max_output_tokens=4096):
         from src.agent.llm_adapter import LLMToolAdapter
         from src.services.user_activity_service import activity_scope
         messages = [{'role': 'system', 'content': system}, {'role': 'user', 'content': json.dumps(payload, ensure_ascii=False)}]
         # Conservative byte reservation also bounds contexts for private-workspace calls.
-        reservation = len(json.dumps(messages, ensure_ascii=False).encode()) + 4096
+        reservation = len(json.dumps(messages, ensure_ascii=False).encode()) + max_output_tokens
         if reservation > budget:
             raise ValueError('本次 Agent Token 预算不足以容纳输入与回答，请提高预算或缩小股票范围。')
         with self.db.session_scope() as session:
@@ -111,7 +111,12 @@ class TradingAgentService:
         response = None
         try:
             with activity_scope('trading', resource):
-                response = (self.adapter or LLMToolAdapter()).call_text(messages, temperature=0, max_tokens=4096, timeout=45)
+                response = (self.adapter or LLMToolAdapter()).call_text(
+                    messages,
+                    temperature=0,
+                    max_tokens=max_output_tokens,
+                    timeout=60 if resource == 'trading_range' else 45,
+                )
                 usage = getattr(response, 'usage', None) or {}
                 if usage:
                     persist_llm_usage(usage, response.model or response.provider, call_type=resource, usage_scope='trading')
@@ -193,7 +198,7 @@ class TradingAgentService:
                 discovered = self.resolve(market, discovery_scope)
             except (RuntimeError, TimeoutError) as exc:
                 raise ValueError('范围数据源暂时不可用，未编造候选；请稍后重试，或改用指定股票/持仓范围。') from exc
-            broader = _broader_cn_candidates(80) if market == 'CN' and self.screener is None and not scope.get('symbols') else []
+            broader = _broader_cn_candidates(40) if market == 'CN' and self.screener is None and not scope.get('symbols') else []
             if broader:
                 discovered = dict(discovered, candidates=broader, source='market_snapshot')
             evidence = []
@@ -211,7 +216,7 @@ class TradingAgentService:
                 dict(market=market, requestedIndustries=selected_industries,
                     allIndustries=bool(scope.get('allIndustries')), query=query,
                     maxCandidates=scope.get('maxCandidates', 12), candidates=evidence),
-                30000, 'trading_range')
+                30000, 'trading_range', max_output_tokens=8192)
             selection = RangeSelection.model_validate(result)
             by_code = {item['code']: item for item in discovered['candidates']}
             chosen = []

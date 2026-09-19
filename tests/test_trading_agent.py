@@ -18,7 +18,8 @@ def fixed():
 
 
 def test_range_filters_use_source_fields_and_freeze_interpretation(workspace):
-    adapter = SimpleNamespace(call_text=lambda *a, **k: SimpleNamespace(content=json.dumps(dict(candidates=[dict(code='AAPL', reason='科技且中市值以上')], summary='科技范围')), usage={'total_tokens':100}, model='fixture', provider='fixture'))
+    calls = []
+    adapter = SimpleNamespace(call_text=lambda *a, **k: calls.append(k) or SimpleNamespace(content=json.dumps(dict(candidates=[dict(code='AAPL', reason='科技且中市值以上')], summary='科技范围')), usage={'total_tokens':100}, model='fixture', provider='fixture'))
     agent = TradingAgentService(workspace.db, adapter, lambda market: dict(snapshot_source='fixture-source', candidates=[
         dict(code='AAPL', industry='Technology', volatility_20d_pct=3),
         dict(code='MSFT', industry='Technology', volatility_20d_pct=1),
@@ -26,6 +27,8 @@ def test_range_filters_use_source_fields_and_freeze_interpretation(workspace):
     ]))
     preview = agent.preview('US', dict(mode='custom', query='科技弹性大', symbols=[], maxCandidates=12))
     assert [c['code'] for c in preview['candidates']] == ['AAPL']
+    assert calls[0]['max_tokens'] == 8192
+    assert calls[0]['timeout'] == 60
     assert agent.approved(preview['id'], 'US')['scope']['selection']['candidates'] == ['AAPL']
     with pytest.raises(ValueError):
         agent.approved(preview['id'], 'CN')
