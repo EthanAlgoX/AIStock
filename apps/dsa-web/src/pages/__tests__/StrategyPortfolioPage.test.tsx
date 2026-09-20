@@ -199,13 +199,18 @@ it("saves the selected Agent Skill and approved universe without launching", asy
   fireEvent.change(screen.getByLabelText("策略 Skill"), {target:{value:"price"}});
   fireEvent.change(screen.getByLabelText("交易决策模型"), {target:{value:"jev"}});
   fireEvent.change(screen.getByLabelText("每次调仓比例（账户权益 %）"), {target:{value:"10"}});
+  fireEvent.change(screen.getByLabelText("判断问题"), {target:{value:"判断区间方向"}});
+  fireEvent.change(screen.getByLabelText("买入判定条件"), {target:{value:"放量且区间偏低"}});
+  fireEvent.change(screen.getByLabelText("行情观察天数"), {target:{value:"7"}});
+  fireEvent.change(screen.getByLabelText("补充背景材料"), {target:{value:"偏好低换手"}});
+  expect(screen.queryByText('交易 System Prompt')).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("策略名称"), {target:{value:"Agent试验"}});
   fireEvent.change(screen.getByLabelText("股票池（可选，名称或代码，最多 12 只）"), {target:{value:"英伟达"}});
   fireEvent.change(screen.getByLabelText("范围来源"), {target:{value:"fixed"}});
   fireEvent.click(screen.getByRole("button", {name:"预览股票范围"}));
   await screen.findByLabelText("范围预览");
   fireEvent.click(screen.getByRole("button", {name:"保存策略"}));
-  await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({engine:"agent",decisionBackend:"jev",jevWeightStep:0.1,skillId:"price",universePreviewId:9,market:"US",symbols:["NVDA"]})));
+  await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({engine:"agent",decisionBackend:"jev",jevWeightStep:0.1,jevTask:{question:"判断区间方向",criteria:{buy:"放量且区间偏低"},lookbackDays:7,background:"偏好低换手"},skillId:"price",universePreviewId:9,market:"US",symbols:["NVDA"]})));
   expect(api.createValidation).not.toHaveBeenCalled();
 });
 

@@ -5784,5 +5784,16 @@
   "TypeSafe API credential for trading decisions only. Does not generate reports.": "TypeSafe API credential for trading decisions only. Does not generate reports.",
   "TypeSafe System One service base URL. HTTPS required.": "TypeSafe System One service base URL. HTTPS required.",
   "Model name or fixed version used for new trading strategies.": "Model name or fixed version used for new trading strategies.",
-  "保存 JEV 配置": "Save JEV settings"
+  "保存 JEV 配置": "Save JEV settings",
+  "JEV 判断任务与输入": "JEV decision task & inputs",
+  "留空沿用默认判断。自定义内容随策略冻结；三类仍按最高概率选择，不设置置信度门槛。": "Leave blank to use defaults. Custom settings are frozen with the strategy. The highest-probability category wins; no confidence threshold is applied.",
+  "判断问题": "Decision question",
+  "买入判定条件": "Buy criteria",
+  "卖出判定条件": "Sell criteria",
+  "不动判定条件": "Hold criteria",
+  "行情观察天数": "Market history days",
+  "输入最近 3–21 个交易日的可用日线，不能少于网格观察周期。现金、持仓、决策日期与账户约束由系统提供。": "Use available daily bars from the latest 3–21 trading days, covering at least the grid window. Cash, holdings, decision date and account limits are supplied by the system.",
+  "补充背景材料": "Additional background",
+  "背景作为独立材料传入，不覆盖行情或账户数据。它不会每日自动更新；请勿填入密钥，历史回放请勿加入未来信息。": "Background is sent separately and cannot overwrite market or account data. It does not update daily. Do not include secrets or future information in historical replays.",
+  "补充策略指令": "Additional strategy instructions"
 }

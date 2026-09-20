@@ -40,6 +40,12 @@ class SimulationPortfolioService:
         if backend not in {"llm", "jev"}:
             raise ValueError("Unsupported trading decision backend")
         if backend == "jev":
+            from src.schemas.jev_task import JevTaskConfig
+            task = JevTaskConfig.model_validate(payload.get('jevTask', {}))
+            if (payload.get('skillSnapshot', {}).get('id') == 'high_volume_volatility_grid'
+                    and task.lookbackDays < payload.get('gridLookbackDays', 5)):
+                raise ValueError('JEV market history must cover the grid lookback window.')
+            payload = dict(payload, jevTask=task.model_dump())
             from src.services.jev_decision_service import JevDecisionService
             JevDecisionService().validate_settings()
             step_size = payload.get("jevWeightStep", 0.05)

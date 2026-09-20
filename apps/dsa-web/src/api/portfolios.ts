@@ -28,7 +28,14 @@ export type AgentOptions = {
   accounts: { id: number; name: string; market: string }[];
   defaultPrompt: string;
 };
+export type JevTaskConfig = {
+  question?: string;
+  criteria?: { buy?: string; sell?: string; hold?: string };
+  background?: string;
+  lookbackDays?: number;
+};
 export type RuleConfig = {
+  jevTask?: JevTaskConfig;
   decisionBackend?: "llm" | "jev";
   jevWeightStep?: number;
   jevModel?: string;
@@ -194,6 +201,7 @@ export const portfoliosApi = {
         engine: "agent",
         decisionBackend: config.decisionBackend,
         jevWeightStep: config.jevWeightStep,
+        jevTask: config.jevTask,
         skillId: config.skillId,
         systemPrompt: config.systemPrompt,
         universePreviewId: config.universePreviewId,
@@ -280,6 +288,7 @@ export const portfoliosApi = {
         engine: "agent",
         decisionBackend: config.decisionBackend,
         jevWeightStep: config.jevWeightStep,
+        jevTask: config.jevTask,
         skillId,
         systemPrompt,
         universePreviewId,

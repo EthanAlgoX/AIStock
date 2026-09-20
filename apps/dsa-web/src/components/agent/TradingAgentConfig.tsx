@@ -335,6 +335,31 @@ export function TradingAgentConfig({
           {options && !options.decisionModels?.find((m) => m.id === "jev")?.available && (
             <p role="status" className="text-sm"><UiLiteral text="请先在设置 → AI 模型中配置 JEV API Key。" /></p>
           )}
+          <fieldset className="space-y-4">
+            <legend className="font-medium"><UiLiteral text="JEV 判断任务与输入" /></legend>
+            <p className="text-xs leading-6 text-secondary-text"><UiLiteral text="留空沿用默认判断。自定义内容随策略冻结；三类仍按最高概率选择，不设置置信度门槛。" /></p>
+            <label className="block text-sm"><UiLiteral text="判断问题" />
+              <textarea className={input} rows={3} maxLength={4000} value={config.jevTask?.question || ""}
+                onChange={(e) => onConfig({ jevTask: { ...config.jevTask, question: e.target.value } })} />
+            </label>
+            {([['buy', '买入判定条件'], ['sell', '卖出判定条件'], ['hold', '不动判定条件']] as const).map(([key, label]) => (
+              <label key={key} className="block text-sm">{uiLiteral(label)}
+                <textarea className={input} rows={2} maxLength={2000} value={config.jevTask?.criteria?.[key] || ""}
+                  onChange={(e) => onConfig({ jevTask: { ...config.jevTask, criteria: { ...config.jevTask?.criteria, [key]: e.target.value } } })} />
+              </label>
+            ))}
+            <label className="block text-sm"><UiLiteral text="行情观察天数" />
+              <input className={input} type="number" min={3} max={21} step={1}
+                value={config.jevTask?.lookbackDays ?? 21}
+                onChange={(e) => onConfig({ jevTask: { ...config.jevTask, lookbackDays: Number(e.target.value) } })} />
+            </label>
+            <p className="text-xs leading-6 text-secondary-text"><UiLiteral text="输入最近 3–21 个交易日的可用日线，不能少于网格观察周期。现金、持仓、决策日期与账户约束由系统提供。" /></p>
+            <label className="block text-sm"><UiLiteral text="补充背景材料" />
+              <textarea className={input} rows={3} maxLength={6000} value={config.jevTask?.background || ""}
+                onChange={(e) => onConfig({ jevTask: { ...config.jevTask, background: e.target.value } })} />
+            </label>
+            <p className="text-xs leading-6 text-secondary-text"><UiLiteral text="背景作为独立材料传入，不覆盖行情或账户数据。它不会每日自动更新；请勿填入密钥，历史回放请勿加入未来信息。" /></p>
+          </fieldset>
           <label className="block text-sm">
             <UiLiteral text="每次调仓比例（账户权益 %）" />
             <input className={input} type="number" min={0.1} max={100} step={0.1}
@@ -394,7 +419,7 @@ export function TradingAgentConfig({
       )}
       <details>
         <summary className="cursor-pointer font-medium">
-          <UiLiteral text={"交易 System Prompt"} /></summary>
+          <UiLiteral text={config.decisionBackend === "jev" ? "补充策略指令" : "交易 System Prompt"} /></summary>
         <label className="mt-3 block">
           <UiLiteral text={"自定义交易指令"} /><textarea
             className={input}
@@ -406,7 +431,7 @@ export function TradingAgentConfig({
           />
         </label>
         <p className="mt-2 text-xs text-secondary-text">
-          {options?.defaultPrompt}
+          {config.decisionBackend !== "jev" && options?.defaultPrompt}
         </p>
       </details>
     </div>

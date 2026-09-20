@@ -3,6 +3,7 @@
 from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, ConfigDict
+from src.schemas.jev_task import JevTaskConfig
 from src.services.simulation_portfolio_service import SimulationPortfolioService
 from src.services.simulation_portfolio_engine import BENCHMARKS
 
@@ -17,6 +18,7 @@ class StrategyConfig(BaseModel):
     symbols: list[str] = Field(default_factory=list, max_length=12)
     engine: Literal['agent'] = 'agent'
     decisionBackend: Literal['llm', 'jev'] = 'llm'
+    jevTask: JevTaskConfig = Field(default_factory=JevTaskConfig)
     jevWeightStep: float = Field(default=0.05, ge=0.001, le=1)
     skillId: str | None = None
     systemPrompt: str = Field(default='', max_length=6000)

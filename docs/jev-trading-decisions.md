@@ -22,6 +22,31 @@ These settings use the existing configuration persistence and runtime reload mec
 
 这些配置复用现有设置保存与重载机制，支持环境变量和 Docker。密钥不进入策略定义或交易调用记录。平台／成员模型配置的权限边界保持现状，不新增独立成员密钥系统。无需安装新 SDK 或执行数据库迁移。
 
+## Customize the decision task / 自定义决策任务
+
+Select JEV in Trade simulation to configure **JEV decision task & inputs**. These settings belong to the strategy, not the global model connection. They are saved as `jevTask`, copied with the strategy and reused for manual, daily and replay runs. Existing strategies without this object retain the defaults.
+
+在交易推演中选择 JEV 后，配置 **JEV 判断任务与输入**。配置属于当前策略，不是全局模型连接设置；以 `jevTask` 保存，复制策略时保留，手动、每日运行及历史回放共用。旧策略不配置时沿用默认行为。
+
+| Field / 字段 | Meaning / 含义 |
+| --- | --- |
+| `question` | Additional judgment question, up to 4,000 characters / 补充判断问题，最多 4,000 字符 |
+| `criteria.buy`, `.sell`, `.hold` | Conditions for each category, up to 2,000 characters each; blank uses defaults / 三类判定条件，各最多 2,000 字符；留空用默认条件 |
+| `lookbackDays` | Latest available daily bars, 3–21 trading days, default 21; must cover the configured grid window / 最近可用日线天数，3–21，默认 21；不得少于网格观察周期 |
+| `background` | Static supporting material, up to 6,000 characters / 静态补充背景，最多 6,000 字符 |
+
+The question goes into `questions.*.instructions.customQuestion`. Custom criteria supplement the category's fixed action meaning under `criteria.*.conditions`; buy still increases allocation, sell reduces it and hold preserves shares. Background is sent separately as `state.strategyBackground`. The chosen history window changes only the model input, not the execution ledger's price data. Dates, cash, holdings and account constraints remain system-provided. No arbitrary field replacement, executable templates or external URL fetching is supported.
+
+问题进入 `questions.*.instructions.customQuestion`；判定条件进入 `criteria.*.conditions`，与固定的增仓／减仓／不动含义共同提供给模型。背景单独进入 `state.strategyBackground`。观察天数只裁剪模型输入，不改变账本撮合行情。日期、现金、持仓和账户约束始终由系统提供，不支持覆盖任意字段、可执行模板或自动抓取外部网址。
+
+For example, ask “Using the Skill and recent volume/range evidence, which direction applies?” and describe buy as “volume qualifies and price is near the range low,” sell as “price is near the range high or the Skill calls for reducing exposure,” and hold as “neither adjustment is justified.” The Skill remains the method; these descriptions customize its classification task. All category probabilities remain visible and the highest-probability category is selected without a confidence threshold.
+
+例如：问题填写“根据 Skill、近期成交量和区间位置判断调整方向”；买入条件填写“量能满足且价格接近区间低位”，卖出条件填写“接近区间高位或 Skill 要求降低敞口”，不动条件填写“没有足够依据调整”。Skill 仍定义方法，这些说明用于定制分类任务。仍展示全部类别概率，选择最高概率类别，不增加置信度门槛。
+
+Background is frozen text, not a live data feed. Do not enter secrets or future information into historical replay inputs. Saved custom text is not translated when switching UI language. The existing `systemPrompt` is retained as additional strategy instructions for compatibility, while the LLM report/JSON prompt is not sent to JEV.
+
+背景是冻结文本，不会每日自动更新；请勿填入密钥或在回放中加入未来信息。切换界面语言不会翻译已保存的自定义内容。旧 `systemPrompt` 兼容保留为补充策略指令，但不向 JEV 发送 LLM 的报告／JSON 输出 Prompt。
+
 ## Decision and execution contract / 决策与执行
 
 The direction adapter explains how a Skill's desired `targetWeight` maps to buy/sell/hold relative to current allocation. A zero target means sell if held, otherwise hold. The request includes arithmetic evidence computed from the frozen inputs: current allocation and, when grid settings are present, the configured window's price range, range position and volume ratio. Insufficient history is marked explicitly; undefined ratios remain null. These facts do not select a trading direction; JEV still interprets the Skill and chooses the category.
@@ -53,6 +78,6 @@ HTTP calls have a 10-second connect timeout and a 60-second read timeout, with r
 
 Deterministic tests mock only the HTTP response and market-data boundaries; they exercise request construction, audit persistence, configuration reload, saved strategy propagation, real five-day simulation accounting, and next-open direction preservation. Frontend tests cover backend/step persistence and probability display. Live TypeSafe inference requires a configured account key and is a separate verification step.
 
-回滚可恢复改动前代码；没有数据库迁移。停用新 JEV 策略，并新建使用 LLM 的策略；不要直接改写正在运行的历史策略配置。已记录的结构化决策继续保存在原有 JSON 记录中。
+回滚可恢复改动前代码；没有数据库迁移。回滚到不支持 `jevTask` 的版本前，先暂停使用自定义任务的策略，避免旧版本忽略自定义判断条件。停用新 JEV 策略，并新建使用 LLM 的策略；不要直接改写正在运行的历史策略配置。已记录的结构化决策继续保存在原有 JSON 记录中。
 
 Official references: [HTTP API](https://docs.typesafe.ai/api), [Choice](https://docs.typesafe.ai/primitives/choice). These describe the public structured API, not an OpenAI-compatible chat endpoint.

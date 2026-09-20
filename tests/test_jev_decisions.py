@@ -188,12 +188,15 @@ def test_saved_strategy_and_real_ledger_daily_run(workspace, jev_config):
     scope = dict(mode='fixed', symbols=['AAPL'], query='', maxCandidates=12)
     preview = agent.preview('US', scope)
     payload = config(engine='agent', decisionBackend='jev', jevWeightStep=0.05,
+                     jevTask={'question': 'Compare the range position.', 'lookbackDays': 7,
+                              'criteria': {'buy': 'Lower range'}, 'background': 'Patient allocation.'},
                      universePreviewId=preview['id'], skillId='high_volume_volatility_grid', runTokenBudget=100000)
     with patch('src.services.jev_decision_service.get_config', return_value=jev_config), \
             patch('src.config.get_config', return_value=jev_config), \
             patch('requests.post', return_value=http_result(response())):
         saved = service.save_definition(payload)
     assert saved['config']['jevModel'] == 'jev-latest'
+    assert saved['config']['jevTask']['lookbackDays'] == 7
     with patch('src.services.jev_decision_service.get_config', return_value=jev_config), \
             patch('requests.post', return_value=http_result(response())):
         portfolio = service.create_validation(saved['id'], dict(mode='backtest', startDate='2025-02-10',
@@ -201,6 +204,14 @@ def test_saved_strategy_and_real_ledger_daily_run(workspace, jev_config):
         run_sync(service, portfolio['id'])
     result = service.detail(portfolio['id'])
     assert result['error'] is None
+    assert result['config']['jevTask'] == saved['config']['jevTask']
+    with workspace.db.get_session() as session:
+        requests_sent = session.scalars(select(SimulationTradingCallRecord)).all()
+        assert len(requests_sent) == 5
+        for row in requests_sent:
+            sent = json.loads(row.input_json)
+            assert sent['questions']['stock_0']['instructions']['customQuestion'] == 'Compare the range position.'
+            assert len(sent['state']['bars']['AAPL']) <= 7
     assert len(result['days']) == 5
     assert result['days'][0]['opinions'][0]['decision'] == 'buy'
     assert not result['days'][0]['trades']
@@ -245,3 +256,46 @@ def test_grid_missing_history_and_zero_volume_are_not_invented():
     assert decision_state(payload)['derivedFacts']['AAPL']['volumeRatio'] is None
     payload['bars']['AAPL'] = payload['bars']['AAPL'][-2:]
     assert decision_state(payload)['derivedFacts']['AAPL']['gridEvidence'] == 'insufficient_history'
+
+
+def test_custom_task_reaches_official_http_and_preserves_account_facts(workspace, jev_config):
+    payload = inputs()
+    settings = dict(question='Choose the grid direction.', criteria={'buy': 'Lower range with volume.',
+                    'sell': 'Upper range or failed volume.', 'hold': 'Neither condition applies.'},
+                    background='Long-term allocation mandate.', lookbackDays=5)
+    with patch('requests.post', return_value=http_result(response())) as post:
+        JevDecisionService(jev_config).evaluate(workspace.db, payload, 'Skill', 'jev-latest',
+                                               100000, 'test', None, customization=settings)
+    request = post.call_args.kwargs['json']
+    question = request['questions']['stock_0']
+    assert question['instructions']['customQuestion'] == settings['question']
+    assert question['criteria']['buy']['conditions'] == settings['criteria']['buy']
+    assert 'Increase' in question['criteria']['buy']['action']
+    assert len(request['state']['bars']['AAPL']) == 5
+    assert request['state']['equity'] == payload['equity']
+    assert request['state']['strategyBackground'] == settings['background']
+    assert len(payload['bars']['AAPL']) > 5
+    assert 'strategyBackground' not in payload
+    with workspace.db.get_session() as session:
+        row = session.scalars(select(SimulationTradingCallRecord)).one()
+        assert json.loads(row.input_json) == request
+
+
+@pytest.mark.parametrize('settings', [
+    {'lookbackDays': 0}, {'lookbackDays': 22}, {'lookbackDays': 3.5},
+    {'criteria': {'short': 'Open a short position'}}, {'equity': 1000000},
+    {'question': 'x' * 4001}, {'criteria': {'buy': 'x' * 2001}},
+])
+def test_custom_task_rejects_invalid_contract_before_http(workspace, jev_config, settings):
+    with patch('requests.post') as post, pytest.raises(ValueError):
+        JevDecisionService(jev_config).evaluate(workspace.db, inputs(), 'Skill', 'jev-latest',
+                                               100000, 'test', None, customization=settings)
+    post.assert_not_called()
+
+
+def test_custom_history_must_cover_grid_window(workspace, jev_config):
+    payload = dict(inputs(), grid={'lookbackDays': 10})
+    with patch('requests.post') as post, pytest.raises(ValueError, match='grid lookback'):
+        JevDecisionService(jev_config).evaluate(workspace.db, payload, 'Skill', 'jev-latest',
+                                               100000, 'test', None, customization={'lookbackDays': 5})
+    post.assert_not_called()

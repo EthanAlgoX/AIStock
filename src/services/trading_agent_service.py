@@ -430,7 +430,7 @@ class TradingAgentService:
             instructions = config['skillSnapshot']['instructions'] + '\n' + config.get('systemPrompt', '')
             answers, usage = service.evaluate(self.db, payload, instructions,
                                              config.get('jevModel') or service.config.typesafe_model,
-                                             budget, run_id, config.get('portfolioId'))
+                                             budget, run_id, config.get('portfolioId'), customization=config.get('jevTask'))
             result = None
         else:
             result, usage = self.call(system, payload, budget, run_id, config.get("portfolioId"))
