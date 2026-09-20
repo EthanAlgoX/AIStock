@@ -4,7 +4,7 @@
 
 # AI Stock
 
-**Empower every stock trader with AI to become a one-person research powerhouse.**
+**Research with Agents. Build strategies with Skills. Simulate trades with LLMs or JEV.**
 
 Research assistant · Expert roundtable · Stock research · Strategy screening · Trade simulation
 
@@ -21,6 +21,18 @@ Research assistant · Expert roundtable · Stock research · Strategy screening 
 > AI Stock is a financial decision workspace for mainland China, Hong Kong, and US equities. It supports research and paper-trading experiments; it does not present model output as investment advice or bypass deterministic risk and execution controls.
 
 Previously named LLM TradeBot and InvestCrew. The product is now AI Stock; the GitHub repository remains `EthanAlgoX/AIStock`. Clone it into an `AI-Stock` directory.
+
+## JEV decisions, built into trade simulation
+
+**Use LLMs for research and JEV for structured trading decisions—all in one workspace.** AI Stock integrates the JEV decision model through TypeSafe's System One API. In Trade simulation, choose JEV as the decision backend for a Skill-based strategy.
+
+- **Buy, sell or hold.** JEV evaluates the strategy Skill, dated market data, cash and holdings, returning a category, probabilities and confidence without generating a report.
+- **Run once or every trading day.** Run manually, or start continuous paper trading for server-side daily decisions. The server runs the tasks; your local computer does not need to stay online.
+- **Follow decisions through to simulated trades.** Review daily decisions and subsequent fills. Existing allocation limits, fees and next-open execution rules remain in effect.
+
+To try it, configure the JEV API key in **Settings → Models & runtime**, then select **JEV · Decisions only** when creating a trading strategy. Select a Skill, preview and confirm the stock universe, save, and start the simulation. Research, chat and universe screening continue to use your configured LLM.
+
+See the [JEV configuration and execution guide](docs/jev-trading-decisions.md) for setup and behavior.
 
 ## Start with a question, keep the research
 
@@ -43,7 +55,7 @@ The site opens in **Research assistant**. Desktop navigation follows the order b
 | Expert roundtable | `/expert-review` | Discuss a topic in a persistent group conversation with named expert messages and a moderator's summary |
 | Stock research | `/stock-research` | Run a research strategy and read its conclusions, evidence, risks, and historical reports |
 | Strategy screening | `/screening` | Apply screening rules, review ranked candidates and their rationale, and optionally research candidates further |
-| Trade simulation | `/trading` | Explore paper-trading proposals, risk assessments, and signal evaluation results |
+| Trade simulation | `/trading` | Use LLM or JEV decisions to run Skill-based paper trading and review daily decisions and fills |
 
 Schedules, run history, model usage, settings, and the Capability Center support these workspaces. Market coverage depends on the selected strategy and available data; built-in full-market screening rules currently target A-shares.
 
