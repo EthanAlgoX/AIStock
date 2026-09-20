@@ -1,9 +1,10 @@
+import { withUiLanguages } from '../i18n/localize';
 import type { ReportLanguage } from '../types/analysis';
 
 export const normalizeReportLanguage = (value?: string | null): ReportLanguage =>
-  value === 'en' ? 'en' : value === 'ko' ? 'ko' : 'zh';
+  value === 'en' || value === 'ko' || value === 'ja' || value === 'zh-TW' ? value : 'zh';
 
-const REPORT_TEXT = {
+const REPORT_TEXT = withUiLanguages({
   zh: {
     keyInsights: '核心洞察',
     noAnalysisSummary: '暂无分析结论',
@@ -157,6 +158,6 @@ const REPORT_TEXT = {
     neutralBoard: '중립',
     reanalyze: '재분석',
   },
-} as const;
+} as const);
 
 export const getReportText = (language?: string | null) => REPORT_TEXT[normalizeReportLanguage(language)];

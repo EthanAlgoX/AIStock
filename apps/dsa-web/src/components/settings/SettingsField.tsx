@@ -1,4 +1,4 @@
-import { translateKorean } from '../../i18n/korean';
+import { translateSource } from '../../i18n/localize';
 import { useState } from 'react';
 import type React from 'react';
 import { Badge, Button, Select, Input } from '../common';
@@ -227,10 +227,10 @@ export const SettingsField: React.FC<SettingsFieldProps> = ({
   const helpContent = getSettingsHelpContent(schema?.helpKey, schema?.description, language);
   const localizationKey = schema?.key ?? item.key;
   const fallbackTitle = schema?.title ?? item.key;
-  const title = language === 'ko' ? translateKorean(getFieldTitleZh(localizationKey, getFieldTitleZh(item.key, fallbackTitle))) : language === 'zh'
+  const title = (language !== 'zh' && language !== 'en') ? translateSource(getFieldTitleZh(localizationKey, getFieldTitleZh(item.key, fallbackTitle)), language) : language === 'zh'
     ? getFieldTitleZh(localizationKey, getFieldTitleZh(item.key, fallbackTitle))
     : fallbackTitle;
-  const description = language === 'ko' ? helpContent?.summary ?? translateKorean(schema?.description || '') : language === 'en'
+  const description = (language !== 'zh' && language !== 'en') ? helpContent?.summary ?? translateSource(schema?.description || '', language) : language === 'en'
     ? helpContent?.summary ?? schema?.description ?? ''
     : getFieldDescriptionZh(localizationKey, getFieldDescriptionZh(item.key, schema?.description));
   const hasError = issues.some((issue) => issue.severity === 'error');

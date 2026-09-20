@@ -1,4 +1,5 @@
-import { translateKorean } from '../i18n/korean';
+import { uiLocale } from '../utils/uiLanguage';
+import { translateSource } from '../i18n/localize';
 import { useUiLanguage } from "../contexts/UiLanguageContext";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -18,7 +19,7 @@ import DefaultTaskLauncher from "../components/agent/DefaultTaskLauncher";
 import { visibleWorkspaceArtifacts, workspaceRunLabel, workspaceRunTone } from "../utils/workspaceOutcome";
 const time = (value: string, language: string) => {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString(language === 'ko' ? 'ko-KR' : (language === "en" ? "en-US" : "zh-CN"), { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString(uiLocale(language), { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 };
 
 function RunElapsed({ run }: { run: WorkspaceRun }) {
@@ -94,7 +95,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
 
   const select = (id: string) => setParams((current) => { const next = new URLSearchParams(current); next.set("run", id); return next; });
   const runContext = selected ? (<RunContext open={isRunActive(selected) || selected.status === "failed" || !!selected.errorMessage} className="mb-4">
-          {mode === "research" && <summary className="cursor-pointer py-2 text-xs text-secondary-text">{time(selected.createdAt, language)} · {statusLabel(selected)} · {language === 'ko' ? translateKorean("研究任务与溯源") : (language === "en" ? "Research task and provenance" : "研究任务与溯源")}</summary>}
+          {mode === "research" && <summary className="cursor-pointer py-2 text-xs text-secondary-text">{time(selected.createdAt, language)} · {statusLabel(selected)} · {(language !== 'zh' && language !== 'en') ? translateSource("研究任务与溯源", language) : (language === "en" ? "Research task and provenance" : "研究任务与溯源")}</summary>}
           <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4"><div><h2 className="text-xl font-semibold text-foreground">{selected.taskSnapshot.name}</h2><p className="mt-2 text-xs text-secondary-text">{time(selected.createdAt, language)} · {statusLabel(selected)} · {selected.taskSnapshot.market}</p>{trading && <p className="mt-2 text-xs text-secondary-text">{tx("运行耗时")}{" "}<RunElapsed run={selected} /> {" "}{tx("· 结果仅用于模拟研究")}</p>}</div><div className="flex flex-wrap gap-2"><Link className="btn-secondary text-xs" to={`/overview?runId=${encodeURIComponent(selected.id)}`}>{tx("继续问 Agent")}</Link><Link className="btn-secondary text-xs" to={`/runs/${selected.id}`}>{tx("运行详情与数据来源")}</Link></div></header>
           {trading && selected.status === "completed" && <p className="mb-3 text-sm text-secondary-text">{tx("本次提案运行已结束，不代表成交")}</p>}
           {selected.outcome && !isRunActive(selected) && <p role="status" className={`mb-4 text-sm leading-6 ${workspaceRunTone(selected)}`}>{tx(selected.outcome.message)}</p>}
@@ -132,7 +133,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
           </button>)}
           {loaded && !filtered.length && <p className="py-4 text-sm text-secondary-text">{query ? tx("没有匹配的报告，试试其他名称或代码。") : trading ? tx("尚无模拟运行记录。") : tx("尚无历史分析。")}</p>}
         </div>}
-        {mode === "research" && entries.length > 0 && !configOpen && !params.get("stock") && <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer py-2 text-xs text-secondary-text">{language === 'ko' ? translateKorean("快速试用默认方案") : (language === "en" ? "Try a ready-to-run plan" : "快速试用默认方案")}</summary><DefaultTaskLauncher kind={mode} onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} /></details>}
+        {mode === "research" && entries.length > 0 && !configOpen && !params.get("stock") && <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer py-2 text-xs text-secondary-text">{(language !== 'zh' && language !== 'en') ? translateSource("快速试用默认方案", language) : (language === "en" ? "Try a ready-to-run plan" : "快速试用默认方案")}</summary><DefaultTaskLauncher kind={mode} onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} /></details>}
         {loaded && entries.length >= 100 && <Link to={`/runs?kind=${mode}`} className="mt-3 block text-xs text-primary">{tx("查看更早的运行记录")}</Link>}
         </div>
       </aside>

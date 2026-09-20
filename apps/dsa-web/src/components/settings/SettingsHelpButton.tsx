@@ -1,4 +1,4 @@
-import { translateKorean } from '../../i18n/korean';
+import { translateSource } from '../../i18n/localize';
 import { CircleHelp, ExternalLink, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import type React from 'react';
@@ -110,7 +110,7 @@ export const SettingsHelpButton: React.FC<SettingsHelpButtonProps> = ({
   const examples = providedExamples ?? help?.examples ?? schema?.examples ?? [];
   const docs = providedDocs?.length ? providedDocs : schema?.docs?.length ? schema.docs : help?.docs ?? [];
   const showFieldKey = help?.showFieldKey ?? true;
-  const helpButtonLabel = language === 'ko' ? translateKorean(`查看 ${title} 配置说明`) : (language === 'en'
+  const helpButtonLabel = (language !== 'zh' && language !== 'en') ? translateSource(`查看 ${title} 配置说明`, language) : (language === 'en'
     ? `View ${title} configuration help`
     : `查看 ${title} 配置说明`);
 

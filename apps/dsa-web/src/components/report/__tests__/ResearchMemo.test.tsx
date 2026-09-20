@@ -31,6 +31,6 @@ describe('ResearchMemo', () => {
     expect(screen.getByText('No price conditions were recorded; none are inferred.')).toBeVisible();
     expect(screen.getByText(/completeness cannot be inferred/)).toBeVisible();
     unmount();
-    localStorage.removeItem('dsa.uiLanguage');
+    localStorage.setItem('dsa.uiLanguage', 'zh');
   });
 });

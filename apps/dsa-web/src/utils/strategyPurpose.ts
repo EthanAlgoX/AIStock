@@ -1,4 +1,4 @@
-import { koreanCopy } from '../i18n/korean';
+import { localizedCopy } from '../i18n/localize';
 import type {
   Agent,
   AgentWorkflowVersion,
@@ -41,12 +41,12 @@ export const STRATEGY_PURPOSES: Array<{
   },
 ];
 
-export function purposeDefinition(purpose?: StrategyPurpose, language: 'zh' | 'en' | 'ko' = "zh") {
+export function purposeDefinition(purpose?: StrategyPurpose, language: 'zh' | 'en' | 'ko' | 'ja' | 'zh-TW' = "zh") {
   const definition = (
     STRATEGY_PURPOSES.find((item) => item.id === purpose) ||
     STRATEGY_PURPOSES[2]
   );
-  if (language === "ko") return koreanCopy(definition);
+  if ((language !== 'zh' && language !== 'en')) return localizedCopy(definition, language);
   if (language === "zh") return definition;
   const english = {
     research_report: {

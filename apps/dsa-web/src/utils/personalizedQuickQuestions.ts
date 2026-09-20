@@ -1,4 +1,4 @@
-import { translateKorean } from '../i18n/korean';
+import { translateSource } from '../i18n/localize';
 import type { ChatSessionItem } from '../api/agent';
 import type { Message } from '../stores/agentChatStore';
 import { extractStockCodesFromMessage } from './chatStockCode';
@@ -100,7 +100,7 @@ export const buildPersonalizedQuickQuestions = ({
   messages: Message[];
   stockIndex: StockIndexItem[];
   availableSkillIds: Set<string>;
-  language?: 'zh' | 'en' | 'ko';
+  language?: 'zh' | 'en' | 'ko' | 'ja' | 'zh-TW';
 }): QuickQuestion[] => {
   const sources = [
     ...messages.filter((message) => message.role === 'user').map((message) => message.content),
@@ -128,7 +128,7 @@ export const buildPersonalizedQuickQuestions = ({
       ? (stockIndex.find((item) => normalizeStockCode(item.canonicalCode) === stock.stock_code)?.nameEn || stock.stock_code)
       : (stock.stock_name || stock.stock_code);
     return {
-      label: language === 'ko' ? translateKorean(template.createLabel(displayName)) : language === 'en'
+      label: (language !== 'zh' && language !== 'en') ? translateSource(template.createLabel(displayName), language) : language === 'en'
         ? [
             `Analyze ${displayName} with Chan theory`,
             `Map ${displayName}'s Elliott-wave structure`,

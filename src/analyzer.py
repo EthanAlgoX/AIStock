@@ -4173,6 +4173,9 @@ class GeminiAnalyzer:
 - Use the common English company name when you are confident. If not, keep the listed company name rather than inventing one.
 - When data is missing, explain it in English instead of Chinese.
 """
+        elif report_language in ("ja", "zh-TW"):
+            from src.report_language import get_output_language_directive
+            prompt += get_output_language_directive(report_language)
         elif report_language == "ko":
             prompt += """
 

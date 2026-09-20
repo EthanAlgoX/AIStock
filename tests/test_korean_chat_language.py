@@ -16,4 +16,4 @@ def test_trial_request_accepts_korean_without_changing_default_language():
     from uuid import uuid4
     data = dict(requestId=uuid4(), kind='assistant', topic='주식 분석')
     assert RunRequest(**data, language='ko').language == 'ko'
-    assert RunRequest(**data).language == 'zh'
+    assert RunRequest(**data).language == 'en'

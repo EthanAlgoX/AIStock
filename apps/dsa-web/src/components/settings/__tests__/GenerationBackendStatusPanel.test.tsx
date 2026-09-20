@@ -82,6 +82,7 @@ function deferred<T>() {
 describe('GenerationBackendStatusPanel', () => {
   beforeEach(() => {
     window.localStorage.clear();
+  window.localStorage.setItem('dsa.uiLanguage', 'zh');
     getGenerationBackendStatus.mockReset();
     previewGenerationBackendStatus.mockReset();
     testGenerationBackend.mockReset();

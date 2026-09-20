@@ -215,7 +215,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   useWorkspaceRunStore.setState({ runs: {} });
   window.localStorage.clear();
-  window.localStorage.removeItem(UI_LANGUAGE_STORAGE_KEY);
+  window.localStorage.setItem('dsa.uiLanguage', 'zh');
+  window.localStorage.setItem(UI_LANGUAGE_STORAGE_KEY, 'zh');
   mockGetStatus.mockReset();
   mockStoreState.messages = [];
   mockStoreState.selectedSkillIds = null;

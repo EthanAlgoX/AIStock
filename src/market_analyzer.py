@@ -165,7 +165,7 @@ class MarketAnalyzer:
         # Structural/template language. Korean reuses the English scaffolding;
         # the Korean output directive is applied in the prompt builder.
         language = self._get_output_language()
-        return "en" if language == "ko" else language
+        return "zh" if language == "zh" else "en"
 
     def _get_template_review_language(self) -> str:
         return self._get_review_language()
@@ -1467,7 +1467,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         review_language = self._get_review_language()
         # Korean reuses the English structural template but the model is told to
         # write the entire shell, headings, guidance and conclusion in Korean.
-        shell_language_label = "Korean (한국어)" if self._get_output_language() == "ko" else "English"
+        shell_language_label = {"ko": "Korean (한국어)", "ja": "Japanese (日本語)", "zh-TW": "Traditional Chinese (繁體中文)"}.get(self._get_output_language(), "English")
 
         # 指数行情信息（简洁格式，不用emoji）
         indices_text = ""

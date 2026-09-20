@@ -50,6 +50,7 @@ describe('AuthContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    localStorage.setItem('dsa.uiLanguage', 'zh');
   });
 
   it('clears private browser data on identity change, not on quota refresh', async () => {

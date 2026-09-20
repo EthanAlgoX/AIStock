@@ -126,6 +126,7 @@ const report: AnalysisReport = {
 describe('MarketIntelligenceSection', () => {
   beforeEach(() => {
     window.localStorage.clear();
+  window.localStorage.setItem('dsa.uiLanguage', 'zh');
     Object.values(api).forEach((mock) => mock.mockReset());
     api.getList.mockResolvedValue({
       total: 1,

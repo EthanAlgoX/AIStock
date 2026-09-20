@@ -1,3 +1,4 @@
+import { uiLocale } from '../../utils/uiLanguage';
 import { useId, type ReactNode } from 'react';
 import { Crosshair, Layers, ShieldAlert, Flag } from 'lucide-react';
 import type { AnalysisReport } from '../../types/analysis';
@@ -50,7 +51,7 @@ export function ResearchMemo({ report, provenance }: { report: AnalysisReport; p
   const conditionIcons = [Crosshair, Layers, ShieldAlert, Flag];
   const dateValue = meta.createdAt || meta.marketPhaseSummary?.marketLocalTime;
   const date = dateValue ? new Date(dateValue) : null;
-  const dateLabel = date && Number.isFinite(date.getTime()) ? date.toLocaleString(language === 'ko' ? 'ko-KR' : (language === 'en' ? 'en-US' : 'zh-CN'), { dateStyle: 'medium', timeStyle: 'short' }) : l('报告未记录时间', 'Report time not recorded');
+  const dateLabel = date && Number.isFinite(date.getTime()) ? date.toLocaleString(uiLocale(language), { dateStyle: 'medium', timeStyle: 'short' }) : l('报告未记录时间', 'Report time not recorded');
   const phaseLabel = getMarketPhaseSummaryLabel(meta.marketPhaseSummary, language);
   const partialLabel = meta.marketPhaseSummary?.isPartialBar === true ? getPartialBarLabel(language) : null;
   const sectionClass = 'scroll-mt-24 border-t border-border py-7 sm:py-9';
@@ -60,7 +61,7 @@ export function ResearchMemo({ report, provenance }: { report: AnalysisReport; p
     {/* Recorded numeric signals lead into the thesis and inspectable counterevidence. */}
     <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 pb-5 sm:gap-5 sm:pb-6">
       <div className="min-w-0"><p className="mb-2 text-xs font-medium text-secondary-text">AI Stock · {l('投研备忘录', 'Research memorandum')}</p><h2 className="break-words text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">{meta.stockName || meta.stockCode}</h2><p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-secondary-text"><span>{meta.stockCode}</span><span>{dateLabel}</span></p></div>
-      <div className="flex items-start gap-4"><div className="max-w-28 text-right sm:max-w-none"><p className="text-xs text-secondary-text">{l('报告价格快照', 'Report price snapshot')}</p><p className="mt-1 text-xl sm:text-2xl font-semibold tabular-nums text-foreground">{typeof meta.currentPrice === 'number' && Number.isFinite(meta.currentPrice) ? meta.currentPrice.toLocaleString(language === 'ko' ? 'ko-KR' : (language === 'en' ? 'en-US' : 'zh-CN'), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</p>{typeof meta.changePct === 'number' && Number.isFinite(meta.changePct) && <p className="mt-1 text-sm tabular-nums text-secondary-text">{meta.changePct > 0 ? '+' : ''}{meta.changePct.toFixed(2)}%</p>}</div><ShareImageButton recordId={meta.id} reportTitle={`${meta.stockName || meta.stockCode}-${meta.stockCode}`} reportLanguage={language} /></div>
+      <div className="flex items-start gap-4"><div className="max-w-28 text-right sm:max-w-none"><p className="text-xs text-secondary-text">{l('报告价格快照', 'Report price snapshot')}</p><p className="mt-1 text-xl sm:text-2xl font-semibold tabular-nums text-foreground">{typeof meta.currentPrice === 'number' && Number.isFinite(meta.currentPrice) ? meta.currentPrice.toLocaleString(uiLocale(language), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</p>{typeof meta.changePct === 'number' && Number.isFinite(meta.changePct) && <p className="mt-1 text-sm tabular-nums text-secondary-text">{meta.changePct > 0 ? '+' : ''}{meta.changePct.toFixed(2)}%</p>}</div><ShareImageButton recordId={meta.id} reportTitle={`${meta.stockName || meta.stockCode}-${meta.stockCode}`} reportLanguage={language} /></div>
     </header>
     {(phaseLabel || partialLabel || limitations.length > 0) && <div className="mb-4 flex flex-wrap gap-x-4 gap-y-2 text-xs leading-6 text-secondary-text">{phaseLabel && <span>{phaseLabel}</span>}{partialLabel && <span className="text-warning">{partialLabel}</span>}{limitations.length > 0 && <a href={`#${id}-boundaries`} className="text-primary underline underline-offset-4">{l(`报告记录了 ${limitations.length} 项数据限制`, `${limitations.length} data limitations recorded`)}</a>}</div>}
     <nav aria-label={l('报告阅读目录', 'Report contents')} className="flex flex-wrap gap-x-6 border-t border-border text-sm">

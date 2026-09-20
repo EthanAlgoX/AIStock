@@ -1,0 +1,106 @@
+<div align="center">
+
+<img src="../apps/dsa-web/public/tradebot-mark.svg" alt="AI Stock" width="76" height="76">
+
+# AI Stock
+
+**AIとともに銘柄を調査し、投資アイデアを検証するワークスペース。**
+
+投資リサーチアシスタント · 専門家ラウンドテーブル · 個別銘柄調査 · 戦略による銘柄選定 · 取引シミュレーション
+
+[English](../README.md) · [简体中文](README_ZH.md) · [繁體中文](README_CHT.md) · **日本語** · [한국어](README_KO.md)
+
+</div>
+
+AI Stockは、中国本土のA株、香港株、米国株を対象とする投資リサーチアプリケーションです。Agent、Skill、市場データ、ツールを組み合わせて調査を進め、レポートを保存し、候補銘柄や取引戦略を検証できます。リポジトリは [EthanAlgoX/AIStock](https://github.com/EthanAlgoX/AIStock) です。旧名称は LLM TradeBot、InvestCrew でした。
+
+日本語対応は画面と出力言語に関するもので、日本株市場のデータ対応を追加するものではありません。
+
+## 主な機能
+
+| ワークスペース | パス | 用途 |
+| --- | --- | --- |
+| 市場レーダー | `/market-intelligence` | 市場動向、ニュース、マクロ情報の確認 |
+| 投資リサーチアシスタント | `/overview` | 対話による調査、戦略の草案作成、Skillの保存 |
+| 専門家ラウンドテーブル | `/expert-review` | 異なる専門家の見解と総合判断の比較 |
+| 個別銘柄調査 | `/stock-research` | 根拠、リスク、結論、過去のレポートの確認 |
+| 戦略による銘柄選定 | `/screening` | 戦略に基づく候補銘柄、順位、選定理由の確認 |
+| 取引シミュレーション | `/trading` | AgentとSkillによる取引提案と模擬取引の検証 |
+| 保有銘柄管理 | `/portfolio` | 保有・ウォッチ銘柄の分析、定期実行、スコア推移の確認 |
+
+タスク履歴、定期実行、モデル使用量、通知設定、機能センターから各機能を管理できます。利用できる機能とデータは、設定したモデル、公開済みの戦略、利用可能なツールに依存します。
+
+## 対話から戦略を作成
+
+アシスタントのタイトル横にある戦略作成ボタンから、個別銘柄調査、銘柄選定、取引シミュレーションの種類を選びます。新しい戦略用の対話を開始するか、現在の議論を引き継ぐことができます。
+
+1. 対象銘柄の範囲、分析方法、リスク制約、実行方法を説明します。
+2. 対話を続けて草案を修正し、未確定事項を確認します。
+3. 草案の完全性を確認し、Skillとして保存します。
+4. 対象モジュールでSkillを読み込み、必要な設定を行い、試行結果を検証します。
+
+草案と保存操作はタイトル横のボタンから開きます。閉じている間は対話の表示領域を占有しません。完全性の確認は、将来の運用成績や実際の取引可能性を保証しません。
+
+## クイックスタート
+
+必要環境：Python 3.10以降、Node.js 20.19〜26.x、npm 10以降。
+
+```bash
+git clone https://github.com/EthanAlgoX/AIStock.git AI-Stock
+cd AI-Stock
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+`.env`で利用するモデルとデータサービスを設定してください。秘密鍵やAPIキーはリポジトリに保存しないでください。
+
+```bash
+cd apps/dsa-web
+npm ci
+npm run build
+cd ../..
+python main.py --serve-only --host 127.0.0.1 --port 8000
+```
+
+Web画面は <http://127.0.0.1:8000>、APIドキュメントは <http://127.0.0.1:8000/docs> で開けます。
+
+フロントエンドを開発する場合は、バックエンドを起動したまま `apps/dsa-web` で `npm run dev` を実行します。既定の開発URLは <http://127.0.0.1:5173> です。接続先が異なる場合は `DSA_WEB_API_PROXY_TARGET` を設定します。
+
+## 言語
+
+READMEの既定版と、初回訪問時の画面言語は**英語**です。画面上部で English、简体中文、繁體中文、日本語、한국어 を選択できます。明示的に選択した言語は保存され、次回も使用されます。ブラウザーの言語によって初回の既定値は変わりません。
+
+画面の固定文言を翻訳し、ユーザー入力、銘柄名、過去のレポート、ニュース原文はそのまま保持します。定期レポートなどの出力言語は既存の設定で指定できます。
+
+```dotenv
+REPORT_LANGUAGE=ja
+```
+
+対応値は `en`、`zh`、`zh-TW`、`ja`、`ko` です。画面の既定言語と、既存のサーバー側レポート言語設定は別の設定です。
+
+## 検証
+
+```bash
+./scripts/ci_gate.sh
+cd apps/dsa-web
+npm run lint
+npm run build
+npm test
+```
+
+## 関連ドキュメント
+
+- [ドキュメント一覧](INDEX.md)
+- [画面と操作](workspace-ui.md)
+- [戦略作成](assistant-strategy-authoring.md)
+- [言語仕様](ui-languages.md)
+- [設定ガイド](full-guide.md)
+- [デプロイ](DEPLOY.md)
+- [テスト](testing.md)
+- [変更履歴](CHANGELOG.md)
+
+## ライセンス
+
+[MIT License](../LICENSE)。本プロジェクトはソフトウェア開発、投資調査、管理された履歴検証や模擬取引のためのものです。モデルの出力や過去の検証結果は将来の収益を保証せず、投資判断とその結果は利用者の責任となります。

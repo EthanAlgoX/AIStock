@@ -1,3 +1,4 @@
+import { withUiLanguages } from '../../i18n/localize';
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import type { ParsedApiError } from '../../api/error';
@@ -14,7 +15,7 @@ interface ReportNewsProps {
   language?: ReportLanguage;
 }
 
-const NEWS_SOURCE_TEXT = {
+const NEWS_SOURCE_TEXT = withUiLanguages({
   zh: {
     sourceLabel: '相关资讯/后续检索',
     sourceHint: '来源：报告页补充资讯；是否用于分析以输入数据块为准。',
@@ -27,7 +28,7 @@ const NEWS_SOURCE_TEXT = {
     sourceLabel: '관련 뉴스 / 후속 검색',
     sourceHint: '출처: 리포트 페이지 보충 뉴스이며, 분석 사용 여부는 입력 데이터 블록 기준입니다.',
   },
-} as const;
+} as const);
 
 /**
  * 资讯区组件 - 终端风格

@@ -29,6 +29,7 @@ describe('screeningApi', () => {
     getConfig.mockReset();
     updateConfig.mockReset();
     window.localStorage.clear();
+  window.localStorage.setItem('dsa.uiLanguage', 'zh');
     window.localStorage.setItem('dsa.screening.variantSeed.v1', 'browser-seed');
   });
 

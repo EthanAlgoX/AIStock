@@ -42,6 +42,7 @@ const items: HistoryItem[] = [
 describe('StockHistoryTrendDrawer', () => {
   beforeEach(() => {
     window.localStorage.clear();
+  window.localStorage.setItem('dsa.uiLanguage', 'zh');
   });
 
   it('uses structured action in summary and rows', () => {

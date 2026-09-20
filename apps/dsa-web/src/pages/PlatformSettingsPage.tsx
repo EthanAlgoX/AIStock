@@ -1,5 +1,5 @@
 import { useUiLiteral } from '../hooks/useUiLiteral';
-import { withKorean } from '../i18n/korean';
+import { withUiLanguages } from '../i18n/localize';
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Database, KeyRound, RotateCcw, Save, ServerCog, Sparkles } from 'lucide-react';
@@ -24,15 +24,15 @@ type PlatformSettingsTab = 'model' | 'system' | 'notifications';
 type NotificationChannelChoice = 'feishu' | 'email' | 'wechat' | 'dingtalk' | 'telegram' | 'slack' | 'discord' | 'custom' | 'mobile';
 
 const NOTIFICATION_CHANNEL_CHOICES: Array<{ id: NotificationChannelChoice; zh: string; en: string; prefixes: string[] }> = [
-  withKorean({ id: 'feishu', zh: '飞书', en: 'Feishu', prefixes: ['FEISHU_'] }),
-  withKorean({ id: 'email', zh: '邮件', en: 'Email', prefixes: ['EMAIL_'] }),
-  withKorean({ id: 'wechat', zh: '企业微信', en: 'WeCom', prefixes: ['WECHAT_'] }),
-  withKorean({ id: 'dingtalk', zh: '钉钉', en: 'DingTalk', prefixes: ['DINGTALK_'] }),
-  withKorean({ id: 'telegram', zh: 'Telegram', en: 'Telegram', prefixes: ['TELEGRAM_'] }),
-  withKorean({ id: 'slack', zh: 'Slack', en: 'Slack', prefixes: ['SLACK_'] }),
-  withKorean({ id: 'discord', zh: 'Discord', en: 'Discord', prefixes: ['DISCORD_'] }),
-  withKorean({ id: 'custom', zh: '自定义 Webhook', en: 'Custom webhook', prefixes: ['CUSTOM_WEBHOOK_'] }),
-  withKorean({ id: 'mobile', zh: '手机推送', en: 'Mobile push', prefixes: ['PUSHPLUS_', 'PUSHOVER_', 'NTFY_', 'GOTIFY_', 'SERVERCHAN'] }),
+  withUiLanguages({ id: 'feishu', zh: '飞书', en: 'Feishu', prefixes: ['FEISHU_'] }),
+  withUiLanguages({ id: 'email', zh: '邮件', en: 'Email', prefixes: ['EMAIL_'] }),
+  withUiLanguages({ id: 'wechat', zh: '企业微信', en: 'WeCom', prefixes: ['WECHAT_'] }),
+  withUiLanguages({ id: 'dingtalk', zh: '钉钉', en: 'DingTalk', prefixes: ['DINGTALK_'] }),
+  withUiLanguages({ id: 'telegram', zh: 'Telegram', en: 'Telegram', prefixes: ['TELEGRAM_'] }),
+  withUiLanguages({ id: 'slack', zh: 'Slack', en: 'Slack', prefixes: ['SLACK_'] }),
+  withUiLanguages({ id: 'discord', zh: 'Discord', en: 'Discord', prefixes: ['DISCORD_'] }),
+  withUiLanguages({ id: 'custom', zh: '自定义 Webhook', en: 'Custom webhook', prefixes: ['CUSTOM_WEBHOOK_'] }),
+  withUiLanguages({ id: 'mobile', zh: '手机推送', en: 'Mobile push', prefixes: ['PUSHPLUS_', 'PUSHOVER_', 'NTFY_', 'GOTIFY_', 'SERVERCHAN'] }),
 ];
 
 const PLATFORM_SYSTEM_KEYS = new Set([

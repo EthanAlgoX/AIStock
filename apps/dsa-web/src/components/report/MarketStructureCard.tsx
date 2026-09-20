@@ -1,3 +1,4 @@
+import { withUiLanguages } from '../../i18n/localize';
 import type React from 'react';
 import { AlertTriangle, Map, TrendingUp } from 'lucide-react';
 import type {
@@ -26,7 +27,7 @@ const STATUS_VARIANT: Record<MarketStructureStatus, BadgeVariant> = {
   not_supported: 'default',
 };
 
-const TEXT = {
+const TEXT = withUiLanguages({
   zh: {
     eyebrow: '市场位置',
     title: '题材主线与个股位置',
@@ -129,9 +130,9 @@ const TEXT = {
       unknown: '알 수 없음',
     },
   },
-} as const;
+} as const);
 
-const RISK_TAG_TEXT = {
+const RISK_TAG_TEXT = withUiLanguages({
   zh: {
     theme_data_partial: '题材主线数据不完整',
     stock_theme_evidence_partial: '个股板块未匹配到市场题材榜单，个股位置按降级证据处理',
@@ -147,7 +148,7 @@ const RISK_TAG_TEXT = {
     stock_theme_evidence_partial: '종목 보드가 테마 랭킹과 일치하지 않았습니다',
     board_membership_missing: '종목 보드 근거가 없어 테마 위치를 판단할 수 없습니다',
   },
-} as const;
+} as const);
 
 const formatItem = (item: RankedThemeItem): string => {
   if (typeof item.changePct === 'number') {

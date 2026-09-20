@@ -66,6 +66,7 @@ describe("AgentTaskSetupPage", () => {
   });
   beforeEach(() => {
     localStorage.clear();
+    localStorage.setItem('dsa.uiLanguage', 'zh');
     vi.clearAllMocks();
     useWorkspaceRunStore.setState({ runs: {} });
     api.listRuns.mockResolvedValue([]);

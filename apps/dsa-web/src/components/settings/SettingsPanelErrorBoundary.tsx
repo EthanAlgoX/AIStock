@@ -1,4 +1,4 @@
-import { koreanCopy } from '../../i18n/korean';
+import { localizedCopy } from '../../i18n/localize';
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { InlineAlert } from '../common';
@@ -140,5 +140,5 @@ export const SettingsPanelErrorBoundary = (props: SettingsPanelErrorBoundaryProp
         errorSummaryPrefix: '错误摘要：',
       };
 
-  return <SettingsPanelErrorBoundaryImpl {...props} labels={language === 'ko' ? koreanCopy(labels) : labels} />;
+  return <SettingsPanelErrorBoundaryImpl {...props} labels={(language !== 'zh' && language !== 'en') ? localizedCopy(labels, language) : labels} />;
 };

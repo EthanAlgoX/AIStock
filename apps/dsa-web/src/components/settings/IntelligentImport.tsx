@@ -1,4 +1,4 @@
-import { translateKorean } from '../../i18n/korean';
+import { translateSource } from '../../i18n/localize';
 import type React from 'react';
 import { useCallback, useRef, useState } from 'react';
 import { getParsedApiError } from '../../api/error';
@@ -26,12 +26,12 @@ type ItemWithChecked = ExtractItem & { id: string; checked: boolean };
 
 function getConfidenceMeta(confidence: 'high' | 'medium' | 'low', language: UiLanguage) {
   if (confidence === 'high') {
-    return { label: language === 'ko' ? translateKorean('高') : (language === 'en' ? 'High' : '高'), badge: 'success' as const };
+    return { label: (language !== 'zh' && language !== 'en') ? translateSource('高', language) : (language === 'en' ? 'High' : '高'), badge: 'success' as const };
   }
   if (confidence === 'low') {
-    return { label: language === 'ko' ? translateKorean('低') : (language === 'en' ? 'Low' : '低'), badge: 'warning' as const };
+    return { label: (language !== 'zh' && language !== 'en') ? translateSource('低', language) : (language === 'en' ? 'Low' : '低'), badge: 'warning' as const };
   }
-  return { label: language === 'ko' ? translateKorean('中') : (language === 'en' ? 'Medium' : '中'), badge: 'default' as const };
+  return { label: (language !== 'zh' && language !== 'en') ? translateSource('中', language) : (language === 'en' ? 'Medium' : '中'), badge: 'default' as const };
 }
 
 function normalizeConfidence(confidence?: string | null): 'high' | 'medium' | 'low' {

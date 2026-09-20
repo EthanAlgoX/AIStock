@@ -1,6 +1,7 @@
+import { uiLocale } from '../utils/uiLanguage';
 import { useUiLiteral } from '../hooks/useUiLiteral';
 import { UiLiteral } from '../components/i18n/UiLiteral';
-import { withKorean } from '../i18n/korean';
+import { withUiLanguages } from '../i18n/localize';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Markdown from 'react-markdown';
@@ -53,7 +54,7 @@ type ActiveStockContext = Pick<ChatFollowUpContext, 'stock_code' | 'stock_name'>
 
 export type AgentWorkspaceMode = 'general' | 'trading';
 
-const WORKSPACE_COPY: Record<AgentWorkspaceMode, Record<'zh' | 'en' | 'ko', {
+const WORKSPACE_COPY: Record<AgentWorkspaceMode, Record<'zh' | 'en' | 'ko' | 'ja' | 'zh-TW', {
   title: string;
   subtitle: string;
   taskTypeLabel: string;
@@ -61,11 +62,11 @@ const WORKSPACE_COPY: Record<AgentWorkspaceMode, Record<'zh' | 'en' | 'ko', {
   emptyDescription: string;
   placeholder: string;
 }>> = {
-  general: withKorean({
+  general: withUiLanguages({
     zh: { title: '投研助理', subtitle: '统一理解目标、调用能力并沉淀决策成果', taskTypeLabel: '自然语言任务', emptyTitle: '描述目标，Agent 负责组织工作', emptyDescription: '从研究一家公司、筛选候选股票或完善策略想法开始。任务启动后，系统会绑定当前上下文，并在完成时形成可追溯成果。', placeholder: '输入目标，例如：分析 600519' },
     en: { title: 'Research assistant', subtitle: 'Understand goals, orchestrate capabilities, and retain decision-ready outputs', taskTypeLabel: 'Natural-language task', emptyTitle: 'Describe your goal — the Agent organizes the work', emptyDescription: 'Start by researching a company, screening candidates, or developing a strategy idea. Each completed task retains its context and traceable output.', placeholder: 'Describe a goal, for example: analyze 600519' },
   }),
-  trading: withKorean({
+  trading: withUiLanguages({
     zh: { title: '投研助理 · 交易推演', subtitle: '围绕持仓、信号和风险约束形成可复核的交易提案', taskTypeLabel: '交易决策', emptyTitle: '描述你的交易目标与约束', emptyDescription: '输入账户范围、标的、持仓目标和风险边界。Agent 可以调用当前会话能力生成交易提案，但不会绕过风险检查或审批。', placeholder: '输入交易目标，例如：基于当前持仓生成 600519 的调仓提案' },
     en: { title: 'Research assistant · Trade simulation', subtitle: 'Form reviewable proposals from positions, signals, and risk limits', taskTypeLabel: 'Trading decision', emptyTitle: 'Describe your trading objective and constraints', emptyDescription: 'Provide the account scope, symbol, position objective, and risk limits. The Agent can draft a proposal but cannot bypass risk checks or approval.', placeholder: 'Describe a trading goal, for example: rebalance 600519' },
   }),
@@ -335,7 +336,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
   const agentStatusRequestIdRef = useRef(0);
 
   // Get localized text (default to Chinese)
-  const text = getReportText('zh');
+  const text = getReportText(language);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -991,7 +992,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
           expertIds: [],
           expertTeamIds: [],
         },
-        context: language === 'ko' ? { ...contextForSend, report_language: 'ko' } : contextForSend ?? undefined,
+        context: language !== 'zh' ? { ...contextForSend, report_language: language } : contextForSend ?? undefined,
       };
       if (expertChat.enabled && !authoringActive) {
         const source = followUpContextRef.current?.previous_analysis_summary;
@@ -1263,7 +1264,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                         <>
                           <span className="separator" />
                           <span className="meta">
-                            {new Date(s.last_active).toLocaleDateString(language === 'ko' ? 'ko-KR' : (language === 'en' ? 'en-US' : 'zh-CN'), { month: 'short', day: 'numeric' })}
+                            {new Date(s.last_active).toLocaleDateString(uiLocale(language), { month: 'short', day: 'numeric' })}
                           </span>
                         </>
                       )}

@@ -5,7 +5,7 @@ import { UiLanguageProvider, useUiLanguage } from '../contexts/UiLanguageContext
 import { UiLanguageToggle } from '../components/i18n/UiLanguageToggle';
 import { resolveInitialUiLanguage, UI_LANGUAGE_STORAGE_KEY, uiLocale } from '../utils/uiLanguage';
 import { UI_TEXT } from './uiText';
-import { translateKorean, withKorean } from './korean';
+import { translateKorean, withUiLanguages } from './localize';
 import { getSettingsHelpContent } from '../locales/settingsHelp';
 import translations from './ko.json';
 
@@ -18,8 +18,8 @@ function Probe() {
 }
 
 describe('Korean UI', () => {
-  it('detects ko-KR and preserves an explicit preference', () => {
-    expect(resolveInitialUiLanguage({ navigatorLike: { language: 'ko-KR', languages: ['ko-KR', 'en'] } })).toBe('ko');
+  it('defaults to English and preserves an explicit preference', () => {
+    expect(resolveInitialUiLanguage({ navigatorLike: { language: 'ko-KR', languages: ['ko-KR', 'en'] } })).toBe('en');
     localStorage.setItem(UI_LANGUAGE_STORAGE_KEY, 'en');
     expect(resolveInitialUiLanguage({ storage: localStorage, navigatorLike: { language: 'ko-KR', languages: ['ko-KR'] } })).toBe('en');
     expect(uiLocale('ko')).toBe('ko-KR');
@@ -29,7 +29,7 @@ describe('Korean UI', () => {
     render(<UiLanguageProvider><UiLanguageToggle /><Probe /></UiLanguageProvider>);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '未保存的编辑' } });
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'ko' } });
-    expect(document.documentElement.lang).toBe('ko');
+    expect(document.documentElement.lang).toBe('ko-KR');
     expect(localStorage.getItem(UI_LANGUAGE_STORAGE_KEY)).toBe('ko');
     expect(screen.getByText('검증 센터')).toBeInTheDocument();
     expect(screen.getByRole('textbox')).toHaveValue('未保存的编辑');
@@ -50,7 +50,7 @@ describe('Korean UI', () => {
     }
   });
   it('localizes registered option labels while preserving API values', () => {
-    const result = withKorean({ zh: [{ value: 'buy', label: '买入' }], en: [{ value: 'buy', label: 'Buy' }] });
+    const result = withUiLanguages({ zh: [{ value: 'buy', label: '买入' }], en: [{ value: 'buy', label: 'Buy' }] });
     expect(result.ko[0]).toEqual({ value: 'buy', label: '매수' });
     expect(translateKorean('用户自定义名字 X9')).toBe('用户自定义名字 X9');
     const help = getSettingsHelpContent('settings.notification.report_output', undefined, 'ko');

@@ -1,3 +1,4 @@
+import { uiLocale } from '../utils/uiLanguage';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Clock3, Cpu, Database, Gauge, RefreshCw } from 'lucide-react';
 import { usageApi, type UsageDashboard, type UsageModelBreakdown, type UsagePeriod } from '../api/usage';
@@ -25,7 +26,7 @@ const CALL_TYPE_LABEL_KEYS: Record<string, UiTextKey> = {
 };
 
 function getLocale(language: UiLanguage): string {
-  return language === 'ko' ? 'ko-KR' : (language === 'en' ? 'en-US' : 'zh-CN');
+  return uiLocale(language);
 }
 
 function formatNumber(value: number | null | undefined, language: UiLanguage): string {

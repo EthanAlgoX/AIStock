@@ -14,7 +14,7 @@ Research assistant · Expert roundtable · Stock research · Strategy screening 
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111)](https://react.dev/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Agent_API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 
-**English** · [简体中文](docs/README_ZH.md) · [繁體中文](docs/README_CHT.md) · [한국어](docs/README_KO.md)
+**English** · [简体中文](docs/README_ZH.md) · [繁體中文](docs/README_CHT.md) · [日本語](docs/README_JA.md) · [한국어](docs/README_KO.md)
 
 </div>
 
@@ -120,7 +120,7 @@ Open the Web workspace at <http://127.0.0.1:8000> and API documentation at <http
 2. Ask a question in **Research assistant**, or open **Stock research** and run the default plan. Default plans still require the relevant model, published strategy, and tools to be available.
 3. Read the saved report. To compare perspectives, start an **Expert roundtable**, choose experts and a collaboration mode, and submit a topic.
 
-The header includes a persistent Chinese / English / Korean language selector. In the Korean interface, new Research assistant requests explicitly ask for Korean replies; set `REPORT_LANGUAGE=ko` for Korean output from scheduled reports and other analysis workflows. The main workspaces, research configuration, default plans, and report controls follow this setting. Saved report prose, user-defined names, and source news retain their original language; switching the interface does not translate or rewrite research data.
+The default README and first-visit UI language are English. An explicitly saved language preference takes precedence over this default. Browser language does not change the default. See [UI languages](docs/ui-languages.md). The header includes a five-language selector: English, Simplified Chinese, Traditional Chinese, Japanese, and Korean. In the Korean interface, new Research assistant requests explicitly ask for Korean replies; set `REPORT_LANGUAGE=ko` for Korean output from scheduled reports and other analysis workflows. The main workspaces, research configuration, default plans, and report controls follow this setting. Saved report prose, user-defined names, and source news retain their original language; switching the interface does not translate or rewrite research data.
 
 For frontend development, run `npm run dev` under `apps/dsa-web` alongside the backend. Vite defaults to <http://127.0.0.1:5173> and proxies `/api` to port 8000; set `DSA_WEB_API_PROXY_TARGET` if the backend address differs.
 

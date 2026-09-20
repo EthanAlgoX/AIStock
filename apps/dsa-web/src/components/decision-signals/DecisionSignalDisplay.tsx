@@ -1,4 +1,4 @@
-import { withKorean } from '../../i18n/korean';
+import { withUiLanguages } from '../../i18n/localize';
 import type React from 'react';
 import { PanelRightOpen } from 'lucide-react';
 import { Badge, Card, JsonViewer } from '../common';
@@ -59,7 +59,7 @@ const OUTCOME_VARIANTS: Record<DecisionSignalOutcomeValue, BadgeVariant> = {
   neutral: 'warning',
 };
 
-const LOCALE_BY_LANGUAGE: Record<UiLanguage, string> = withKorean({
+const LOCALE_BY_LANGUAGE: Record<UiLanguage, string> = withUiLanguages({
   zh: 'zh-CN',
   en: 'en-US',
 });

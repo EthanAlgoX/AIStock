@@ -1,3 +1,4 @@
+import { withUiLanguages } from '../i18n/localize';
 import type {
   AnalysisPhase,
   MarketPhaseSummary,
@@ -6,7 +7,7 @@ import type {
 } from '../types/analysis';
 import { normalizeReportLanguage } from './reportLanguage';
 
-const REQUEST_PHASE_LABELS: Record<ReportLanguage, Record<AnalysisPhase, string>> = {
+const REQUEST_PHASE_LABELS: Record<ReportLanguage, Record<AnalysisPhase, string>> = withUiLanguages({
   zh: {
     auto: '自动阶段',
     premarket: '盘前',
@@ -25,9 +26,9 @@ const REQUEST_PHASE_LABELS: Record<ReportLanguage, Record<AnalysisPhase, string>
     intraday: '장중',
     postmarket: '장 마감 후',
   },
-};
+});
 
-const MARKET_PHASE_LABELS: Record<ReportLanguage, Record<MarketPhaseValue, string>> = {
+const MARKET_PHASE_LABELS: Record<ReportLanguage, Record<MarketPhaseValue, string>> = withUiLanguages({
   zh: {
     premarket: '盘前',
     intraday: '盘中',
@@ -55,9 +56,9 @@ const MARKET_PHASE_LABELS: Record<ReportLanguage, Record<MarketPhaseValue, strin
     non_trading: '비거래일',
     unknown: '단계 불명',
   },
-};
+});
 
-const TEXT = {
+const TEXT = withUiLanguages({
   zh: {
     requestPrefix: '请求阶段',
     finalPrefix: '市场阶段',
@@ -73,7 +74,7 @@ const TEXT = {
     finalPrefix: '시장 단계',
     partialBar: '일봉 미완성',
   },
-} as const;
+} as const);
 
 export const getRequestedPhaseLabel = (
   phase?: AnalysisPhase | null,

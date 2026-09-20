@@ -1,9 +1,9 @@
-import { translateKorean } from '../i18n/korean';
-import { withKorean } from '../i18n/korean';
+import { translateSource } from '../i18n/localize';
+import { withUiLanguages } from '../i18n/localize';
 import type { SystemConfigCategory } from '../types/systemConfig';
 import type { UiLanguage } from '../i18n/uiText';
 
-const categoryTitleMap: Record<UiLanguage, Record<SystemConfigCategory, string>> = withKorean({
+const categoryTitleMap: Record<UiLanguage, Record<SystemConfigCategory, string>> = withUiLanguages({
   zh: {
   base: '基础设置',
   data_source: '数据源',
@@ -26,7 +26,7 @@ const categoryTitleMap: Record<UiLanguage, Record<SystemConfigCategory, string>>
   },
 });
 
-const categoryDescriptionMap: Record<UiLanguage, Partial<Record<SystemConfigCategory, string>>> = withKorean({
+const categoryDescriptionMap: Record<UiLanguage, Partial<Record<SystemConfigCategory, string>>> = withUiLanguages({
   zh: {
   base: '管理自选股与基础运行参数。',
   data_source: '管理行情数据源与优先级策略。',
@@ -321,7 +321,7 @@ const fieldDescriptionMap: Record<string, string> = {
   WEBHOOK_VERIFY_SSL: '发送 HTTPS Webhook 时是否校验证书，公网环境建议保持开启。',
   SINGLE_STOCK_NOTIFY: '启用后按个股分别推送通知；关闭则合并为单条消息。',
   REPORT_TYPE: '通知报告展示粒度（如 simple/full/brief）。',
-  REPORT_LANGUAGE: '报告与 Agent Chat 默认输出语言（zh/en/ko）；仅在问股未显式传入 context.report_language 时生效。',
+  REPORT_LANGUAGE: '报告与 Agent Chat 默认输出语言（zh/en/ko/ja/zh-TW）；仅在问股未显式传入 context.report_language 时生效。',
   REPORT_TEMPLATES_DIR: '自定义报告模板目录路径。',
   REPORT_INTEGRITY_ENABLED: '启用报告完整性检查，避免发送缺字段或异常内容。',
   REPORT_RENDERER_ENABLED: '启用报告渲染器，将结构化数据渲染为最终通知内容。',
@@ -413,6 +413,8 @@ const fieldOptionLabelMap: Record<string, Record<string, string>> = {
     zh: '中文',
     en: '英文',
     ko: '韩文',
+    ja: '日文',
+    'zh-TW': '繁体中文',
     chinese: '中文',
     english: '英文',
   },
@@ -498,6 +500,8 @@ const fieldOptionLabelMapEn: Record<string, Record<string, string>> = {
     zh: 'Chinese',
     en: 'English',
     ko: 'Korean',
+    ja: 'Japanese',
+    'zh-TW': 'Traditional Chinese',
     chinese: 'Chinese',
     english: 'English',
   },
@@ -605,7 +609,7 @@ export function getFieldOptionLabel(
   fallbackLabel?: string,
   locale: UiLanguage = 'zh',
 ): string {
-  if (locale === 'ko') return translateKorean(getFieldOptionLabel(key, value, fallbackLabel, 'zh'));
+  if ((locale !== 'zh' && locale !== 'en')) return translateSource(getFieldOptionLabel(key, value, fallbackLabel, 'zh'), locale);
   const map = locale === 'en' ? fieldOptionLabelMapEn[key] : fieldOptionLabelMap[key];
   if (!map) {
     return fallbackLabel ?? value;

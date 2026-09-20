@@ -1,3 +1,4 @@
+import { uiLocale } from '../utils/uiLanguage';
 import { useEffect, useState } from 'react';
 import apiClient from '../api';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,7 +26,7 @@ export default function MemberSettingsPage() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [revision]);
-  const number = (value: number) => new Intl.NumberFormat(language === 'ko' ? 'ko-KR' : (language === 'zh' ? 'zh-CN' : 'en-US')).format(value);
+  const number = (value: number) => new Intl.NumberFormat(uiLocale(language)).format(value);
   return <AppPage className="max-w-4xl">
     <PageHeader title={l('我的账户', 'My account')} description={l('管理你的私有投研工作区。平台密钥和服务器设置由管理员维护。', 'Manage your private research workspace. Platform credentials and server settings are managed by the administrator.')} />
     <div className="mt-7 space-y-6">

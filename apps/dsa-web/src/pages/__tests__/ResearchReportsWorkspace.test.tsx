@@ -49,7 +49,7 @@ describe("report-first research workspace", () => {
     expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Chinese" }));
     expect(screen.getByRole("heading", { name: mode === "research" ? "个股研究" : mode === "screening" ? "策略选股" : "交易推演" })).toBeInTheDocument();
-    localStorage.removeItem("dsa.uiLanguage");
+    localStorage.setItem("dsa.uiLanguage", 'zh');
   });
 
   it("opens the canonical formal report from an old task link and groups history without deleting it", async () => {

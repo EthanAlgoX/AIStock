@@ -78,7 +78,7 @@ describe('ReportOverview', () => {
       />
       </UiLanguageProvider>,
     );
-    localStorage.removeItem('dsa.uiLanguage');
+    localStorage.setItem('dsa.uiLanguage', 'zh');
 
     expect(screen.getByLabelText('Market phase: US · Post-market')).toBeInTheDocument();
     expect(screen.getByLabelText('Partial bar')).toBeInTheDocument();

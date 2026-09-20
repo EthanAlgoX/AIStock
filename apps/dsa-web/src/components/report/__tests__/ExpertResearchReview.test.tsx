@@ -66,6 +66,6 @@ describe('ExpertResearchReview', () => {
     expect(screen.getByText('便宜不等于低估')).toBeVisible();
     expect(screen.getByText('Supporting evidence')).toBeVisible();
     unmount();
-    localStorage.removeItem('dsa.uiLanguage');
+    localStorage.setItem('dsa.uiLanguage', 'zh');
   });
 });

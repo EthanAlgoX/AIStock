@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom';
+import { beforeEach } from 'vitest';
 
 class MemoryStorageMock implements Storage {
   private readonly values = new Map<string, string>();
@@ -66,3 +67,7 @@ if (!hasLocalStorage) {
     value: new MemoryStorageMock(),
   });
 }
+
+// Existing component assertions exercise an explicit Chinese user preference.
+// Default-language tests remove this preference to exercise first-visit behavior.
+beforeEach(() => { localStorage.setItem('dsa.uiLanguage', 'zh'); });

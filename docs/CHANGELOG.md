@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [新功能] README 与网站统一支持英文、简体中文、繁体中文、日文和韩文；首次访问默认英文并保留已保存的语言偏好。
+- [改进] 补齐旧页面英文文案，报告语言接口与 Agent 输出指令增加日文及繁体中文。
+
 - [改进] 将投研助理的创建策略与草稿操作收纳到标题旁的展开入口，释放聊天可视空间。
 
 - [新功能] Web 界面加入韩文选择、偏好保存及本地化文案，并提供韩文 README。

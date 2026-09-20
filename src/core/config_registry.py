@@ -2652,8 +2652,10 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
             {"label": "Chinese", "value": "zh"},
             {"label": "English", "value": "en"},
             {"label": "Korean", "value": "ko"},
+            {"label": "Japanese", "value": "ja"},
+            {"label": "Traditional Chinese", "value": "zh-TW"},
         ],
-        "validation": {"enum": ["zh", "en", "ko"]},
+        "validation": {"enum": ["zh", "en", "ko", "ja", "zh-TW"]},
         "display_order": 56,
         "help_key": "settings.notification.report_output",
         "examples": [

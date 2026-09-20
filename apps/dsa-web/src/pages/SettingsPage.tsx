@@ -1,3 +1,4 @@
+import { uiLocale } from '../utils/uiLanguage';
 import { UiLiteral } from '../components/i18n/UiLiteral';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -565,7 +566,7 @@ function formatSchedulerTimestamp(value: string | null | undefined, language: Ui
     return value;
   }
 
-  return new Intl.DateTimeFormat(language === 'ko' ? 'ko-KR' : (language === 'en' ? 'en-US' : 'zh-CN'), {
+  return new Intl.DateTimeFormat(uiLocale(language), {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',

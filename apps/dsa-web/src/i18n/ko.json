@@ -285,7 +285,7 @@
   "Pytdx 自定义节点列表，支持 host:port 逗号分隔。": "Pytdx 사용자 지정 노드 목록. host:port를 쉼표로 구분하여 지원합니다.",
   "Pytdx 通达信服务器": "Pytdx 통다신 서버",
   "REPORT_INTEGRITY_RETRY=0 时不重试，仅用占位符。": "REPORT_INTEGRITY_RETRY=0이면 재시도하지 않고 자리 표시자만 사용합니다.",
-  "REPORT_TYPE 可选 simple/full/brief，REPORT_LANGUAGE 可选 zh/en/ko；Agent Chat 只有在未显式传入 context.report_language 时才继承这里的默认语言。": "REPORT_TYPE는 simple/full/brief 중 선택할 수 있고, REPORT_LANGUAGE는 zh/en/ko 중 선택할 수 있습니다. Agent Chat은 context.report_language가 명시적으로 전달되지 않은 경우에만 여기의 기본 언어를 상속합니다.",
+  "REPORT_TYPE 可选 simple/full/brief，REPORT_LANGUAGE 可选 zh/en/ko/ja/zh-TW；Agent Chat 只有在未显式传入 context.report_language 时才继承这里的默认语言。": "REPORT_TYPE는 simple/full/brief 중 선택할 수 있고, REPORT_LANGUAGE는 zh/en/ko/ja/zh-TW 중 선택할 수 있습니다. Agent Chat은 context.report_language가 명시적으로 전달되지 않은 경우에만 여기의 기본 언어를 상속합니다.",
   "RSI 周期": "RSI 주기",
   "RSI 阈值": "RSI 임계값",
   "RSI 阈值必须在 0 到 100 之间": "RSI 임계값은 0에서 100 사이여야 합니다.",
@@ -2757,7 +2757,7 @@
   "折叠任务面板": "작업 패널 접기",
   "折叠侧边栏": "사이드바 접기",
   "护城河": "경제적 해자",
-  "报告与 Agent Chat 默认输出语言（zh/en/ko）；仅在问股未显式传入 context.report_language 时生效。": "보고서 및 Agent Chat 기본 출력 언어(zh/en/ko); 종목 질의에서 context.report_language가 명시적으로 전달되지 않은 경우에만 적용됩니다.",
+  "报告与 Agent Chat 默认输出语言（zh/en/ko/ja/zh-TW）；仅在问股未显式传入 context.report_language 时生效。": "보고서 및 Agent Chat 기본 출력 언어(zh/en/ko/ja/zh-TW); 종목 질의에서 context.report_language가 명시적으로 전달되지 않은 경우에만 적용됩니다.",
   "报告与告警发送范围": "보고서 및 알림 전송 범위",
   "报告与失败原因": "보고서 및 실패 원인",
   "报告价格": "보고서 가격",
@@ -5613,5 +5613,7 @@
   "，正在读取 Skill": ", Skill을 읽는 중",
   "，滑点": ", 슬리피지",
   "；专家：": "; 전문가:",
-  "；警告：{0}": "; 경고: {0}"
+  "；警告：{0}": "; 경고: {0}",
+  "日文": "일본어",
+  "繁体中文": "중국어 번체"
 }

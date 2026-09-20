@@ -14,7 +14,7 @@
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111)](https://react.dev/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Agent_API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 
-[English](../README.md) · **简体中文** · [繁體中文](README_CHT.md) · [한국어](README_KO.md)
+[English](../README.md) · **简体中文** · [繁體中文](README_CHT.md) · [日本語](README_JA.md) · [한국어](README_KO.md)
 
 </div>
 
@@ -120,7 +120,7 @@ python main.py --serve-only --host 127.0.0.1 --port 8000
 2. 直接向**投研助理**提问，或进入**个股研究**运行默认方案。默认方案仍需对应模型、正式策略与工具可用。
 3. 阅读已保存的报告。想比较不同观点时，进入**专家圆桌**，选择专家与协作方式，提交讨论话题。
 
-顶部提供中文、英文和韩文切换并保存语言偏好。在韩文界面中，投研助理的新请求会明确要求韩文回复；定时报告等分析的韩文输出可配置 `REPORT_LANGUAGE=ko`。主要工作区、研究配置、默认方案和报告控件跟随切换。历史报告正文、用户自定义名称与原始资讯保留原文；切换界面不会翻译或改写研究数据。
+顶部提供英文、简体中文、繁体中文、日文和韩文切换并保存语言偏好。在韩文界面中，投研助理的新请求会明确要求韩文回复；定时报告等分析的韩文输出可配置 `REPORT_LANGUAGE=ko`。主要工作区、研究配置、默认方案和报告控件跟随切换。历史报告正文、用户自定义名称与原始资讯保留原文；切换界面不会翻译或改写研究数据。
 
 前端开发时，保持后端运行，在 `apps/dsa-web` 中执行 `npm run dev`。Vite 默认监听 <http://127.0.0.1:5173>，将 `/api` 代理到 8000 端口；后端地址不同时可配置 `DSA_WEB_API_PROXY_TARGET`。
 
@@ -148,3 +148,5 @@ npm run build
 ## 许可证与免责声明
 
 本项目采用 [MIT License](../LICENSE)，仅用于软件工程、投资研究以及受控的历史或模拟实验。研究报告、选股结果、交易提案和模型输出不保证未来表现，用户应自行承担投资决策与结果。
+
+README 默认版本和网站首次访问的默认语言为英文。顶部可选择英文、简体中文、繁体中文、日文和韩文，并保留手动选择。详见[语言说明](ui-languages.md)。

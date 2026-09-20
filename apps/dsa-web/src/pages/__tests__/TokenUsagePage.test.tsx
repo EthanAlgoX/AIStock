@@ -101,6 +101,7 @@ function renderPage() {
 beforeEach(() => {
   window.localStorage.clear();
   window.localStorage.setItem('dsa.uiLanguage', 'zh');
+  window.localStorage.setItem('dsa.uiLanguage', 'zh');
   vi.clearAllMocks();
   get.mockResolvedValue({ data: dashboardResponse });
 });

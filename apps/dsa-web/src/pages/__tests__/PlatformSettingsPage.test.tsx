@@ -73,6 +73,7 @@ function renderPage() {
 describe('PlatformSettingsPage', () => {
   beforeEach(() => {
     window.localStorage.clear();
+  window.localStorage.setItem('dsa.uiLanguage', 'zh');
     window.localStorage.setItem('dsa.uiLanguage', 'zh');
     vi.clearAllMocks();
     load.mockResolvedValue(true);

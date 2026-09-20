@@ -1,3 +1,4 @@
+import { withUiLanguages } from '../../i18n/localize';
 import type React from 'react';
 import { ChevronDown, Database } from 'lucide-react';
 import type {
@@ -35,7 +36,7 @@ const QUALITY_STYLE = {
   poor: { variant: 'danger', tone: 'danger' },
 } as const satisfies Record<string, { variant: BadgeVariant; tone: StatusTone }>;
 
-const BLOCK_LABELS: Record<ReportLanguage, Record<string, string>> = {
+const BLOCK_LABELS: Record<ReportLanguage, Record<string, string>> = withUiLanguages({
   zh: {
     quote: '行情',
     daily_bars: '日线',
@@ -60,9 +61,9 @@ const BLOCK_LABELS: Record<ReportLanguage, Record<string, string>> = {
     fundamentals: '펀더멘털',
     chip: '매물대',
   },
-};
+});
 
-const TEXT = {
+const TEXT = withUiLanguages({
   zh: {
     eyebrow: '数据上下文',
     title: '输入数据块',
@@ -159,9 +160,9 @@ const TEXT = {
       fetch_failed: '수집 실패',
     },
   },
-} as const;
+} as const);
 
-const MISSING_REASON_LABELS: Record<ReportLanguage, Record<string, string>> = {
+const MISSING_REASON_LABELS: Record<ReportLanguage, Record<string, string>> = withUiLanguages({
   zh: {
     daily_bars_missing: '日线数据未进入本次分析，技术指标可能不完整；请检查日线数据源、网络或限流后重新分析',
     news_context_missing: '新闻未进入本次 LLM 分析，结论未使用新闻上下文；报告页相关资讯由独立接口补充，显示与否不代表已进入本次分析。请检查搜索配置、网络或限流后重新分析',
@@ -207,18 +208,18 @@ const MISSING_REASON_LABELS: Record<ReportLanguage, Record<string, string>> = {
     today_missing: '당일 데이터가 포함되지 않아 장중 판단이 제한될 수 있습니다. 실시간 시세와 대조한 후 다시 분석하세요',
     yesterday_missing: '전일 데이터가 포함되지 않아 일봉 비교가 불완전할 수 있습니다. 소스 갱신 후 다시 분석하세요',
   },
-};
+});
 
-const UNKNOWN_REASON_DETAILS: Record<ReportLanguage, string> = {
+const UNKNOWN_REASON_DETAILS: Record<ReportLanguage, string> = withUiLanguages({
   zh: '未记录明确原因；请结合状态、来源和告警排查',
   en: 'No specific reason was recorded; review the status, source, and warnings',
   ko: '명확한 원인이 기록되지 않았습니다. 상태, 출처 및 경고를 함께 확인하세요',
-};
+});
 
 const STATUS_FALLBACK_GUIDANCE: Record<
   ReportLanguage,
   Partial<Record<AnalysisContextPackBlockStatus, string>>
-> = {
+> = withUiLanguages({
   zh: {
     missing: '数据未进入本次分析，相关结论可能不完整；请检查数据源、配置或网络后重新分析',
     fetch_failed: '数据抓取失败，本次分析未使用该数据；请检查数据源、网络或限流后重新分析',
@@ -246,7 +247,7 @@ const STATUS_FALLBACK_GUIDANCE: Record<
     estimated: '이번 분석은 추정 데이터를 사용했습니다. 원본 데이터와 결과를 교차 확인하세요',
     partial: '데이터의 일부만 포함되어 관련 결론이 불완전할 수 있습니다. 경고와 데이터 소스를 확인한 후 다시 분석하세요',
   },
-};
+});
 
 const STATUS_ORDER: AnalysisContextPackBlockStatus[] = [
   'available',

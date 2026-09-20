@@ -1,3 +1,4 @@
+import { withUiLanguages } from '../../i18n/localize';
 import { AnalysisChart } from './AnalysisChart';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -280,7 +281,7 @@ const MARKET_REVIEW_TEXT: Record<ReportLanguage, {
   conceptBoards: string;
   leading: string;
   lagging: string;
-}> = {
+}> = withUiLanguages({
   zh: {
     reviewSummary: '复盘摘要',
     noReviewSummary: '暂无摘要',
@@ -350,7 +351,7 @@ const MARKET_REVIEW_TEXT: Record<ReportLanguage, {
     leading: '강세',
     lagging: '약세',
   },
-};
+});
 
 const formatRankingChange = (value: unknown): string => {
   const numeric = typeof value === 'number' ? value : Number(String(value ?? '').replace(/%$/, ''));

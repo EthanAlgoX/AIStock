@@ -63,6 +63,7 @@ describe('AlertRuleList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+  window.localStorage.setItem('dsa.uiLanguage', 'zh');
   });
 
   function renderList(overrides: Partial<React.ComponentProps<typeof AlertRuleList>> = {}) {

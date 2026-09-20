@@ -1,4 +1,4 @@
-import { withKorean } from '../../i18n/korean';
+import { withUiLanguages } from '../../i18n/localize';
 import type React from 'react';
 import { Activity } from 'lucide-react';
 import {
@@ -40,7 +40,7 @@ const STATUS_LABEL_KEYS: Record<DecisionSignalStatus, UiTextKey> = {
   archived: 'decisionSignals.archived',
 };
 
-const LOCALE_BY_LANGUAGE: Record<UiLanguage, string> = withKorean({
+const LOCALE_BY_LANGUAGE: Record<UiLanguage, string> = withUiLanguages({
   zh: 'zh-CN',
   en: 'en-US',
 });

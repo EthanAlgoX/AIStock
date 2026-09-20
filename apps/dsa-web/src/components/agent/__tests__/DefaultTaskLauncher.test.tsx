@@ -30,11 +30,12 @@ describe("default task entry", () => {
     expect(view.container.textContent).not.toMatch(/[\u3400-\u9fff]/);
     fireEvent.click(button);
     await waitFor(() => expect(api.createTask).toHaveBeenCalledExactlyOnceWith(plan.task));
-    localStorage.removeItem("dsa.uiLanguage");
+    localStorage.setItem("dsa.uiLanguage", 'zh');
   });
   beforeEach(() => {
     vi.resetAllMocks();
     localStorage.clear();
+    localStorage.setItem('dsa.uiLanguage', 'zh');
     useWorkspaceRunStore.setState({ runs: {} });
     api.listRuns.mockResolvedValue([]);
     api.getDefaultTaskPlan.mockImplementation(async (kind) => makePlan(kind));

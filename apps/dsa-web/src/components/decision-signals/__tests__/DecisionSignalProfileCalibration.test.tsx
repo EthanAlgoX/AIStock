@@ -106,6 +106,7 @@ function renderCalibration(value = calibration) {
 describe('DecisionSignalProfileCalibration', () => {
   beforeEach(() => {
     window.localStorage.clear();
+  window.localStorage.setItem('dsa.uiLanguage', 'zh');
     window.localStorage.setItem('dsa.uiLanguage', 'zh');
   });
 

@@ -1,3 +1,4 @@
+import { withUiLanguages } from '../../i18n/localize';
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Check, ChevronDown, Copy, Workflow } from 'lucide-react';
@@ -32,7 +33,7 @@ const COMPONENT_ORDER = [
   'history',
 ];
 
-const TEXT = {
+const TEXT = withUiLanguages({
   zh: {
     eyebrow: '运行诊断',
     title: '运行状态',
@@ -123,7 +124,7 @@ const TEXT = {
       skipped: '건너뜀',
     },
   },
-} as const;
+} as const);
 
 const OVERALL_STATUS_STYLE: Record<RunDiagnosticStatus, { variant: BadgeVariant; tone: StatusTone }> = {
   normal: { variant: 'success', tone: 'success' },

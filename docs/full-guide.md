@@ -116,7 +116,7 @@ daily_stock_analysis/
 |------------|------|:----:|
 | `SINGLE_STOCK_NOTIFY` | 单股推送模式：设为 `true` 则每分析完一只股票立即推送 | 可选 |
 | `REPORT_TYPE` | 报告类型：`simple`(精简)、`full`(完整)、`brief`(3-5句概括)，Docker环境推荐设为 `full` | 可选 |
-| `REPORT_LANGUAGE` | 报告与 Agent Chat 的默认输出语言：`zh`(默认中文) / `en`(英文) / `ko`(韩文)；会同步影响 Prompt、模板、通知 fallback、Web 报告页固定文案，以及未显式传入 `context.report_language` 的问股回复。`ko` 复用英文结构骨架并通过输出语言指令约束模型用韩文输出，通知按报告语言渲染本地化标签。仓库自带 `00-daily-analysis.yml` 已显式映射该变量，直接在 Actions Secrets/Variables 中配置即可生效 | 可选 |
+| `REPORT_LANGUAGE` | 报告与 Agent Chat 的默认输出语言：`zh`(默认中文) / `en`(英文) / `ko`(韩文) / `ja`(日文) / `zh-TW`(繁体中文)；会同步影响 Prompt、模板、通知 fallback、Web 报告页固定文案，以及未显式传入 `context.report_language` 的问股回复。`ko` 复用英文结构骨架并通过输出语言指令约束模型用韩文输出，通知按报告语言渲染本地化标签。仓库自带 `00-daily-analysis.yml` 已显式映射该变量，直接在 Actions Secrets/Variables 中配置即可生效 | 可选 |
 | `REPORT_SUMMARY_ONLY` | 仅分析结果摘要：设为 `true` 时只推送汇总，不含个股详情；多股时适合快速浏览（默认 false，Issue #262） | 可选 |
 | `REPORT_SHOW_LLM_MODEL` | 通知报告底部是否显示本次分析使用的 LLM 模型名称，默认 `true`；设为 `false` 可隐藏运行时模型信息。该变量仅调整展示，不影响 provider/model/Base URL、LiteLLM 路由或运行时模型保存/迁移/清理语义。 | 可选 |
 | `REPORT_TEMPLATES_DIR` | Jinja2 模板目录（相对项目根，默认 `templates`） | 可选 |
@@ -1575,7 +1575,7 @@ FastAPI 提供 RESTful API 服务，支持配置管理和触发分析。
 - 📝 **配置管理** - 查看/修改自选股列表
 - 🗂️ **首页三视图** - 首页提供「历史 / 自选 / 今日」工作区，默认进入历史视图；移动端抽屉内三个列表均由各自的内层视口承接纵向触摸滚动，外层卡片不会截断手势，桌面端仍保留卡片边界裁剪；自选股行可用鼠标或键盘打开已确认的最新分析详情，提示始终跟随当前的查找中、查找失败或确认无详情状态；任何 stock-bar 请求及完成任务后的数据刷新都会在开始时进入待确认状态，重新确认或状态未知期间不会开放旧 stock-bar 或 fallback 报告；自选页刷新会同时重试列表和详情状态，逐股票详情补查使用固定并发上限，并在刷新或页面状态切换时取消已失效批次；支持批量提交全部或仅提交“今日未分析”股票
 - 📌 **任务面板折叠** - 首页任务面板可折叠/展开，折叠后保留 pending/processing 摘要并把更多侧栏空间让给自选股列表；折叠状态在当前页面会话内保持
-- 🧭 **界面语言切换** - 登录态与退出态均支持界面语言快速切换（`zh` / `en`），独立于 `REPORT_LANGUAGE`，用于静态 UI 文案与导航骨架
+- 🧭 **界面语言切换** - 登录态与退出态均支持界面语言快速切换（`en` / `zh` / `zh-TW` / `ja` / `ko`），独立于 `REPORT_LANGUAGE`，用于静态 UI 文案与导航骨架
 - 🚀 **快速分析** - 通过 API 接口触发个股分析；首页也提供“大盘复盘”按钮和单次市场选择器，可在 Docker/server 模式下按服务器默认或临时选择的单个/多个市场后台触发复盘
 - 🎯 **策略选择** - 首页支持显式选择分析策略 skill；不传 `skills` 时按系统默认策略运行，便于保持与历史行为兼容
 - 🧪 **今日状态/任务刷新防抖** - 首页「今日」与「自选」通过带有时区感知的历史区间判断并发起分页历史查询；任务完成后由最新一次 stock bar 刷新成功才清除失败态，避免旧请求乱序覆盖新状态导致重复提交
@@ -1595,8 +1595,9 @@ FastAPI 提供 RESTful API 服务，支持配置管理和触发分析。
 ### 与本变更相关的产品行为
 
 - Web 语言状态采用两层机制：`dsa.uiLanguage`（浏览器持久化）与 `REPORT_LANGUAGE`（报告及问股默认输出）解耦。
-  - `dsa.uiLanguage` 只决定 WebUI 文案与导航语言（`zh` / `en`），取值优先级为本地持久化值 -> 浏览器语言 -> 默认 `zh`。
-  - `REPORT_LANGUAGE` 控制报告文本、股票简称本地化、报告页固定文案，以及未提供 `context.report_language` 的 Agent Chat 回复（`zh` / `en` / `ko`）。
+  - `dsa.uiLanguage` 只决定 WebUI 文案与导航语言（`en` / `zh` / `zh-TW` / `ja` / `ko`），取值优先级为有效的本地持久化值 -> 默认 `en`（不按浏览器语言切换）。
+  - `REPORT_LANGUAGE` 控制报告文本、股票简称本地化、报告页固定文案，以及未提供 `context.report_language` 的 Agent Chat 回复（`zh` / `en` / `ko` / `ja` / `zh-TW`）。
+- 英文、繁体中文、日文和韩文投研助理请求会显式传递所选输出语言。详见 [五种语言支持](ui-languages.md)。
 - 页面语言切换为用户体验增强，不属于回归验证证据记录范围；截图与命令请按 PR 流程在 PR 描述中单独维护。
 - 本改动仅新增请求级报告语言覆盖参数，不改变 `provider`/`model`/`base_url` 的配置迁移与清理逻辑。
 
@@ -1642,10 +1643,10 @@ FastAPI 提供 RESTful API 服务，支持配置管理和触发分析。
 > 说明：`POST /api/v1/analysis/analyze` 在 `async_mode=false` 时仅支持单只股票；批量 `stock_codes` 需使用 `async_mode=true`。异步 `202` 响应对单股返回 `task_id`，对批量返回 `accepted` / `duplicates` 汇总结构。
 > 说明：`POST /api/v1/analysis/analyze` 支持使用 `skills` 传入策略 skill ID 列表；若未传则按服务端默认策略执行。为兼容历史调用，`strategies` 字段仍作为兼容别名保留。
 > 说明：`POST /api/v1/analysis/analyze` 支持 `analysis_phase=auto|premarket|intraday|postmarket`，默认 `auto`。非 `auto` 只覆盖本次分析阶段与派生阶段标记，不改写真实交易日历时间；accepted response、内存 task status、任务列表和 SSE 会回显请求阶段，最终报告阶段以 `report.meta.market_phase_summary.phase` 为准。
-> 说明：`POST /api/v1/analysis/analyze` 支持 `report_language=zh|en|ko`，并兼容 `reportLanguage` 作为别名；未传时回退到全局 `REPORT_LANGUAGE`（或环境中的 `Config.report_language`）。该字段仅影响本次分析的报告文本、`report.meta.report_language` 与持久化展示，不会持久化为运行时配置。
+> 说明：`POST /api/v1/analysis/analyze` 支持 `report_language=zh|en|ko|ja|zh-TW`，并兼容 `reportLanguage` 作为别名；未传时回退到全局 `REPORT_LANGUAGE`（或环境中的 `Config.report_language`）。该字段仅影响本次分析的报告文本、`report.meta.report_language` 与持久化展示，不会持久化为运行时配置。
 > 说明：Web 侧首页策略下拉为显式可选策略入口。用户未手动选择时不会携带 `skills`，与历史客户端行为一致；选择策略后将透传到该接口并在任务状态与历史快照中保留。
 > 说明：`POST /api/v1/analysis/market-review` 采用后端与 CLI/Bot 共用的配置路径（`GeminiAnalyzer(config=...)` 与同样的搜索/提示词构造入口）。Provider 兼容路由会优先识别并使用 `litellm_model`、`llm_model_list`，若未配置则回退 legacy `GEMINI_*`、`OPENAI_*`、`ANTHROPIC_*`、`DEEPSEEK_*` 键；不会新增/调整 provider、Base URL 或 LiteLLM 路由语义。
-> 说明：`POST /api/v1/analysis/market-review` 额外支持 `report_language=zh|en|ko`（支持别名 `reportLanguage`）。未传时同样回退到全局 `REPORT_LANGUAGE`。该参数仅影响本次复盘报告文本与结构化返回字段中的语言相关内容；Bot、schedule、CLI 或按钮触发的 `main.py --market-review` 仍沿用全局配置，未新增请求级覆盖能力。
+> 说明：`POST /api/v1/analysis/market-review` 额外支持 `report_language=zh|en|ko|ja|zh-TW`（支持别名 `reportLanguage`）。未传时同样回退到全局 `REPORT_LANGUAGE`。该参数仅影响本次复盘报告文本与结构化返回字段中的语言相关内容；Bot、schedule、CLI 或按钮触发的 `main.py --market-review` 仍沿用全局配置，未新增请求级覆盖能力。
 > 说明：`POST /api/v1/analysis/market-review` 可选传入长度为 1–64 的字符串字段 `region`，支持 `cn`、`hk`、`us`、`jp`、`kr`、`both` 或逗号分隔的合法非空子集（如 `cn,us`）。请求层会规范大小写、空格、重复项和市场顺序；空字符串、空 token、未知 token、`both` 与其他市场混用会整体返回 4xx，不会部分执行或回退。省略字段时继续读取全局 `MARKET_REVIEW_REGION`。
 > 说明：首页市场选择器只覆盖本次 Web 触发，不调用配置读取/保存接口，也不写入 LocalStorage；选择“服务器默认”时请求会省略 `region`，UI 不会用 Web Settings 的 saved/display 值猜测运行时实际市场。后端会在任务提交边界解析唯一的 canonical 实际执行值；accepted 响应、pending/processing/completed 状态、任务列表、`task_created`/`task_started`/`task_progress`/`task_completed` SSE、完成态结构化 payload，以及 History 列表项的 `region` 与 `context_snapshot.market_review_region` 都复用该值。长期 `MARKET_REVIEW_REGION` 配置仍保留历史宽松过滤/回退语义，CLI、Bot、schedule 与默认 `cn` 语义不变。
 > 说明：`POST /api/v1/analysis/market-review` 是 Web / 桌面端的人工触发入口，点击后会直接提交大盘复盘任务，不会因 `TRADING_DAY_CHECK_ENABLED=true` 或当日相关市场休市而短路跳过；定时任务、GitHub Actions 手动运行和 CLI 默认入口仍遵循交易日检查，可用 `--force-run` 或 workflow `force_run` 覆盖。

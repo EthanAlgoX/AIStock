@@ -22,6 +22,7 @@ describe('AlertRuleForm', () => {
     onSubmit.mockResolvedValue(undefined);
     getAccounts.mockReset();
     window.localStorage.clear();
+  window.localStorage.setItem('dsa.uiLanguage', 'zh');
     getAccounts.mockResolvedValue({ accounts: [{ id: 9, name: 'Main', market: 'us', baseCurrency: 'USD', isActive: true }] });
   });
 

@@ -496,6 +496,9 @@ RUNTIME_CHAT_SYSTEM_PROMPT = """你是一位{market_role}投资分析 Agent。�
 def _build_language_section(report_language: str, *, chat_mode: bool = False) -> str:
     """Build output-language guidance for the agent prompt."""
     normalized = normalize_report_language(report_language)
+    if normalized in ("ja", "zh-TW"):
+        language = {"ja": "日本語", "zh-TW": "繁體中文"}[normalized]
+        return f"\n## Output language\nWrite all human-readable explanations in {language}. Preserve JSON keys, stock codes, tool names and enum values such as buy|hold|sell.\n"
     if normalized == "ko":
         return "\n## 출력 언어\n한국어로 답변하세요. JSON 키, 주식 코드, 도구 이름과 buy|hold|sell 등의 열거형 값은 변경하지 마세요. 사람이 읽는 설명은 한국어로 작성하세요.\n"
     if chat_mode:
@@ -920,6 +923,9 @@ class AgentExecutor:
                 parts.append(f"报告类型: {context['report_type']}")
             if report_language == "en":
                 parts.append("输出语言: English（所有 JSON 键名保持不变，所有面向用户的文本值使用英文）")
+            elif report_language in ("ja", "zh-TW"):
+                from src.report_language import get_output_language_directive
+                parts.append(get_output_language_directive(report_language))
             elif report_language == "ko":
                 parts.append("출력 언어: 한국어（모든 JSON 키는 그대로 유지하고, 사용자 노출 텍스트 값은 한국어로 작성）")
             else:

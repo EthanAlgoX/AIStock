@@ -43,7 +43,7 @@ export interface MarketReviewAccepted {
 
 // ============ Report Types ============
 
-export type ReportLanguage = 'zh' | 'en' | 'ko';
+export type ReportLanguage = 'zh' | 'en' | 'ko' | 'ja' | 'zh-TW';
 
 export type MarketPhaseValue =
   | 'premarket'
@@ -101,7 +101,16 @@ export type SentimentLabel =
   | '비관'
   | '중립'
   | '낙관'
-  | '매우 낙관';
+  | '매우 낙관'
+  | '非常に弱気'
+  | '弱気'
+  | '中立'
+  | '強気'
+  | '非常に強気'
+  | '極度悲觀'
+  | '悲觀'
+  | '樂觀'
+  | '極度樂觀';
 
 export type DecisionAction = 'buy' | 'add' | 'hold' | 'reduce' | 'sell' | 'watch' | 'avoid' | 'alert';
 
@@ -656,6 +665,10 @@ export const getSentimentLabel = (score: number, language: ReportLanguage = 'zh'
     if (score <= 60) return '중립';
     if (score <= 80) return '낙관';
     return '매우 낙관';
+  }
+  if (language === 'ja' || language === 'zh-TW') {
+    const labels: readonly SentimentLabel[] = language === 'ja' ? ['非常に弱気', '弱気', '中立', '強気', '非常に強気'] : ['極度悲觀', '悲觀', '中性', '樂觀', '極度樂觀'];
+    return labels[score <= 20 ? 0 : score <= 40 ? 1 : score <= 60 ? 2 : score <= 80 ? 3 : 4];
   }
   if (score <= 20) return '极度悲观';
   if (score <= 40) return '悲观';

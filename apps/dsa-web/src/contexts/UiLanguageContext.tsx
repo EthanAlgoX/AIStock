@@ -1,8 +1,8 @@
-import { translateKorean } from '../i18n/korean';
+import { translateSource } from '../i18n/localize';
 import type React from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { formatUiText, UI_TEXT, type UiLanguage, type UiTextKey, type UiTextParams } from '../i18n/uiText';
-import { getRuntimeInitialLanguage, getUiLanguageStorage, persistUiLanguage } from '../utils/uiLanguage';
+import { getRuntimeInitialLanguage, getUiLanguageStorage, persistUiLanguage, uiLocale } from '../utils/uiLanguage';
 import { translateWorkspaceText } from '../i18n/translateWorkspaceText';
 
 type UiLanguageContextValue = {
@@ -19,11 +19,11 @@ type UiLanguageContextValue = {
 };
 
 const fallbackContext: UiLanguageContextValue = {
-  language: 'zh',
+  language: 'en',
   setLanguage: () => undefined,
-  t: (key, params) => formatUiText(UI_TEXT.zh[key], params),
-  localize: (zh) => zh,
-  translate: (text, ...values) => translateWorkspaceText(text, 'zh', ...values),
+  t: (key, params) => formatUiText(UI_TEXT.en[key], params),
+  localize: (_zh, en) => en,
+  translate: (text, ...values) => translateWorkspaceText(text, 'en', ...values),
 };
 
 const UiLanguageContext = createContext<UiLanguageContextValue | null>(null);
@@ -42,7 +42,7 @@ export const UiLanguageProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
-      document.documentElement.lang = language === 'ko' ? 'ko' : language === 'en' ? 'en' : 'zh-CN';
+      document.documentElement.lang = uiLocale(language);
     }
   }, [language]);
 
@@ -50,7 +50,7 @@ export const UiLanguageProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     language,
     setLanguage,
     t: (key, params) => formatUiText(UI_TEXT[language][key], params),
-    localize: (zh, en) => (language === 'ko' ? translateKorean(zh) : language === 'en' ? en : zh),
+    localize: (zh, en) => (language === 'en' ? en : translateSource(zh, language)),
     translate,
   }), [language, setLanguage, translate]);
 
@@ -63,5 +63,12 @@ export const UiLanguageProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
 // eslint-disable-next-line react-refresh/only-export-components -- useUiLanguage is a hook, co-located for context access
 export function useUiLanguage(): UiLanguageContextValue {
-  return useContext(UiLanguageContext) ?? fallbackContext;
+  const context = useContext(UiLanguageContext);
+  const language = getRuntimeInitialLanguage();
+  const fallback = useMemo<UiLanguageContextValue>(() => ({ ...fallbackContext, language,
+    t: (key, params) => formatUiText(UI_TEXT[language][key], params),
+    localize: (zh, en) => language === 'en' ? en : translateSource(zh, language),
+    translate: (text, ...values) => translateWorkspaceText(text, language, ...values),
+  }), [language]);
+  return context ?? fallback;
 }

@@ -16,7 +16,7 @@ from typing import List, Optional
 
 from src.agent.agents.base_agent import BaseAgent
 from src.agent.protocols import AgentContext, AgentOpinion, normalize_decision_signal
-from src.report_language import normalize_report_language
+from src.report_language import normalize_report_language, get_output_language_directive
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,8 @@ Requirements:
 """
             if report_language == "en":
                 return prompt + "\nAlways answer in English.\n"
+            if report_language in ("ja", "zh-TW"):
+                return prompt + get_output_language_directive(report_language)
             if report_language == "ko":
                 return prompt + "\n항상 한국어로 답변하세요.\n"
             return prompt + "\n默认使用中文回答。\n"
@@ -140,6 +142,8 @@ should sum to 100; all-zero means no effective signal and must not be faked.
 - `decision_type` must remain `buy|hold|sell`.
 - Write all human-readable JSON values in English.
 """
+        if report_language in ("ja", "zh-TW"):
+            return prompt + get_output_language_directive(report_language)
         if report_language == "ko":
             return prompt + """
 
