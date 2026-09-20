@@ -36,10 +36,13 @@ describe('HoldingPlanEditor', () => {
     const onSaved = vi.fn();
     render(<UiLanguageProvider><HoldingPlanEditor item={{ accountId: 7, position: { symbol: '600519', market: 'CN' } } as never} onSaved={onSaved} /></UiLanguageProvider>);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Save & enable tracking' }));
+    await screen.findByRole('button', { name: 'Save & enable tracking' });
+    fireEvent.change(screen.getByLabelText('Run every (days)'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('Run time (market local time)'), { target: { value: '17:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save & enable tracking' }));
 
     await waitFor(() => expect(api.configure).toHaveBeenCalledWith(7, '600519', expect.objectContaining({
-      dailyEnabled: true, intervalDays: 2, runAt: '16:30',
+      dailyEnabled: true, intervalDays: 3, runAt: '17:00',
     })));
     expect(onSaved).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: 'Pause tracking' }));

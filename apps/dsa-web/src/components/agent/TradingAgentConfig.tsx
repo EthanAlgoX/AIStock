@@ -68,6 +68,7 @@ export function TradingAgentConfig({
     generation.current++;
     setPreview(null);
     onPreview(null);
+    return () => { generation.current++; };
   }, [scope, inputText, config.market, onPreview]);
   const input =
     "mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
@@ -254,6 +255,8 @@ export function TradingAgentConfig({
           disabled={busy}
           onClick={async () => {
             setError("");
+            setPreview(null);
+            onPreview(null);
             if (inputText.trim() && !codes) {
               setError("请先确认上方股票识别结果。");
               return;

@@ -98,6 +98,7 @@ export default function TradingWorkspacePage() {
   );
   const [sourceQuery, setSourceQuery] = useState("");
   const [creating, setCreating] = useState(false);
+  const [formRevision, setFormRevision] = useState(0);
   const [draft, setDraft] = useState<RuleConfig>(seed);
   const [symbols, setSymbols] = useState("");
   const [error, setError] = useState("");
@@ -168,6 +169,7 @@ export default function TradingWorkspacePage() {
         return;
       }
       setDraft({ ...seed, name: source.draft.name || '', skillId: source.skillId });
+      setSymbols('');
       setSourceQuery(source.draft.scope || '');
       setUniversePreview(null);
       setCreating(true);
@@ -267,6 +269,12 @@ export default function TradingWorkspacePage() {
           <button
             className="btn-primary"
             onClick={() => {
+              setParams({});
+              setFormRevision((value) => value + 1);
+              setUniversePreview(null);
+              setSourceQuery('');
+              setError('');
+              setLaunch(null);
               setCreating(true);
               setDraft({ ...seed, engine: "agent" });
               setSymbols("");
@@ -385,7 +393,7 @@ export default function TradingWorkspacePage() {
                   ))}
                 </div>
               </div>
-              <div className="sm:col-span-2"><TradingAgentConfig key={sourceSession || "manual"} initialQuery={sourceQuery}
+              <div className="sm:col-span-2"><TradingAgentConfig key={`${sourceSession || "manual"}:${formRevision}`} initialQuery={sourceQuery}
                 config={draft}
                 inputText={symbols}
                 codes={

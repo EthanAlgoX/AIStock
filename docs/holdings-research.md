@@ -1,5 +1,9 @@
 # 持仓管理 / Portfolio research
 
+持仓与关注股共用一组周期和市场当地运行时间控件；通知开关独立保留。点击“保存并开启自动跟踪”提交当前周期、时间及通知偏好，不会立即执行研究。
+
+Holdings and watch entries share one set of cadence and market-local time controls, with a separate notification toggle. “Save & enable tracking” saves the current cadence, time and notification preference; it does not run research immediately.
+
 ## 跟踪周期 / Tracking cadence
 
 “跟踪周期与策略”支持填写 `intervalDays`（1–365 的整数，默认 1）：1 为每天，2 为每两天，3 为每三天，按自然日而非交易日计算。开启定时自动研究并保存后，在任务与运行的定时计划中可查看同一任务，不另建副本。首次启用或修改周期/时间后，在下一个市场当地 HH:MM 首次运行，随后每 N 天运行。未修改调度的保存保留下次执行时间。服务停机错过的周期仅触发一次，跳到原周期中下一个未来时间，不批量补跑。休市复用规则不变；服务必须保持运行。

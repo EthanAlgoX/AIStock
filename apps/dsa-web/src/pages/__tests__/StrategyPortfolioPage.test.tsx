@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -288,4 +289,63 @@ it("renders JEV categories and probabilities without a fabricated explanation", 
   expect(await screen.findByText(/85.0%/)).toBeVisible();
   expect(screen.getByText(/仅决策结果，无模型解释/)).toBeVisible();
   expect(screen.queryByText("not a model explanation")).not.toBeInTheDocument();
+});
+
+it('resets the confirmed universe when starting another strategy from an open form', async () => {
+  api.previewUniverse.mockResolvedValue({id:10,market:'CN',candidates:[{code:'688981',reason:'半导体行业'}],scope:{mode:'custom',symbols:[],query:''},source:'fixture',observedAt:'2026-09-11'});
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', {name:'配置策略'}));
+  await screen.findByRole('option', {name:'价格策略'});
+  fireEvent.change(screen.getByLabelText('范围来源'), {target:{value:'custom'}});
+  fireEvent.click(screen.getByRole('button', {name:'预览股票范围'}));
+  await screen.findByLabelText('范围预览');
+  fireEvent.click(screen.getByRole('button', {name:'配置策略'}));
+  expect(screen.getByLabelText('范围来源')).toHaveValue('fixed');
+  expect(screen.queryByLabelText('范围预览')).not.toBeInTheDocument();
+  await screen.findByRole('option', {name:'价格策略'});
+  fireEvent.change(screen.getByLabelText('策略名称'), {target:{value:'新策略'}});
+  fireEvent.change(screen.getByLabelText('策略 Skill'), {target:{value:'price'}});
+  fireEvent.click(screen.getByRole('button', {name:'保存策略'}));
+  expect(await screen.findByText('请先预览并确认股票范围。')).toBeVisible();
+  expect(api.saveDefinition).not.toHaveBeenCalled();
+});
+
+it('ignores a preview response from a discarded strategy form', async () => {
+  let resolve!: (value: unknown) => void;
+  api.previewUniverse.mockReturnValue(new Promise((done) => { resolve = done; }));
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', {name:'配置策略'}));
+  await screen.findByRole('option', {name:'价格策略'});
+  fireEvent.change(screen.getByLabelText('范围来源'), {target:{value:'custom'}});
+  fireEvent.click(screen.getByRole('button', {name:'预览股票范围'}));
+  fireEvent.click(screen.getByRole('button', {name:'取消'}));
+  fireEvent.click(screen.getByRole('button', {name:'配置策略'}));
+  await act(async () => resolve({id:10,market:'CN',candidates:[{code:'688981'}],scope:{mode:'custom'},source:'fixture'}));
+  expect(screen.queryByLabelText('范围预览')).not.toBeInTheDocument();
+  await screen.findByRole('option', {name:'价格策略'});
+  fireEvent.change(screen.getByLabelText('策略名称'), {target:{value:'新策略'}});
+  fireEvent.change(screen.getByLabelText('策略 Skill'), {target:{value:'price'}});
+  fireEvent.click(screen.getByRole('button', {name:'保存策略'}));
+  expect(await screen.findByText('请先预览并确认股票范围。')).toBeVisible();
+  expect(api.saveDefinition).not.toHaveBeenCalled();
+});
+
+it('invalidates the previous approval when previewing again fails', async () => {
+  api.previewUniverse.mockResolvedValueOnce({id:10,market:'CN',candidates:[{code:'688981',reason:'半导体行业'}],scope:{mode:'custom'},source:'fixture'});
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', {name:'配置策略'}));
+  await screen.findByRole('option', {name:'价格策略'});
+  fireEvent.change(screen.getByLabelText('范围来源'), {target:{value:'custom'}});
+  fireEvent.click(screen.getByRole('button', {name:'预览股票范围'}));
+  await screen.findByLabelText('范围预览');
+  api.previewUniverse.mockRejectedValueOnce(new Error('offline'));
+  fireEvent.click(screen.getByRole('button', {name:'预览股票范围'}));
+  await waitFor(() => expect(screen.getByRole('button', {name:'预览股票范围'})).toBeEnabled());
+  expect(screen.queryByLabelText('范围预览')).not.toBeInTheDocument();
+  await screen.findByRole('option', {name:'价格策略'});
+  fireEvent.change(screen.getByLabelText('策略名称'), {target:{value:'新策略'}});
+  fireEvent.change(screen.getByLabelText('策略 Skill'), {target:{value:'price'}});
+  fireEvent.click(screen.getByRole('button', {name:'保存策略'}));
+  expect(await screen.findByText('请先预览并确认股票范围。')).toBeVisible();
+  expect(api.saveDefinition).not.toHaveBeenCalled();
 });
