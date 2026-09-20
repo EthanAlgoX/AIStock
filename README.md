@@ -4,7 +4,9 @@
 
 # AI Stock
 
-**Your AI workspace for researching stocks, comparing ideas, and testing strategies with simulated money.**
+**Empower every stock researcher with AI—so one person can research with the capabilities of a team.**
+
+Your AI workspace for researching stocks, comparing ideas, and testing strategies with simulated money.
 
 Research assistant · Expert roundtable · Stock research · Strategy screening · Trade simulation
 
@@ -49,7 +51,7 @@ Built-in full-market screening rules mainly target A-shares. The “experts” a
 
 ## How it works
 
-![From a stock question to data, AI research, and saved results](docs/assets/readme/how-it-works-en.svg)
+<a href="docs/assets/readme/how-it-works-en.svg"><img src="docs/assets/readme/how-it-works-en.svg" alt="From a stock question to data, AI research, and saved results" width="560"></a>
 
 1. **You set the question or stock scope.** Start with a chat, a stock code, or screening conditions.
 2. **The system gathers available evidence.** Data sources supply prices, fundamentals, and news as supported; tools query data and calculate indicators.
@@ -105,7 +107,7 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Keep this terminal running 
 
 Using the hosted website? After registration and login, go straight to **Stock research** or **Research assistant**; steps 3–4 below explain how to start and read a report. Steps 1–2 cover model and data setup for your own instance.
 
-![First-run checklist: connect a model, check capabilities, submit a stock, read the report](docs/assets/readme/first-report-en.svg)
+<a href="docs/assets/readme/first-report-en.svg"><img src="docs/assets/readme/first-report-en.svg" alt="First-run checklist: connect a model, check capabilities, submit a stock, read the report" width="560"></a>
 
 1. **Connect AI.** In **Settings → Models & runtime**, choose your provider, enter its API key and model details, save, and test the connection. You can also configure the provider in `.env`; see the [model guide](docs/LLM_CONFIG_GUIDE_EN.md).
 2. **Check available capabilities.** In the **Capability Center**, check enabled Skills, tools, and data sources. Configure a news source if your question needs recent news. A configured source is not necessarily reachable: use its availability check.
