@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import HoldingsPage from '../HoldingsPage';
@@ -38,6 +38,56 @@ describe('holdings research desk', () => {
     expect(await screen.findByRole('button', { name: 'Researching' })).toBeDisabled();
     expect(screen.getByText(/Fetching evidence and researching in the background/)).toBeVisible();
     expect(api.run).not.toHaveBeenCalled();
+  });
+  it('offers filter recovery rather than onboarding when holdings already exist', async () => {
+    mount(); await screen.findByText('Apple Inc.');
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search holdings' }), {target: {value: 'missing-stock'}});
+    expect(screen.getByText('No matching holdings')).toBeVisible();
+    expect(screen.queryByText('Start with what you own')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'Clear filters'}));
+    expect(screen.getByText('Apple Inc.')).toBeVisible();
+    expect(api.run).not.toHaveBeenCalled();
+  });
+  it('filters holdings by the displayed name as well as report name', async () => {
+    mount(); await screen.findByText('Apple Inc.');
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search holdings' }), { target: { value: '  Apple Inc.  ' } });
+    expect(screen.getByRole('heading', { name: 'Apple Inc.' })).toBeVisible();
+  });
+  it('separates watch filters from holding filters and restores each selection', async () => {
+    api.dashboard.mockResolvedValue({ ...data, watches: [{ symbol: '600000', market: 'cn', stockName: 'Example bank', taskId: 'watch', supported: true, schedule: null, run: null, brief: null }] });
+    mount(); await screen.findByText('Apple Inc.');
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search holdings' }), { target: { value: 'Apple' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter holdings' }), { target: { value: 'us' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Watch stock briefs 1' }));
+    expect(screen.getByRole('heading', { name: 'Example bank' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Apple Inc.' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter watch stocks' }), { target: { value: 'us' } });
+    expect(screen.getByText('No matching watch stocks')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getByRole('heading', { name: 'Example bank' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Holding briefs 1' }));
+    expect(screen.getByRole('searchbox', { name: 'Search holdings' })).toHaveValue('Apple');
+    expect(screen.getByRole('combobox', { name: 'Filter holdings' })).toHaveValue('us');
+    expect(screen.getByRole('heading', { name: 'Apple Inc.' })).toBeVisible();
+    expect(api.run).not.toHaveBeenCalled();
+  });
+  it('polls promptly while only a watch stock is running', async () => {
+    vi.useFakeTimers();
+    try {
+      api.dashboard.mockResolvedValue({ ...data, items: [], watches: [{ symbol: 'AAPL', market: 'us', stockName: 'Apple', taskId: 'watch', supported: true, schedule: null, run: { ...data.items[0].run!, status: 'running' }, brief: null }] });
+      mount();
+      await act(async () => { await Promise.resolve(); });
+      expect(api.dashboard).toHaveBeenCalledTimes(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+      expect(api.dashboard).toHaveBeenCalledTimes(2);
+    } finally { vi.useRealTimers(); }
+  });
+  it('offers watch onboarding without asking for holding cost', async () => {
+    mount(); await screen.findByText('Apple Inc.');
+    fireEvent.click(screen.getByRole('button', { name: 'Watch stock briefs 0' }));
+    expect(screen.getByText('Start with a stock you follow')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Add your first watch stock' })).toBeVisible();
+    expect(screen.queryByText('Start with what you own')).not.toBeInTheDocument();
   });
   it('refreshes quotes explicitly and does not immediately overwrite them with a cached read', async () => {
     mount(); await screen.findByText('Apple Inc.');

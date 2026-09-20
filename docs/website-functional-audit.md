@@ -27,7 +27,13 @@
 
 已确认采用先按市场/行业取得真实候选，再由 LLM 按自然语言筛选。具体数据源、分层取样和冻结名单边界见 `simulation-trading.md`。
 
-## 验证边界
+## UI 设计逻辑后续方向
+
+采用 impeccable 对持仓、范围配置、导航与报告操作进行独立源码审查和静态扫描。先修复范围旧文案、预览/确认语义和持仓筛选空结果操作；保持现有主题。持仓与关注已改为独立简报分区，分别保留搜索和市场筛选；持仓搜索包含展示名称。新增研究运行状态、历史结果说明和关注空状态，关注研究运行中每 5 秒刷新。定时跟踪总数包含持仓与关注。下一阶段再统一结果页追问与讨论入口及导航权重。静态检测无发现不代表完整可用性验收。此轮 19 项相关测试、lint 和构建通过；使用只读模拟数据检查桌面与 390px 手机宽度的持仓空结果页面，并验证清除筛选可恢复股票显示。未完成真实数据全流程或读屏验收。
+
+UI refinement preserves the existing visual system while clarifying scope preview versus save, natural-language criteria and recovery from empty holding filters. Holdings and watch briefs now have separate views and filters, explicit research states, and watch-only empty states. Active watch research also triggers prompt polling. Navigation changes remain a separate step.
+
+## 验证范围
 
 检查覆盖后端研究、选股、交易、调度、通知诊断与 API 回归，以及前端全量测试、lint 和构建。浏览器视觉检查使用模拟只读接口，仅验证页面渲染，不作为真实模型、登录或通知投递验证。线上只读检查确认调度存在最近执行时间及下一次计划；历史行情不完整导致的交易拒绝保留。
 

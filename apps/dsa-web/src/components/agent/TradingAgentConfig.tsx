@@ -86,7 +86,7 @@ export function TradingAgentConfig({
             >
               <option value="fixed">指定股票</option>
               <option value="holdings">我的持仓</option>
-              <option value="custom">自定义行业或弹性条件</option>
+              <option value="custom">按行业与条件筛选</option>
             </select>
           </label>
           <label>
@@ -215,11 +215,11 @@ export function TradingAgentConfig({
                 maxLength={500}
                 value={scope.query}
                 onChange={(e) => setScope({ ...scope, query: e.target.value })}
-                placeholder="例如 20日波动较大的股票"
+                placeholder="例如：中市值以上，成交活跃，近一个月价格波动较大"
               />
             </label>
             <p className="text-sm text-secondary-text">
-              行业可直接预览；补充描述可增加行业/概念或20日年化波动率条件。上方股票可不填；填写则进一步限制在这些股票中。候选来自现有数据源，不保证覆盖全市场；港股需先指定股票。
+              先按市场和行业取得候选，再由模型判断你描述的市值、波动、流动性等条件。上方股票可不填；填写则只在这些股票中筛选。预览会显示数据覆盖范围；港股需先指定股票。
             </p>
           </>
         )}
@@ -295,11 +295,10 @@ export function TradingAgentConfig({
             }
           }}
         >
-          {busy ? "正在解析并查找候选…" : "预览并确认股票范围"}
+          {busy ? "正在获取候选并按条件筛选…" : "预览股票范围"}
         </button>
         <p className="text-xs text-secondary-text">
-          自定义范围解析会调用模型并记录 Token
-          消耗。保存策略即确认这套筛选条件。
+          修改市场、行业或条件后需重新预览。自定义范围会调用模型；核对下方名单后，保存策略即确认本次范围。
         </p>
       </fieldset>
       {error && (
@@ -309,6 +308,7 @@ export function TradingAgentConfig({
       )}
       {preview && (
         <div aria-label="范围预览" className="border-y border-border py-4">
+          <p role="status" className="mb-2 text-sm font-medium">已预览 · {preview.candidates.length} 只股票，保存策略后生效</p>
           <p className="text-sm">
             {preview.scope.rule?.description || "已找到符合范围的股票"}
           </p>
