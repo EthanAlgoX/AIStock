@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [修复] JEV 交易决策补充 Skill 目标仓位到买卖方向的解释及冻结窗口量价事实，避免将不输出报告误解为缺少决策证据。
 - [新功能] 交易推演可选择 JEV / TypeSafe 决策模型；AI 模型设置支持 API 配置，保存分类概率与用量，支持可配置调仓比例和次日成交方向约束。
 - [测试] 同步模型设置测试中的报告语言枚举，覆盖现有日文与繁体中文选项。
 

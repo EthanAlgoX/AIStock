@@ -24,6 +24,10 @@ These settings use the existing configuration persistence and runtime reload mec
 
 ## Decision and execution contract / 决策与执行
 
+The direction adapter explains how a Skill's desired `targetWeight` maps to buy/sell/hold relative to current allocation. A zero target means sell if held, otherwise hold. The request includes arithmetic evidence computed from the frozen inputs: current allocation and, when grid settings are present, the configured window's price range, range position and volume ratio. Insufficient history is marked explicitly; undefined ratios remain null. These facts do not select a trading direction; JEV still interprets the Skill and chooses the category.
+
+方向适配指令将 Skill 的目标仓位要求解释为相对当前仓位的买入、卖出或不动；目标为零时，有持仓应卖出，无持仓应不动。请求补充基于冻结输入计算的当前仓位，以及网格配置窗口内的价格区间、区间位置和量比。历史不足会明确标记，无法计算的比值保留为空。这些是计算事实，交易方向仍由 JEV 根据 Skill 判断，不增加固定价格信号规则。
+
 - `decisionBackend`: `llm` (default) or `jev` on the existing portfolio strategy API.
 - `jevWeightStep`: allocation change as a fraction of account equity, default `0.05` (5 percentage points), allowed `0.001–1`.
 - Buy increases the current allocation by one step, limited by the single-stock cap. Sell decreases it by one step, floored at zero. Hold preserves the number of shares at the next open.

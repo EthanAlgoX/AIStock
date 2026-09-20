@@ -11,6 +11,46 @@ from src.config import get_config
 from src.storage import SimulationTradingCallRecord, persist_llm_usage
 
 
+DIRECTION_INSTRUCTIONS = (
+    "Output adaptation: This is a direction classifier. The Skill may mention targetWeight or explanations; "
+    "do not generate either. Interpret targetWeight as desired allocation, compare it with "
+    "state.derivedFacts[stock].currentWeight: higher means buy, lower means sell, equal means hold. "
+    "A Skill requirement to set targetWeight to zero means sell when shares are held, hold when none "
+    "are held. Use state.derivedFacts for arithmetic facts. Lack of a narrative output is not lack of evidence."
+)
+
+
+def decision_state(payload):
+    """Compute arithmetic evidence, not trading signals, from the frozen input."""
+    equity = payload.get('equity')
+    if type(equity) not in {int, float} or not math.isfinite(equity) or equity <= 0:
+        raise ValueError("JEV requires positive account equity.")
+    facts = {}
+    for code, rows in payload['bars'].items():
+        if not rows:
+            raise ValueError("JEV requires dated market bars for each stock.")
+        quantity = payload.get('holdings', {}).get(code, {}).get('quantity', 0)
+        fact = {'currentWeight': quantity * rows[-1]['close'] / equity}
+        grid = payload.get('grid')
+        if grid:
+            count = grid['lookbackDays']
+            if len(rows) < count:
+                fact['gridEvidence'] = 'insufficient_history'
+            else:
+                recent = rows[-count:]
+                low = min(row['low'] for row in recent)
+                high = max(row['high'] for row in recent)
+                previous_volume = sum(row['volume'] for row in recent[:-1]) / (count - 1)
+                fact.update(
+                    rangeLow=low, rangeHigh=high,
+                    rangeRatio=(high - low) / low if low > 0 else None,
+                    volumeRatio=recent[-1]['volume'] / previous_volume if previous_volume > 0 else None,
+                    rangePosition=(recent[-1]['close'] - low) / (high - low) if high > low else None,
+                )
+        facts[code] = fact
+    return dict(payload, derivedFacts=facts)
+
+
 class JevDecisionService:
     def __init__(self, config=None):
         self.config = config or get_config()
@@ -27,6 +67,8 @@ class JevDecisionService:
 
     def evaluate(self, db, payload, instructions, model, budget, resource, portfolio_id):
         self.validate_settings()
+        payload = decision_state(payload)
+        instructions = instructions + '\n' + DIRECTION_INSTRUCTIONS
         questions = {
             f'stock_{index}': {
                 'type': 'choice',

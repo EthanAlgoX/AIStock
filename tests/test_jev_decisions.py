@@ -40,7 +40,7 @@ def http_result(body, status=200):
 
 
 def inputs():
-    return dict(date='2025-02-10', bars={'AAPL': history()}, holdings={}, allocationStep=0.05)
+    return dict(date='2025-02-10', bars={'AAPL': history()}, holdings={}, equity=100000, allocationStep=0.05)
 
 
 def test_official_request_preserves_probabilities_and_audits_usage(workspace, jev_config):
@@ -206,3 +206,42 @@ def test_saved_strategy_and_real_ledger_daily_run(workspace, jev_config):
     assert not result['days'][0]['trades']
     assert any(d['trades'] for d in result['days'][1:])
     assert result['days'][-1]['usage']['model'] == 'jev-test-version'
+
+
+def test_grid_evidence_uses_only_the_frozen_window_and_preserves_source():
+    from src.services.jev_decision_service import decision_state
+    payload = inputs()
+    payload['holdings'] = {'AAPL': {'quantity': 100}}
+    payload['grid'] = {'lookbackDays': 5}
+    for row in payload['bars']['AAPL']:
+        row.update(low=90, high=110, volume=100)
+    payload['bars']['AAPL'][-1].update(close=91, volume=300)
+    payload['bars']['AAPL'][0].update(high=1000, volume=1000000)
+    facts = decision_state(payload)['derivedFacts']['AAPL']
+    assert facts['currentWeight'] == pytest.approx(0.091)
+    assert facts['rangeLow'] == 90 and facts['rangeHigh'] == 110
+    assert facts['volumeRatio'] == 3
+    assert facts['rangeRatio'] == pytest.approx(20 / 90)
+    assert facts['rangePosition'] == 0.05
+    assert 'derivedFacts' not in payload
+
+
+def test_target_weight_skill_has_explicit_direction_adapter(workspace, jev_config):
+    with patch('requests.post', return_value=http_result(response())) as post:
+        JevDecisionService(jev_config).evaluate(workspace.db, inputs(), 'targetWeight must be zero',
+                                               'jev-latest', 100000, 'test', None)
+    instructions = post.call_args.kwargs['json']['questions']['stock_0']['instructions']['strategy']
+    assert 'sell when shares are held' in instructions
+    assert 'hold when none are held' in instructions
+    assert 'higher means buy, lower means sell' in instructions
+
+
+def test_grid_missing_history_and_zero_volume_are_not_invented():
+    from src.services.jev_decision_service import decision_state
+    payload = inputs()
+    payload['grid'] = {'lookbackDays': 5}
+    for row in payload['bars']['AAPL']:
+        row['volume'] = 0
+    assert decision_state(payload)['derivedFacts']['AAPL']['volumeRatio'] is None
+    payload['bars']['AAPL'] = payload['bars']['AAPL'][-2:]
+    assert decision_state(payload)['derivedFacts']['AAPL']['gridEvidence'] == 'insufficient_history'
