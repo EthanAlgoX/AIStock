@@ -24,6 +24,8 @@
 - **支援手動執行與每日自動決策。** 可以執行一次，也可以啟動持續模擬交易，由伺服器按交易日執行，本機電腦無需保持上線。
 - **從決策追蹤到模擬成交。** 查看每日決策和後續成交紀錄，沿用部位限制、手續費與次日開盤模擬成交機制。
 
+**申請 JEV API：** 先查看 [JEV 官方介紹與存取申請說明](https://typesafe.ai/blog/introducing-system-one-models-and-jev)，再進入 [TypeSafe 控制台](https://console.typesafe.ai/) 登入並取得 API Key；如需申請權限或加入候補名單，請依官方頁面指示操作。JEV 使用獨立的 TypeSafe 金鑰和 System One API，請填入網站專用的 JEV 設定。
+
 在 **設定 → 模型與執行環境** 設定 JEV API 金鑰，再於新增交易策略時選擇 JEV。選擇 Skill、預覽並確認股票範圍，儲存後啟動推演。個股研究、對話與股票範圍篩選仍使用已設定的 LLM。
 
 設定方法與執行說明見 [JEV 交易決策指南](jev-trading-decisions.md)（英文／簡體中文）。

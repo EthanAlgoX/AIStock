@@ -30,6 +30,8 @@ Previously named LLM TradeBot and InvestCrew. The product is now AI Stock; the G
 - **Run once or every trading day.** Run manually, or start continuous paper trading for server-side daily decisions. The server runs the tasks; your local computer does not need to stay online.
 - **Follow decisions through to simulated trades.** Review daily decisions and subsequent fills. Existing allocation limits, fees and next-open execution rules remain in effect.
 
+**Get a JEV API key:** Start with the [official JEV introduction and access information](https://typesafe.ai/blog/introducing-system-one-models-and-jev), then sign in to the [TypeSafe console](https://console.typesafe.ai/) to obtain your API key. Follow any access or waitlist instructions shown by TypeSafe. JEV uses its own TypeSafe credentials and System One API, so configure it in the website’s dedicated JEV settings.
+
 To try it, configure the JEV API key in **Settings → Models & runtime**, then select **JEV · Decisions only** when creating a trading strategy. Select a Skill, preview and confirm the stock universe, save, and start the simulation. Research, chat and universe screening continue to use your configured LLM.
 
 See the [JEV configuration and execution guide](docs/jev-trading-decisions.md) for setup and behavior.
