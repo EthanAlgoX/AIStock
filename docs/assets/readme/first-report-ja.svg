@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="660" viewBox="0 0 960 660" role="img" aria-labelledby="title desc" xml:lang="ja">
+<title id="title">4ステップで、最初のレポートへ</title>
+<desc id="desc">AIモデルを接続する: 設定 → モデルとランタイムで保存し、接続をテストします。 → 利用できる機能を確認する: ケイパビリティセンターでSkill、ツール、データを確認します。 → 個別株リサーチを実行する: 市場と銘柄コードを入力し、プランを確認して実行します。 → 保存されたレポートを読む: 根拠、データの日付、リスク、不足している情報を確認します。</desc>
+<rect width="960" height="660" rx="20" fill="#f8fafc" />
+<g font-family="-apple-system, BlinkMacSystemFont, Hiragino Kaku Gothic ProN, Yu Gothic, Meiryo, sans-serif">
+<text x="40" y="57" font-size="32" font-weight="700" fill="#172b42">4ステップで、最初のレポートへ</text>
+<text x="40" y="91" font-size="20" fill="#516174">Web画面を開いたら · まずは1銘柄から</text>
+<rect x="40" y="120" width="880" height="108" rx="12" fill="white" stroke="#dce3ec" />
+<rect x="56" y="144" width="60" height="60" rx="14" fill="#edf6f0" />
+<text x="86" y="184" text-anchor="middle" font-size="27" font-weight="700" fill="#17624e">01</text>
+<text x="140" y="161" font-size="26" font-weight="650" fill="#172b42">AIモデルを接続する</text>
+<text x="140" y="197" font-size="21" fill="#43566c">設定 → モデルとランタイムで保存し、接続をテストします。</text>
+<path d="M86 231v13m-5-5 5 5 5-5" fill="none" stroke="#17624e" stroke-width="2" />
+<rect x="40" y="248" width="880" height="108" rx="12" fill="white" stroke="#dce3ec" />
+<rect x="56" y="272" width="60" height="60" rx="14" fill="#edf6f0" />
+<text x="86" y="312" text-anchor="middle" font-size="27" font-weight="700" fill="#17624e">02</text>
+<text x="140" y="289" font-size="26" font-weight="650" fill="#172b42">利用できる機能を確認する</text>
+<text x="140" y="325" font-size="21" fill="#43566c">ケイパビリティセンターでSkill、ツール、データを確認します。</text>
+<path d="M86 359v13m-5-5 5 5 5-5" fill="none" stroke="#17624e" stroke-width="2" />
+<rect x="40" y="376" width="880" height="108" rx="12" fill="white" stroke="#dce3ec" />
+<rect x="56" y="400" width="60" height="60" rx="14" fill="#edf6f0" />
+<text x="86" y="440" text-anchor="middle" font-size="27" font-weight="700" fill="#17624e">03</text>
+<text x="140" y="417" font-size="26" font-weight="650" fill="#172b42">個別株リサーチを実行する</text>
+<text x="140" y="453" font-size="21" fill="#43566c">市場と銘柄コードを入力し、プランを確認して実行します。</text>
+<path d="M86 487v13m-5-5 5 5 5-5" fill="none" stroke="#17624e" stroke-width="2" />
+<rect x="40" y="504" width="880" height="108" rx="12" fill="white" stroke="#dce3ec" />
+<rect x="56" y="528" width="60" height="60" rx="14" fill="#edf6f0" />
+<text x="86" y="568" text-anchor="middle" font-size="27" font-weight="700" fill="#17624e">04</text>
+<text x="140" y="545" font-size="26" font-weight="650" fill="#172b42">保存されたレポートを読む</text>
+<text x="140" y="581" font-size="21" fill="#43566c">根拠、データの日付、リスク、不足している情報を確認します。</text>
+<text x="920" y="638" text-anchor="end" font-size="16" fill="#516174">AI STOCK · 手順のイメージ図（画面のスクリーンショットではありません）</text>
+</g></svg>

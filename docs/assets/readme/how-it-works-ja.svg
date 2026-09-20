@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="660" viewBox="0 0 960 660" role="img" aria-labelledby="title desc" xml:lang="ja">
+<title id="title">質問から、根拠のある調査へ</title>
+<desc id="desc">質問や対象を決める: 銘柄、調査目的、またはスクリーニング条件を指定します。 → 資料を集め、指標を計算する: 利用可能な株価、ニュース、企業情報を取得して計算します。 → AIが選んだ方法で分析する: Skillに沿って分析。必要に応じて複数のAI専門家も参加します。 → 結果を読み、調査を続ける: 保存された根拠とリスクを確認。模擬取引は別途開始できます。</desc>
+<rect width="960" height="660" rx="20" fill="#f8fafc" />
+<g font-family="-apple-system, BlinkMacSystemFont, Hiragino Kaku Gothic ProN, Yu Gothic, Meiryo, sans-serif">
+<text x="40" y="57" font-size="32" font-weight="700" fill="#172b42">質問から、根拠のある調査へ</text>
+<text x="40" y="91" font-size="20" fill="#516174">調査の流れ · 利用できる情報はデータソースによって異なります</text>
+<rect x="40" y="120" width="880" height="108" rx="12" fill="white" stroke="#dce3ec" />
+<rect x="56" y="144" width="60" height="60" rx="14" fill="#edf3fc" />
+<text x="86" y="184" text-anchor="middle" font-size="27" font-weight="700" fill="#2456a6">01</text>
+<text x="140" y="161" font-size="26" font-weight="650" fill="#172b42">質問や対象を決める</text>
+<text x="140" y="197" font-size="21" fill="#43566c">銘柄、調査目的、またはスクリーニング条件を指定します。</text>
+<path d="M86 231v13m-5-5 5 5 5-5" fill="none" stroke="#2456a6" stroke-width="2" />
+<rect x="40" y="248" width="880" height="108" rx="12" fill="white" stroke="#dce3ec" />
+<rect x="56" y="272" width="60" height="60" rx="14" fill="#edf3fc" />
+<text x="86" y="312" text-anchor="middle" font-size="27" font-weight="700" fill="#2456a6">02</text>
+<text x="140" y="289" font-size="26" font-weight="650" fill="#172b42">資料を集め、指標を計算する</text>
+<text x="140" y="325" font-size="21" fill="#43566c">利用可能な株価、ニュース、企業情報を取得して計算します。</text>
+<path d="M86 359v13m-5-5 5 5 5-5" fill="none" stroke="#2456a6" stroke-width="2" />
+<rect x="40" y="376" width="880" height="108" rx="12" fill="white" stroke="#dce3ec" />
+<rect x="56" y="400" width="60" height="60" rx="14" fill="#edf3fc" />
+<text x="86" y="440" text-anchor="middle" font-size="27" font-weight="700" fill="#2456a6">03</text>
+<text x="140" y="417" font-size="26" font-weight="650" fill="#172b42">AIが選んだ方法で分析する</text>
+<text x="140" y="453" font-size="21" fill="#43566c">Skillに沿って分析。必要に応じて複数のAI専門家も参加します。</text>
+<path d="M86 487v13m-5-5 5 5 5-5" fill="none" stroke="#2456a6" stroke-width="2" />
+<rect x="40" y="504" width="880" height="108" rx="12" fill="white" stroke="#dce3ec" />
+<rect x="56" y="528" width="60" height="60" rx="14" fill="#edf3fc" />
+<text x="86" y="568" text-anchor="middle" font-size="27" font-weight="700" fill="#2456a6">04</text>
+<text x="140" y="545" font-size="26" font-weight="650" fill="#172b42">結果を読み、調査を続ける</text>
+<text x="140" y="581" font-size="21" fill="#43566c">保存された根拠とリスクを確認。模擬取引は別途開始できます。</text>
+<text x="920" y="638" text-anchor="end" font-size="16" fill="#516174">AI STOCK · 手順のイメージ図（画面のスクリーンショットではありません）</text>
+</g></svg>

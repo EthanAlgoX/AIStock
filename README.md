@@ -4,7 +4,7 @@
 
 # AI Stock
 
-**Research with Agents. Build strategies with Skills. Simulate trades with LLMs or JEV.**
+**Your AI workspace for researching stocks, comparing ideas, and testing strategies with simulated money.**
 
 Research assistant · Expert roundtable · Stock research · Strategy screening · Trade simulation
 
@@ -18,88 +18,49 @@ Research assistant · Expert roundtable · Stock research · Strategy screening 
 
 </div>
 
-> AI Stock is a financial decision workspace for mainland China, Hong Kong, and US equities. It supports research and paper-trading experiments; it does not present model output as investment advice or bypass deterministic risk and execution controls.
+AI Stock brings market data, news, calculations, and AI analysis into one website. Ask about a stock, read the evidence and risks, compare different investing perspectives, and test a strategy through paper trading. It supports **mainland China, Hong Kong, and US equities**; coverage depends on the selected data sources and strategy.
 
-Previously named LLM TradeBot and InvestCrew. The product is now AI Stock; the GitHub repository remains `EthanAlgoX/AIStock`. Clone it into an `AI-Stock` directory.
+**Start here:** [What you can do](#what-you-can-do) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Your first report](#your-first-report)
 
-## JEV decisions, built into trade simulation
+## What you can do
 
-**Use LLMs for research and JEV for structured trading decisions—all in one workspace.** AI Stock integrates the JEV decision model through TypeSafe's System One API. In Trade simulation, choose JEV as the decision backend for a Skill-based strategy.
-
-- **Buy, sell or hold.** JEV evaluates the strategy Skill, dated market data, cash and holdings, returning a category, probabilities and confidence without generating a report.
-- **Run once or every trading day.** Run manually, or start continuous paper trading for server-side daily decisions. The server runs the tasks; your local computer does not need to stay online.
-- **Follow decisions through to simulated trades.** Review daily decisions and subsequent fills. Existing allocation limits, fees and next-open execution rules remain in effect.
-
-**Get a JEV API key:** Start with the [official JEV introduction and access information](https://typesafe.ai/blog/introducing-system-one-models-and-jev), then sign in to the [TypeSafe console](https://console.typesafe.ai/) to obtain your API key. Follow any access or waitlist instructions shown by TypeSafe. JEV uses its own TypeSafe credentials and System One API, so configure it in the website’s dedicated JEV settings.
-
-To try it, configure the JEV API key in **Settings → Models & runtime**, then select **JEV · Decisions only** when creating a trading strategy. Select a Skill, preview and confirm the stock universe, save, and start the simulation. Research, chat and universe screening continue to use your configured LLM.
-
-See the [JEV configuration and execution guide](docs/jev-trading-decisions.md) for setup and behavior.
-
-## Start with a question, keep the research
-
-Ask a question in the Research assistant, invite independent experts to examine it, or run a focused research strategy. AI Stock combines Agent reasoning with Skills, tools, MCP connections, and market data to produce reports you can revisit and discuss.
-
-- **Conversation first.** Create separate conversations, revisit history, and use suggested questions that combine available analysis methods with stocks recognized from recent conversations.
-- **Optional expert collaboration.** Select individual experts and their collaboration mode beside the message composer. Use the assistant for the final report or the roundtable to follow each participant's contributions.
-- **Reports first.** Stock research, screening, and trade simulation open around report history and a reading area. Configuration is available when starting a new task.
-- **A ready-to-run starting point.** Default plans use configured watchlists or fixed demonstration stocks and match available strategies and capabilities through rules. Review the selection rationale or customize the plan before running.
-- **Background execution.** Structured tasks continue when you change pages. Returning or refreshing restores their status and saved results; partial output and failures remain explicit.
-
-## Six connected workspaces
-
-The site opens in **Research assistant**. Desktop navigation follows the order below; mobile navigation places Market radar in the workspace menu.
-
-| Workspace | Route | What you can do |
+| If you want to… | Open… | What you get |
 | --- | --- | --- |
-| Market radar | `/market-intelligence` | Follow market snapshots, news, macro observations, and published analysis subscriptions |
-| Research assistant | `/overview` | Ask questions, manage conversations, and optionally request an expert synthesis |
-| Expert roundtable | `/expert-review` | Discuss a topic in a persistent group conversation with named expert messages and a moderator's summary |
-| Stock research | `/stock-research` | Run a research strategy and read its conclusions, evidence, risks, and historical reports |
-| Strategy screening | `/screening` | Apply screening rules, review ranked candidates and their rationale, and optionally research candidates further |
-| Trade simulation | `/trading` | Use LLM or JEV decisions to run Skill-based paper trading and review daily decisions and fills |
+| See what is happening in the market | Market radar | Market snapshots, news, and macro observations |
+| Ask a question and follow up | Research assistant | A conversation with saved answers and research |
+| Study one stock | Stock research | A report with conclusions, evidence, and risks |
+| Compare different investing perspectives | Expert roundtable | Independent AI contributions and a moderator's summary |
+| Find stocks that meet your conditions | Strategy screening | Candidates with rankings and selection reasons |
+| Check how a strategy behaves | Trade simulation | Daily decisions, simulated fills, and account performance |
 
-Schedules, run history, model usage, settings, and the Capability Center support these workspaces. Market coverage depends on the selected strategy and available data; built-in full-market screening rules currently target A-shares.
+**Example question:** “Research AAPL's recent price trend and important news. Separate bullish and bearish evidence, include the dates of the data, and tell me what information is missing.”
 
-## Independent experts, three ways to collaborate
+Built-in full-market screening rules mainly target A-shares. The “experts” are AI roles based on investment frameworks, not the actual people. Trading experiments use simulated funds and do not place live broker orders.
 
-Each selected expert runs as an independent Agent with its own role and permitted capabilities. A moderator coordinates the work and synthesizes the results. You select experts directly, without having to create a named panel first.
+## How it works
 
-| Mode | How it works |
-| --- | --- |
-| Pipeline | The moderator divides the task; experts complete their assigned parts, using earlier results where relevant |
-| Debate | Experts form independent views, challenge one another, and respond before the moderator summarizes agreement and unresolved differences |
-| Voting | Experts submit independent reports; separate reviewer Agents vote, and the moderator reports the tally and selected view, or an inconclusive outcome |
+![From a stock question to data, AI research, and saved results](docs/assets/readme/how-it-works-en.svg)
 
-The assistant emphasizes the final report. The roundtable exposes completed contributions, coordination, rebuttals, and voting records in a group-chat timeline, with follow-up questions in the same conversation. These are saved messages, not a live display of private model reasoning.
+1. **You set the question or stock scope.** Start with a chat, a stock code, or screening conditions.
+2. **The system gathers available evidence.** Data sources supply prices, fundamentals, and news as supported; tools query data and calculate indicators.
+3. **AI applies the selected method.** It uses the supplied evidence and strategy instructions to form an analysis. Optional experts examine the topic independently.
+4. **You review the result.** Revisit saved reports, inspect risks and missing information, or run a separate trading simulation.
 
-## How Agents and strategies fit together
+An **Agent** is the AI assistant doing the work. A **Skill** is its analysis playbook. **Tools** perform queries and calculations; **MCP** connects external tools. You can start with enabled defaults and learn these settings later.
 
-The Agent is the common interaction and orchestration layer. A strategy defines the research objective and execution constraints; Skills supply the analysis methods. Published research and screening strategies can combine deterministic data preparation and calculations with LLM analysis, and the Agent invokes them through governed tools.
-
-| Capability | Responsibility |
-| --- | --- |
-| **Skill** | Versioned financial methods and task instructions |
-| **Built-in Tool** | Schema-defined, deterministic read or compute operations |
-| **MCP** | Connections to external tools, resources, and systems |
-| **Data source** | Market, fundamental, news, and other factual inputs |
-| **Expert Agent** | Independent role-specific analysis, review, and collaboration |
-
-Structured executions save the task definition, selected capabilities, data-source context, status, and report artifacts. The run ledger connects these records so that a finished execution can be distinguished from a successful, partial, empty, or blocked research outcome. See the [workspace architecture](docs/web-decision-workspace.md) for the detailed contracts.
-
-## Safety and governance
-
-- Workspace allowlists and request-local grants restrict which Skills, Tools, MCP servers, data sources, experts, and stocks a task can use.
-- Built-in Tools and MCP servers are separate capability types with separate configuration pages and permissions.
-- Independent Agent execution must advertise task-capability isolation; unsupported runtimes fail closed.
-- The website owns tasks, artifacts, approvals, audit records, and trading boundaries. The Agent may analyze and propose, but it cannot bypass risk checks or create live orders.
-- Secrets remain in environment or protected settings and are never returned in capability catalogs.
+Research and simulation have different inputs: a research report can use news and fundamentals when available, while trading decisions use the configured strategy, dated market bars, and simulated account state. See [simulation inputs and limits](docs/strategy-portfolios_EN.md).
 
 ## Quick start
 
-Requirements: Python 3.10+, Node.js 20.19–26.x, and npm 10+. The commands below use a macOS/Linux shell; on Windows PowerShell, activate the environment with `.venv\Scripts\Activate.ps1`.
+Already have access to a running instance? Open it and skip to [Your first report](#your-first-report). To run your own instance, follow the steps below.
 
-### 1. Install and prepare configuration
+### 1. Prepare your computer
+
+Install **Python 3.10+**, **Node.js 20.19–26.x**, **npm 10+**, and Git. Prepare a model provider's API key and access to a model that supports **tool calling**. Hosted model calls may use paid provider credits; see [model configuration](docs/LLM_CONFIG_GUIDE_EN.md) for supported setup options, including local models.
+
+These commands use a **macOS/Linux shell**. Windows and Docker users can follow the [deployment guide](docs/DEPLOY_EN.md).
+
+### 2. Download and install
 
 ```bash
 git clone https://github.com/EthanAlgoX/AIStock.git AI-Stock
@@ -108,14 +69,14 @@ cd AI-Stock
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
+
+# Preserve any existing configuration.
+if [ ! -f .env ]; then cp .env.example .env; fi
 ```
 
-If you already have a `.env`, keep it and compare it with the example rather than copying over it. Configure a model provider in `.env` before running analysis, or use the website's model settings after startup. For example, enable and fill `DEEPSEEK_API_KEY` for DeepSeek; provider-specific and multi-channel options are documented in the [configuration guide](docs/LLM_CONFIG_GUIDE.md) (Chinese).
+Already have the repository? Start from `cd AI-Stock` in its parent directory and keep your existing `.env`.
 
-The default `AGENT_BACKEND=auto` uses the configured model route. Agent tasks need a working tool-calling model; starting the Web server alone does not make analysis available. A separate Agent runtime is optional: see [runtime integration](docs/agent-runtime-integration_EN.md).
-
-### 2. Build and launch
+### 3. Build the website and start the server
 
 ```bash
 cd apps/dsa-web
@@ -126,21 +87,55 @@ cd ../..
 python main.py --serve-only --host 127.0.0.1 --port 8000
 ```
 
-Open the Web workspace at <http://127.0.0.1:8000> and API documentation at <http://127.0.0.1:8000/docs>. Port 8000 is an example; change `--port` if it is occupied. The Web build is served by the Python application.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Keep this terminal running while you use the local instance. Port `8000` is an example; if it is occupied, change `--port` and use the same port in your browser. API documentation is at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
-### 3. Run your first analysis
+**The website opening is only the first step.** Configure and test your model before asking it to analyze stocks.
 
-1. Check model availability in **Settings** and enabled Skills, experts, and data connections in the **Capability Center**.
-2. Ask a question in **Research assistant**, or open **Stock research** and run the default plan. Default plans still require the relevant model, published strategy, and tools to be available.
-3. Read the saved report. To compare perspectives, start an **Expert roundtable**, choose experts and a collaboration mode, and submit a topic.
+## Your first report
 
-The default README and first-visit UI language are English. An explicitly saved language preference takes precedence over this default. Browser language does not change the default. See [UI languages](docs/ui-languages.md). The header includes a five-language selector: English, Simplified Chinese, Traditional Chinese, Japanese, and Korean. In the Korean interface, new Research assistant requests explicitly ask for Korean replies; set `REPORT_LANGUAGE=ko` for Korean output from scheduled reports and other analysis workflows. The main workspaces, research configuration, default plans, and report controls follow this setting. Saved report prose, user-defined names, and source news retain their original language; switching the interface does not translate or rewrite research data.
+![First-run checklist: connect a model, check capabilities, submit a stock, read the report](docs/assets/readme/first-report-en.svg)
 
-For frontend development, run `npm run dev` under `apps/dsa-web` alongside the backend. Vite defaults to <http://127.0.0.1:5173> and proxies `/api` to port 8000; set `DSA_WEB_API_PROXY_TARGET` if the backend address differs.
+1. **Connect AI.** In **Settings → Models & runtime**, choose your provider, enter its API key and model details, save, and test the connection. You can also configure the provider in `.env`; see the [model guide](docs/LLM_CONFIG_GUIDE_EN.md).
+2. **Check available capabilities.** In the **Capability Center**, check enabled Skills, tools, and data sources. Configure a news source if your question needs recent news. A configured source is not necessarily reachable: use its availability check.
+3. **Run one stock.** Open **Stock research**, choose a market, and enter a code: `600519` for an A-share, `hk00700` for a Hong Kong stock, or `AAPL` for a US stock. Review the default plan, adjust your research goal, and start. The plan needs its model, published strategy, and tools to be available.
+4. **Read the saved report.** Check the conclusion, supporting evidence, data dates, and risks. Missing data or partial results matter. Use **Research assistant** for follow-up questions, or **Expert roundtable** to compare views.
 
-## Development checks
+For a first goal, try: “Explain this stock's recent trend and key risks. Show the evidence and flag anything you cannot verify.” Stock codes here are input examples, not recommendations.
+
+The header lets you switch between English, Simplified Chinese, Traditional Chinese, Japanese, and Korean. Changing the interface language does not translate existing reports.
+
+### If something does not work
+
+| What you see | What to check |
+| --- | --- |
+| Website opens, but analysis fails | Save and test the model settings; check API access, credits, and tool-calling support |
+| A default plan cannot run | Check that its published strategy and required capabilities are enabled |
+| News or prices are missing | Check source configuration and availability; review the run's error or partial-result details |
+| A background task stops after closing the terminal | The server must remain running; closing a browser tab is different from stopping the server |
+
+## Go further when you are ready
+
+- **Compare viewpoints:** choose experts and pipeline, debate, or voting mode in Expert roundtable. [Collaboration guide](docs/expert-discussion.md) (Chinese)
+- **Test a strategy:** choose a Skill in Trade simulation, preview and confirm the stock scope, save, and run once or start daily simulation. Review decisions, costs, and simulated fills. [Trading guide](docs/strategy-portfolios_EN.md)
+- **Try JEV decisions (optional):** configure its separate TypeSafe API key in **Settings → Models & runtime**, then select **JEV · Decisions only** for a new trading strategy. JEV returns buy/sell/hold, probabilities, and confidence without a research report; chat and stock-scope selection still need your LLM. Start with the [official access information](https://typesafe.ai/blog/introducing-system-one-models-and-jev), [TypeSafe console](https://console.typesafe.ai/), and [JEV setup guide](docs/jev-trading-decisions.md).
+- **Run tasks on a schedule:** keep the server running, locally or on a deployed machine. Your browser can close; a local server stops when its computer is off. [Deployment guide](docs/DEPLOY_EN.md)
+
+## Documentation and development
+
+| You need… | Read… |
+| --- | --- |
+| All guides | [Documentation index](docs/INDEX_EN.md) |
+| Model providers and API keys | [Model configuration](docs/LLM_CONFIG_GUIDE_EN.md) |
+| Configuration and notifications | [Full guide](docs/full-guide_EN.md) |
+| Deployment options | [Deployment](docs/DEPLOY_EN.md) |
+| Task architecture and capability permissions | [Workspace architecture](docs/web-decision-workspace.md) |
+| An optional external Agent engine | [Runtime integration](docs/agent-runtime-integration_EN.md) |
+| Checks and release history | [Testing](docs/testing.md) · [Changelog](docs/CHANGELOG.md) |
+
+For frontend development, keep the backend running and run `npm run dev` in `apps/dsa-web`. Vite defaults to port `5173` and proxies `/api` to backend port `8000`; use `DSA_WEB_API_PROXY_TARGET` if the backend address differs.
 
 ```bash
+# From the repository root
 ./scripts/ci_gate.sh
 
 cd apps/dsa-web
@@ -148,17 +143,8 @@ npm run lint
 npm run build
 ```
 
-## Documentation
+## License and scope
 
-- [Documentation index](docs/INDEX_EN.md)
-- [Workspace interaction and layout](docs/workspace-ui.md) (Chinese)
-- [Agent decision workspace](docs/web-decision-workspace.md)
-- [Independent Agent engine integration](docs/agent-runtime-integration_EN.md)
-- [Full configuration guide](docs/full-guide_EN.md)
-- [Deployment guide](docs/DEPLOY_EN.md)
-- [Testing guide](docs/testing.md)
-- [Changelog](docs/CHANGELOG.md)
+[MIT License](LICENSE). AI Stock is for investment research and controlled historical or paper-trading experiments. Reports and simulated performance do not guarantee future returns. Historical AI replay can be affected by knowledge in model training; it is not proof of a profitable strategy.
 
-## License and disclaimer
-
-This project is licensed under the [MIT License](LICENSE). It is intended for software engineering, investment research, and controlled historical or paper experiments. Research reports, screening results, proposals, and model outputs do not guarantee future performance. Users remain responsible for their own decisions and outcomes.
+Previously named LLM TradeBot and InvestCrew; the current product name is **AI Stock** and the repository is `EthanAlgoX/AIStock`.

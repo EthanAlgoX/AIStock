@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="660" viewBox="0 0 960 660" role="img" aria-labelledby="title desc">
+<title id="title">Your first report, in four steps</title>
+<desc id="desc">Connect your model: Settings → Models &amp; runtime · Save, then test the connection. → Check your capabilities: Capability Center · Check Skills, tools, and data availability. → Start stock research: Select a market and code · Review the plan, then run. → Read the saved report: Check evidence, dates, risks, and missing information.</desc>
+<rect width="960" height="660" rx="20" fill="#f8fafc"/>
+<g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif">
+<text x="40" y="57" font-size="32" font-weight="700" fill="#172b42">Your first report, in four steps</text>
+<text x="40" y="91" font-size="20" fill="#516174">After starting the website · begin with one stock</text>
+<rect x="40" y="120" width="880" height="108" rx="12" fill="white" stroke="#dce3ec"/>
+<rect x="56" y="144" width="60" height="60" rx="14" fill="#edf6f0"/>
+<text x="86" y="184" text-anchor="middle" font-size="27" font-weight="700" fill="#17624e">01</text>
+<text x="140" y="161" font-size="26" font-weight="650" fill="#172b42">Connect your model</text>
+<text x="140" y="197" font-size="21" fill="#43566c">Settings → Models &amp; runtime · Save, then test the connection.</text>
+<path d="M86 231v13m-5-5 5 5 5-5" fill="none" stroke="#17624e" stroke-width="2"/>
+<rect x="40" y="248" width="880" height="108" rx="12" fill="white" stroke="#dce3ec"/>
+<rect x="56" y="272" width="60" height="60" rx="14" fill="#edf6f0"/>
+<text x="86" y="312" text-anchor="middle" font-size="27" font-weight="700" fill="#17624e">02</text>
+<text x="140" y="289" font-size="26" font-weight="650" fill="#172b42">Check your capabilities</text>
+<text x="140" y="325" font-size="21" fill="#43566c">Capability Center · Check Skills, tools, and data availability.</text>
+<path d="M86 359v13m-5-5 5 5 5-5" fill="none" stroke="#17624e" stroke-width="2"/>
+<rect x="40" y="376" width="880" height="108" rx="12" fill="white" stroke="#dce3ec"/>
+<rect x="56" y="400" width="60" height="60" rx="14" fill="#edf6f0"/>
+<text x="86" y="440" text-anchor="middle" font-size="27" font-weight="700" fill="#17624e">03</text>
+<text x="140" y="417" font-size="26" font-weight="650" fill="#172b42">Start stock research</text>
+<text x="140" y="453" font-size="21" fill="#43566c">Select a market and code · Review the plan, then run.</text>
+<path d="M86 487v13m-5-5 5 5 5-5" fill="none" stroke="#17624e" stroke-width="2"/>
+<rect x="40" y="504" width="880" height="108" rx="12" fill="white" stroke="#dce3ec"/>
+<rect x="56" y="528" width="60" height="60" rx="14" fill="#edf6f0"/>
+<text x="86" y="568" text-anchor="middle" font-size="27" font-weight="700" fill="#17624e">04</text>
+<text x="140" y="545" font-size="26" font-weight="650" fill="#172b42">Read the saved report</text>
+<text x="140" y="581" font-size="21" fill="#43566c">Check evidence, dates, risks, and missing information.</text>
+<text x="920" y="638" text-anchor="end" font-size="16" fill="#516174">AI STOCK · Workflow illustration, not a UI screenshot</text>
+</g></svg>
