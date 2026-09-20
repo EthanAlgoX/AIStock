@@ -55,7 +55,7 @@ const chooseStrategy = (label: string, value: string) => {
 describe("AgentTaskSetupPage", () => {
   it("binds candidate research budget and the research tool to the submitted screening task", async () => {
     render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
-    fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "比较成长质量" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "分析关注点（不会自动变为筛选规则）" }), { target: { value: "比较成长质量" } });
     fireEvent.change(screen.getByRole("combobox", { name: "候选深研数量" }), { target: { value: "2" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "候选深研策略" })).toHaveValue("12"));
     fireEvent.click(screen.getByRole("button", { name: "运行选股任务" }));
@@ -130,8 +130,8 @@ describe("AgentTaskSetupPage", () => {
     const runButton = await screen.findByRole("button", { name: "运行选股任务" });
     expect(runButton).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: /港股/ }));
-    fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "高股息低估值" } });
-    fireEvent.change(screen.getByRole("textbox", { name: "行业范围（可选）" }), { target: { value: "金融" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "分析关注点（不会自动变为筛选规则）" }), { target: { value: "高股息低估值" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "行业关注点（仅用于解读）" }), { target: { value: "金融" } });
     await screen.findByText(/当前市场尚无已发布的选股流程/);
     expect(runButton).toBeDisabled();
     fireEvent.click(runButton);
@@ -170,8 +170,8 @@ describe("AgentTaskSetupPage", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "高股息低估值" } });
-    fireEvent.change(screen.getByRole("textbox", { name: "行业范围（可选）" }), { target: { value: "金融" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "分析关注点（不会自动变为筛选规则）" }), { target: { value: "高股息低估值" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "行业关注点（仅用于解读）" }), { target: { value: "金融" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "定时更新" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "定时更新" }));
 
@@ -195,15 +195,15 @@ describe("AgentTaskSetupPage", () => {
   it("restores a screening workspace after returning from the scheduler", () => {
     const first = render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: /港股/ }));
-    fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "高股息低估值" } });
-    fireEvent.change(screen.getByRole("textbox", { name: "行业范围（可选）" }), { target: { value: "金融" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "分析关注点（不会自动变为筛选规则）" }), { target: { value: "高股息低估值" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "行业关注点（仅用于解读）" }), { target: { value: "金融" } });
     fireEvent.click(screen.getByRole("button", { name: "定时更新" }));
     first.unmount();
 
     render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
     expect(screen.getByRole("button", { name: /港股/ })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("textbox", { name: "选股条件" })).toHaveValue("高股息低估值");
-    expect(screen.getByRole("textbox", { name: "行业范围（可选）" })).toHaveValue("金融");
+    expect(screen.getByRole("textbox", { name: "分析关注点（不会自动变为筛选规则）" })).toHaveValue("高股息低估值");
+    expect(screen.getByRole("textbox", { name: "行业关注点（仅用于解读）" })).toHaveValue("金融");
   });
 
   it("shows preset contents instead of a second Skill selector", async () => {
@@ -255,7 +255,7 @@ describe("AgentTaskSetupPage", () => {
     chooseStrategy("候选深研策略", "custom");
     fireEvent.click(screen.getByRole("button", { name: "策略 Skill" }));
     expect(await screen.findByRole("checkbox", { name: /^质量分析/ })).toBeVisible();
-    fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "寻找成长公司" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "分析关注点（不会自动变为筛选规则）" }), { target: { value: "寻找成长公司" } });
     fireEvent.click(screen.getByRole("button", { name: "运行选股任务" }));
     await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
       config: expect.objectContaining({ strategyVersionId: 13, deepResearchVersionId: 12, deepResearchCount: 1 }),
@@ -279,7 +279,7 @@ describe("AgentTaskSetupPage", () => {
     </MemoryRouter>);
     const button = await screen.findByRole("button", { name: kind === "research" ? "运行单股分析" : "运行选股任务" });
     if (kind === "research") fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
-    else fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: task.objective } });
+    else fireEvent.change(screen.getByRole("textbox", { name: "分析关注点（不会自动变为筛选规则）" }), { target: { value: task.objective } });
     await waitFor(() => expect(button).toBeEnabled());
     fireEvent.click(button);
     await waitFor(() => expect(api.runTask).toHaveBeenCalledTimes(1));
@@ -307,10 +307,10 @@ describe("AgentTaskSetupPage", () => {
     api.getRun.mockResolvedValue(run);
     const first = render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
     await screen.findByText("任务 运行结束 · 成果待核实");
-    fireEvent.change(screen.getByRole("textbox", { name: "选股条件" }), { target: { value: "下一次要用的新条件" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "分析关注点（不会自动变为筛选规则）" }), { target: { value: "下一次要用的新条件" } });
     first.unmount();
     render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
-    expect(screen.getByRole("textbox", { name: "选股条件" })).toHaveValue("下一次要用的新条件");
+    expect(screen.getByRole("textbox", { name: "分析关注点（不会自动变为筛选规则）" })).toHaveValue("下一次要用的新条件");
     expect(screen.getByText(/原选股任务/)).toBeInTheDocument();
   });
 

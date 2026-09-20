@@ -198,7 +198,7 @@ export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
           </p>
         </div>
 
-        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-1 lg:flex" aria-label={t("layout.mainNav")}>
+        <nav className="hidden min-w-0 flex-1 items-center justify-start gap-1 overflow-x-auto lg:flex 2xl:justify-center" aria-label={t("layout.mainNav")}>
           {PRIMARY_NAV_ITEMS.map((item) => (
             <PrimaryNavLink key={item.key} item={item} />
           ))}

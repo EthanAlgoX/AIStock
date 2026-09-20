@@ -268,12 +268,44 @@ def test_watch_kernel_uses_empty_context_and_removes_operation_advice():
 
     response = {"query_id": "query-1", "report": {"summary": {
         "sentiment_score": 72, "operation_advice": "考虑买入", "action": "buy",
-    }}}
+    }, "strategy": {"ideal_buy": 10, "stop_loss": 9},
+        "details": {"technical_analysis": "趋势转强", "raw_result": {"operation_advice": "买入"}}}}
     with patch("src.services.analysis_service.AnalysisService.analyze_stock", return_value=response) as analyze:
         result = run({"inputs": {"symbol": "600519", "watchResearch": True}})
     assert result["status"] == "success"
     assert analyze.call_args.kwargs["portfolio_context"] == {}
     assert result["result"]["report"]["summary"] == {"sentiment_score": 72}
+    assert "strategy" not in result["result"]["report"]
+    assert result["result"]["report"]["details"] == {"technical_analysis": "趋势转强"}
+    assert "raw_result" in response["report"]["details"]
+
+
+def test_holding_kernel_rejects_empty_frozen_holdings():
+    from src.strategy_kernels.single_stock_research import run
+    with patch("src.services.analysis_service.AnalysisService.analyze_stock") as analyze:
+        result = run({"inputs": {"symbol": "600519", "holdingResearch": True, "portfolioContext": {}}})
+    assert result["status"] == "failed"
+    analyze.assert_not_called()
+
+
+def test_watch_curve_preserves_manual_result_when_schedule_finishes_later(workspace):
+    service = PortfolioResearchService(workspace)
+    service.create_watch("600519", "cn")
+    with patch("src.services.workspace_service._WORKERS", Mock()):
+        first = service.run_watch("600519")
+    workspace._finish_run(first["id"], "completed", summary={})
+    with patch("src.services.workspace_service._WORKERS", Mock()):
+        second = service.run_watch("600519")
+    workspace._finish_run(second["id"], "completed", summary={})
+    with workspace.db.session_scope() as session:
+        session.get(WorkspaceRunRecord, second["id"]).trigger_type = "schedule"
+    for run, score in ((first, 72), (second, 30)):
+        workspace._store_artifact(run["id"], "ResearchReport", "report",
+                                  {"result": {"report": {"summary": {"sentiment_score": score}}}})
+    points = service._watch_history(first["taskId"])
+    assert len(points) == 1
+    assert points[0]["score"] == 72
+    assert "_priority" not in points[0]
 
 
 def test_watch_dashboard_has_scores_but_no_holding_recommendation(workspace):

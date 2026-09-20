@@ -8,7 +8,7 @@ import TaskRunsPage from "../TaskRunsPage";
 
 const api = vi.hoisted(() => ({
   getCapabilities: vi.fn(),
-  listRuns: vi.fn(),
+  runHistory: vi.fn(),
   listSchedules: vi.fn(),
 }));
 
@@ -18,7 +18,7 @@ describe("information architecture pages", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.getCapabilities.mockResolvedValue(workspaceCatalogFixture);
-    api.listRuns.mockResolvedValue([]);
+    api.runHistory.mockResolvedValue({ items: [], total: 0, statusCounts: {} });
     api.listSchedules.mockResolvedValue([]);
   });
 
@@ -35,9 +35,9 @@ describe("information architecture pages", () => {
 
   it("reads schedules, runs, snapshots, and Artifact counts from the backend ledger", async () => {
     const task = workspaceTaskFixture({ name: "每日高质量选股", kind: "screening" });
-    api.listRuns.mockResolvedValue([workspaceRunFixture(task, {
+    api.runHistory.mockResolvedValue({items: [workspaceRunFixture(task, {
       resultSummary: { artifactTypes: ["ScreenSpec", "CandidateList"] },
-    })]);
+    })], total: 1, statusCounts: {completed: 1}});
     api.listSchedules.mockResolvedValue([workspaceScheduleFixture({ name: "每日高质量选股" })]);
 
     render(<MemoryRouter><TaskRunsPage /></MemoryRouter>);
@@ -45,7 +45,7 @@ describe("information architecture pages", () => {
     expect(screen.getByRole("heading", { name: "任务与运行" })).toBeInTheDocument();
     expect(await screen.findByText("每日高质量选股")).toBeInTheDocument();
     expect(screen.getByText("后端持久化调度")).toBeInTheDocument();
-    expect(screen.getByText("Artifact 合同计数")).toBeInTheDocument();
-    expect(screen.getByText(/Snapshot snapshot/)).toBeInTheDocument();
+    expect(screen.getByText("匹配运行")).toBeInTheDocument();
+    expect(api.runHistory).toHaveBeenCalledWith(expect.objectContaining({offset: 0, limit: 30}));
   });
 });

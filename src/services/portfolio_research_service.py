@@ -365,8 +365,12 @@ class PortfolioResearchService:
                 continue
             created_at = row.created_at.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
             session_key = json.loads(row.task_snapshot_json).get("portfolioSession") or created_at
-            points[session_key] = {"session": session_key, "createdAt": created_at, "category": "research_score", "label": "研究评分", "score": score}
-        return list(points.values())[-30:]
+            priority = 2 if row.trigger_type == "manual" else 1 if row.trigger_type == "schedule" else 0
+            if session_key in points and points[session_key]["_priority"] > priority:
+                continue
+            points[session_key] = {"session": session_key, "createdAt": created_at, "category": "research_score", "label": "研究评分", "score": score, "_priority": priority}
+        return [{key: value for key, value in point.items() if key != "_priority"}
+                for point in list(points.values())[-30:]]
 
     def notify_scheduled_brief(self, run_id, task):
         """Deliver a completed scheduled holding/watch brief without affecting the run."""

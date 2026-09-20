@@ -1458,7 +1458,8 @@ describe('ChatPage', () => {
     const exportButton = await screen.findByRole('button', { name: '导出此条消息为 Markdown' });
     const actionGroup = exportButton.parentElement;
 
-    expect(actionGroup).toHaveClass('chat-message-actions');
+    expect(exportButton).toBeVisible();
+    expect(exportButton).toBeEnabled();
     expect(actionGroup?.className).not.toMatch(/pointer-events-none|opacity-0/);
   });
 

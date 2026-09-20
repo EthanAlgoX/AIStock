@@ -15,6 +15,13 @@ def _remove_watch_actions(result: dict[str, Any]) -> dict[str, Any]:
     if isinstance(summary, dict):
         for field in ("operation_advice", "action", "action_label", "holding_recommendation"):
             summary.pop(field, None)
+    if isinstance(report, dict):
+        # The shared pipeline also exposes execution prices and an unfiltered
+        # duplicate report. Neither belongs in the watch-only artifact.
+        report.pop("strategy", None)
+        details = report.get("details")
+        if isinstance(details, dict):
+            details.pop("raw_result", None)
     return cleaned
 
 
@@ -39,7 +46,7 @@ def run(context: dict[str, Any]) -> dict[str, Any]:
         # An empty mapping suppresses AnalysisService's automatic ledger lookup.
         # Watch research must remain independent of any account holding.
         portfolio_context = {}
-    if inputs.get("holdingResearch") and not isinstance(portfolio_context, dict):
+    if inputs.get("holdingResearch") and not portfolio_context:
         return {
             "status": "failed", "contract": "ResearchReport", "reasonCode": "HOLDING_CONTEXT_REQUIRED",
             "message": "持仓研究必须包含冻结的持仓数据。", "missingInputs": ["portfolioContext"],
