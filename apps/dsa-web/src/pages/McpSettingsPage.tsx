@@ -116,7 +116,7 @@ export default function McpSettingsPage() {
   return (
     <AppPage className="space-y-6 pb-20" data-testid="mcp-settings-page">
       <PageHeader
-        eyebrow="Capability registry"
+        eyebrow={uiLiteral("能力注册表")}
         title={uiLiteral("MCP 服务")}
         description={uiLiteral("管理为 Agent 提供外部 Tool、Resource 或 Prompt 的 MCP Server。内置 Tool 在独立工具页面治理，不与连接协议混为一类。")}
         actions={<Link to="/overview" className="btn-primary"><UiLiteral text={"返回投研助理"} /></Link>}
@@ -136,9 +136,9 @@ export default function McpSettingsPage() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-border bg-background text-primary"><Server className="h-4 w-4" /></span>
                 <span className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-text">{preset.transport}</span>
               </div>
-              <h3 className="mt-4 font-medium text-foreground">{preset.name}</h3>
-              <p className="mt-2 flex-1 text-sm leading-6 text-secondary-text">{preset.description}</p>
-              <p className="mt-3 text-xs text-muted-text">{preset.endpointHint}</p>
+              <h3 className="mt-4 font-medium text-foreground">{uiLiteral(preset.name)}</h3>
+              <p className="mt-2 flex-1 text-sm leading-6 text-secondary-text">{uiLiteral(preset.description)}</p>
+              <p className="mt-3 text-xs text-muted-text">{uiLiteral(preset.endpointHint)}</p>
               <button type="button" onClick={() => { setForm({ name: preset.name, transport: preset.transport, location: preset.location, credentialKey: preset.credentialKey }); setSaved(false); }} className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"><UiLiteral text={"使用模板 "} /><ArrowRight className="h-4 w-4" /></button>
             </article>
           ))}
@@ -150,7 +150,7 @@ export default function McpSettingsPage() {
         <p><span className="font-medium text-warning"><UiLiteral text={"安全边界。"} /></span> <UiLiteral text={" HTTP MCP 可由后端执行能力发现并按任务动态挂载；stdio 连接只登记配置，由隔离的 独立 Agent 引擎 启动，网站不会执行任意本地命令。凭据只引用环境变量名。"} /></p>
       </div>
 
-      {error ? <p role="alert" className="rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p> : null}
+      {error ? <p role="alert" className="rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">{uiLiteral(error)}</p> : null}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section className="overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card">
@@ -159,7 +159,7 @@ export default function McpSettingsPage() {
           {!loading && connections.length ? <div className="divide-y divide-border/60">{connections.map((connection) => (
             <div key={connection.id} className="flex items-start gap-4 px-5 py-4">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border border-border bg-background text-primary"><Server className="h-4 w-4" /></span>
-              <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-medium text-foreground">{connection.name}</p><span className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-text">{connection.transport}</span><span className={connection.healthStatus === "healthy" ? "text-[10px] text-success" : connection.healthStatus === "unreachable" ? "text-[10px] text-danger" : "text-[10px] text-warning"}>{connection.healthStatus}</span></div><p className="mt-1 truncate text-xs text-secondary-text">{connection.location}</p><p className="mt-1 text-[11px] text-muted-text"><UiLiteral text={"凭据键："} />{connection.credentialKey || "未设置"} <UiLiteral text={" · 已发现 "} />{connection.capabilities.length} <UiLiteral text={" 项能力"} /></p>{connection.lastError ? <p className="mt-1 text-[11px] text-danger">{connection.lastError}</p> : null}</div>
+              <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-medium text-foreground">{connection.name}</p><span className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-text">{connection.transport}</span><span className={connection.healthStatus === "healthy" ? "text-[10px] text-success" : connection.healthStatus === "unreachable" ? "text-[10px] text-danger" : "text-[10px] text-warning"}>{connection.healthStatus}</span></div><p className="mt-1 truncate text-xs text-secondary-text">{connection.location}</p><p className="mt-1 text-[11px] text-muted-text"><UiLiteral text={"凭据键："} />{connection.credentialKey || uiLiteral("未设置")} <UiLiteral text={" · 已发现 "} />{connection.capabilities.length} <UiLiteral text={" 项能力"} /></p>{connection.lastError ? <p className="mt-1 text-[11px] text-danger">{connection.lastError}</p> : null}</div>
               <button type="button" disabled={busyId === connection.id} onClick={() => void probeConnection(connection)} className="rounded-md p-2 text-muted-text hover:bg-hover hover:text-primary disabled:opacity-40" aria-label={uiLiteral(`检查 MCP ${connection.name}`)}><RefreshCw className={`h-4 w-4 ${busyId === connection.id ? "animate-spin" : ""}`} /></button>
               <label className="flex items-center gap-2 text-xs text-secondary-text"><input type="checkbox" checked={connection.enabled} disabled={busyId === connection.id} onChange={() => void toggleConnection(connection)} /><UiLiteral text={"启用"} /></label>
               <button type="button" disabled={busyId === connection.id} onClick={() => void deleteConnection(connection)} className="rounded-md p-2 text-muted-text hover:bg-danger/10 hover:text-danger disabled:opacity-40" aria-label={uiLiteral(`删除 MCP ${connection.name}`)}><Trash2 className="h-4 w-4" /></button>

@@ -1,3 +1,4 @@
+import { uiLocale } from "../utils/uiLanguage";
 import { useUiLiteral } from '../hooks/useUiLiteral';
 import { UiLiteral } from '../components/i18n/UiLiteral';
 import {
@@ -223,20 +224,20 @@ const marketMatches = (item: StockIndexItem, market: MarketId) => (
 
 type TradingStrategyOption = { id: string; name: string; versionLabel: string };
 
-const getScheduleSummary = (plan: { intervalDays: string; kind: ScheduledPlanKind; scheduleMode: ScheduleMode; runAt: string; intervalMinutes: string; market: MarketId }, english: boolean) => {
+const getScheduleSummary = (plan: { intervalDays: string; kind: ScheduledPlanKind; scheduleMode: ScheduleMode; runAt: string; intervalMinutes: string; market: MarketId }, translate: (text: string) => string) => {
   if (plan.kind === "trading" && plan.scheduleMode === "interval") {
     const minutes = Number(plan.intervalMinutes);
-    if (minutes >= 60 && minutes % 60 === 0) return `每 ${minutes / 60} 小时运行`;
-    return `每 ${plan.intervalMinutes} 分钟运行`;
+    if (minutes >= 60 && minutes % 60 === 0) return translate(`每 ${minutes / 60} 小时运行`);
+    return translate(`每 ${plan.intervalMinutes} 分钟运行`);
   }
-  return `${english ? `Every ${plan.intervalDays} days` : `每 ${plan.intervalDays} 天`} ${plan.runAt} · ${getMarket(plan.market).timezone}`;
+  return `${translate(`每 ${plan.intervalDays} 天`)} ${plan.runAt} · ${getMarket(plan.market).timezone}`;
 };
 
-const getTargetSummary = (plan: ScheduledTaskPlan) => {
-  const market = getMarket(plan.market).label;
-  if (plan.strategyVersionId && ["research", "screening"].includes(plan.kind)) return `${market} · ${plan.kind === "research" ? plan.stockName || plan.stock : "按策略配置筛选"} · 策略版本 #${plan.strategyVersionId}`;
+const getTargetSummary = (plan: ScheduledTaskPlan, translate: (text: string) => string) => {
+  const market = translate(getMarket(plan.market).label);
+  if (plan.strategyVersionId && ["research", "screening"].includes(plan.kind)) return `${market} · ${plan.kind === "research" ? plan.stockName || plan.stock : translate("按策略配置筛选")} · ${translate(`策略版本 #${plan.strategyVersionId}`)}`;
   if (plan.kind === "research") return `${market} · ${plan.stockName ? `${plan.stockName} (${plan.stock})` : plan.stock}`;
-  if (plan.kind === "screening") return `${market} · ${plan.industry?.trim() || "全行业"} · Top ${plan.candidateCount}`;
+  if (plan.kind === "screening") return `${market} · ${plan.industry?.trim() || translate("全行业")} · Top ${plan.candidateCount}`;
   if (plan.kind === "market_analysis") return `${market} · ${plan.objective}`;
   if (plan.kind === "industry_analysis") return `${market} · ${plan.industry?.trim() || plan.objective}`;
   return `${market} · ${plan.strategyName}`;
@@ -407,7 +408,7 @@ export default function ScheduledTasksPage() {
       });
       const plan: ScheduledTaskPlan = { ...draft, id: schedule.id, taskId: task.id, createdAt: schedule.createdAt };
       setPlans((current) => [...current, plan]);
-      setSavedMessage(`“${plan.name.trim()}”已注册，下一次运行时间为 ${new Date(schedule.nextRunAt).toLocaleString("zh-CN")}。`);
+      setSavedMessage(`“${plan.name.trim()}”已注册，下一次运行时间为 ${new Date(schedule.nextRunAt).toLocaleString(uiLocale(language))}。`);
       setError("");
       setErrorField(null);
       setStockQuery("");
@@ -431,7 +432,7 @@ export default function ScheduledTasksPage() {
   return (
     <AppPage className="space-y-6 pb-20" data-testid="scheduled-tasks-page">
       <PageHeader
-        eyebrow="Agent task scheduler"
+        eyebrow={uiLiteral("智能任务调度")}
         title={uiLiteral("定时任务")}
         description={uiLiteral("为单股分析、选股和交易策略安排运行节奏。调度只负责何时启动，任务仍使用各自的 Agent、Skill、内置工具、MCP 服务、数据源和专家配置。")}
         actions={prefillSource ? (
@@ -683,13 +684,13 @@ export default function ScheduledTasksPage() {
             ) : null}
 
             <div className="mt-5 flex flex-col gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs leading-5 text-muted-text"><UiLiteral text={"拟定节奏："} />{uiLiteral(getScheduleSummary(draft, language === 'en'))}</p>
+              <p className="text-xs leading-5 text-muted-text"><UiLiteral text={"拟定节奏："} />{getScheduleSummary(draft, uiLiteral)}</p>
               <button type="button" onClick={() => void savePlan()} className="btn-primary inline-flex shrink-0 items-center justify-center gap-2">
                 <Save className="h-4 w-4" aria-hidden="true" />
                 <UiLiteral text={"注册定时计划"} /></button>
             </div>
-            {error ? <p id="schedule-form-error" role="alert" className="mt-3 text-sm text-danger">{error}</p> : null}
-            {savedMessage ? <p role="status" className="mt-3 text-sm text-success">{savedMessage}</p> : null}
+            {error ? <p id="schedule-form-error" role="alert" className="mt-3 text-sm text-danger">{uiLiteral(error)}</p> : null}
+            {savedMessage ? <p role="status" className="mt-3 text-sm text-success">{uiLiteral(savedMessage)}</p> : null}
           </div>
         </section>
 
@@ -738,8 +739,8 @@ export default function ScheduledTasksPage() {
                     <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-border bg-background"><Icon className="h-4 w-4 text-primary" aria-hidden="true" /></span>
                     <span className="min-w-0"><span className="block truncate text-sm font-semibold text-foreground">{plan.name}</span><span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-text"><span>{type.title} · {countScheduledCapabilities(plan.capabilities)} <UiLiteral text={" 项能力"} /></span>{plan.publishToMarket ? <span className="text-primary"><UiLiteral text={"市场展示"} /></span> : null}</span></span>
                   </div>
-                  <div><span className="block text-[11px] text-muted-text"><UiLiteral text={"运行对象"} /></span><span className="mt-1 block truncate text-sm text-secondary-text">{getTargetSummary(plan)}</span></div>
-                  <div><span className="block text-[11px] text-muted-text"><UiLiteral text={"拟定节奏"} /></span><span className="mt-1 block text-sm text-secondary-text">{uiLiteral(getScheduleSummary(plan, language === 'en'))}</span></div>
+                  <div><span className="block text-[11px] text-muted-text"><UiLiteral text={"运行对象"} /></span><span className="mt-1 block truncate text-sm text-secondary-text">{getTargetSummary(plan, uiLiteral)}</span></div>
+                  <div><span className="block text-[11px] text-muted-text"><UiLiteral text={"拟定节奏"} /></span><span className="mt-1 block text-sm text-secondary-text">{getScheduleSummary(plan, uiLiteral)}</span></div>
                   <div><span className="block text-[11px] text-muted-text"><UiLiteral text={"输出"} /></span><span className="mt-1 block font-mono text-xs text-secondary-text">{type.output}</span></div>
                   <button type="button" onClick={() => void deletePlan(plan.id)} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-muted-text transition-colors hover:bg-danger/10 hover:text-danger" aria-label={uiLiteral(`删除计划 ${plan.name}`)}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
                 </div>

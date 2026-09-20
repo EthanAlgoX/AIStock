@@ -481,21 +481,21 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
 
         <span className="flex shrink-0 items-center gap-2">
           {testState?.status === 'success' ? (
-            <Tooltip content="连接正常">
+            <Tooltip content={uiLiteral("连接正常")}>
               <span className="inline-flex">
                 <StatusDot tone="success" />
               </span>
             </Tooltip>
           ) : null}
           {testState?.status === 'error' ? (
-            <Tooltip content="连接失败">
+            <Tooltip content={uiLiteral("连接失败")}>
               <span className="inline-flex">
                 <StatusDot tone="danger" />
               </span>
             </Tooltip>
           ) : null}
           {testState?.status === 'loading' ? (
-            <Tooltip content="测试中">
+            <Tooltip content={uiLiteral("测试中")}>
               <span className="inline-flex">
                 <StatusDot tone="warning" pulse />
               </span>
@@ -509,7 +509,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
           ) : null}
         </span>
 
-        <Tooltip content="删除渠道">
+        <Tooltip content={uiLiteral("删除渠道")}>
           <span className="inline-flex">
             <Button
               type="button"
@@ -687,12 +687,12 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                     : 'text-muted-text'
               }`}
               >
-                {discoveryState?.text || '支持 `/models` 的 OpenAI Compatible 渠道可自动拉取模型。'}
+                {uiLiteral(discoveryState?.text || '支持 `/models` 的 OpenAI Compatible 渠道可自动拉取模型。')}
               </span>
             </div>
             {discoveryState?.hint ? (
               <p className="text-[11px] text-secondary-text">
-                {discoveryState.hint}
+                {uiLiteral(discoveryState.hint)}
               </p>
             ) : null}
 

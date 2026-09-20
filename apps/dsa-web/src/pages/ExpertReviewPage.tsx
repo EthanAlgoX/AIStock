@@ -275,7 +275,7 @@ function LegacyExpertReviewPage() {
   return (
     <AppPage className="space-y-6 pb-20" data-testid="expert-review-page">
       <PageHeader
-        eyebrow="Expert review"
+        eyebrow={uiLiteral("专家评审")}
         title={uiLiteral("专家评审")}
         description={uiLiteral("围绕研究议题获取独立专家意见，再由主 Agent 比较证据、假设与分歧。")}
         actions={<Link to="/capabilities/experts" className="btn-secondary"><UiLiteral text={"管理专家配置"} /></Link>}
@@ -378,7 +378,7 @@ function LegacyExpertReviewPage() {
                 <div>
                   <p className="text-sm font-medium text-foreground"><UiLiteral text={"已挂载 "} />{capabilityCount} <UiLiteral text={" 项 Agent 工具"} /></p>
                   <p className="mt-1 text-xs text-muted-text"><UiLiteral text={"金融 Skill、内置工具、MCP 服务和数据源均来自工作区能力注册表。"} /></p>
-                  {skillError ? <p role="alert" className="mt-1 text-xs text-warning">{skillError}</p> : null}
+                  {skillError ? <p role="alert" className="mt-1 text-xs text-warning">{uiLiteral(skillError)}</p> : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button ref={capabilityTriggerRef} type="button" className="btn-secondary inline-flex items-center gap-2 xl:hidden" onClick={() => setCapabilityPanelOpen(true)}><SlidersHorizontal className="h-4 w-4" /><UiLiteral text={"配置 Agent 工具"} /></button>
@@ -409,7 +409,7 @@ function LegacyExpertReviewPage() {
                 </div>
                 <div className="min-h-52 space-y-3 px-5 py-5 sm:px-6">
                   <div className="max-w-2xl rounded-[12px] border border-border bg-background px-4 py-3"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text"><UiLiteral text={"共同议题"} /></p><p className="mt-2 text-sm leading-6 text-foreground">{topic}</p></div>
-                  {runError ? <p role="alert" className="flex items-center gap-2 text-xs text-danger"><CircleAlert className="h-3.5 w-3.5" />{runError}</p> : null}
+                  {runError ? <p role="alert" className="flex items-center gap-2 text-xs text-danger"><CircleAlert className="h-3.5 w-3.5" />{uiLiteral(runError)}</p> : null}
                   {activeRun && ["queued", "running"].includes(activeRun.status) ? <p role="status" className="text-sm text-warning"><UiLiteral text={"专家 Agent 正在分析并整理证据…"} /></p> : null}
                   {reviewText ? <div className="max-w-3xl whitespace-pre-wrap rounded-[12px] border border-border bg-background px-4 py-4 text-sm leading-7 text-foreground">{reviewText}</div> : null}
                   {activeRun?.errorMessage ? <p className="text-sm text-danger">{activeRun.errorMessage}</p> : null}
@@ -423,7 +423,7 @@ function LegacyExpertReviewPage() {
                 <aside className="bg-background px-5 py-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-text"><UiLiteral text={"参会视角 · "} />{selectedTeamMembers.length}</p>
                   <div className="mt-4 space-y-3">{selectedTeamMembers.map((expert) => <div key={expert.id} className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-primary/10 text-primary"><Bot className="h-3.5 w-3.5" /></span><div><p className="text-sm font-medium text-foreground">{expert.name}</p><p className="text-[10px] text-muted-text"><UiLiteral text={"独立 Persona Agent"} /></p></div></div>)}</div>
-                  <div className="mt-5 border-t border-border/70 pt-4"><p className="flex items-center gap-2 text-xs font-medium text-foreground"><Database className="h-3.5 w-3.5 text-primary" /><UiLiteral text={"任务上下文标识"} /></p><p className="mt-2 break-all font-mono text-[10px] text-secondary-text">{activeRun?.dataSnapshotId || "运行后创建"}</p></div>
+                  <div className="mt-5 border-t border-border/70 pt-4"><p className="flex items-center gap-2 text-xs font-medium text-foreground"><Database className="h-3.5 w-3.5 text-primary" /><UiLiteral text={"任务上下文标识"} /></p><p className="mt-2 break-all font-mono text-[10px] text-secondary-text">{activeRun?.dataSnapshotId || uiLiteral("运行后创建")}</p></div>
                 </aside>
                 <div className="bg-card px-5 py-5 sm:px-6">
                   <div className="rounded-[10px] border border-border bg-background px-4 py-3"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text"><UiLiteral text={"评审议题"} /></p><p className="mt-2 text-sm leading-6 text-foreground">{topic}</p></div>

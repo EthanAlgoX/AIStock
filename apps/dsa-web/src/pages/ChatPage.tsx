@@ -1436,7 +1436,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                     <Button
                       variant="action-primary"
                       size="sm"
-                      onClick={() => downloadSession(messages)}
+                      onClick={() => downloadSession(messages, language)}
                       aria-label={localize('导出会话为 Markdown 文件', 'Export conversation as a Markdown file')}
                     >
                       <svg
@@ -1467,7 +1467,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                         setSending(true);
                         setSendToast(null);
                         try {
-                          const content = formatSessionAsMarkdown(messages);
+                          const content = formatSessionAsMarkdown(messages, language);
                           await agentApi.sendChat(content);
                           showSendFeedback({ type: 'success', message: localize('已发送到通知渠道', 'Sent to notification channels') }, 3000);
                         } catch (err) {

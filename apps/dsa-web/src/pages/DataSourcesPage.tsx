@@ -1,3 +1,4 @@
+import { uiLocale } from "../utils/uiLanguage";
 import { useUiLiteral } from '../hooks/useUiLiteral';
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
@@ -304,7 +305,7 @@ const DataSourcesPage: React.FC = () => {
           ? localize("完成配置后才可检测", "Configure this source before testing")
           : localize("尚未绑定检测适配器", "No probe adapter is bound yet");
     }
-    const checkedAt = new Intl.DateTimeFormat(language === "en" ? "en" : "zh-CN", {
+    const checkedAt = new Intl.DateTimeFormat(uiLocale(language), {
       month: "short",
       day: "numeric",
       hour: "2-digit",
@@ -357,7 +358,7 @@ const DataSourcesPage: React.FC = () => {
   return (
     <AppPage className="space-y-6">
       <PageHeader
-        eyebrow="Platform data dependencies"
+        eyebrow={uiLiteral("平台数据依赖")}
         title={localize("数据源", "Data sources")}
         description={localize(
           "管理主 Agent 在个股分析、选股和交易任务中可选择的数据连接、适用市场、配置状态与实测可用性。敏感凭据通过受保护的配置字段保存。",

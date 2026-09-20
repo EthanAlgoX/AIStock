@@ -6,7 +6,10 @@ import traditional from './zh-TW.json';
 /** Static product copy only. Never apply this to user content or saved reports. */
 const catalogues: Record<string, Readonly<Record<string, string>>> = { ko, ja, en, 'zh-TW': traditional };
 function makeTranslator(catalogue: Readonly<Record<string, string>>) {
-const templates = Object.entries(catalogue).filter(([source]) => /\{(?:\d+|\w+)\}/.test(source)).sort(([a], [b]) => b.replace(/\{[^}]+\}/g, '').length - a.replace(/\{[^}]+\}/g, '').length).map(([source, target]) => {
+// Some legacy labels include layout whitespace in the catalogue key. Match
+// those exact entries first, and also support callers that omit that spacing.
+const trimmedCatalogue = Object.fromEntries(Object.entries(catalogue).map(([source, target]) => [source.trim(), target.trim()]));
+const templates = Object.entries(trimmedCatalogue).filter(([source]) => /\{(?:\d+|\w+)\}/.test(source)).sort(([a], [b]) => b.replace(/\{[^}]+\}/g, '').length - a.replace(/\{[^}]+\}/g, '').length).map(([source, target]) => {
   const slots: string[] = [];
   const escaped = source.split(/(\{(?:\d+|\w+)\})/).map((part) => {
     if (/^\{(?:\d+|\w+)\}$/.test(part)) { slots.push(part); return '(.+?)'; }
@@ -16,12 +19,13 @@ const templates = Object.entries(catalogue).filter(([source]) => /\{(?:\d+|\w+)\
 });
 
 function translate(text: string): string {
+  if (Object.prototype.hasOwnProperty.call(catalogue, text)) return catalogue[text];
   if (text.trim() !== text && text.trim()) {
     const prefix = text.match(/^\s*/)?.[0] || '';
     const suffix = text.match(/\s*$/)?.[0] || '';
     return prefix + translate(text.trim()) + suffix;
   }
-  if (Object.prototype.hasOwnProperty.call(catalogue, text)) return catalogue[text];
+  if (Object.prototype.hasOwnProperty.call(trimmedCatalogue, text)) return trimmedCatalogue[text];
   if (!/[\u3400-\u9fff]/.test(text)) return text;
   for (const { pattern, slots, target } of templates) {
     const match = pattern.exec(text);

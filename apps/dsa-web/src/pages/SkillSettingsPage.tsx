@@ -139,7 +139,7 @@ export default function SkillSettingsPage() {
   return (
     <AppPage className="space-y-6 pb-20" data-testid="skill-settings-page">
       <PageHeader
-        eyebrow="Capability registry"
+        eyebrow={uiLiteral("能力注册表")}
         title="Skill"
         description={uiLiteral("管理 Agent 的可复用工作方法。平台预置金融 Skill 可直接启用，也可以在工作区编写自己的通用金融 Skill。")}
         actions={<Link to="/overview" className="btn-primary"><UiLiteral text={"返回投研助理"} /></Link>}
@@ -165,7 +165,7 @@ export default function SkillSettingsPage() {
           </div>
 
           {loading ? <p className="flex items-center gap-2 px-5 py-8 text-sm text-secondary-text"><LoaderCircle className="h-4 w-4 animate-spin" /><UiLiteral text={"正在读取 Skill…"} /></p> : null}
-          {error ? <p role="alert" className="flex items-center gap-2 px-5 py-8 text-sm text-danger"><CircleAlert className="h-4 w-4" />{error}</p> : null}
+          {error ? <p role="alert" className="flex items-center gap-2 px-5 py-8 text-sm text-danger"><CircleAlert className="h-4 w-4" />{uiLiteral(error)}</p> : null}
           {!loading && !error ? (
             <div className="divide-y divide-border/60">
               {filtered.filter((skill) => skill.builtIn).map((skill) => {
@@ -175,10 +175,10 @@ export default function SkillSettingsPage() {
                     <input type="checkbox" checked={enabled} onChange={() => toggle(skill.id)} className="mt-1 chat-skill-checkbox" />
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-foreground">{skill.name}</span>
+                        <span className="font-medium text-foreground">{uiLiteral(skill.name)}</span>
                         <code className="text-[11px] text-muted-text">{skill.id}</code>
                       </span>
-                      <span className="mt-1 block text-sm leading-6 text-secondary-text">{skill.description || "没有说明。"}</span>
+                      <span className="mt-1 block text-sm leading-6 text-secondary-text">{uiLiteral(skill.description || "没有说明。")}</span>
                     </span>
                     <span className={enabled ? "text-xs font-medium text-success" : "text-xs text-muted-text"}>{enabled ? uiLiteral("可供 Agent 使用") : uiLiteral("已停用")}</span>
                   </label>
@@ -221,7 +221,7 @@ export default function SkillSettingsPage() {
                     <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-text">{uiLiteral(categoryLabels[skill.category as CustomSkillDraft["category"]] || skill.category)}</span>
                     <span className="rounded border border-success/30 bg-success/5 px-1.5 py-0.5 text-[10px] text-success">v{skill.version} <UiLiteral text={" · 已发布"} /></span>
                   </div>
-                  <p className="mt-1 text-sm leading-6 text-secondary-text">{skill.description || "没有补充说明。"}</p>
+                  <p className="mt-1 text-sm leading-6 text-secondary-text">{skill.description || uiLiteral("没有补充说明。")}</p>
                   <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-text">{skill.instructions}</p>
                 </div>
                 <label className="flex items-center gap-2 text-xs text-secondary-text">

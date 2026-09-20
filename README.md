@@ -34,6 +34,8 @@ Click **Request an invitation code** to open your configured default email app w
 
 **Start here:** [What you can do](#what-you-can-do) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Your first report](#your-first-report)
 
+**Choose your language:** Use the language selector at the top of the website. Interface labels follow your selection; saved reports, news and user-written content keep their original language. Report output language is configured separately.
+
 ## What you can do
 
 | If you want to… | Open… | What you get |

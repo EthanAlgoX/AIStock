@@ -28,6 +28,10 @@ README 默认入口 `README.md` 使用英文，并链接简体中文、繁体中
 
 静态目录为 `en.json`、`zh-TW.json`、`ja.json`、`ko.json`。新增或更改源文案时同步词条，并保留占位符、URL、环境变量及接口枚举。不得对用户输入、报告正文或任意 DOM 应用翻译。浏览或切换语言不调用翻译服务。
 
+任务列表、能力目录和系统提示在渲染时翻译，保证切换语言后立即更新。聊天导出的标题、角色标签和时间使用导出时选择的语言，正文保持原文。词条匹配兼容旧文案两端的排版空格。
+
+四份翻译词典必须覆盖所有词典键的并集，不能只以某一语言作为覆盖检查的基准。
+
 语言测试覆盖英文默认、五种切换与保存、词条覆盖、占位符、报告接口及输出指令。页面验收截图放在本地忽略目录，不提交仓库。现有组件测试显式采用简体中文偏好；默认语言测试删除该偏好后验证英文。
 
 回滚本次代码无需数据库迁移。旧版不识别的新语言偏好会走旧版默认逻辑；若已配置新的报告语言，回滚时将报告语言切换为旧版支持值。
@@ -35,3 +39,5 @@ README 默认入口 `README.md` 使用英文，并链接简体中文、繁体中
 ## English summary
 
 The default README and first-visit UI are English. Five languages are available: English, Simplified Chinese, Traditional Chinese, Japanese and Korean. Explicit preferences persist; browser language does not change the default. Static UI copy is localized while user content and historical reports retain their original text. Report APIs accept all five language codes; existing server report-language settings remain separate from the UI default. No runtime translation service or database migration is required.
+
+Catalogue tests compare the union of all locale keys and check placeholders. Task filters, capability descriptions and system messages translate at render time. Export headings and timestamps follow the selected language while message bodies remain unchanged. Legacy whitespace around registered labels is supported.

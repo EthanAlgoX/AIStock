@@ -1,11 +1,12 @@
+import { uiLocale } from "../../utils/uiLanguage";
 import { useId, useRef, useState } from 'react';
 import type { AnalysisChart as Chart } from '../../utils/analysisChart';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
 
 const colors=['hsl(var(--primary))','hsl(var(--foreground))','hsl(var(--color-purple))','hsl(var(--muted-foreground))'];
-const format=(v:number)=>new Intl.NumberFormat('zh-CN',{maximumFractionDigits:3,notation:Math.abs(v)>=1e7?'compact':'standard'}).format(v);
 export function AnalysisChart({chart}:{chart:Chart}) {
-  const {localize:l}=useUiLanguage();
+  const {localize:l, language}=useUiLanguage();
+  const format=(v:number)=>new Intl.NumberFormat(uiLocale(language),{maximumFractionDigits:3,notation:Math.abs(v)>=1e7?'compact':'standard'}).format(v);
   const titleId=useId();
   const svgRef=useRef<SVGSVGElement>(null);
   const [hidden,setHidden]=useState<string[]>([]);

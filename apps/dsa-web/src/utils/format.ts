@@ -1,9 +1,12 @@
-export const formatDateTime = (value?: string | null): string => {
+import { getRuntimeInitialLanguage, uiLocale } from './uiLanguage';
+import type { UiLanguage } from '../i18n/uiText';
+
+export const formatDateTime = (value?: string | null, language: UiLanguage = getRuntimeInitialLanguage()): string => {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(uiLocale(language), {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -12,12 +15,12 @@ export const formatDateTime = (value?: string | null): string => {
   }).format(date);
 };
 
-export const formatDate = (value?: string): string => {
+export const formatDate = (value?: string, language: UiLanguage = getRuntimeInitialLanguage()): string => {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(uiLocale(language), {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

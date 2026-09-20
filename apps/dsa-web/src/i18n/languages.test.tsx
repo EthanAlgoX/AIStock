@@ -32,9 +32,24 @@ describe('Five-language interface', () => {
       expect(screen.getByText('用户报告原文')).toBeInTheDocument();
     }
   });
+  it('translates legacy labels with leading or trailing whitespace', () => {
+    for (const [language, catalogue] of Object.entries({ en, ja, 'zh-TW': traditional, ko })) {
+      for (const source of [' · 不可用', '市场阶段: ', '交易策略保存失败，请检查能力配置。 ']) {
+        const target = (catalogue as Record<string, string>)[source];
+        expect(translateSource(source, language)).toBe(target);
+        expect(translateSource(source.trim(), language)).toBe(target.trim());
+      }
+    }
+    for (const [language, catalogue] of Object.entries({ en, ja, 'zh-TW': traditional, ko })) {
+      expect(translateSource(' · 已选 3 项', language)).toBe(' ' + catalogue[' · 已选 {0} 项'].trim().replace('{0}', '3'));
+    }
+    expect(translateSource('  用户自定义 X9  ', 'ko')).toBe('  用户自定义 X9  ');
+  });
   it('covers registered source strings and preserves placeholder contracts', () => {
-    for (const catalogue of [en, ja, traditional] as Record<string, string>[]) {
-      for (const source of Object.keys(ko)) {
+    const catalogues = [en, ja, traditional, ko] as Record<string, string>[];
+    const sources = new Set(catalogues.flatMap(catalogue => Object.keys(catalogue)));
+    for (const catalogue of catalogues) {
+      for (const source of sources) {
         expect(Object.prototype.hasOwnProperty.call(catalogue, source), source).toBe(true);
         expect(catalogue[source]?.trim(), source).toBeTruthy();
         expect(catalogue[source]?.match(/\{(?:\w+|\d+)\}/g)?.sort() || [], source).toEqual(source.match(/\{(?:\w+|\d+)\}/g)?.sort() || []);

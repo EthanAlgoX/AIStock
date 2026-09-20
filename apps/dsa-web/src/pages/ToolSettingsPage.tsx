@@ -81,7 +81,7 @@ export default function ToolSettingsPage() {
       data-design-form="Established Operate surface; direct extension of the capability registry."
     >
       <PageHeader
-        eyebrow="Capability registry"
+        eyebrow={uiLiteral("能力注册表")}
         title={uiLiteral("内置工具")}
         description={uiLiteral("管理平台自带的金融 Tool Surface。Tool 是 Agent 可直接执行的函数；MCP 服务是外部能力的连接协议，两者分别治理。")}
         actions={<Link to="/overview" className="btn-primary"><UiLiteral text={"返回投研助理"} /></Link>}
@@ -105,7 +105,7 @@ export default function ToolSettingsPage() {
         <p><span className="font-medium text-warning"><UiLiteral text={"运行边界。"} /></span> <UiLiteral text={" 下列站内工具已通过网站的金融 MCP Endpoint 发布给外部 Runtime；独立 Agent 引擎 仍需在自身配置中连接该 Endpoint。工作区白名单会同时限制站内 Agent 和 MCP 暴露面。"} /></p>
       </div>
 
-      {error ? <p role="alert" className="rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p> : null}
+      {error ? <p role="alert" className="rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">{uiLiteral(error)}</p> : null}
 
       <section className="grid gap-px overflow-hidden rounded-[12px] border border-border bg-border sm:grid-cols-3" aria-label={uiLiteral("工具目录摘要")}>
         <div className="bg-card px-5 py-4"><p className="text-xs text-secondary-text"><UiLiteral text={"平台金融工具"} /></p><p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">{loading ? "—" : tools.length}</p><p className="mt-1 text-xs text-muted-text">DSA Tool Surface</p></div>
@@ -121,7 +121,7 @@ export default function ToolSettingsPage() {
             return (
               <section key={category} className="overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card" aria-labelledby={`tool-category-${category}`}>
                 <div className="flex items-start justify-between gap-4 border-b border-border/70 px-5 py-4">
-                  <div><h2 id={`tool-category-${category}`} className="font-semibold text-foreground">{meta.label}</h2><p className="mt-1 text-xs leading-5 text-secondary-text">{meta.description}</p></div>
+                  <div><h2 id={`tool-category-${category}`} className="font-semibold text-foreground">{uiLiteral(meta.label)}</h2><p className="mt-1 text-xs leading-5 text-secondary-text">{uiLiteral(meta.description)}</p></div>
                   <span className="font-mono text-xs text-muted-text">{categoryTools.filter((tool) => enabledSet.has(tool.id)).length}/{categoryTools.length}</span>
                 </div>
                 <div className="divide-y divide-border/60">
@@ -133,8 +133,8 @@ export default function ToolSettingsPage() {
                       <label key={tool.id} className="flex cursor-pointer items-start gap-4 px-5 py-4 transition-colors hover:bg-hover/35">
                         <input type="checkbox" checked={enabled} onChange={() => toggle(tool.id)} aria-label={uiLiteral(`${tool.name} 工具`)} className="mt-1" />
                         <span className="min-w-0 flex-1">
-                          <span className="flex flex-wrap items-center gap-2"><span className="font-medium text-foreground">{copy?.name || tool.name}</span><code className="text-[11px] text-muted-text">{tool.id}</code></span>
-                          <span className="mt-1 block text-sm leading-6 text-secondary-text">{copy?.description || tool.description}</span>
+                          <span className="flex flex-wrap items-center gap-2"><span className="font-medium text-foreground">{uiLiteral(copy?.name || tool.name)}</span><code className="text-[11px] text-muted-text">{tool.id}</code></span>
+                          <span className="mt-1 block text-sm leading-6 text-secondary-text">{uiLiteral(copy?.description || tool.description)}</span>
                         </span>
                         <span className="hidden shrink-0 items-center gap-1.5 sm:flex"><span className="rounded border border-border px-1.5 py-0.5 font-mono text-[9px] text-muted-text">{Array.isArray(policy.permissions) ? policy.permissions.join(" · ") || "READ" : "READ"}</span><span className="rounded border border-border px-1.5 py-0.5 text-[9px] text-muted-text">{policy.read_only === false ? uiLiteral("受控副作用") : uiLiteral("只读/计算")}</span></span>
                       </label>

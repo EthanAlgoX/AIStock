@@ -114,7 +114,7 @@ export default function CapabilityOverviewPage() {
       data-design-form="Established Operate surface; capability control-plane overview."
     >
       <PageHeader
-        eyebrow="Capability registry"
+        eyebrow={uiLiteral("能力注册表")}
         title={uiLiteral("能力中心")}
         description={uiLiteral("统一管理投研助理可以发现的工作方法、执行工具、外部连接、事实数据和专家视角；工作区启用不等于本次任务已经挂载。")}
         actions={<Link to="/overview" className="btn-primary"><UiLiteral text={"返回投研助理"} /></Link>}
@@ -155,10 +155,10 @@ export default function CapabilityOverviewPage() {
             return (
               <Link key={item.key} to={item.to} className="group grid gap-3 px-5 py-4 transition-colors hover:bg-hover/35 sm:grid-cols-[2.5rem_minmax(0,1fr)_10rem_4rem] sm:items-center">
                 <span className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-border bg-background text-secondary-text group-hover:text-primary"><Icon className="h-4 w-4" /></span>
-                <span><span className="block text-sm font-semibold text-foreground">{item.title}</span><span className="mt-1 block text-xs leading-5 text-secondary-text">{item.description}</span></span>
+                <span><span className="block text-sm font-semibold text-foreground">{uiLiteral(item.title)}</span><span className="mt-1 block text-xs leading-5 text-secondary-text">{uiLiteral(item.description)}</span></span>
                 <span className={`flex items-center gap-2 text-xs ${item.stateTone === "success" ? "text-success" : "text-warning"}`}>
                   {item.stateTone === "success" ? <CheckCircle2 className="h-3.5 w-3.5" /> : <CircleAlert className="h-3.5 w-3.5" />}
-                  {item.state}
+                  {uiLiteral(item.state)}
                 </span>
                 <span className="flex items-center justify-end gap-2 font-mono text-sm font-semibold text-foreground">{count ?? "—"}<ArrowRight className="h-3.5 w-3.5 text-muted-text" /></span>
               </Link>

@@ -1,3 +1,5 @@
+import { useUiLanguage } from "../contexts/UiLanguageContext";
+import { uiLocale } from "../utils/uiLanguage";
 import { useUiLiteral } from '../hooks/useUiLiteral';
 import { UiLiteral } from '../components/i18n/UiLiteral';
 import { ArrowLeft, Clock3, Database, FileCheck2, LoaderCircle, ShieldCheck } from "lucide-react";
@@ -13,11 +15,11 @@ import { cn } from "../utils/cn";
 
 import { visibleWorkspaceArtifacts, workspaceRunLabel, workspaceRunTone } from "../utils/workspaceOutcome";
 
-const formatTime = (value?: string | null) => {
+const formatTime = (value: string | null | undefined, locale: string) => {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -35,6 +37,7 @@ const artifactText = (artifact: WorkspaceArtifact) => {
 
 export default function TaskRunDetailPage() {
   const uiLiteral = useUiLiteral();
+  const { language } = useUiLanguage();
   const navigate = useNavigate();
   const [acting, setActing] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -75,7 +78,7 @@ export default function TaskRunDetailPage() {
   if (!run || error) {
     return (
       <AppPage className="space-y-6 pb-20">
-        <PageHeader title={uiLiteral("运行详情不可用")} description={error || "没有找到对应运行记录。"} actions={<Link to="/runs" className="btn-secondary inline-flex items-center gap-2"><ArrowLeft className="h-4 w-4" /><UiLiteral text={"返回任务与运行"} /></Link>} />
+        <PageHeader title={uiLiteral("运行详情不可用")} description={uiLiteral(error || "没有找到对应运行记录。")} actions={<Link to="/runs" className="btn-secondary inline-flex items-center gap-2"><ArrowLeft className="h-4 w-4" /><UiLiteral text={"返回任务与运行"} /></Link>} />
       </AppPage>
     );
   }
@@ -104,17 +107,17 @@ export default function TaskRunDetailPage() {
   return (
     <AppPage className="space-y-6 pb-20" data-testid="task-run-detail-page">
       <PageHeader
-        eyebrow="Run and artifact"
-        title={run.taskSnapshot?.name || "运行详情"}
+        eyebrow={uiLiteral("运行与结果")}
+        title={run.taskSnapshot?.name || uiLiteral("运行详情")}
         description={uiLiteral("查看这次运行冻结的任务、数据快照和完整成果。市场看板只引用这里的摘要，不复制或截断正式报告。")}
         actions={<div className="flex flex-wrap gap-2"><Link to={`/overview?runId=${encodeURIComponent(run.id)}`} className="btn-secondary"><UiLiteral text={"继续问 Agent"} /></Link><Link to="/runs" className="btn-secondary inline-flex items-center gap-2"><ArrowLeft className="h-4 w-4" /><UiLiteral text={"返回任务与运行"} /></Link></div>}
       />
 
       <section className="grid gap-px overflow-hidden rounded-[12px] border border-border bg-border sm:grid-cols-4" aria-label={uiLiteral("运行信息")}>
-        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text"><UiLiteral text={"运行状态"} /></p><p className={cn("mt-2 text-sm font-semibold", statusTone)}>{workspaceRunLabel(run)}</p></div>
-        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text"><UiLiteral text={"任务类型"} /></p><p className="mt-2 text-sm font-semibold text-foreground">{portfolioId ? uiLiteral("策略账户更新") : kinds[run.kind]}</p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text"><UiLiteral text={"运行状态"} /></p><p className={cn("mt-2 text-sm font-semibold", statusTone)}>{uiLiteral(workspaceRunLabel(run))}</p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text"><UiLiteral text={"任务类型"} /></p><p className="mt-2 text-sm font-semibold text-foreground">{portfolioId ? uiLiteral("策略账户更新") : uiLiteral(kinds[run.kind])}</p></div>
         <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text"><UiLiteral text={"触发方式"} /></p><p className="mt-2 text-sm font-semibold text-foreground">{run.triggerType === "schedule" ? uiLiteral("定时任务") : run.triggerType === "agent_tool" ? uiLiteral("主 Agent") : uiLiteral("手动运行")}</p></div>
-        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text"><UiLiteral text={"完成时间"} /></p><p className="mt-2 text-sm font-semibold text-foreground">{run.completedAt ? formatTime(run.completedAt) : uiLiteral("尚未完成")}</p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text"><UiLiteral text={"完成时间"} /></p><p className="mt-2 text-sm font-semibold text-foreground">{run.completedAt ? formatTime(run.completedAt, uiLocale(language)) : uiLiteral("尚未完成")}</p></div>
       </section>
 
       <section className="space-y-3 rounded-xl border border-border bg-card p-4" aria-label={uiLiteral("继续处理这份结果")}>
@@ -126,19 +129,19 @@ export default function TaskRunDetailPage() {
           {!active && <Link className="btn-secondary" to={`/expert-review?sourceRun=${encodeURIComponent(run.id)}`}><UiLiteral text={"基于此结果请专家讨论"} /></Link>}
           {!run.resultSummary?.externalExecutor && <button className="btn-secondary" disabled={acting || Boolean(run.cancelRequested)} onClick={() => void act()}>{acting ? uiLiteral("处理中…") : active ? run.cancelRequested ? uiLiteral("已请求停止") : uiLiteral("停止本次运行") : uiLiteral("按原配置重新运行（产生新消耗）")}</button>}
         </div>
-        {universe && <p className="text-sm text-secondary-text"><UiLiteral text={"本次冻结股票："} />{universe.symbols?.join("、")} <UiLiteral text={" · 来源时点："} />{universe.asOf ? formatTime(universe.asOf) : uiLiteral("提交时的自选 / 持仓")}<UiLiteral text={"。仅生成提案，无订单与模拟成交。"} /></p>}
+        {universe && <p className="text-sm text-secondary-text"><UiLiteral text={"本次冻结股票："} />{universe.symbols?.join("、")} <UiLiteral text={" · 来源时点："} />{universe.asOf ? formatTime(universe.asOf, uiLocale(language)) : uiLiteral("提交时的自选 / 持仓")}<UiLiteral text={"。仅生成提案，无订单与模拟成交。"} /></p>}
         <p className="text-sm text-secondary-text"><UiLiteral text={"本次模型用量："} />{run.artifacts.some(a => a.type === "PortfolioUpdate") ? uiLiteral("固定规则运行，未调用模型，Token 消耗为 0") : run.usage?.recorded ? uiLiteral(`${run.usage.tokens.toLocaleString()} tokens · ${run.usage.calls} 次调用 · 其中估算 ${run.usage.estimatedTokens.toLocaleString()} tokens`) : uiLiteral("暂无可归属的用量记录，不能视为零消耗")}<UiLiteral text={"。独立子运行用量在各自详情查看。"} /></p>
-        {actionError && <p role="alert" className="text-sm text-danger">{actionError}</p>}
+        {actionError && <p role="alert" className="text-sm text-danger">{uiLiteral(actionError)}</p>}
       </section>
       <RunStages run={run} />
-      {run.outcome && <p role="status" className={`text-sm leading-6 ${statusTone}`}>{run.outcome.message}</p>}
-      {run.errorMessage ? <p role="alert" className="rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">{run.errorMessage}</p> : null}
+      {run.outcome && <p role="status" className={`text-sm leading-6 ${statusTone}`}>{uiLiteral(run.outcome.message)}</p>}
+      {run.errorMessage ? <p role="alert" className="rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">{uiLiteral(run.errorMessage)}</p> : null}
 
       <section className="overflow-hidden rounded-[12px] border border-border bg-card" aria-labelledby="run-context-title">
         <div className="border-b border-border px-5 py-4"><h2 id="run-context-title" className="text-sm font-semibold text-foreground"><UiLiteral text={"运行上下文"} /></h2></div>
         <div className="grid gap-5 px-5 py-5 text-sm sm:grid-cols-3">
-          <div className="flex items-start gap-2.5"><Clock3 className="mt-0.5 h-4 w-4 text-primary" /><div><p className="font-medium text-foreground"><UiLiteral text={"数据时点"} /></p><p className="mt-1 text-xs text-muted-text">{formatTime(run.dataSnapshot?.asOf)}</p></div></div>
-          <div className="flex items-start gap-2.5"><Database className="mt-0.5 h-4 w-4 text-primary" /><div><p className="font-medium text-foreground"><UiLiteral text={"数据源"} /></p><p className="mt-1 break-words text-xs text-muted-text">{run.dataSnapshot?.sourceIds?.join("、") || "未记录"}</p></div></div>
+          <div className="flex items-start gap-2.5"><Clock3 className="mt-0.5 h-4 w-4 text-primary" /><div><p className="font-medium text-foreground"><UiLiteral text={"数据时点"} /></p><p className="mt-1 text-xs text-muted-text">{formatTime(run.dataSnapshot?.asOf, uiLocale(language))}</p></div></div>
+          <div className="flex items-start gap-2.5"><Database className="mt-0.5 h-4 w-4 text-primary" /><div><p className="font-medium text-foreground"><UiLiteral text={"数据源"} /></p><p className="mt-1 break-words text-xs text-muted-text">{run.dataSnapshot?.sourceIds?.join("、") || uiLiteral("未记录")}</p></div></div>
           <div className="flex items-start gap-2.5"><ShieldCheck className="mt-0.5 h-4 w-4 text-primary" /><div><p className="font-medium text-foreground"><UiLiteral text={"快照标识"} /></p><p className="mt-1 break-all font-mono text-[11px] text-muted-text">{run.dataSnapshotId}</p></div></div>
         </div>
       </section>
@@ -157,7 +160,7 @@ export default function TaskRunDetailPage() {
             <article key={artifact.id} className="py-6">
               <div className="flex flex-wrap items-baseline justify-between gap-3">
                 <div><p className="text-xs font-medium text-primary">{artifact.type}</p><h3 className="mt-1 text-base font-semibold text-foreground">{artifact.title}</h3></div>
-                <span className="text-[11px] text-muted-text">{formatTime(artifact.createdAt)} · v{artifact.version}</span>
+                <span className="text-[11px] text-muted-text">{formatTime(artifact.createdAt, uiLocale(language))} · v{artifact.version}</span>
               </div>
               <div className="mt-5 rounded-[10px] border border-border bg-background px-4 py-4 sm:px-5">
                 {markdown ? <ReportMarkdownBody content={markdown} /> : <pre className="max-h-[48rem] overflow-auto whitespace-pre-wrap break-words text-xs leading-6 text-secondary-text">{JSON.stringify(artifact.content, null, 2)}</pre>}

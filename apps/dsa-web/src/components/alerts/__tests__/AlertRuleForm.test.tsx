@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UiLanguageProvider } from '../../../contexts/UiLanguageContext';
 import { UI_LANGUAGE_STORAGE_KEY } from '../../../utils/uiLanguage';
+import { ALERT_FORM_TEXT } from '../../../locales/featureText';
+import type { UiLanguage } from '../../../i18n/uiText';
 import { AlertRuleForm } from '../AlertRuleForm';
 
 const { getAccounts } = vi.hoisted(() => ({
@@ -182,6 +184,22 @@ describe('AlertRuleForm', () => {
     fireEvent.click(screen.getByRole('button', { name: '创建规则' }));
 
     expect(screen.getByRole('alert')).toHaveTextContent('股票代码格式不正确');
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it.each<[UiLanguage, string]>([
+    ['zh', '股票代码格式不正确'],
+    ['en', 'Invalid stock code format'],
+    ['zh-TW', '股票代碼格式不正確'],
+    ['ja', '銘柄コードの形式が正しくありません'],
+    ['ko', '종목 코드 형식이 올바르지 않습니다'],
+  ])('uses %s for invalid stock code feedback', (language, expected) => {
+    localStorage.setItem(UI_LANGUAGE_STORAGE_KEY, language);
+    const labels = ALERT_FORM_TEXT[language];
+    render(<UiLanguageProvider><AlertRuleForm onSubmit={onSubmit} /></UiLanguageProvider>);
+    fireEvent.change(screen.getByLabelText(labels.targetCode), {target: {value: 'aapl-2026'}});
+    fireEvent.click(screen.getByRole('button', {name: labels.create}));
+    expect(screen.getByRole('alert')).toHaveTextContent(expected);
     expect(onSubmit).not.toHaveBeenCalled();
   });
 

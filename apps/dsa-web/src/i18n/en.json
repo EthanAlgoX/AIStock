@@ -162,7 +162,7 @@
   "## 用户": "## User",
   "**反方意见：现金流稳定也可能掩盖客户集中风险。**\n\n需要补充最大客户收入占比与替代产品信息。若增长依赖单一客户，即使估值低，也不能直接视为安全边际。": "**Counterargument: Stable cash flow can also mask customer concentration risk.**\n\nInformation on the largest customer's revenue share and substitute products needs to be added. If growth depends on a single customer, even a low valuation cannot be directly treated as a margin of safety.",
   "**汇总：进入观察名单，不把演示数字当作买入信号。**\n\n- 共识：验证现金创造能力。\n- 分歧：客户集中是否足以否定投资逻辑。\n- 下一步：补齐现金流与客户结构，分别检验两种观点。": "**Summary: Add to watchlist; do not treat demo figures as a buy signal.**\n\n- Consensus: Verify cash generation capability.\n- Disagreement: Whether customer concentration is sufficient to invalidate the investment thesis.\n- Next step: Fill in cash flow and customer structure, and test the two views separately.",
-  "**结论：先验证现金流，再讨论便宜。**\n\n演示企业“云杉科技”的收入增长不等于股东回报。应核查经营现金流、维护性资本支出及客户留存；缺少这些数据时，不给出目标价。": "**Conclusion: Verify cash flow first, then discuss whether it is cheap.**\n\nThe revenue growth of the demo company “云杉科技” does not equal shareholder returns. Operating cash flow, maintenance capital expenditure, and customer retention should be checked; without these data, no target price should be given.",
+  "**结论：先验证现金流，再讨论便宜。**\n\n演示企业“云杉科技”的收入增长不等于股东回报。应核查经营现金流、维护性资本支出及客户留存；缺少这些数据时，不给出目标价。": "**Conclusion: Verify cash flow first, then discuss whether it is cheap.**\n\nThe revenue growth of the demo company “Cedar Systems” does not equal shareholder returns. Operating cash flow, maintenance capital expenditure, and customer retention should be checked; without these data, no target price should be given.",
   "+ 添加渠道": "+ Add Channel",
   "0 更适合稳定结构化输出。": "0 is better suited for stable structured output.",
   "0.05 表示 5%": "0.05 means 5%",
@@ -4566,7 +4566,7 @@
   "生成成果": "Generation output",
   "生成提案": "Generate proposal",
   "生成时间": "Generation time",
-  "生成时间: {0}": "Generation time: {0}",
+  "生成时间: {0}": "Generated at: {0}",
   "生成最新复盘": "Generate latest review",
   "生成超时（秒）": "Generation timeout (seconds)",
   "生成邀请码": "Generate invite code",
@@ -5795,5 +5795,13 @@
   "输入最近 3–21 个交易日的可用日线，不能少于网格观察周期。现金、持仓、决策日期与账户约束由系统提供。": "Use available daily bars from the latest 3–21 trading days, covering at least the grid window. Cash, holdings, decision date and account limits are supplied by the system.",
   "补充背景材料": "Additional background",
   "背景作为独立材料传入，不覆盖行情或账户数据。它不会每日自动更新；请勿填入密钥，历史回放请勿加入未来信息。": "Background is sent separately and cannot overwrite market or account data. It does not update daily. Do not include secrets or future information in historical replays.",
-  "补充策略指令": "Additional strategy instructions"
+  "补充策略指令": "Additional strategy instructions",
+  "能力注册表": "Capability registry",
+  "智能任务调度": "Agent task scheduler",
+  "任务运行账本": "Task and run ledger",
+  "运行与结果": "Run and artifacts",
+  "平台数据依赖": "Platform data dependencies",
+  "策略版本 #{0}": "Strategy version #{0}",
+  "问股会话": "Stock research conversation",
+  "{0} 行情未更新至 {1} 或包含重复日期，请稍后重试": "Market data for {0} is not updated through {1} or contains duplicate dates. Please retry later."
 }
