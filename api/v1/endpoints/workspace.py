@@ -4,10 +4,10 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Optional
+from typing import Any, Optional, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.v1.schemas.workspace import (
     CapabilityPreferenceRequest,
@@ -597,3 +597,45 @@ async def financial_mcp(request: Request, response: Response) -> Any:
 @mcp_router.get("")
 def financial_mcp_get() -> dict[str, Any]:
     return {"name": "llm-tradebot-finance", "protocol": "MCP Streamable HTTP", "status": "ready"}
+
+
+class StrategyAuthoringBegin(BaseModel):
+    model_config = {'extra': 'forbid'}
+    kind: Literal['research', 'screening', 'trading']
+
+
+class StrategyAuthoringRevision(BaseModel):
+    model_config = {'extra': 'forbid'}
+    revision: int = Field(ge=1, strict=True)
+
+
+def _authoring():
+    from src.services.assistant_strategy_service import AssistantStrategyService
+    return AssistantStrategyService()
+
+
+@router.get('/strategy-drafts/{session_id}')
+def strategy_draft_get(session_id: str):
+    return _call(lambda: _authoring().get(session_id))
+
+
+@router.post('/strategy-drafts/{session_id}')
+def strategy_draft_begin(session_id: str, body: StrategyAuthoringBegin):
+    if not 1 <= len(session_id) <= 80:
+        raise HTTPException(422, 'Invalid session ID')
+    return _call(lambda: _authoring().begin(session_id, body.kind))
+
+
+@router.post('/strategy-drafts/{session_id}/sync')
+def strategy_draft_sync(session_id: str):
+    return _call(lambda: _authoring().sync(session_id))
+
+
+@router.post('/strategy-drafts/{session_id}/validate')
+def strategy_draft_validate(session_id: str, body: StrategyAuthoringRevision):
+    return _call(lambda: _authoring().validate(session_id, body.revision))
+
+
+@router.post('/strategy-drafts/{session_id}/save')
+def strategy_draft_save(session_id: str, body: StrategyAuthoringRevision):
+    return _call(lambda: _authoring().save(session_id, body.revision))

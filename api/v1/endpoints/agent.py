@@ -82,6 +82,13 @@ def _build_agent_chat_context(request: ChatRequest, config, skills: Optional[Lis
     context = dict(request.context or {})
     context.pop("skills", None)
     context.pop("strategies", None)
+    context.pop("strategy_authoring_prompt", None)
+    if request.session_id:
+        from src.services.assistant_strategy_service import AssistantStrategyService
+        authoring_prompt = AssistantStrategyService().prompt(request.session_id)
+        if authoring_prompt:
+            context["strategy_authoring_prompt"] = authoring_prompt
+
     if skills is not None:
         context["skills"] = skills
     from src.agent.agent_backend import resolve_agent_backend_id

@@ -591,6 +591,8 @@ def prepare_agent_chat(
         skills_section=skills_section,
         language_section=_build_language_section(report_language, chat_mode=True),
     )
+    if (effective_context or {}).get("strategy_authoring_prompt"):
+        system_prompt += "\n" + effective_context["strategy_authoring_prompt"]
     workflow_tools = set(((effective_context or {}).get("capability_manifest") or {}).get("toolIds") or [])
     system_prompt += "\n面向用户的长篇内容请先给结论，再按证据、比较、风险和下一步组织；用短段落、清晰小标题和比较表，避免重复堆叠大段文字。数值来源不足时保留文字说明，不编造图表数据。\n"
     if "build_analysis_chart" in workflow_tools or (use_codex_prompt and "capability_manifest" not in (effective_context or {})):

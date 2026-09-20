@@ -1328,6 +1328,22 @@ class WorkspaceCapabilityPreferenceRecord(Base):
     )
 
 
+class AssistantStrategyDraftRecord(Base):
+    """Server-persisted strategy authoring state, isolated by workspace database."""
+
+    __tablename__ = 'assistant_strategy_drafts'
+    session_id = Column(String(100), primary_key=True)
+    kind = Column(String(32), nullable=False)
+    draft_json = Column(Text, nullable=False, default='{}')
+    revision = Column(Integer, nullable=False, default=0)
+    source_message_id = Column(Integer, nullable=False, default=0)
+    validated_revision = Column(Integer, nullable=True)
+    skill_id = Column(String(128), nullable=True)
+    saved_revision = Column(Integer, nullable=True)
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_naive_now, nullable=False)
+
+
 class WorkspaceSkillRecord(Base):
     """A user-authored financial Skill stored independently from runtime code."""
 
@@ -4933,6 +4949,11 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             删除的消息数
         """
         with self.session_scope() as session:
+            session.execute(
+                delete(AssistantStrategyDraftRecord).where(
+                    AssistantStrategyDraftRecord.session_id == session_id
+                )
+            )
             session.execute(
                 delete(ConversationSessionState).where(
                     ConversationSessionState.session_id == session_id

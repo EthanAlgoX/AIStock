@@ -19,7 +19,7 @@ def member_api_allowed(path, method):
             'capabilities', 'default-task-plan', 'portfolio-research', 'skills', 'tools',
             'experts', 'expert-teams', 'tasks', 'runs', 'schedules',
             'market-dashboards', 'market-subscriptions',
-            'notification-settings', 'chat-settings',
+            'notification-settings', 'chat-settings', 'strategy-drafts',
         }
     if group == 'agent':
         return resource in {'models', 'status', 'skills', 'strategies', 'chat', 'research'} and resource != 'send' and '/chat/send' not in path

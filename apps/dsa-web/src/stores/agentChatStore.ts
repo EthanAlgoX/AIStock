@@ -141,7 +141,7 @@ interface AgentChatActions {
   refreshMessages: () => Promise<void>;
   loadInitialSession: () => Promise<void>;
   switchSession: (targetSessionId: string) => Promise<void>;
-  startNewChat: () => void;
+  startNewChat: (sessionId?: string) => void;
   stopStream: () => Promise<void>;
   startStream: (payload: ChatStreamRequest, meta?: StreamMeta) => Promise<void>;
 }
@@ -292,10 +292,10 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
     }
   },
 
-  startNewChat: () => {
+  startNewChat: (sessionId) => {
     // Abort any in-flight stream so the old request does not keep running
     get().abortController?.abort();
-    const newId = generateUUID();
+    const newId = sessionId ?? generateUUID();
     set({
       sessionId: newId,
       messages: [],

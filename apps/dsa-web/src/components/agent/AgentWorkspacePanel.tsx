@@ -18,6 +18,7 @@ import { translateWorkspaceText } from "../../i18n/translateWorkspaceText";
 type AgentWorkspacePanelProps = {
   taskTypeLabel?: string;
   artifactTypes?: string[];
+  artifactStatus?: string;
   skills: SkillInfo[];
   selectedSkillIds: string[];
   selectedToolCount: number;
@@ -42,6 +43,7 @@ const capabilityRows = [
 export function AgentWorkspacePanel({
   taskTypeLabel = "自然语言任务",
   artifactTypes = ["ResearchReport", "CandidateList", "StrategySpec"],
+  artifactStatus,
   skills,
   selectedSkillIds,
   selectedToolCount,
@@ -159,7 +161,7 @@ export function AgentWorkspacePanel({
               <div key={artifact} className="flex items-center gap-2 py-2.5">
                 <FileText className="h-3.5 w-3.5 text-muted-text" aria-hidden="true" />
                 <span className="flex-1 font-mono text-[11px] text-secondary-text">{artifact}</span>
-                <span className="text-[10px] text-muted-text">{localize("待生成", "Pending")}</span>
+                <span className="text-[10px] text-muted-text">{artifactStatus || localize("待生成", "Pending")}</span>
               </div>
             ))}
           </div>

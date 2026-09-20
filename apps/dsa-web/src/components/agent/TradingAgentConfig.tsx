@@ -21,7 +21,9 @@ export function TradingAgentConfig({
   inferredMarket,
   onConfig,
   onPreview,
+  initialQuery,
 }: {
+  initialQuery?: string;
   config: RuleConfig;
   inputText: string;
   codes: string[] | null;
@@ -32,9 +34,9 @@ export function TradingAgentConfig({
   const [options, setOptions] = useState<AgentOptions | null>(null);
   const [scope, setScope] = useState<UniverseScope>(
     config.universe?.scope || {
-      mode: "fixed",
+      mode: initialQuery ? "custom" : "fixed",
       symbols: [],
-      query: "",
+      query: initialQuery || "",
       maxCandidates: 12,
     },
   );

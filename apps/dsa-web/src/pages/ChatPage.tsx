@@ -36,6 +36,9 @@ import { findMatchingStockCode, includesStockCode, normalizeStockCode } from '..
 import { useStockIndex } from '../hooks/useStockIndex';
 import type { StockIndexItem } from '../types/stockIndex';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
+import { StrategyMessageBlock } from '../components/agent/StrategyMessageBlock';
+import StrategyAuthoringPanel from '../components/agent/StrategyAuthoringPanel';
+import type { StrategyDraftState } from '../api/strategyDrafts';
 import AgentCapabilityPanel from '../components/agent/AgentCapabilityPanel';
 import { AgentWorkspacePanel } from '../components/agent/AgentWorkspacePanel';
 import ChoiceList from '../components/common/ChoiceList';
@@ -278,6 +281,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
   const [searchParams, setSearchParams] = useSearchParams();
   const discussionMode = searchParams.get('mode') === 'discussion';
   const [input, setInput] = useState('');
+  const [strategyState, setStrategyState] = useState<StrategyDraftState | null>(null);
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [defaultSkillIds, setDefaultSkillIds] = useState<string[]>([]);
   const [showSkillDesc, setShowSkillDesc] = useState<string | null>(null);
@@ -437,6 +441,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
     startStream,
     clearCompletionBadge,
   } = useAgentChatStore();
+  const authoringActive = strategyState?.sessionId === sessionId;
   const expertChat = useInlineExpertChat(sessionId);
   const selectedSkillIds = sessionSelectedSkillIds ?? defaultSkillIds;
   const capabilitySessionKey = sessionId || 'new-session';
@@ -984,7 +989,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
         },
         context: contextForSend ?? undefined,
       };
-      if (expertChat.enabled) {
+      if (expertChat.enabled && !authoringActive) {
         const source = followUpContextRef.current?.previous_analysis_summary;
         const sourceRunId = source && typeof source === 'object' && 'sourceRunId' in source && typeof source.sourceRunId === 'string'
           ? source.sourceRunId : undefined;
@@ -1014,7 +1019,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
         },
       });
     },
-    [activeStockContext, agentAvailable, agentStatus, capabilityPreview, expertChat, getSkillNames, input, loading, normalizeSelectedSkillIds, requestScrollToBottom, runtimeOwnsStockContext, selectedSkillIds, sessionId, startStream, stockIndex],
+    [activeStockContext, authoringActive, agentAvailable, agentStatus, capabilityPreview, expertChat, getSkillNames, input, loading, normalizeSelectedSkillIds, requestScrollToBottom, runtimeOwnsStockContext, selectedSkillIds, sessionId, startStream, stockIndex],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1376,6 +1381,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h1 className="hidden shrink-0 text-base font-semibold tracking-[-0.015em] text-foreground sm:block">{workspaceCopy.title}</h1>
+                  {authoringActive && <span className="text-xs text-primary">{localize('策略创建', 'Strategy authoring')}</span>}
                   <span className={cn(
                     'hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium sm:inline-flex',
                     agentAvailable ? 'border-success/25 bg-success/5 text-success' : 'border-border bg-background text-muted-text',
@@ -1658,7 +1664,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                           </button>
                         </div>
                         <div className="chat-prose report-reading">
-                          <Markdown remarkPlugins={[remarkGfm]} components={chartMarkdownComponents}>
+                          <Markdown remarkPlugins={[remarkGfm]} components={authoringActive ? { ...chartMarkdownComponents, pre: StrategyMessageBlock } : chartMarkdownComponents}>
                             {msg.content}
                           </Markdown>
                         </div>
@@ -1942,7 +1948,16 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
               </div>
             )}
 
-              <section aria-label={localize('对话专家设置', 'Conversation expert settings')} className="grid grid-cols-2 items-start gap-3">
+              <StrategyAuthoringPanel key={sessionId} sessionId={sessionId} messageCount={messages.length} loading={loading || expertChat.pending}
+                hasDiscussion={messages.length > 0 || !!input.trim()} onMode={setStrategyState}
+                onCreated={(id, carry) => {
+                  const seed = carry ? [...messages.slice(-6).map((message) => `${message.role}: ${message.content}`), input].join('\n\n').slice(-12000) : input;
+                  handleStartNewChat();
+                  useAgentChatStore.getState().startNewChat(id);
+                  expertChat.update({ expertIds: [] });
+                  setInput(seed);
+                }} />
+              {!authoringActive && <section aria-label={localize('对话专家设置', 'Conversation expert settings')} className="grid grid-cols-2 items-start gap-3">
                 <ChoiceList label={localize('选择专家', 'Choose experts')} placement="above" multiple limit={6}
                   loading={!expertChat.catalog && !expertChat.error} disabled={loading || expertChat.pending}
                   placeholder={localize('不选专家 · 直接对话', 'No experts · direct chat')}
@@ -1953,8 +1968,8 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                   disabled={!expertChat.enabled || loading || expertChat.pending}
                   selectedIds={expertChat.enabled ? [expertChat.selection.mode] : []} placeholder={localize('普通对话', 'Direct chat')}
                   onSelect={(mode) => expertChat.update({ mode })} />
-              </section>
-              {expertChat.enabled && <button type="button" disabled={loading || expertChat.pending} className="text-xs text-primary hover:underline" onClick={() => expertChat.update({ expertIds: [] })}>{localize('取消专家选择，使用普通对话', 'Clear experts and use direct chat')}</button>}
+              </section>}
+              {!authoringActive && expertChat.enabled && <button type="button" disabled={loading || expertChat.pending} className="text-xs text-primary hover:underline" onClick={() => expertChat.update({ expertIds: [] })}>{localize('取消专家选择，使用普通对话', 'Clear experts and use direct chat')}</button>}
               {(expertChat.error || (expertChat.enabled && expertChat.runError)) && <div role="alert" className="text-xs text-warning">
                 {expertChat.error || expertChat.runError}
                 {!expertChat.catalog && <button type="button" onClick={expertChat.retry} className="ml-2 text-primary">{localize('重试目录', 'Retry catalog')}</button>}
@@ -1965,7 +1980,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={workspaceCopy.placeholder}
+                  placeholder={authoringActive ? localize('描述策略目标，或继续修改当前草稿…', 'Describe your strategy or revise the current draft…') : workspaceCopy.placeholder}
                   disabled={loading || expertChat.pending || !agentAvailable}
                   rows={1}
                   className="input-surface input-focus-glow min-h-[46px] max-h-[200px] flex-1 resize-none rounded-[10px] border bg-background px-4 py-3 text-sm transition-all focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
@@ -1989,7 +2004,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                   <Button
                     variant="primary"
                     onClick={() => handleSend()}
-                    disabled={!input.trim() || loading || expertChat.pending || expertChat.blocked || !agentAvailable}
+                    disabled={!input.trim() || loading || expertChat.pending || (!authoringActive && expertChat.blocked) || !agentAvailable}
                     isLoading={loading || expertChat.pending}
                     className="btn-primary flex-shrink-0"
                   >
@@ -2003,8 +2018,9 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
         </div>
 
         <AgentWorkspacePanel
-          taskTypeLabel={workspaceCopy.taskTypeLabel}
-          artifactTypes={WORKSPACE_ARTIFACTS[workspace]}
+          taskTypeLabel={authoringActive ? localize('策略创建', 'Strategy authoring') : workspaceCopy.taskTypeLabel}
+          artifactTypes={authoringActive ? ['Skill'] : WORKSPACE_ARTIFACTS[workspace]}
+          artifactStatus={authoringActive ? strategyState?.skillId ? localize('已保存', 'Saved') : localize('草稿', 'Draft') : undefined}
           skills={skills}
           selectedSkillIds={selectedSkillIds}
           selectedToolCount={capabilityPreview.toolIds.length}

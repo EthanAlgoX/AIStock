@@ -245,3 +245,19 @@ it("does not widen a holdings scope when its optional stock restriction has no i
   await screen.findByText(/填写的股票与所选持仓没有交集/);
   expect(api.previewUniverse).not.toHaveBeenCalled();
 });
+
+it('imports an assistant skill into the existing configuration without starting a run', async () => {
+  const { strategyDraftsApi } = await import('../../api/strategyDrafts');
+  const sync = vi.spyOn(strategyDraftsApi, 'sync').mockResolvedValue({
+    sessionId: 'draft', kind: 'trading', revision: 1, validated: true, skillId: 'price', error: null,
+    draft: { name: '对话网格', scope: '中市值以上、成交活跃且波动较大' },
+  });
+  render(<MemoryRouter initialEntries={['/trading?sourceSession=draft']}><TradingWorkspacePage /></MemoryRouter>);
+  expect(await screen.findByDisplayValue('对话网格')).toBeInTheDocument();
+  expect(await screen.findByDisplayValue('中市值以上、成交活跃且波动较大')).toBeInTheDocument();
+  expect(screen.getByDisplayValue('按行业与条件筛选')).toBeInTheDocument();
+  expect(api.saveDefinition).not.toHaveBeenCalled();
+  expect(api.createValidation).not.toHaveBeenCalled();
+  expect(api.control).not.toHaveBeenCalled();
+  sync.mockRestore();
+});

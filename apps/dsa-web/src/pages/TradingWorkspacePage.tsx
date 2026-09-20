@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { strategyDraftsApi } from "../api/strategyDrafts";
 import { isAxiosError } from "axios";
 import { extractErrorPayloadText, toApiErrorMessage } from "../api/error";
 import { useStockIndex } from "../hooks/useStockIndex";
@@ -92,6 +93,7 @@ export default function TradingWorkspacePage() {
   const [universeHistory, setUniverseHistory] = useState<"frozen" | "recorded">(
     "frozen",
   );
+  const [sourceQuery, setSourceQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<RuleConfig>(seed);
   const [symbols, setSymbols] = useState("");
@@ -152,6 +154,23 @@ export default function TradingWorkspacePage() {
       clearTimeout(timer);
     };
   }, [id, legacy, refresh]);
+  const sourceSession = params.get("sourceSession");
+  useEffect(() => {
+    if (!sourceSession) return;
+    let active = true;
+    strategyDraftsApi.sync(sourceSession).then((source) => {
+      if (!active) return;
+      if (!source?.skillId || source.kind !== 'trading') {
+        setError('请返回投研助理，先检查并保存当前交易策略 Skill。');
+        return;
+      }
+      setDraft({ ...seed, name: source.draft.name || '', skillId: source.skillId });
+      setSourceQuery(source.draft.scope || '');
+      setUniversePreview(null);
+      setCreating(true);
+    }).catch((e) => { if (active) setError(failure(e)); });
+    return () => { active = false; };
+  }, [sourceSession]);
   if (legacy)
     return (
       <>
@@ -277,6 +296,7 @@ export default function TradingWorkspacePage() {
             </button>
           </div>
           <form onSubmit={submit} className="max-w-4xl space-y-6">
+            {sourceSession && <p role="status" className="rounded-lg border border-border p-3 text-sm text-secondary-text">已从投研助理载入 Skill、名称和范围描述。请核对市场、行业、资金及风险参数；表单默认值尚未由对话确认。预览范围并保存后，可选择运行一次或持续模拟。</p>}
             <div className="grid gap-4 sm:grid-cols-2">
               <label>
                 策略名称
@@ -370,7 +390,7 @@ export default function TradingWorkspacePage() {
                   ))}
                 </div>
               </div>
-              <div className="sm:col-span-2"><TradingAgentConfig
+              <div className="sm:col-span-2"><TradingAgentConfig key={sourceSession || "manual"} initialQuery={sourceQuery}
                 config={draft}
                 inputText={symbols}
                 codes={

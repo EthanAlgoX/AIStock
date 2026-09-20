@@ -83,12 +83,27 @@ class AgentChatSessionService:
         limit: int,
         user_id: Optional[str],
     ) -> List[Dict[str, Any]]:
-        return self.db.get_chat_sessions(
+        items = self.db.get_chat_sessions(
             limit=limit,
             session_prefix=user_id,
             extra_session_ids=[user_id] if user_id else None,
             exclude_internal=True,
         )
+        import json
+        from sqlalchemy import select
+        from src.storage import AssistantStrategyDraftRecord
+        from src.services.assistant_strategy_service import KINDS
+        with self.db.get_session() as session:
+            drafts = {row.session_id: row for row in session.scalars(
+                select(AssistantStrategyDraftRecord).where(
+                    AssistantStrategyDraftRecord.session_id.in_([item['session_id'] for item in items])
+                )).all()}
+            for item in items:
+                draft = drafts.get(item['session_id'])
+                if draft:
+                    name = json.loads(draft.draft_json).get('name') or item['title']
+                    item['title'] = f"[{KINDS[draft.kind]}] {name}"
+        return items
 
     def get_session_detail(
         self,
