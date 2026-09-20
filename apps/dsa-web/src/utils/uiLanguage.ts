@@ -3,7 +3,7 @@ import type { UiLanguage } from '../i18n/uiText';
 export const UI_LANGUAGE_STORAGE_KEY = 'dsa.uiLanguage';
 
 export function normalizeUiLanguage(value?: string | null): UiLanguage | null {
-  if (value === 'zh' || value === 'en') {
+  if (value === 'zh' || value === 'en' || value === 'ko') {
     return value;
   }
   return null;
@@ -53,6 +53,7 @@ function getBrowserUiLanguage(navigatorLike?: Pick<Navigator, 'language' | 'lang
 
   for (const candidate of languageCandidates) {
     const normalized = candidate.toLowerCase();
+    if (normalized.startsWith('ko')) return 'ko';
     if (normalized.startsWith('zh')) {
       return 'zh';
     }
@@ -89,3 +90,5 @@ export function getRuntimeInitialLanguage(): UiLanguage {
     navigatorLike: window.navigator,
   });
 }
+
+export const uiLocale = (language: UiLanguage): string => ({ zh: 'zh-CN', en: 'en-US', ko: 'ko-KR' })[language];

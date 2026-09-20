@@ -8,13 +8,13 @@
 
 投研助理 · 專家圓桌 · 個股研究 · 策略選股 · 交易推演
 
-[English](../README.md) · [简体中文](README_ZH.md) · **繁體中文**
+[English](../README.md) · [简体中文](README_ZH.md) · **繁體中文** · [한국어](README_KO.md)
 
 </div>
 
 > AI Stock 面向 A 股、港股和美股，提供研究與模擬交易實驗能力。系統不會把模型輸出包裝成投資建議，也不允許 Agent 繞過確定性風控和執行邊界。
 
-專案曾用名 LLM TradeBot、InvestCrew，現統一品牌為 **AI Stock**。GitHub 儲存庫暫保留 `EthanAlgoX/InvestCrew`，本機目錄使用 `AI-Stock`。
+專案曾用名 LLM TradeBot、InvestCrew，現統一品牌為 **AI Stock**。GitHub 儲存庫暫保留 `EthanAlgoX/AIStock`，本機目錄使用 `AI-Stock`。
 
 ## 從提問開始，讓研究留下來
 
@@ -75,7 +75,7 @@ Agent 是統一互動與任務編排層；策略定義研究目標和執行約�
 環境要求：Python 3.10+、Node.js 20.19–26.x、npm 10+。以下命令適用於 macOS/Linux；Windows PowerShell 使用 `.venv\Scripts\Activate.ps1` 啟用虛擬環境。
 
 ```bash
-git clone https://github.com/EthanAlgoX/InvestCrew.git AI-Stock
+git clone https://github.com/EthanAlgoX/AIStock.git AI-Stock
 cd AI-Stock
 python3 -m venv .venv
 source .venv/bin/activate
@@ -99,7 +99,7 @@ python main.py --serve-only --host 127.0.0.1 --port 8000
 2. 向**投研助理**提問，或在**個股研究**執行預設方案。預設方案仍需對應模型、正式策略與工具可用。
 3. 閱讀報告，或進入**專家圓桌**，選擇專家與協作方式後提交討論話題。
 
-頂部提供中英文切換並儲存語言偏好，主要工作區、研究設定、預設方案和報告控制項隨之切換。歷史報告正文、使用者自訂名稱與原始資訊保留原文；切換介面不會翻譯或改寫研究資料。
+頂部提供中文、英文與韓文切換並儲存語言偏好。在韓文介面中，投研助理的新請求會明確要求韓文回覆；定時報告等分析可設定 `REPORT_LANGUAGE=ko` 使用韓文。主要工作區、研究設定、預設方案和報告控制項隨之切換。歷史報告正文、使用者自訂名稱與原始資訊保留原文；切換介面不會翻譯或改寫研究資料。
 
 前端開發時保持後端執行，在 `apps/dsa-web` 執行 `npm run dev`。Vite 預設使用 <http://127.0.0.1:5173>，將 `/api` 代理到 8000 連接埠；後端地址不同時可設定 `DSA_WEB_API_PROXY_TARGET`。
 

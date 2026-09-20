@@ -1,3 +1,5 @@
+import { useUiLiteral } from '../../hooks/useUiLiteral';
+import { UiLiteral } from '../i18n/UiLiteral';
 import { Bot, Boxes, Database, PlugZap, Sparkles, Wrench } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
@@ -13,9 +15,10 @@ const items = [
 ];
 
 export function CapabilityCenterNav() {
+  const uiLiteral = useUiLiteral();
   return (
     <div>
-      <nav aria-label="Agent 能力页面" className="flex gap-1 overflow-x-auto border-b border-border/70">
+      <nav aria-label={uiLiteral("Agent 能力页面")} className="flex gap-1 overflow-x-auto border-b border-border/70">
         {items.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
@@ -31,7 +34,7 @@ export function CapabilityCenterNav() {
           </NavLink>
         ))}
       </nav>
-      <p className="mt-2 text-[11px] text-muted-text sm:hidden">横向滑动可查看数据源和专家配置</p>
+      <p className="mt-2 text-[11px] text-muted-text sm:hidden"><UiLiteral text={"横向滑动可查看数据源和专家配置"} /></p>
     </div>
   );
 }

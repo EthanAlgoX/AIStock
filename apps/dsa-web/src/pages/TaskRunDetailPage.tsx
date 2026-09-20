@@ -1,3 +1,5 @@
+import { useUiLiteral } from '../hooks/useUiLiteral';
+import { UiLiteral } from '../components/i18n/UiLiteral';
 import { ArrowLeft, Clock3, Database, FileCheck2, LoaderCircle, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -32,6 +34,7 @@ const artifactText = (artifact: WorkspaceArtifact) => {
 };
 
 export default function TaskRunDetailPage() {
+  const uiLiteral = useUiLiteral();
   const navigate = useNavigate();
   const [acting, setActing] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -66,13 +69,13 @@ export default function TaskRunDetailPage() {
   }, [runId, runStatus]);
 
   if (loading) {
-    return <AppPage className="flex min-h-[32rem] items-center justify-center"><p className="flex items-center gap-2 text-sm text-muted-text"><LoaderCircle className="h-4 w-4 animate-spin" />正在读取完整成果…</p></AppPage>;
+    return <AppPage className="flex min-h-[32rem] items-center justify-center"><p className="flex items-center gap-2 text-sm text-muted-text"><LoaderCircle className="h-4 w-4 animate-spin" /><UiLiteral text={"正在读取完整成果…"} /></p></AppPage>;
   }
 
   if (!run || error) {
     return (
       <AppPage className="space-y-6 pb-20">
-        <PageHeader title="运行详情不可用" description={error || "没有找到对应运行记录。"} actions={<Link to="/runs" className="btn-secondary inline-flex items-center gap-2"><ArrowLeft className="h-4 w-4" />返回任务与运行</Link>} />
+        <PageHeader title={uiLiteral("运行详情不可用")} description={error || "没有找到对应运行记录。"} actions={<Link to="/runs" className="btn-secondary inline-flex items-center gap-2"><ArrowLeft className="h-4 w-4" /><UiLiteral text={"返回任务与运行"} /></Link>} />
       </AppPage>
     );
   }
@@ -103,28 +106,28 @@ export default function TaskRunDetailPage() {
       <PageHeader
         eyebrow="Run and artifact"
         title={run.taskSnapshot?.name || "运行详情"}
-        description="查看这次运行冻结的任务、数据快照和完整成果。市场看板只引用这里的摘要，不复制或截断正式报告。"
-        actions={<div className="flex flex-wrap gap-2"><Link to={`/overview?runId=${encodeURIComponent(run.id)}`} className="btn-secondary">继续问 Agent</Link><Link to="/runs" className="btn-secondary inline-flex items-center gap-2"><ArrowLeft className="h-4 w-4" />返回任务与运行</Link></div>}
+        description={uiLiteral("查看这次运行冻结的任务、数据快照和完整成果。市场看板只引用这里的摘要，不复制或截断正式报告。")}
+        actions={<div className="flex flex-wrap gap-2"><Link to={`/overview?runId=${encodeURIComponent(run.id)}`} className="btn-secondary"><UiLiteral text={"继续问 Agent"} /></Link><Link to="/runs" className="btn-secondary inline-flex items-center gap-2"><ArrowLeft className="h-4 w-4" /><UiLiteral text={"返回任务与运行"} /></Link></div>}
       />
 
-      <section className="grid gap-px overflow-hidden rounded-[12px] border border-border bg-border sm:grid-cols-4" aria-label="运行信息">
-        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">运行状态</p><p className={cn("mt-2 text-sm font-semibold", statusTone)}>{workspaceRunLabel(run)}</p></div>
-        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">任务类型</p><p className="mt-2 text-sm font-semibold text-foreground">{portfolioId ? "策略账户更新" : kinds[run.kind]}</p></div>
-        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">触发方式</p><p className="mt-2 text-sm font-semibold text-foreground">{run.triggerType === "schedule" ? "定时任务" : run.triggerType === "agent_tool" ? "主 Agent" : "手动运行"}</p></div>
-        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text">完成时间</p><p className="mt-2 text-sm font-semibold text-foreground">{run.completedAt ? formatTime(run.completedAt) : "尚未完成"}</p></div>
+      <section className="grid gap-px overflow-hidden rounded-[12px] border border-border bg-border sm:grid-cols-4" aria-label={uiLiteral("运行信息")}>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text"><UiLiteral text={"运行状态"} /></p><p className={cn("mt-2 text-sm font-semibold", statusTone)}>{workspaceRunLabel(run)}</p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text"><UiLiteral text={"任务类型"} /></p><p className="mt-2 text-sm font-semibold text-foreground">{portfolioId ? uiLiteral("策略账户更新") : kinds[run.kind]}</p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text"><UiLiteral text={"触发方式"} /></p><p className="mt-2 text-sm font-semibold text-foreground">{run.triggerType === "schedule" ? uiLiteral("定时任务") : run.triggerType === "agent_tool" ? uiLiteral("主 Agent") : uiLiteral("手动运行")}</p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-muted-text"><UiLiteral text={"完成时间"} /></p><p className="mt-2 text-sm font-semibold text-foreground">{run.completedAt ? formatTime(run.completedAt) : uiLiteral("尚未完成")}</p></div>
       </section>
 
-      <section className="space-y-3 rounded-xl border border-border bg-card p-4" aria-label="继续处理这份结果">
+      <section className="space-y-3 rounded-xl border border-border bg-card p-4" aria-label={uiLiteral("继续处理这份结果")}>
         <div className="flex flex-wrap gap-3">
-          {portfolioId && <Link className="btn-primary" to={`/trading?portfolio=${portfolioId}`}>查看策略业绩、持仓与买卖</Link>}
-          {symbol && <Link className="btn-secondary" to={`/stock-research?stock=${encodeURIComponent(symbol)}`}>查看 {symbol} 的股票档案</Link>}
-          {sourceId && <Link className="btn-secondary" to={`/runs/${encodeURIComponent(sourceId)}`}>查看来源运行</Link>}
-          {!active && run.kind === "screening" && <Link className="btn-secondary" to={`/trading?sourceRun=${encodeURIComponent(run.id)}`}>以此候选生成交易提案</Link>}
-          {!active && <Link className="btn-secondary" to={`/expert-review?sourceRun=${encodeURIComponent(run.id)}`}>基于此结果请专家讨论</Link>}
-          {!run.resultSummary?.externalExecutor && <button className="btn-secondary" disabled={acting || Boolean(run.cancelRequested)} onClick={() => void act()}>{acting ? "处理中…" : active ? run.cancelRequested ? "已请求停止" : "停止本次运行" : "按原配置重新运行（产生新消耗）"}</button>}
+          {portfolioId && <Link className="btn-primary" to={`/trading?portfolio=${portfolioId}`}><UiLiteral text={"查看策略业绩、持仓与买卖"} /></Link>}
+          {symbol && <Link className="btn-secondary" to={`/stock-research?stock=${encodeURIComponent(symbol)}`}><UiLiteral text={"查看 "} />{symbol} <UiLiteral text={" 的股票档案"} /></Link>}
+          {sourceId && <Link className="btn-secondary" to={`/runs/${encodeURIComponent(sourceId)}`}><UiLiteral text={"查看来源运行"} /></Link>}
+          {!active && run.kind === "screening" && <Link className="btn-secondary" to={`/trading?sourceRun=${encodeURIComponent(run.id)}`}><UiLiteral text={"以此候选生成交易提案"} /></Link>}
+          {!active && <Link className="btn-secondary" to={`/expert-review?sourceRun=${encodeURIComponent(run.id)}`}><UiLiteral text={"基于此结果请专家讨论"} /></Link>}
+          {!run.resultSummary?.externalExecutor && <button className="btn-secondary" disabled={acting || Boolean(run.cancelRequested)} onClick={() => void act()}>{acting ? uiLiteral("处理中…") : active ? run.cancelRequested ? uiLiteral("已请求停止") : uiLiteral("停止本次运行") : uiLiteral("按原配置重新运行（产生新消耗）")}</button>}
         </div>
-        {universe && <p className="text-sm text-secondary-text">本次冻结股票：{universe.symbols?.join("、")} · 来源时点：{universe.asOf ? formatTime(universe.asOf) : "提交时的自选 / 持仓"}。仅生成提案，无订单与模拟成交。</p>}
-        <p className="text-sm text-secondary-text">本次模型用量：{run.artifacts.some(a => a.type === "PortfolioUpdate") ? "固定规则运行，未调用模型，Token 消耗为 0" : run.usage?.recorded ? `${run.usage.tokens.toLocaleString()} tokens · ${run.usage.calls} 次调用 · 其中估算 ${run.usage.estimatedTokens.toLocaleString()} tokens` : "暂无可归属的用量记录，不能视为零消耗"}。独立子运行用量在各自详情查看。</p>
+        {universe && <p className="text-sm text-secondary-text"><UiLiteral text={"本次冻结股票："} />{universe.symbols?.join("、")} <UiLiteral text={" · 来源时点："} />{universe.asOf ? formatTime(universe.asOf) : uiLiteral("提交时的自选 / 持仓")}<UiLiteral text={"。仅生成提案，无订单与模拟成交。"} /></p>}
+        <p className="text-sm text-secondary-text"><UiLiteral text={"本次模型用量："} />{run.artifacts.some(a => a.type === "PortfolioUpdate") ? uiLiteral("固定规则运行，未调用模型，Token 消耗为 0") : run.usage?.recorded ? uiLiteral(`${run.usage.tokens.toLocaleString()} tokens · ${run.usage.calls} 次调用 · 其中估算 ${run.usage.estimatedTokens.toLocaleString()} tokens`) : uiLiteral("暂无可归属的用量记录，不能视为零消耗")}<UiLiteral text={"。独立子运行用量在各自详情查看。"} /></p>
         {actionError && <p role="alert" className="text-sm text-danger">{actionError}</p>}
       </section>
       <RunStages run={run} />
@@ -132,17 +135,17 @@ export default function TaskRunDetailPage() {
       {run.errorMessage ? <p role="alert" className="rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">{run.errorMessage}</p> : null}
 
       <section className="overflow-hidden rounded-[12px] border border-border bg-card" aria-labelledby="run-context-title">
-        <div className="border-b border-border px-5 py-4"><h2 id="run-context-title" className="text-sm font-semibold text-foreground">运行上下文</h2></div>
+        <div className="border-b border-border px-5 py-4"><h2 id="run-context-title" className="text-sm font-semibold text-foreground"><UiLiteral text={"运行上下文"} /></h2></div>
         <div className="grid gap-5 px-5 py-5 text-sm sm:grid-cols-3">
-          <div className="flex items-start gap-2.5"><Clock3 className="mt-0.5 h-4 w-4 text-primary" /><div><p className="font-medium text-foreground">数据时点</p><p className="mt-1 text-xs text-muted-text">{formatTime(run.dataSnapshot?.asOf)}</p></div></div>
-          <div className="flex items-start gap-2.5"><Database className="mt-0.5 h-4 w-4 text-primary" /><div><p className="font-medium text-foreground">数据源</p><p className="mt-1 break-words text-xs text-muted-text">{run.dataSnapshot?.sourceIds?.join("、") || "未记录"}</p></div></div>
-          <div className="flex items-start gap-2.5"><ShieldCheck className="mt-0.5 h-4 w-4 text-primary" /><div><p className="font-medium text-foreground">快照标识</p><p className="mt-1 break-all font-mono text-[11px] text-muted-text">{run.dataSnapshotId}</p></div></div>
+          <div className="flex items-start gap-2.5"><Clock3 className="mt-0.5 h-4 w-4 text-primary" /><div><p className="font-medium text-foreground"><UiLiteral text={"数据时点"} /></p><p className="mt-1 text-xs text-muted-text">{formatTime(run.dataSnapshot?.asOf)}</p></div></div>
+          <div className="flex items-start gap-2.5"><Database className="mt-0.5 h-4 w-4 text-primary" /><div><p className="font-medium text-foreground"><UiLiteral text={"数据源"} /></p><p className="mt-1 break-words text-xs text-muted-text">{run.dataSnapshot?.sourceIds?.join("、") || "未记录"}</p></div></div>
+          <div className="flex items-start gap-2.5"><ShieldCheck className="mt-0.5 h-4 w-4 text-primary" /><div><p className="font-medium text-foreground"><UiLiteral text={"快照标识"} /></p><p className="mt-1 break-all font-mono text-[11px] text-muted-text">{run.dataSnapshotId}</p></div></div>
         </div>
       </section>
 
       <section aria-labelledby="artifacts-title">
         <div className="flex items-end justify-between gap-3 border-b border-border pb-3">
-          <div><h2 id="artifacts-title" className="text-base font-semibold text-foreground">完整成果</h2><p className="mt-1 text-xs text-muted-text">共 {run.artifacts.length} 个 Artifact，按本次运行顺序展示。</p></div>
+          <div><h2 id="artifacts-title" className="text-base font-semibold text-foreground"><UiLiteral text={"完整成果"} /></h2><p className="mt-1 text-xs text-muted-text"><UiLiteral text={"共 "} />{run.artifacts.length} <UiLiteral text={" 个 Artifact，按本次运行顺序展示。"} /></p></div>
           <FileCheck2 className="h-5 w-5 text-primary" />
         </div>
         {run.artifacts.length ? <div className="divide-y divide-border">{visibleWorkspaceArtifacts(run.artifacts).map((artifact) => {
@@ -161,7 +164,7 @@ export default function TaskRunDetailPage() {
               </div>
             </article>
           );
-        })}</div> : <p className="py-10 text-center text-sm text-muted-text">本次运行还没有生成正式成果。</p>}
+        })}</div> : <p className="py-10 text-center text-sm text-muted-text"><UiLiteral text={"本次运行还没有生成正式成果。"} /></p>}
       </section>
     </AppPage>
   );

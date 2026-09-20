@@ -1,4 +1,5 @@
-export type UiLanguage = "zh" | "en";
+import { withKorean } from './korean';
+export type UiLanguage = 'zh' | 'en' | 'ko';
 
 const zh = {
   "common.cancel": "取消",
@@ -2396,10 +2397,12 @@ const en: Record<UiTextKey, string> = {
     "In Docker deployments, --env-file and Compose env_file inject environment variables only at startup. This export/import area uses the backend active .env file. To keep WebUI-saved values across container rebuilds, point ENV_FILE to a writable data-volume file such as /app/data/runtime.env and avoid keeping same-name old values in the startup environment.",
 };
 
-export const UI_TEXT: Record<UiLanguage, Record<UiTextKey, string>> = {
+export const UI_TEXT: Record<UiLanguage, Record<UiTextKey, string>> = withKorean({
   zh,
   en,
-};
+});
+
+UI_TEXT.ko['language.current'] = '한국어';
 
 export type UiTextParams = Record<string, string | number>;
 

@@ -1,3 +1,5 @@
+import { useUiLiteral } from '../hooks/useUiLiteral';
+import { withKorean } from '../i18n/korean';
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Database, KeyRound, RotateCcw, Save, ServerCog, Sparkles } from 'lucide-react';
@@ -22,15 +24,15 @@ type PlatformSettingsTab = 'model' | 'system' | 'notifications';
 type NotificationChannelChoice = 'feishu' | 'email' | 'wechat' | 'dingtalk' | 'telegram' | 'slack' | 'discord' | 'custom' | 'mobile';
 
 const NOTIFICATION_CHANNEL_CHOICES: Array<{ id: NotificationChannelChoice; zh: string; en: string; prefixes: string[] }> = [
-  { id: 'feishu', zh: '飞书', en: 'Feishu', prefixes: ['FEISHU_'] },
-  { id: 'email', zh: '邮件', en: 'Email', prefixes: ['EMAIL_'] },
-  { id: 'wechat', zh: '企业微信', en: 'WeCom', prefixes: ['WECHAT_'] },
-  { id: 'dingtalk', zh: '钉钉', en: 'DingTalk', prefixes: ['DINGTALK_'] },
-  { id: 'telegram', zh: 'Telegram', en: 'Telegram', prefixes: ['TELEGRAM_'] },
-  { id: 'slack', zh: 'Slack', en: 'Slack', prefixes: ['SLACK_'] },
-  { id: 'discord', zh: 'Discord', en: 'Discord', prefixes: ['DISCORD_'] },
-  { id: 'custom', zh: '自定义 Webhook', en: 'Custom webhook', prefixes: ['CUSTOM_WEBHOOK_'] },
-  { id: 'mobile', zh: '手机推送', en: 'Mobile push', prefixes: ['PUSHPLUS_', 'PUSHOVER_', 'NTFY_', 'GOTIFY_', 'SERVERCHAN'] },
+  withKorean({ id: 'feishu', zh: '飞书', en: 'Feishu', prefixes: ['FEISHU_'] }),
+  withKorean({ id: 'email', zh: '邮件', en: 'Email', prefixes: ['EMAIL_'] }),
+  withKorean({ id: 'wechat', zh: '企业微信', en: 'WeCom', prefixes: ['WECHAT_'] }),
+  withKorean({ id: 'dingtalk', zh: '钉钉', en: 'DingTalk', prefixes: ['DINGTALK_'] }),
+  withKorean({ id: 'telegram', zh: 'Telegram', en: 'Telegram', prefixes: ['TELEGRAM_'] }),
+  withKorean({ id: 'slack', zh: 'Slack', en: 'Slack', prefixes: ['SLACK_'] }),
+  withKorean({ id: 'discord', zh: 'Discord', en: 'Discord', prefixes: ['DISCORD_'] }),
+  withKorean({ id: 'custom', zh: '自定义 Webhook', en: 'Custom webhook', prefixes: ['CUSTOM_WEBHOOK_'] }),
+  withKorean({ id: 'mobile', zh: '手机推送', en: 'Mobile push', prefixes: ['PUSHPLUS_', 'PUSHOVER_', 'NTFY_', 'GOTIFY_', 'SERVERCHAN'] }),
 ];
 
 const PLATFORM_SYSTEM_KEYS = new Set([
@@ -74,7 +76,8 @@ const TAB_ITEMS: Array<{
 ];
 
 const PlatformSettingsPage: React.FC = () => {
-  const { language } = useUiLanguage();
+  const uiLiteral = useUiLiteral();
+  const { localize } = useUiLanguage();
   const { passwordChangeable } = useAuth();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<PlatformSettingsTab>(searchParams.get('tab') === 'notifications' ? 'notifications' : 'model');
@@ -102,7 +105,6 @@ const PlatformSettingsPage: React.FC = () => {
     refreshAfterExternalSave,
   } = useSystemConfig();
 
-  const isZh = language === 'zh';
   const modelItems = itemsByCategory.ai_model ?? [];
   const notificationItems = useMemo(() => itemsByCategory.notification ?? [], [itemsByCategory.notification]);
   const notificationByKey = useMemo(() => new Map(notificationItems.map(item => [item.key, item])), [notificationItems]);
@@ -130,20 +132,18 @@ const PlatformSettingsPage: React.FC = () => {
     <AppPage>
       <div className="space-y-5">
         <PageHeader
-          eyebrow={isZh ? '平台治理' : 'Platform governance'}
-          title={isZh ? '平台设置' : 'Platform settings'}
-          description={isZh
-            ? '管理平台运行与通知设置。模型、Skill、工具和 MCP 在能力中心配置，定时计划在任务与运行中管理。'
-            : 'Manage platform runtime and notifications. Configure models, skills, tools and MCP in Capabilities, and schedules in Tasks & Runs.'}
+          eyebrow={localize(uiLiteral('平台治理'), 'Platform governance')}
+          title={localize(uiLiteral('平台设置'), 'Platform settings')}
+          description={localize(uiLiteral('管理平台运行与通知设置。模型、Skill、工具和 MCP 在能力中心配置，定时计划在任务与运行中管理。'), 'Manage platform runtime and notifications. Configure models, skills, tools and MCP in Capabilities, and schedules in Tasks & Runs.')}
           actions={activeTab !== 'model' ? (
             <div className="flex items-center gap-2">
               <Button type="button" variant="secondary" onClick={resetDraft} disabled={isLoading || isSaving || !hasDirty}>
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                {isZh ? '撤销修改' : 'Reset'}
+                {localize(uiLiteral('撤销修改'), 'Reset')}
               </Button>
               <Button type="button" variant="primary" onClick={() => void save()} disabled={isLoading || isSaving || !hasDirty} isLoading={isSaving}>
                 <Save className="h-4 w-4" aria-hidden="true" />
-                {dirtyCount ? (isZh ? `保存 ${dirtyCount} 项` : `Save ${dirtyCount}`) : (isZh ? '保存' : 'Save')}
+                {dirtyCount ? (localize(`保存 ${dirtyCount} 项`, `Save ${dirtyCount}`)) : (localize('保存', 'Save'))}
               </Button>
             </div>
           ) : undefined}
@@ -151,14 +151,12 @@ const PlatformSettingsPage: React.FC = () => {
 
         <InlineAlert
           variant="info"
-          title={isZh ? '数据连接在能力中心管理' : 'Data connections live in Capabilities'}
-          message={isZh
-            ? '行情、新闻和宏观数据源统一在能力中心配置；实际可用性以健康检测和每次运行的取数结果为准。'
-            : 'Configure market, news and macro sources in Capabilities. Health checks and each run’s fetched results determine actual availability.'}
+          title={localize(uiLiteral('数据连接在能力中心管理'), 'Data connections live in Capabilities')}
+          message={localize(uiLiteral('行情、新闻和宏观数据源统一在能力中心配置；实际可用性以健康检测和每次运行的取数结果为准。'), 'Configure market, news and macro sources in Capabilities. Health checks and each run’s fetched results determine actual availability.')}
           action={(
             <Link className="btn-secondary inline-flex items-center gap-2" to="/capabilities/data">
               <Database className="h-4 w-4" aria-hidden="true" />
-              {isZh ? '管理数据源' : 'Manage data sources'}
+              {localize(uiLiteral('管理数据源'), 'Manage data sources')}
             </Link>
           )}
         />
@@ -166,20 +164,20 @@ const PlatformSettingsPage: React.FC = () => {
         {loadError ? (
           <ApiErrorAlert
             error={loadError}
-            actionLabel={isZh ? '重新读取' : 'Reload'}
+            actionLabel={localize(uiLiteral('重新读取'), 'Reload')}
             onAction={() => void (retryAction === 'load' ? retry() : load())}
           />
         ) : null}
         {saveError ? (
           <ApiErrorAlert
             error={saveError}
-            actionLabel={retryAction === 'save' ? (isZh ? '重新保存' : 'Retry save') : undefined}
+            actionLabel={retryAction === 'save' ? (localize('重新保存', 'Retry save')) : undefined}
             onAction={retryAction === 'save' ? () => void retry() : undefined}
           />
         ) : null}
 
         <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
-          <nav aria-label={isZh ? '平台设置分类' : 'Platform settings categories'} className="space-y-2 lg:sticky lg:top-5 lg:self-start">
+          <nav aria-label={localize(uiLiteral('平台设置分类'), 'Platform settings categories')} className="space-y-2 lg:sticky lg:top-5 lg:self-start">
             {TAB_ITEMS.map((item) => {
               const Icon = item.icon;
               const selected = activeTab === item.id;
@@ -198,10 +196,10 @@ const PlatformSettingsPage: React.FC = () => {
                 >
                   <span className="flex items-center gap-2 text-sm font-semibold">
                     <Icon className={cn('h-4 w-4', selected ? 'text-cyan' : 'text-muted-text')} aria-hidden="true" />
-                    {isZh ? item.titleZh : item.titleEn}
+                    {localize(item.titleZh, item.titleEn)}
                   </span>
                   <span className="mt-1 block pl-6 text-xs leading-5 text-muted-text">
-                    {isZh ? item.descriptionZh : item.descriptionEn}
+                    {localize(item.descriptionZh, item.descriptionEn)}
                   </span>
                 </button>
               );
@@ -212,38 +210,36 @@ const PlatformSettingsPage: React.FC = () => {
             {isLoading ? (
               <div>
                 <p className="mb-3 text-sm text-secondary-text">
-                  {isZh ? '正在读取模型通道和平台状态…' : 'Loading model channels and platform status…'}
+                  {localize(uiLiteral('正在读取模型通道和平台状态…'), 'Loading model channels and platform status…')}
                 </p>
                 <SettingsLoading />
               </div>
             ) : activeTab === 'notifications' ? (
-              <SettingsSectionCard title={isZh ? '通知渠道与告警' : 'Notification channels & alerts'} description={isZh ? '先选择一个通知渠道并完成其最小配置，再测试发送；报告与告警最后再决定走哪些已启用渠道。' : 'Choose one channel and complete its minimum setup, then test it. Choose which enabled channels receive reports and alerts last.'}>
-                <Link to="/alerts" className="inline-block min-h-11 py-2 text-primary">{isZh ? '管理股票告警' : 'Manage stock alerts'}</Link>
+              <SettingsSectionCard title={localize(uiLiteral('通知渠道与告警'), 'Notification channels & alerts')} description={localize(uiLiteral('先选择一个通知渠道并完成其最小配置，再测试发送；报告与告警最后再决定走哪些已启用渠道。'), 'Choose one channel and complete its minimum setup, then test it. Choose which enabled channels receive reports and alerts last.')}>
+                <Link to="/alerts" className="inline-block min-h-11 py-2 text-primary">{localize(uiLiteral('管理股票告警'), 'Manage stock alerts')}</Link>
                 <div className="divide-y divide-border">{alertItems.map(item => <SettingsField key={item.key} item={item} value={item.value} disabled={isSaving} onChange={setDraftValue} issues={issueByKey[item.key]} />)}</div>
-                <section className="mt-5 border-y border-border py-5" aria-label={isZh ? '选择通知渠道' : 'Choose a notification channel'}>
-                  <h3 className="text-base font-semibold">{isZh ? '选择通知渠道' : 'Choose a notification channel'}</h3>
-                  <p className="mt-2 text-sm leading-6 text-secondary-text">{isZh ? '选择后只显示这个渠道的配置。先完成配置并测试，再在下方设置报告和告警分别发往哪些渠道。' : 'Choose a channel to see only its setup. Configure and test it first, then set report and alert routes below.'}</p>
-                  <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label={isZh ? '通知渠道列表' : 'Notification channel list'}>{NOTIFICATION_CHANNEL_CHOICES.map(channel => <button key={channel.id} type="button" role="tab" aria-selected={notificationChannel === channel.id} onClick={() => setNotificationChannel(channel.id)} className={cn('min-h-11 rounded-lg border px-3 text-sm font-medium', notificationChannel === channel.id ? 'border-cyan/35 bg-cyan/10 text-foreground' : 'border-border text-secondary-text hover:bg-hover hover:text-foreground')}>{isZh ? channel.zh : channel.en}</button>)}</div>
+                <section className="mt-5 border-y border-border py-5" aria-label={localize(uiLiteral('选择通知渠道'), 'Choose a notification channel')}>
+                  <h3 className="text-base font-semibold">{localize(uiLiteral('选择通知渠道'), 'Choose a notification channel')}</h3>
+                  <p className="mt-2 text-sm leading-6 text-secondary-text">{localize(uiLiteral('选择后只显示这个渠道的配置。先完成配置并测试，再在下方设置报告和告警分别发往哪些渠道。'), 'Choose a channel to see only its setup. Configure and test it first, then set report and alert routes below.')}</p>
+                  <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label={localize(uiLiteral('通知渠道列表'), 'Notification channel list')}>{NOTIFICATION_CHANNEL_CHOICES.map(channel => <button key={channel.id} type="button" role="tab" aria-selected={notificationChannel === channel.id} onClick={() => setNotificationChannel(channel.id)} className={cn('min-h-11 rounded-lg border px-3 text-sm font-medium', notificationChannel === channel.id ? 'border-cyan/35 bg-cyan/10 text-foreground' : 'border-border text-secondary-text hover:bg-hover hover:text-foreground')}>{localize(channel.zh, channel.en)}</button>)}</div>
                 </section>
-                {notificationChannel === 'feishu' && <section className="mt-5 border-t border-border pt-5" aria-label={isZh ? '飞书通知配置' : 'Feishu notification setup'}>
-                  <h3 className="text-base font-semibold">{isZh ? '飞书：先选一种推送方式' : 'Feishu: choose one delivery method first'}</h3>
-                  <p className="mt-2 max-w-[72ch] text-sm leading-6 text-secondary-text">{isZh ? '大多数情况下只需使用“群机器人 Webhook”。应用机器人适合需要主动发到指定群或私聊的场景；两种方式互不替代，也无需同时配置。' : 'Most teams only need a group bot webhook. App Bot is for proactive delivery to a selected chat or direct message. The two methods are independent; you do not need both.'}</p>
+                {notificationChannel === 'feishu' && <section className="mt-5 border-t border-border pt-5" aria-label={localize(uiLiteral('飞书通知配置'), 'Feishu notification setup')}>
+                  <h3 className="text-base font-semibold">{localize(uiLiteral('飞书：先选一种推送方式'), 'Feishu: choose one delivery method first')}</h3>
+                  <p className="mt-2 max-w-[72ch] text-sm leading-6 text-secondary-text">{localize(uiLiteral('大多数情况下只需使用“群机器人 Webhook”。应用机器人适合需要主动发到指定群或私聊的场景；两种方式互不替代，也无需同时配置。'), 'Most teams only need a group bot webhook. App Bot is for proactive delivery to a selected chat or direct message. The two methods are independent; you do not need both.')}</p>
                   <div className="mt-4 grid gap-5 lg:grid-cols-2">
-                    <div className="border-y border-border py-4"><h4 className="font-medium">{isZh ? '推荐：群机器人 Webhook' : 'Recommended: group bot webhook'}</h4><p className="mt-1 text-sm leading-6 text-secondary-text">{isZh ? '在目标群添加自定义机器人，复制 Webhook 地址。仅 URL 是必填项；机器人开启签名或关键词时，才补填对应字段。' : 'Add a custom bot to the target group and paste its webhook URL. Only the URL is required; add the matching fields only if the bot enables signature or keyword security.'}</p><div className="mt-3 divide-y divide-border">{notificationFields(feishuWebhookKeys)}</div></div>
-                    <div className="border-y border-border py-4"><h4 className="font-medium">{isZh ? '按需：应用机器人主动推送' : 'Optional: App Bot delivery'}</h4><p className="mt-1 text-sm leading-6 text-secondary-text">{isZh ? '仅在不用 Webhook、需要向指定群或用户主动发送时使用。必须同时填写应用 ID、应用 Secret 和接收目标。' : 'Use only when you need proactive delivery to a selected chat or user without a webhook. App ID, App Secret, and a recipient target are all required.'}</p><div className="mt-3 divide-y divide-border">{notificationFields(feishuAppKeys)}</div></div>
+                    <div className="border-y border-border py-4"><h4 className="font-medium">{localize(uiLiteral('推荐：群机器人 Webhook'), 'Recommended: group bot webhook')}</h4><p className="mt-1 text-sm leading-6 text-secondary-text">{localize(uiLiteral('在目标群添加自定义机器人，复制 Webhook 地址。仅 URL 是必填项；机器人开启签名或关键词时，才补填对应字段。'), 'Add a custom bot to the target group and paste its webhook URL. Only the URL is required; add the matching fields only if the bot enables signature or keyword security.')}</p><div className="mt-3 divide-y divide-border">{notificationFields(feishuWebhookKeys)}</div></div>
+                    <div className="border-y border-border py-4"><h4 className="font-medium">{localize(uiLiteral('按需：应用机器人主动推送'), 'Optional: App Bot delivery')}</h4><p className="mt-1 text-sm leading-6 text-secondary-text">{localize(uiLiteral('仅在不用 Webhook、需要向指定群或用户主动发送时使用。必须同时填写应用 ID、应用 Secret 和接收目标。'), 'Use only when you need proactive delivery to a selected chat or user without a webhook. App ID, App Secret, and a recipient target are all required.')}</p><div className="mt-3 divide-y divide-border">{notificationFields(feishuAppKeys)}</div></div>
                   </div>
-                  <details className="mt-3 border-b border-border"><summary className="cursor-pointer py-3 text-sm font-medium">{isZh ? '飞书高级功能：国际版、Stream Bot、云文档与文件发送' : 'Feishu advanced: Lark, Stream Bot, cloud docs, and file delivery'}</summary><div className="divide-y divide-border">{notificationFields(feishuAdvancedKeys)}</div></details>
+                  <details className="mt-3 border-b border-border"><summary className="cursor-pointer py-3 text-sm font-medium">{localize(uiLiteral('飞书高级功能：国际版、Stream Bot、云文档与文件发送'), 'Feishu advanced: Lark, Stream Bot, cloud docs, and file delivery')}</summary><div className="divide-y divide-border">{notificationFields(feishuAdvancedKeys)}</div></details>
                 </section>}
-                {notificationChannel !== 'feishu' && <div className="mt-5 divide-y divide-border border-y border-border" role="tabpanel">{selectedChannelItems.length ? selectedChannelItems.map(item => <SettingsField key={item.key} item={item} value={item.value} disabled={isSaving} onChange={setDraftValue} issues={issueByKey[item.key]} />) : <p className="py-4 text-sm text-secondary-text">{isZh ? '当前版本没有可编辑的渠道字段。' : 'This version has no editable fields for this channel.'}</p>}</div>}
-                <details className="mt-4 border-b border-border"><summary className="cursor-pointer py-3 text-sm font-medium">{isZh ? '报告与告警发送范围' : 'Report and alert delivery routes'}</summary><p className="pb-2 text-xs leading-5 text-secondary-text">{isZh ? '先完成渠道配置并测试，再选择报告、告警分别发送到哪些渠道。留空会使用所有已配置渠道。' : 'Finish and test channel setup first, then choose which channels receive reports or alerts. Leaving a route blank uses every configured channel.'}</p><div className="divide-y divide-border">{notificationFields(routeKeys)}</div></details>
+                {notificationChannel !== 'feishu' && <div className="mt-5 divide-y divide-border border-y border-border" role="tabpanel">{selectedChannelItems.length ? selectedChannelItems.map(item => <SettingsField key={item.key} item={item} value={item.value} disabled={isSaving} onChange={setDraftValue} issues={issueByKey[item.key]} />) : <p className="py-4 text-sm text-secondary-text">{localize(uiLiteral('当前版本没有可编辑的渠道字段。'), 'This version has no editable fields for this channel.')}</p>}</div>}
+                <details className="mt-4 border-b border-border"><summary className="cursor-pointer py-3 text-sm font-medium">{localize(uiLiteral('报告与告警发送范围'), 'Report and alert delivery routes')}</summary><p className="pb-2 text-xs leading-5 text-secondary-text">{localize(uiLiteral('先完成渠道配置并测试，再选择报告、告警分别发送到哪些渠道。留空会使用所有已配置渠道。'), 'Finish and test channel setup first, then choose which channels receive reports or alerts. Leaving a route blank uses every configured channel.')}</p><div className="divide-y divide-border">{notificationFields(routeKeys)}</div></details>
                 <NotificationTestPanel items={notificationItems.map(item => ({ key: item.key, value: item.value }))} maskToken={maskToken} disabled={isSaving} />
               </SettingsSectionCard>
             ) : activeTab === 'model' ? (
               <SettingsSectionCard
-                title={isZh ? '策略模型运行时' : 'Strategy model runtime'}
-                description={isZh
-                  ? '这些通道会被策略研究、验证和运行链路真实调用。可先检查后端状态，再编辑和测试模型通道。'
-                  : 'These channels are used by strategy research, validation, and runs. Check runtime health before editing or testing channels.'}
+                title={localize(uiLiteral('策略模型运行时'), 'Strategy model runtime')}
+                description={localize(uiLiteral('这些通道会被策略研究、验证和运行链路真实调用。可先检查后端状态，再编辑和测试模型通道。'), 'These channels are used by strategy research, validation, and runs. Check runtime health before editing or testing channels.')}
               >
                 <GenerationBackendStatusPanel
                   items={modelItems.map((item) => ({ key: item.key, value: item.value }))}
@@ -266,10 +262,8 @@ const PlatformSettingsPage: React.FC = () => {
                 <AuthSettingsCard />
                 {passwordChangeable ? <ChangePasswordCard /> : null}
                 <SettingsSectionCard
-                  title={isZh ? '部署与诊断' : 'Deployment & diagnostics'}
-                  description={isZh
-                    ? '仅保留当前 Web 策略平台真实使用的网络、日志、并发与调试参数。'
-                    : 'Only network, logging, concurrency, and debugging settings used by this strategy platform are shown.'}
+                  title={localize(uiLiteral('部署与诊断'), 'Deployment & diagnostics')}
+                  description={localize(uiLiteral('仅保留当前 Web 策略平台真实使用的网络、日志、并发与调试参数。'), 'Only network, logging, concurrency, and debugging settings used by this strategy platform are shown.')}
                   actions={<KeyRound className="h-4 w-4 text-muted-text" aria-hidden="true" />}
                 >
                   <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
@@ -293,7 +287,7 @@ const PlatformSettingsPage: React.FC = () => {
         {toast ? (
           <div className="fixed bottom-5 right-5 z-50 w-[340px] max-w-[calc(100vw-24px)]" onAnimationEnd={clearToast}>
             {toast.type === 'success'
-              ? <SettingsAlert title={isZh ? '设置已更新' : 'Settings updated'} message={toast.message} variant="success" presentation="toast" />
+              ? <SettingsAlert title={localize(uiLiteral('设置已更新'), 'Settings updated')} message={toast.message} variant="success" presentation="toast" />
               : <ApiErrorAlert error={toast.error} />}
           </div>
         ) : null}

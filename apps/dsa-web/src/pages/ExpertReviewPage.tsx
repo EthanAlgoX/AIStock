@@ -1,3 +1,5 @@
+import { useUiLiteral } from '../hooks/useUiLiteral';
+import { UiLiteral } from '../components/i18n/UiLiteral';
 import {
   Bot,
   Check,
@@ -60,6 +62,7 @@ export default function ExpertReviewPage() {
 }
 
 function LegacyExpertReviewPage() {
+  const uiLiteral = useUiLiteral();
   const [mode, setMode] = useState<ReviewMode>("single");
   const [topicType, setTopicType] = useState<TopicType>("stock");
   const [topic, setTopic] = useState("");
@@ -273,9 +276,9 @@ function LegacyExpertReviewPage() {
     <AppPage className="space-y-6 pb-20" data-testid="expert-review-page">
       <PageHeader
         eyebrow="Expert review"
-        title="专家评审"
-        description="围绕研究议题获取独立专家意见，再由主 Agent 比较证据、假设与分歧。"
-        actions={<Link to="/capabilities/experts" className="btn-secondary">管理专家配置</Link>}
+        title={uiLiteral("专家评审")}
+        description={uiLiteral("围绕研究议题获取独立专家意见，再由主 Agent 比较证据、假设与分歧。")}
+        actions={<Link to="/capabilities/experts" className="btn-secondary"><UiLiteral text={"管理专家配置"} /></Link>}
       />
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_304px]">
@@ -284,19 +287,19 @@ function LegacyExpertReviewPage() {
             <div className="border-b border-border/70 px-5 py-5 sm:px-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 id="review-setup-heading" className="text-base font-semibold text-foreground">创建评审</h2>
-                  <p className="mt-1 text-sm leading-6 text-secondary-text">专家本质上是共享完整金融 Agent 底座、但拥有不同 Prompt 的独立会话。</p>
+                  <h2 id="review-setup-heading" className="text-base font-semibold text-foreground"><UiLiteral text={"创建评审"} /></h2>
+                  <p className="mt-1 text-sm leading-6 text-secondary-text"><UiLiteral text={"专家本质上是共享完整金融 Agent 底座、但拥有不同 Prompt 的独立会话。"} /></p>
                 </div>
-                <div className="inline-flex rounded-[10px] border border-border bg-background p-1" aria-label="专家评审模式">
-                  <button type="button" aria-pressed={mode === "single"} onClick={() => changeMode("single")} className={cn("inline-flex h-9 items-center gap-2 rounded-[7px] px-3 text-sm font-medium transition-colors", mode === "single" ? "bg-card text-foreground shadow-sm" : "text-secondary-text hover:text-foreground")}><MessageCircle className="h-4 w-4" />专家单聊</button>
-                  <button type="button" aria-pressed={mode === "group"} onClick={() => changeMode("group")} className={cn("inline-flex h-9 items-center gap-2 rounded-[7px] px-3 text-sm font-medium transition-colors", mode === "group" ? "bg-card text-foreground shadow-sm" : "text-secondary-text hover:text-foreground")}><Users className="h-4 w-4" />专家群聊</button>
+                <div className="inline-flex rounded-[10px] border border-border bg-background p-1" aria-label={uiLiteral("专家评审模式")}>
+                  <button type="button" aria-pressed={mode === "single"} onClick={() => changeMode("single")} className={cn("inline-flex h-9 items-center gap-2 rounded-[7px] px-3 text-sm font-medium transition-colors", mode === "single" ? "bg-card text-foreground shadow-sm" : "text-secondary-text hover:text-foreground")}><MessageCircle className="h-4 w-4" /><UiLiteral text={"专家单聊"} /></button>
+                  <button type="button" aria-pressed={mode === "group"} onClick={() => changeMode("group")} className={cn("inline-flex h-9 items-center gap-2 rounded-[7px] px-3 text-sm font-medium transition-colors", mode === "group" ? "bg-card text-foreground shadow-sm" : "text-secondary-text hover:text-foreground")}><Users className="h-4 w-4" /><UiLiteral text={"专家群聊"} /></button>
                 </div>
               </div>
             </div>
 
             <div className="space-y-6 px-5 py-5 sm:px-6">
               <fieldset>
-                <legend className="text-sm font-semibold text-foreground">1. 选择议题类型</legend>
+                <legend className="text-sm font-semibold text-foreground"><UiLiteral text={"1. 选择议题类型"} /></legend>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   {TOPIC_TYPES.map((item) => (
                     <button key={item.id} type="button" aria-pressed={topicType === item.id} onClick={() => setTopicType(item.id)} className={cn("min-h-20 rounded-[10px] border px-3 py-3 text-left transition-colors", topicType === item.id ? "border-primary/35 bg-primary/10" : "border-border bg-background hover:border-primary/25 hover:bg-hover/35")}>
@@ -307,13 +310,12 @@ function LegacyExpertReviewPage() {
                 </div>
               </fieldset>
 
-              <label className="block text-sm font-semibold text-foreground">2. 定义共同议题
-                <textarea value={topic} onChange={(event) => { setTopic(event.target.value); setReviewStarted(false); }} placeholder="例如：请基于最新可得财务和行业证据，判断腾讯当前最重要的长期增长驱动、估值风险与投资逻辑失效条件。" className="mt-3 min-h-28 w-full resize-y rounded-[10px] border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none focus:border-primary" />
+              <label className="block text-sm font-semibold text-foreground"><UiLiteral text={"2. 定义共同议题"} /><textarea value={topic} onChange={(event) => { setTopic(event.target.value); setReviewStarted(false); }} placeholder={uiLiteral("例如：请基于最新可得财务和行业证据，判断腾讯当前最重要的长期增长驱动、估值风险与投资逻辑失效条件。")} className="mt-3 min-h-28 w-full resize-y rounded-[10px] border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none focus:border-primary" />
               </label>
 
               {mode === "single" ? (
                 <fieldset>
-                  <legend className="text-sm font-semibold text-foreground">3. 选择一位专家</legend>
+                  <legend className="text-sm font-semibold text-foreground"><UiLiteral text={"3. 选择一位专家"} /></legend>
                   <div className="mt-3 grid gap-2 md:grid-cols-2">
                     {expertCatalog.map((expert) => {
                       const selected = capabilities.expertIds[0] === expert.id;
@@ -332,13 +334,13 @@ function LegacyExpertReviewPage() {
 
 
                   <fieldset aria-describedby="expert-selection-hint">
-                    <legend className="text-sm font-semibold text-foreground">3. 指定参会专家</legend>
+                    <legend className="text-sm font-semibold text-foreground"><UiLiteral text={"3. 指定参会专家"} /></legend>
                     <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                      <p id="expert-selection-hint" className="text-xs leading-5 text-muted-text">当前已选 {selectedTeamMembers.length} 位。手动调整后将作为自定义组合运行。</p>
+                      <p id="expert-selection-hint" className="text-xs leading-5 text-muted-text"><UiLiteral text={"当前已选 "} />{selectedTeamMembers.length} <UiLiteral text={" 位。手动调整后将作为自定义组合运行。"} /></p>
                       <div className="flex gap-2">
-                        <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={selectAllExperts}>选择全部</button>
+                        <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={selectAllExperts}><UiLiteral text={"选择全部"} /></button>
                         <span className="text-border" aria-hidden="true">/</span>
-                        <button type="button" className="text-xs font-medium text-secondary-text hover:text-foreground hover:underline" onClick={clearExperts}>清空</button>
+                        <button type="button" className="text-xs font-medium text-secondary-text hover:text-foreground hover:underline" onClick={clearExperts}><UiLiteral text={"清空"} /></button>
                       </div>
                     </div>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -365,8 +367,8 @@ function LegacyExpertReviewPage() {
 
                   <div className="grid gap-4">
                     <div className="rounded-[10px] border border-border bg-background px-4 py-3">
-                      <p className="text-xs font-medium text-foreground">公共证据协议</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-text">专家共享议题及已提供的研究成果，独立判断后由主 Agent 比较证据、假设与分歧。不进行多轮交叉质疑；各自补充的数据需注明来源和时点。</p>
+                      <p className="text-xs font-medium text-foreground"><UiLiteral text={"公共证据协议"} /></p>
+                      <p className="mt-1 text-xs leading-5 text-muted-text"><UiLiteral text={"专家共享议题及已提供的研究成果，独立判断后由主 Agent 比较证据、假设与分歧。不进行多轮交叉质疑；各自补充的数据需注明来源和时点。"} /></p>
                     </div>
                   </div>
                 </div>
@@ -374,61 +376,61 @@ function LegacyExpertReviewPage() {
 
               <div className="flex flex-col gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-medium text-foreground">已挂载 {capabilityCount} 项 Agent 工具</p>
-                  <p className="mt-1 text-xs text-muted-text">金融 Skill、内置工具、MCP 服务和数据源均来自工作区能力注册表。</p>
+                  <p className="text-sm font-medium text-foreground"><UiLiteral text={"已挂载 "} />{capabilityCount} <UiLiteral text={" 项 Agent 工具"} /></p>
+                  <p className="mt-1 text-xs text-muted-text"><UiLiteral text={"金融 Skill、内置工具、MCP 服务和数据源均来自工作区能力注册表。"} /></p>
                   {skillError ? <p role="alert" className="mt-1 text-xs text-warning">{skillError}</p> : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button ref={capabilityTriggerRef} type="button" className="btn-secondary inline-flex items-center gap-2 xl:hidden" onClick={() => setCapabilityPanelOpen(true)}><SlidersHorizontal className="h-4 w-4" />配置 Agent 工具</button>
-                  <button type="button" disabled={!canStart || busy} onClick={() => void startReview()} className="btn-primary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45"><Play className="h-4 w-4" />{restoring ? "恢复运行状态…" : submitting ? "正在提交…" : mode === "single" ? "运行专家单聊" : "运行群聊评审"}</button>
+                  <button ref={capabilityTriggerRef} type="button" className="btn-secondary inline-flex items-center gap-2 xl:hidden" onClick={() => setCapabilityPanelOpen(true)}><SlidersHorizontal className="h-4 w-4" /><UiLiteral text={"配置 Agent 工具"} /></button>
+                  <button type="button" disabled={!canStart || busy} onClick={() => void startReview()} className="btn-primary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45"><Play className="h-4 w-4" />{restoring ? uiLiteral("恢复运行状态…") : submitting ? uiLiteral("正在提交…") : mode === "single" ? uiLiteral("运行专家单聊") : uiLiteral("运行群聊评审")}</button>
                 </div>
               </div>
-              {!canStart ? <p className="text-xs text-muted-text">{!topic.trim() ? "填写共同议题后即可创建。" : mode === "group" ? "群聊至少需要两位专家。" : "请选择一位专家。"}</p> : null}
+              {!canStart ? <p className="text-xs text-muted-text">{!topic.trim() ? uiLiteral("填写共同议题后即可创建。") : mode === "group" ? uiLiteral("群聊至少需要两位专家。") : uiLiteral("请选择一位专家。")}</p> : null}
             </div>
           </section>
 
           <section className="overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card" aria-labelledby="review-room-heading">
             <div className="flex flex-col gap-3 border-b border-border/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <div><h2 id="review-room-heading" className="font-semibold text-foreground">{mode === "single" ? "专家会话" : "评审房间"}</h2><p className="mt-1 text-xs text-secondary-text">{reviewStarted ? "评审已创建为独立运行；已生成的专家意见和汇总会保存为研究成果。" : "完成上方配置后，在这里查看专家意见与主持汇总。"}</p></div>
+              <div><h2 id="review-room-heading" className="font-semibold text-foreground">{mode === "single" ? uiLiteral("专家会话") : uiLiteral("评审房间")}</h2><p className="mt-1 text-xs text-secondary-text">{reviewStarted ? uiLiteral("评审已创建为独立运行；已生成的专家意见和汇总会保存为研究成果。") : uiLiteral("完成上方配置后，在这里查看专家意见与主持汇总。")}</p></div>
               {activeRun ? <span className={`inline-flex items-center gap-2 text-xs font-medium ${activeRun.status === "completed" ? "text-success" : activeRun.status === "failed" ? "text-danger" : "text-warning"}`}><span className="h-2 w-2 rounded-full bg-current" />{activeRun.status}</span> : null}
             </div>
 
-            {activeRun ? <Link className="mx-5 mt-3 inline-block text-xs text-primary" to={`/runs/${activeRun.id}`}>后台任务 · 切换页面不会中断 · 查看运行详情</Link> : null}
+            {activeRun ? <Link className="mx-5 mt-3 inline-block text-xs text-primary" to={`/runs/${activeRun.id}`}><UiLiteral text={"后台任务 · 切换页面不会中断 · 查看运行详情"} /></Link> : null}
             {!reviewStarted && !activeRun && !submitting && !runError ? (
               <div className="flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
                 {mode === "single" ? <Bot className="h-8 w-8 text-muted-text" /> : <MessagesSquare className="h-8 w-8 text-muted-text" />}
-                <p className="mt-4 font-medium text-foreground">还没有创建评审</p>
-                <p className="mt-2 max-w-lg text-sm leading-6 text-secondary-text">运行后，每条结论会绑定专家 Prompt 版本、能力清单和任务上下文标识，不预填虚构观点。</p>
+                <p className="mt-4 font-medium text-foreground"><UiLiteral text={"还没有创建评审"} /></p>
+                <p className="mt-2 max-w-lg text-sm leading-6 text-secondary-text"><UiLiteral text={"运行后，每条结论会绑定专家 Prompt 版本、能力清单和任务上下文标识，不预填虚构观点。"} /></p>
               </div>
             ) : mode === "single" && singleExpert ? (
               <div>
                 <div className="border-b border-border/70 bg-background/55 px-5 py-4 sm:px-6">
-                  <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary"><Bot className="h-4 w-4" /></span><div><p className="text-sm font-semibold text-foreground">{singleExpert.name}</p><p className="text-xs text-muted-text">{singleExpert.style} · 单聊会话已创建</p></div></div>
+                  <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary"><Bot className="h-4 w-4" /></span><div><p className="text-sm font-semibold text-foreground">{singleExpert.name}</p><p className="text-xs text-muted-text">{singleExpert.style} <UiLiteral text={" · 单聊会话已创建"} /></p></div></div>
                 </div>
                 <div className="min-h-52 space-y-3 px-5 py-5 sm:px-6">
-                  <div className="max-w-2xl rounded-[12px] border border-border bg-background px-4 py-3"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">共同议题</p><p className="mt-2 text-sm leading-6 text-foreground">{topic}</p></div>
+                  <div className="max-w-2xl rounded-[12px] border border-border bg-background px-4 py-3"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text"><UiLiteral text={"共同议题"} /></p><p className="mt-2 text-sm leading-6 text-foreground">{topic}</p></div>
                   {runError ? <p role="alert" className="flex items-center gap-2 text-xs text-danger"><CircleAlert className="h-3.5 w-3.5" />{runError}</p> : null}
-                  {activeRun && ["queued", "running"].includes(activeRun.status) ? <p role="status" className="text-sm text-warning">专家 Agent 正在分析并整理证据…</p> : null}
+                  {activeRun && ["queued", "running"].includes(activeRun.status) ? <p role="status" className="text-sm text-warning"><UiLiteral text={"专家 Agent 正在分析并整理证据…"} /></p> : null}
                   {reviewText ? <div className="max-w-3xl whitespace-pre-wrap rounded-[12px] border border-border bg-background px-4 py-4 text-sm leading-7 text-foreground">{reviewText}</div> : null}
                   {activeRun?.errorMessage ? <p className="text-sm text-danger">{activeRun.errorMessage}</p> : null}
                 </div>
                 <div className="border-t border-border/70 px-5 py-4 sm:px-6">
-                  <div className="flex gap-2"><textarea aria-label="继续询问专家" value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} placeholder={`继续询问${singleExpert.name}…`} className="min-h-12 flex-1 resize-none rounded-[10px] border border-border bg-background px-3 py-3 text-sm text-foreground outline-none focus:border-primary" /><button type="button" aria-label="发送给专家" disabled={!messageDraft.trim() || busy} onClick={() => void startReview(messageDraft)} className="btn-primary self-end px-4 disabled:cursor-not-allowed disabled:opacity-45"><Send className="h-4 w-4" /></button></div>
+                  <div className="flex gap-2"><textarea aria-label={uiLiteral("继续询问专家")} value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} placeholder={uiLiteral(`继续询问${singleExpert.name}…`)} className="min-h-12 flex-1 resize-none rounded-[10px] border border-border bg-background px-3 py-3 text-sm text-foreground outline-none focus:border-primary" /><button type="button" aria-label={uiLiteral("发送给专家")} disabled={!messageDraft.trim() || busy} onClick={() => void startReview(messageDraft)} className="btn-primary self-end px-4 disabled:cursor-not-allowed disabled:opacity-45"><Send className="h-4 w-4" /></button></div>
                 </div>
               </div>
             ) : (
               <div className="grid gap-px bg-border lg:grid-cols-[15rem_minmax(0,1fr)]">
                 <aside className="bg-background px-5 py-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-text">参会视角 · {selectedTeamMembers.length}</p>
-                  <div className="mt-4 space-y-3">{selectedTeamMembers.map((expert) => <div key={expert.id} className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-primary/10 text-primary"><Bot className="h-3.5 w-3.5" /></span><div><p className="text-sm font-medium text-foreground">{expert.name}</p><p className="text-[10px] text-muted-text">独立 Persona Agent</p></div></div>)}</div>
-                  <div className="mt-5 border-t border-border/70 pt-4"><p className="flex items-center gap-2 text-xs font-medium text-foreground"><Database className="h-3.5 w-3.5 text-primary" />任务上下文标识</p><p className="mt-2 break-all font-mono text-[10px] text-secondary-text">{activeRun?.dataSnapshotId || "运行后创建"}</p></div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-text"><UiLiteral text={"参会视角 · "} />{selectedTeamMembers.length}</p>
+                  <div className="mt-4 space-y-3">{selectedTeamMembers.map((expert) => <div key={expert.id} className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-primary/10 text-primary"><Bot className="h-3.5 w-3.5" /></span><div><p className="text-sm font-medium text-foreground">{expert.name}</p><p className="text-[10px] text-muted-text"><UiLiteral text={"独立 Persona Agent"} /></p></div></div>)}</div>
+                  <div className="mt-5 border-t border-border/70 pt-4"><p className="flex items-center gap-2 text-xs font-medium text-foreground"><Database className="h-3.5 w-3.5 text-primary" /><UiLiteral text={"任务上下文标识"} /></p><p className="mt-2 break-all font-mono text-[10px] text-secondary-text">{activeRun?.dataSnapshotId || "运行后创建"}</p></div>
                 </aside>
                 <div className="bg-card px-5 py-5 sm:px-6">
-                  <div className="rounded-[10px] border border-border bg-background px-4 py-3"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">评审议题</p><p className="mt-2 text-sm leading-6 text-foreground">{topic}</p></div>
-                  <ol className="mt-5 space-y-0">{REVIEW_STAGES.map((stage, index) => <li key={stage.label} className="relative flex gap-4 pb-5 last:pb-0"><span className="relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-xs font-semibold text-muted-text">{index + 1}</span>{index < REVIEW_STAGES.length - 1 ? <span className="absolute bottom-0 left-[13px] top-7 w-px bg-border" /> : null}<div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-foreground">{stage.label}</p><span className={`text-[10px] ${activeRun?.status === "completed" ? "text-success" : "text-warning"}`}>{activeRun?.artifacts.some((artifact) => artifact.type === (index === 0 ? "ExpertOpinion" : "ExpertReview")) ? "已有保存成果" : "尚无保存成果"}</span></div><p className="mt-1 text-xs leading-5 text-secondary-text">{stage.description}</p></div></li>)}</ol>
+                  <div className="rounded-[10px] border border-border bg-background px-4 py-3"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text"><UiLiteral text={"评审议题"} /></p><p className="mt-2 text-sm leading-6 text-foreground">{topic}</p></div>
+                  <ol className="mt-5 space-y-0">{REVIEW_STAGES.map((stage, index) => <li key={stage.label} className="relative flex gap-4 pb-5 last:pb-0"><span className="relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-xs font-semibold text-muted-text">{index + 1}</span>{index < REVIEW_STAGES.length - 1 ? <span className="absolute bottom-0 left-[13px] top-7 w-px bg-border" /> : null}<div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-foreground">{stage.label}</p><span className={`text-[10px] ${activeRun?.status === "completed" ? "text-success" : "text-warning"}`}>{activeRun?.artifacts.some((artifact) => artifact.type === (index === 0 ? "ExpertOpinion" : "ExpertReview")) ? uiLiteral("已有保存成果") : uiLiteral("尚无保存成果")}</span></div><p className="mt-1 text-xs leading-5 text-secondary-text">{stage.description}</p></div></li>)}</ol>
                   {reviewText ? <div className="mt-5 whitespace-pre-wrap border-t border-border/70 pt-4 text-sm leading-7 text-foreground">{reviewText}</div> : null}
                   {runError || activeRun?.errorMessage ? <p role="alert" className="mt-4 text-xs text-danger">{runError || activeRun?.errorMessage}</p> : null}
-                  <p className="mt-5 border-t border-border/70 pt-4 text-xs leading-5 text-muted-text">当前协议为独立评审后统一汇总，不执行多轮交叉质疑。最终比较证据质量和假设强度，不采用多数投票。</p>
+                  <p className="mt-5 border-t border-border/70 pt-4 text-xs leading-5 text-muted-text"><UiLiteral text={"当前协议为独立评审后统一汇总，不执行多轮交叉质疑。最终比较证据质量和假设强度，不采用多数投票。"} /></p>
                 </div>
               </div>
             )}
@@ -440,7 +442,7 @@ function LegacyExpertReviewPage() {
 
       {capabilityPanelOpen ? (
         <div className="fixed inset-0 z-50 bg-black/45 p-3 xl:hidden" role="presentation" onClick={() => setCapabilityPanelOpen(false)}>
-          <div ref={capabilityDialogRef} tabIndex={-1} className="ml-auto h-full w-fit outline-none" role="dialog" aria-modal="true" aria-label="配置专家评审能力" onClick={(event) => event.stopPropagation()}>{renderCapabilityPanel("h-full w-[min(21rem,calc(100vw-1.5rem))]", () => setCapabilityPanelOpen(false))}</div>
+          <div ref={capabilityDialogRef} tabIndex={-1} className="ml-auto h-full w-fit outline-none" role="dialog" aria-modal="true" aria-label={uiLiteral("配置专家评审能力")} onClick={(event) => event.stopPropagation()}>{renderCapabilityPanel("h-full w-[min(21rem,calc(100vw-1.5rem))]", () => setCapabilityPanelOpen(false))}</div>
         </div>
       ) : null}
     </AppPage>

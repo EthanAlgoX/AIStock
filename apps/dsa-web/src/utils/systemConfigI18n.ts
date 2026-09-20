@@ -1,7 +1,9 @@
+import { translateKorean } from '../i18n/korean';
+import { withKorean } from '../i18n/korean';
 import type { SystemConfigCategory } from '../types/systemConfig';
 import type { UiLanguage } from '../i18n/uiText';
 
-const categoryTitleMap: Record<UiLanguage, Record<SystemConfigCategory, string>> = {
+const categoryTitleMap: Record<UiLanguage, Record<SystemConfigCategory, string>> = withKorean({
   zh: {
   base: '基础设置',
   data_source: '数据源',
@@ -22,9 +24,9 @@ const categoryTitleMap: Record<UiLanguage, Record<SystemConfigCategory, string>>
     backtest: 'Backtest',
     uncategorized: 'Other',
   },
-};
+});
 
-const categoryDescriptionMap: Record<UiLanguage, Partial<Record<SystemConfigCategory, string>>> = {
+const categoryDescriptionMap: Record<UiLanguage, Partial<Record<SystemConfigCategory, string>>> = withKorean({
   zh: {
   base: '管理自选股与基础运行参数。',
   data_source: '管理行情数据源与优先级策略。',
@@ -45,7 +47,7 @@ const categoryDescriptionMap: Record<UiLanguage, Partial<Record<SystemConfigCate
     backtest: 'Manage backtest switches, evaluation windows, and engine parameters.',
     uncategorized: 'Other uncategorized settings.',
   },
-};
+});
 
 const fieldTitleMap: Record<string, string> = {
   STOCK_LIST: '自选股列表',
@@ -603,6 +605,7 @@ export function getFieldOptionLabel(
   fallbackLabel?: string,
   locale: UiLanguage = 'zh',
 ): string {
+  if (locale === 'ko') return translateKorean(getFieldOptionLabel(key, value, fallbackLabel, 'zh'));
   const map = locale === 'en' ? fieldOptionLabelMapEn[key] : fieldOptionLabelMap[key];
   if (!map) {
     return fallbackLabel ?? value;

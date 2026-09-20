@@ -1,3 +1,4 @@
+import { useUiLiteral } from '../hooks/useUiLiteral';
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -33,6 +34,7 @@ import { CapabilityCenterNav } from "../components/capability/CapabilityCenterNa
 import { DataSourceAccessConfigPanel } from "../components/capability/DataSourceAccessConfigPanel";
 
 const DataSourcesPage: React.FC = () => {
+  const uiLiteral = useUiLiteral();
   const { language, localize } = useUiLanguage();
   const kindLabel: Record<WorkspaceDataSource["kind"], string> = {
     kline: localize("K 线与行情", "Market data & OHLCV"),
@@ -569,7 +571,7 @@ const DataSourcesPage: React.FC = () => {
                             us: "US",
                           } as const
                         )[market.value]
-                      : market.label;
+                      : localize(market.label, market.label);
                   return (
                     <label
                       key={market.value}
@@ -577,7 +579,7 @@ const DataSourcesPage: React.FC = () => {
                     >
                       <input
                         type="checkbox"
-                        aria-label={`${localize("适用市场", "Supported market")} ${label}`}
+                        aria-label={uiLiteral(`${localize("适用市场", "Supported market")} ${label}`)}
                         checked={markets.includes(market.value)}
                         onChange={(event) =>
                           setMarkets((current) =>

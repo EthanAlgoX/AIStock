@@ -35,3 +35,7 @@
 ## English summary
 
 The assistant can create dedicated research, screening, and trading strategy conversations. Drafts persist in the workspace database. Users discuss revisions, check required content, explicitly save a versioned Skill, then configure a trading simulation through the existing form and stock-universe preview. Completeness checks are not market-data, execution, or performance validation. Saving a Skill does not start a scheduled simulation. Incomplete turns invalidate earlier checks; existing simulations retain their original Skill snapshot. Rollback restores the old UI while retaining compatible Skills and the additive draft table.
+
+### 紧凑入口
+
+“创建策略”位于投研助理标题旁。点击展开策略类型、新建或沿用讨论操作；进入策略对话后，同一入口查看草稿、检查完整性及保存 Skill。面板悬浮显示，点击外部或按 Escape 收起，收起时不占用消息或输入区高度。

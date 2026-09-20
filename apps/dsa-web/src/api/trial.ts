@@ -12,7 +12,7 @@ export const trialApi = {
   async runs() { return (await api.get<TrialRun[]>(root + '/runs')).data; },
   async authenticate(enroll: boolean, email: string, password: string, inviteCode: string) { await api.post(root + (enroll ? '/enroll' : '/login'), { email, password, inviteCode }); },
   async logout() { await api.post(root + '/logout'); },
-  async run(body: { requestId: string; kind: TrialKind; topic: string; stock: string; language: 'en' | 'zh'; experts: string[]; mode: 'independent' | 'debate' }) { return (await api.post<{ id: string }>(root + '/runs', body)).data; },
+  async run(body: { requestId: string; kind: TrialKind; topic: string; stock: string; language: 'en' | 'zh' | 'ko'; experts: string[]; mode: 'independent' | 'debate' }) { return (await api.post<{ id: string }>(root + '/runs', body)).data; },
   async users() { return (await api.get<TrialUser[]>(root + '/admin/users')).data; },
   async invite(count: number, dailyLimit = 200000) { return (await api.post<TrialInvitation>(root + '/admin/invitations', { count, dailyLimit })).data; },
   async invitations() { return (await api.get<InvitationUsage[]>(root + '/admin/invitations')).data; },

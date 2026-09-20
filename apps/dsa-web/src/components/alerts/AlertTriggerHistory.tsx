@@ -1,3 +1,5 @@
+import { useUiLiteral } from '../../hooks/useUiLiteral';
+import { UiLiteral } from '../i18n/UiLiteral';
 import type React from 'react';
 import { Activity } from 'lucide-react';
 import { Badge, Card, EmptyState, Loading } from '../common';
@@ -34,7 +36,7 @@ function renderPhaseQuality(trigger: AlertTriggerItem): React.ReactNode {
   return (
     <div className="space-y-1">
       {phase ? <Badge variant="default">{phase.replace('市场阶段: ', '').replace('市场阶段：', '')}</Badge> : null}
-      {quality ? <div className="text-xs text-secondary-text">质量：{quality}</div> : null}
+      {quality ? <div className="text-xs text-secondary-text"><UiLiteral text={"质量："} />{quality}</div> : null}
       {limitations.length ? (
         <div className="max-w-[180px] text-xs text-muted-text">{limitations.join('；')}</div>
       ) : null}
@@ -48,14 +50,15 @@ interface AlertTriggerHistoryProps {
 }
 
 export const AlertTriggerHistory: React.FC<AlertTriggerHistoryProps> = ({ triggers, isLoading = false }) => {
+  const uiLiteral = useUiLiteral();
   return (
-    <Card title="触发历史" subtitle="评估记录" variant="bordered" padding="md">
-      {isLoading ? <Loading label="正在加载触发历史" /> : null}
+    <Card title={uiLiteral("触发历史")} subtitle="评估记录" variant="bordered" padding="md">
+      {isLoading ? <Loading label={uiLiteral("正在加载触发历史")} /> : null}
       {!isLoading && triggers.length === 0 ? (
         <EmptyState
           icon={<Activity className="h-6 w-6" />}
-          title="暂无触发历史"
-          description="后台评估会记录 triggered、skipped、degraded 和 failed 状态；正常未触发不会写入历史。"
+          title={uiLiteral("暂无触发历史")}
+          description={uiLiteral("后台评估会记录 triggered、skipped、degraded 和 failed 状态；正常未触发不会写入历史。")}
         />
       ) : null}
       {!isLoading && triggers.length > 0 ? (
@@ -63,14 +66,14 @@ export const AlertTriggerHistory: React.FC<AlertTriggerHistoryProps> = ({ trigge
           <table className="w-full min-w-[860px] text-left text-sm">
             <thead className="border-b border-border/60 text-xs uppercase text-muted-text">
               <tr>
-                <th className="px-3 py-2 font-medium">状态</th>
-                <th className="px-3 py-2 font-medium">阶段 / 质量</th>
-                <th className="px-3 py-2 font-medium">目标</th>
-                <th className="px-3 py-2 font-medium">观察值</th>
-                <th className="px-3 py-2 font-medium">阈值</th>
-                <th className="px-3 py-2 font-medium">数据源</th>
-                <th className="px-3 py-2 font-medium">数据时间</th>
-                <th className="px-3 py-2 font-medium">原因</th>
+                <th className="px-3 py-2 font-medium"><UiLiteral text={"状态"} /></th>
+                <th className="px-3 py-2 font-medium"><UiLiteral text={"阶段 / 质量"} /></th>
+                <th className="px-3 py-2 font-medium"><UiLiteral text={"目标"} /></th>
+                <th className="px-3 py-2 font-medium"><UiLiteral text={"观察值"} /></th>
+                <th className="px-3 py-2 font-medium"><UiLiteral text={"阈值"} /></th>
+                <th className="px-3 py-2 font-medium"><UiLiteral text={"数据源"} /></th>
+                <th className="px-3 py-2 font-medium"><UiLiteral text={"数据时间"} /></th>
+                <th className="px-3 py-2 font-medium"><UiLiteral text={"原因"} /></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40">

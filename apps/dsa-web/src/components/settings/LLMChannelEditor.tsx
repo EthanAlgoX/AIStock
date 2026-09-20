@@ -1,3 +1,5 @@
+import { useUiLiteral } from '../../hooks/useUiLiteral';
+import { UiLiteral } from '../i18n/UiLiteral';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
 import type { ParsedApiError } from '../../api/error';
@@ -398,6 +400,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
   onToggleCapability,
   onCheckCapabilities,
 }) => {
+  const uiLiteral = useUiLiteral();
   const preset = getProviderTemplate(channel.name);
   const showProviderTemplateDetails = isKnownProviderTemplate(channel.name);
   const displayName = preset?.label || channel.name;
@@ -472,7 +475,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             </Badge>
           </div>
           <p className="mt-0.5 truncate text-[11px] text-secondary-text">
-            {modelCount > 0 ? `${modelCount} 个模型已配置` : '未配置模型'}
+            {modelCount > 0 ? uiLiteral(`${modelCount} 个模型已配置`) : uiLiteral('未配置模型')}
           </p>
         </div>
 
@@ -498,10 +501,10 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
               </span>
             </Tooltip>
           ) : null}
-          {!hasKey && channel.protocol !== 'ollama' ? <Badge variant="warning">未填 Key</Badge> : null}
+          {!hasKey && channel.protocol !== 'ollama' ? <Badge variant="warning"><UiLiteral text={"未填 Key"} /></Badge> : null}
           {testState?.status !== 'idle' ? (
             <Badge variant={statusVariant}>
-              {testState?.status === 'success' ? '连接正常' : testState?.status === 'error' ? '连接失败' : '测试中'}
+              {testState?.status === 'success' ? uiLiteral('连接正常') : testState?.status === 'error' ? uiLiteral('连接失败') : uiLiteral('测试中')}
             </Badge>
           ) : null}
         </span>
@@ -531,7 +534,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             <div>
               <HelpLabel
                 htmlFor={channelNameInputId}
-                label="渠道名称"
+                label={uiLiteral("渠道名称")}
                 fieldKey="LLM_CHANNEL_NAME"
                 helpKey="settings.llm_channel.channel_name"
                 examples={['LLM_CHANNELS=deepseek,aihubmix', 'LLM_DEEPSEEK_MODELS=deepseek-v4-flash,deepseek-v4-pro']}
@@ -547,7 +550,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             <div className="space-y-2">
               <HelpLabel
                 htmlFor={protocolInputId}
-                label="协议"
+                label={uiLiteral("协议")}
                 fieldKey="LLM_CHANNEL_PROTOCOL"
                 helpKey="settings.llm_channel.protocol"
                 examples={['LLM_DEEPSEEK_PROTOCOL=deepseek', 'LLM_OPENROUTER_PROTOCOL=openai']}
@@ -558,7 +561,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                 onChange={(v) => onUpdate(index, 'protocol', normalizeProtocol(v))}
                 options={PROTOCOL_OPTIONS}
                 disabled={busy}
-                placeholder="选择协议"
+                placeholder={uiLiteral("选择协议")}
               />
             </div>
             <div className="space-y-2">
@@ -575,7 +578,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                 onChange={(value) => onUpdate(index, 'apiSurface', value)}
                 options={apiSurfaceOptions}
                 disabled={busy || (isHermesChannel(channel) && channel.apiSurface === 'chat_completions')}
-                placeholder="选择 API Surface"
+                placeholder={uiLiteral("选择 API Surface")}
               />
             </div>
           </div>
@@ -595,7 +598,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             onChange={(e) => onUpdate(index, 'baseUrl', e.target.value)}
             placeholder={
               channel.protocol === 'gemini' || channel.protocol === 'anthropic'
-                ? '官方接口可留空'
+                ? uiLiteral('官方接口可留空')
                 : preset?.baseUrl || 'https://api.example.com/v1'
             }
           />
@@ -604,7 +607,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
           {showProviderTemplateDetails ? (
             <div className="space-y-2 rounded-xl border border-[var(--settings-border)] bg-[var(--settings-surface-hover)] p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-medium text-muted-text">配置参考</span>
+                <span className="text-[11px] font-medium text-muted-text"><UiLiteral text={"配置参考"} /></span>
                 {providerCapabilities.map((capability) => {
                   const capabilityMeta = LLM_PROVIDER_CAPABILITY_LABELS[capability];
                   return (
@@ -623,7 +626,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
               ) : null}
               {providerSources.length > 0 ? (
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-5 text-secondary-text">
-                  <span>官方来源：</span>
+                  <span><UiLiteral text={"官方来源："} /></span>
                   {providerSources.map((source) => (
                     <a
                       key={source.url}
@@ -638,8 +641,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                 </p>
               ) : null}
               <p className="text-[11px] leading-5 text-muted-text">
-                能力标签仅用于配置参考，不代表运行时能力已验证通过。
-              </p>
+                <UiLiteral text={"能力标签仅用于配置参考，不代表运行时能力已验证通过。"} /></p>
             </div>
           ) : null}
 
@@ -661,7 +663,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             value={channel.apiKey}
             disabled={busy}
             onChange={(e) => onUpdate(index, 'apiKey', e.target.value)}
-            placeholder={channel.protocol === 'ollama' ? '本地 Ollama 可留空' : '支持多个 Key 逗号分隔'}
+            placeholder={channel.protocol === 'ollama' ? uiLiteral('本地 Ollama 可留空') : uiLiteral('支持多个 Key 逗号分隔')}
           />
           </div>
 
@@ -675,7 +677,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                 disabled={busy}
                 onClick={() => onDiscoverModels(channel)}
               >
-                {discoveryState?.status === 'loading' ? '获取中...' : '获取模型'}
+                {discoveryState?.status === 'loading' ? uiLiteral('获取中...') : uiLiteral('获取模型')}
               </Button>
               <span className={`text-xs ${
                 discoveryState?.status === 'success'
@@ -697,7 +699,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             {discoveredModels.length > 0 ? (
               <div>
                 <HelpLabel
-                  label="可选模型（可多选）"
+                  label={uiLiteral("可选模型（可多选）")}
                   fieldKey="LLM_CHANNEL_DISCOVERED_MODELS"
                   helpKey="settings.llm_channel.models"
                   examples={['LLM_DEEPSEEK_MODELS=deepseek-v4-flash,deepseek-v4-pro']}
@@ -728,7 +730,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             <div>
               <HelpLabel
                 htmlFor={modelsInputId}
-                label={discoveredModels.length > 0 ? '手动模型（逗号分隔）' : '模型（逗号分隔）'}
+                label={discoveredModels.length > 0 ? uiLiteral('手动模型（逗号分隔）') : uiLiteral('模型（逗号分隔）')}
                 fieldKey="LLM_CHANNEL_MODELS"
                 helpKey="settings.llm_channel.models"
                 examples={['LLM_DEEPSEEK_MODELS=deepseek-v4-flash,deepseek-v4-pro', 'LLM_OLLAMA_MODELS=qwen3:8b,llama3.1:8b']}
@@ -741,15 +743,15 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
               placeholder={preset?.placeholderModels || MODEL_PLACEHOLDERS_BY_PROTOCOL[channel.protocol]}
               hint={
                 discoveredModels.length > 0
-                  ? '如有自定义模型名未出现在列表中，可继续手动补充，保存格式仍为逗号分隔。'
-                  : '若渠道不支持自动发现或请求失败，可直接手动填写模型列表。'
+                  ? uiLiteral('如有自定义模型名未出现在列表中，可继续手动补充，保存格式仍为逗号分隔。')
+                  : uiLiteral('若渠道不支持自动发现或请求失败，可直接手动填写模型列表。')
               }
             />
             </div>
 
             {manualOnlyModels.length > 0 ? (
               <p className="text-[11px] text-secondary-text">
-                额外手动模型：{manualOnlyModels.join('，')}
+                <UiLiteral text={"额外手动模型："} />{manualOnlyModels.join('，')}
               </p>
             ) : null}
           </div>
@@ -763,7 +765,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
               disabled={busy}
               onClick={() => onTest(channel, index)}
             >
-              {testState?.status === 'loading' ? '测试中...' : '测试连接'}
+              {testState?.status === 'loading' ? uiLiteral('测试中...') : uiLiteral('测试连接')}
             </Button>
             {testState?.text ? (
               <div className="space-y-1">
@@ -779,7 +781,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                 </span>
                 {selectedModels[0] ? (
                   <p className="text-[11px] text-secondary-text">
-                    基础连接测试默认使用模型列表首项：{selectedModels[0]}
+                    <UiLiteral text={"基础连接测试默认使用模型列表首项："} />{selectedModels[0]}
                   </p>
                 ) : null}
                 {testState.hint ? (
@@ -795,18 +797,17 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="flex items-center gap-1.5">
-                  <p className="text-[11px] font-medium text-muted-text">运行时能力检测（可选）</p>
+                  <p className="text-[11px] font-medium text-muted-text"><UiLiteral text={"运行时能力检测（可选）"} /></p>
                   <SettingsHelpButton
                     fieldKey="LLM_CHANNEL_CAPABILITY_CHECKS"
-                    title="运行时能力检测"
+                    title={uiLiteral("运行时能力检测")}
                     helpKey="settings.llm_channel.capability_checks"
                     examples={['JSON / Tools / Stream / Vision']}
                     docs={LLM_CHANNEL_HELP_DOCS}
                   />
                 </div>
                 <p className="mt-0.5 text-[11px] text-secondary-text">
-                  仅在手动触发时发起真实 LLM 请求；多选可能需要 20-40 秒。
-                </p>
+                  <UiLiteral text={"仅在手动触发时发起真实 LLM 请求；多选可能需要 20-40 秒。"} /></p>
               </div>
               <Button
                 type="button"
@@ -816,7 +817,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                 disabled={busy || capabilityBusy || selectedCapabilities.length === 0}
                 onClick={() => onCheckCapabilities(channel)}
               >
-                {capabilityBusy ? '检测中...' : '检测能力'}
+                {capabilityBusy ? uiLiteral('检测中...') : uiLiteral('检测能力')}
               </Button>
             </div>
 
@@ -1599,6 +1600,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
   onDraftItemsChange,
   disabled = false,
 }) => {
+  const uiLiteral = useUiLiteral();
   const initialItemSourceByKey = useMemo(() => {
     const sourceByKey = new Map<string, boolean>();
     for (const item of items) {
@@ -2297,14 +2299,13 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
       >
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold text-foreground">AI 模型配置</h3>
-            <Badge variant="info" className="settings-accent-badge">渠道管理</Badge>
+            <h3 className="text-base font-semibold text-foreground"><UiLiteral text={"AI 模型配置"} /></h3>
+            <Badge variant="info" className="settings-accent-badge"><UiLiteral text={"渠道管理"} /></Badge>
           </div>
           <p className="text-xs text-muted-text">
-            添加服务商渠道后可自动获取模型列表并多选，也可继续手动填写。配置会自动同步到 .env 文件。
-          </p>
+            <UiLiteral text={"添加服务商渠道后可自动获取模型列表并多选，也可继续手动填写。配置会自动同步到 .env 文件。"} /></p>
         </div>
-        <span className="text-xs text-muted-text">{isCollapsed ? '▶ 展开' : '▼ 收起'}</span>
+        <span className="text-xs text-muted-text">{isCollapsed ? uiLiteral('▶ 展开') : uiLiteral('▼ 收起')}</span>
       </button>
 
       {!isCollapsed ? (
@@ -2312,15 +2313,14 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
           <div className="rounded-[1.35rem] border border-[var(--settings-border)] bg-[var(--settings-surface)] p-4 shadow-soft-card">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-medium text-foreground">快速添加渠道</h4>
-                <p className="mt-1 text-xs text-secondary-text">先选择预设服务商，再一键创建配置草稿。</p>
+                <h4 className="text-sm font-medium text-foreground"><UiLiteral text={"快速添加渠道"} /></h4>
+                <p className="mt-1 text-xs text-secondary-text"><UiLiteral text={"先选择预设服务商，再一键创建配置草稿。"} /></p>
               </div>
-              <Badge variant="default" className="border-[var(--settings-border)] bg-[var(--settings-surface-hover)] text-muted-text">{channels.length} 个渠道</Badge>
+              <Badge variant="default" className="border-[var(--settings-border)] bg-[var(--settings-surface-hover)] text-muted-text">{channels.length} <UiLiteral text={" 个渠道"} /></Badge>
             </div>
             <div className="flex items-center gap-2">
               <Button type="button" variant="settings-primary" className="whitespace-nowrap" disabled={busy} onClick={addChannel}>
-                + 添加渠道
-              </Button>
+                <UiLiteral text={"+ 添加渠道"} /></Button>
               <Select
                 value={addPreset}
                 onChange={setAddPreset}
@@ -2329,7 +2329,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                   label: preset.label,
                 }))}
                 disabled={busy}
-                placeholder="选择服务商"
+                placeholder={uiLiteral("选择服务商")}
                 className="flex-1"
               />
             </div>
@@ -2337,16 +2337,16 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-text">渠道列表</span>
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-text"><UiLiteral text={"渠道列表"} /></span>
               {channels.length > 0 ? (
-                <span className="text-[10px] text-muted-text">{channels.filter((c) => c.enabled).length}/{channels.length} 已启用</span>
+                <span className="text-[10px] text-muted-text">{channels.filter((c) => c.enabled).length}/{channels.length} <UiLiteral text={" 已启用"} /></span>
               ) : null}
             </div>
 
             {channels.length === 0 ? (
               <div className="settings-surface-overlay-muted rounded-[1.35rem] border border-dashed settings-border-strong px-4 py-10 text-center">
-                <p className="text-sm font-medium text-secondary-text">还没有渠道</p>
-                <p className="mt-1 text-xs text-muted-text">选择服务商预设后点击“添加渠道”即可开始配置。</p>
+                <p className="text-sm font-medium text-secondary-text"><UiLiteral text={"还没有渠道"} /></p>
+                <p className="mt-1 text-xs text-muted-text"><UiLiteral text={"选择服务商预设后点击“添加渠道”即可开始配置。"} /></p>
               </div>
             ) : channels.map((channel, index) => (
               <ChannelRow
@@ -2376,8 +2376,8 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
             <div className="rounded-[1.35rem] border border-[var(--settings-border)] bg-[var(--settings-surface)] p-4 shadow-soft-card">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <span className="settings-accent-text text-xs font-medium uppercase tracking-wider">运行时参数</span>
-                  <p className="mt-1 text-[11px] text-muted-text">主模型、备选模型、Vision 与 Temperature 会直接写入运行时配置。</p>
+                  <span className="settings-accent-text text-xs font-medium uppercase tracking-wider"><UiLiteral text={"运行时参数"} /></span>
+                  <p className="mt-1 text-[11px] text-muted-text"><UiLiteral text={"主模型、备选模型、Vision 与 Temperature 会直接写入运行时配置。"} /></p>
                 </div>
                 <Badge variant="default" className="border-[var(--settings-border)] bg-[var(--settings-surface-hover)] text-muted-text">Runtime</Badge>
               </div>
@@ -2403,20 +2403,18 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                   <span className="w-8 text-right text-sm text-secondary-text">{runtimeConfig.temperature}</span>
                 </div>
                 <p className="mt-1 text-[11px] text-secondary-text">
-                  控制模型输出随机性，0 为确定性输出，2 为最大随机性，推荐 0.7。
-                </p>
+                  <UiLiteral text={"控制模型输出随机性，0 为确定性输出，2 为最大随机性，推荐 0.7。"} /></p>
               </div>
 
               {availableModels.length === 0 ? (
                 <div className="rounded-xl border border-dashed settings-border-strong settings-surface-overlay-soft px-3 py-2 text-xs text-muted-text">
-                  先添加至少一个已启用渠道并填写模型，下面的主模型 / 备选模型 / Vision 选项才会出现。
-                </div>
+                  <UiLiteral text={"先添加至少一个已启用渠道并填写模型，下面的主模型 / 备选模型 / Vision 选项才会出现。"} /></div>
               ) : (
                 <div className="space-y-4">
                   <div>
                     <HelpLabel
                       htmlFor="runtime-primary-model"
-                      label="主模型"
+                      label={uiLiteral("主模型")}
                       fieldKey="LITELLM_MODEL"
                       helpKey="settings.llm_channel.primary_model"
                       examples={['LITELLM_MODEL=deepseek/deepseek-v4-flash']}
@@ -2435,7 +2433,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                   <div>
                     <HelpLabel
                       htmlFor="runtime-agent-primary-model"
-                      label="Agent 主模型"
+                      label={uiLiteral("Agent 主模型")}
                       fieldKey="AGENT_LITELLM_MODEL"
                       helpKey="settings.llm_channel.agent_primary_model"
                       examples={['AGENT_LITELLM_MODEL=deepseek/deepseek-v4-pro']}
@@ -2460,7 +2458,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
 
                   <div>
                     <HelpLabel
-                      label="备选模型"
+                      label={uiLiteral("备选模型")}
                       fieldKey="LITELLM_FALLBACK_MODELS"
                       helpKey="settings.llm_channel.fallback_models"
                       examples={['LITELLM_FALLBACK_MODELS=deepseek/deepseek-v4-pro,gemini/gemini-3-flash-preview']}
@@ -2481,14 +2479,13 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                       ))}
                     </div>
                     <p className="mt-1 text-[11px] text-secondary-text">
-                      备选模型只会在主模型失败时使用。主模型不会重复加入备选模型。
-                    </p>
+                      <UiLiteral text={"备选模型只会在主模型失败时使用。主模型不会重复加入备选模型。"} /></p>
                   </div>
 
                   <div>
                     <HelpLabel
                       htmlFor="runtime-vision-model"
-                      label="Vision 模型"
+                      label={uiLiteral("Vision 模型")}
                       fieldKey="VISION_MODEL"
                       helpKey="settings.llm_channel.vision_model"
                       examples={['VISION_MODEL=gemini/gemini-3.1-pro-preview']}
@@ -2513,7 +2510,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
           ) : (
             <InlineAlert
               variant="warning"
-              message="检测到已配置高级模型路由 YAML：此处仅管理渠道条目和基础连接信息。运行时主模型 / 备选模型 / Vision / Temperature 仍由下方通用字段决定；若 YAML 解析成功，则以其中的路由与可用模型声明为准，本配置不会覆盖 YAML 文件本身。"
+              message={uiLiteral("检测到已配置高级模型路由 YAML：此处仅管理渠道条目和基础连接信息。运行时主模型 / 备选模型 / Vision / Temperature 仍由下方通用字段决定；若 YAML 解析成功，则以其中的路由与可用模型声明为准，本配置不会覆盖 YAML 文件本身。")}
               className="rounded-[1.35rem] px-4 py-3 text-xs shadow-none"
             />
           )}
@@ -2526,9 +2523,9 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
               disabled={busy || !hasChanges}
               onClick={() => void handleSave()}
             >
-              {isSaving ? '保存中...' : managesRuntimeConfig ? '保存 AI 配置' : '保存渠道配置'}
+              {isSaving ? uiLiteral('保存中...') : managesRuntimeConfig ? uiLiteral('保存 AI 配置') : uiLiteral('保存渠道配置')}
             </Button>
-            {!hasChanges ? <span className="text-xs text-muted-text">当前没有未保存的改动</span> : null}
+            {!hasChanges ? <span className="text-xs text-muted-text"><UiLiteral text={"当前没有未保存的改动"} /></span> : null}
           </div>
 
           {saveMessage?.type === 'success' ? (
@@ -2542,7 +2539,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
           {saveWarnings.length > 0 ? (
             <InlineAlert
               variant="warning"
-              title="保存后提示"
+              title={uiLiteral("保存后提示")}
               message={(
                 <div className="space-y-1">
                   {saveWarnings.map((warning) => (

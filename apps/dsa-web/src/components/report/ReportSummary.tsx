@@ -1,3 +1,4 @@
+import { useUiLiteral } from '../../hooks/useUiLiteral';
 import React from 'react';
 import type { AnalysisResult, AnalysisReport } from '../../types/analysis';
 import { ReportOverview } from './ReportOverview';
@@ -36,6 +37,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   watchlist,
   onOpenRunFlow,
 }) => {
+  const uiLiteral = useUiLiteral();
   // 兼容 AnalysisResult 和 AnalysisReport 两种数据格式
   const report: AnalysisReport = 'report' in data ? data.report : data;
   // 使用 report id，因为 queryId 在批量分析时可能重复，且历史报告详情接口需要 recordId 来获取关联资讯和详情数据
@@ -64,7 +66,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   if (presentation === 'memo' && !watchlist) return <ResearchMemo report={report} provenance={<div className="space-y-5">
     <AnalysisContextSummary overview={details?.analysisContextPackOverview} language={reportLanguage} />
     <ReportDiagnostics recordId={recordId} summary={diagnosticSummary} language={reportLanguage} onOpenRunFlow={onOpenRunFlow} />
-    <details><summary className="cursor-pointer py-2 text-sm text-secondary-text">{reportLanguage === 'en' ? 'Related news (may include later retrieval)' : '关联资讯（可能包含后续检索）'}</summary><ReportNews recordId={recordId} limit={8} language={reportLanguage} /></details>
+    <details><summary className="cursor-pointer py-2 text-sm text-secondary-text">{reportLanguage === 'en' ? 'Related news (may include later retrieval)' : uiLiteral('关联资讯（可能包含后续检索）')}</summary><ReportNews recordId={recordId} limit={8} language={reportLanguage} /></details>
     <ReportDetails details={details} recordId={recordId} language={reportLanguage} />
     {shouldShowModel && <p className="text-xs text-secondary-text">{text.analysisModel}: {modelUsed}</p>}
   </div>} />;

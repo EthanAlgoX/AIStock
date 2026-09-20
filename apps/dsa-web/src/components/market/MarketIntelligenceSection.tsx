@@ -1,3 +1,4 @@
+import { translateKorean } from '../../i18n/korean';
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -267,10 +268,10 @@ const resolveOverview = (
 };
 
 const formatDateTimeForLanguage = (language: string, value?: string | null, includeYear = false): string => {
-  if (!value) return language === 'en' ? 'Unknown time' : '时间未知';
+  if (!value) return language === 'ko' ? translateKorean('时间未知') : (language === 'en' ? 'Unknown time' : '时间未知');
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'zh-CN', {
+  return new Intl.DateTimeFormat(language === 'ko' ? 'ko-KR' : (language === 'en' ? 'en-US' : 'zh-CN'), {
     ...(includeYear ? { year: 'numeric' as const } : {}),
     month: 'numeric',
     day: 'numeric',

@@ -1,3 +1,5 @@
+import { useUiLiteral } from '../hooks/useUiLiteral';
+import { UiLiteral } from '../components/i18n/UiLiteral';
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
@@ -29,6 +31,7 @@ const categoryMeta: Record<string, {label:string;description:string}> = {
 };
 
 export default function ToolSettingsPage() {
+  const uiLiteral = useUiLiteral();
   const [tools, setTools] = useState<WorkspaceTool[]>([]);
   const [enabledIds, setEnabledIds] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
@@ -79,35 +82,35 @@ export default function ToolSettingsPage() {
     >
       <PageHeader
         eyebrow="Capability registry"
-        title="内置工具"
-        description="管理平台自带的金融 Tool Surface。Tool 是 Agent 可直接执行的函数；MCP 服务是外部能力的连接协议，两者分别治理。"
-        actions={<Link to="/overview" className="btn-primary">返回投研助理</Link>}
+        title={uiLiteral("内置工具")}
+        description={uiLiteral("管理平台自带的金融 Tool Surface。Tool 是 Agent 可直接执行的函数；MCP 服务是外部能力的连接协议，两者分别治理。")}
+        actions={<Link to="/overview" className="btn-primary"><UiLiteral text={"返回投研助理"} /></Link>}
       />
       <CapabilityCenterNav />
 
-      <section className="grid overflow-hidden rounded-[12px] border border-border bg-card lg:grid-cols-[1fr_1fr]" aria-label="Tool 与 MCP 的边界">
+      <section className="grid overflow-hidden rounded-[12px] border border-border bg-card lg:grid-cols-[1fr_1fr]" aria-label={uiLiteral("Tool 与 MCP 的边界")}>
         <div className="border-b border-border p-5 lg:border-b-0 lg:border-r">
-          <div className="flex items-center gap-2 text-primary"><Wrench className="h-4 w-4" /><p className="text-xs font-semibold">Tool · 可执行能力</p></div>
-          <p className="mt-2 text-sm leading-6 text-secondary-text">有明确输入 Schema、权限、作用域和执行结果，例如读取行情、计算均线或搜索新闻。</p>
+          <div className="flex items-center gap-2 text-primary"><Wrench className="h-4 w-4" /><p className="text-xs font-semibold"><UiLiteral text={"Tool · 可执行能力"} /></p></div>
+          <p className="mt-2 text-sm leading-6 text-secondary-text"><UiLiteral text={"有明确输入 Schema、权限、作用域和执行结果，例如读取行情、计算均线或搜索新闻。"} /></p>
         </div>
         <div className="p-5">
-          <div className="flex items-center gap-2 text-primary"><Braces className="h-4 w-4" /><p className="text-xs font-semibold">MCP · 外部连接协议</p></div>
-          <p className="mt-2 text-sm leading-6 text-secondary-text">一个 MCP Server 可以暴露多个 Tool、Resource 或 Prompt；连接地址和凭据不属于内置工具配置。</p>
-          <Link to="/capabilities/mcp" className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">管理 MCP 服务 <ArrowRight className="h-3.5 w-3.5" /></Link>
+          <div className="flex items-center gap-2 text-primary"><Braces className="h-4 w-4" /><p className="text-xs font-semibold"><UiLiteral text={"MCP · 外部连接协议"} /></p></div>
+          <p className="mt-2 text-sm leading-6 text-secondary-text"><UiLiteral text={"一个 MCP Server 可以暴露多个 Tool、Resource 或 Prompt；连接地址和凭据不属于内置工具配置。"} /></p>
+          <Link to="/capabilities/mcp" className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"><UiLiteral text={"管理 MCP 服务 "} /><ArrowRight className="h-3.5 w-3.5" /></Link>
         </div>
       </section>
 
       <div className="flex items-start gap-3 rounded-[12px] border border-warning/25 bg-warning/5 px-4 py-3 text-sm leading-6 text-secondary-text">
         <Info className="mt-1 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-        <p><span className="font-medium text-warning">运行边界。</span> 下列站内工具已通过网站的金融 MCP Endpoint 发布给外部 Runtime；独立 Agent 引擎 仍需在自身配置中连接该 Endpoint。工作区白名单会同时限制站内 Agent 和 MCP 暴露面。</p>
+        <p><span className="font-medium text-warning"><UiLiteral text={"运行边界。"} /></span> <UiLiteral text={" 下列站内工具已通过网站的金融 MCP Endpoint 发布给外部 Runtime；独立 Agent 引擎 仍需在自身配置中连接该 Endpoint。工作区白名单会同时限制站内 Agent 和 MCP 暴露面。"} /></p>
       </div>
 
       {error ? <p role="alert" className="rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p> : null}
 
-      <section className="grid gap-px overflow-hidden rounded-[12px] border border-border bg-border sm:grid-cols-3" aria-label="工具目录摘要">
-        <div className="bg-card px-5 py-4"><p className="text-xs text-secondary-text">平台金融工具</p><p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">{loading ? "—" : tools.length}</p><p className="mt-1 text-xs text-muted-text">DSA Tool Surface</p></div>
-        <div className="bg-card px-5 py-4"><p className="text-xs text-secondary-text">工作区白名单</p><p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">{enabledIds.length}</p><p className="mt-1 text-xs text-muted-text">启用但尚未按任务绑定</p></div>
-        <div className="bg-card px-5 py-4"><p className="text-xs text-secondary-text">运行权限</p><p className="mt-2 text-base font-semibold text-foreground">READ · COMPUTE</p><p className="mt-1 text-xs text-muted-text">不包含审批和交易执行</p></div>
+      <section className="grid gap-px overflow-hidden rounded-[12px] border border-border bg-border sm:grid-cols-3" aria-label={uiLiteral("工具目录摘要")}>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-secondary-text"><UiLiteral text={"平台金融工具"} /></p><p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">{loading ? "—" : tools.length}</p><p className="mt-1 text-xs text-muted-text">DSA Tool Surface</p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-secondary-text"><UiLiteral text={"工作区白名单"} /></p><p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">{enabledIds.length}</p><p className="mt-1 text-xs text-muted-text"><UiLiteral text={"启用但尚未按任务绑定"} /></p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-secondary-text"><UiLiteral text={"运行权限"} /></p><p className="mt-2 text-base font-semibold text-foreground">READ · COMPUTE</p><p className="mt-1 text-xs text-muted-text"><UiLiteral text={"不包含审批和交易执行"} /></p></div>
       </section>
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -128,12 +131,12 @@ export default function ToolSettingsPage() {
                     const policy = tool.policy || {};
                     return (
                       <label key={tool.id} className="flex cursor-pointer items-start gap-4 px-5 py-4 transition-colors hover:bg-hover/35">
-                        <input type="checkbox" checked={enabled} onChange={() => toggle(tool.id)} aria-label={`${tool.name} 工具`} className="mt-1" />
+                        <input type="checkbox" checked={enabled} onChange={() => toggle(tool.id)} aria-label={uiLiteral(`${tool.name} 工具`)} className="mt-1" />
                         <span className="min-w-0 flex-1">
                           <span className="flex flex-wrap items-center gap-2"><span className="font-medium text-foreground">{copy?.name || tool.name}</span><code className="text-[11px] text-muted-text">{tool.id}</code></span>
                           <span className="mt-1 block text-sm leading-6 text-secondary-text">{copy?.description || tool.description}</span>
                         </span>
-                        <span className="hidden shrink-0 items-center gap-1.5 sm:flex"><span className="rounded border border-border px-1.5 py-0.5 font-mono text-[9px] text-muted-text">{Array.isArray(policy.permissions) ? policy.permissions.join(" · ") || "READ" : "READ"}</span><span className="rounded border border-border px-1.5 py-0.5 text-[9px] text-muted-text">{policy.read_only === false ? "受控副作用" : "只读/计算"}</span></span>
+                        <span className="hidden shrink-0 items-center gap-1.5 sm:flex"><span className="rounded border border-border px-1.5 py-0.5 font-mono text-[9px] text-muted-text">{Array.isArray(policy.permissions) ? policy.permissions.join(" · ") || "READ" : "READ"}</span><span className="rounded border border-border px-1.5 py-0.5 text-[9px] text-muted-text">{policy.read_only === false ? uiLiteral("受控副作用") : uiLiteral("只读/计算")}</span></span>
                       </label>
                     );
                   })}
@@ -145,15 +148,15 @@ export default function ToolSettingsPage() {
 
         <aside className="space-y-4 xl:sticky xl:top-6">
           <div className="rounded-[14px] border border-border bg-background p-5">
-            <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /><h2 className="font-semibold text-foreground">金融工具白名单</h2></div>
-            <p className="mt-3 text-sm leading-6 text-secondary-text">只保留研究、选股、组合和策略验证需要的能力。Shell、文件写入、自我修改和远程安装不属于默认金融工具。</p>
-            <button type="button" onClick={() => void save()} className="btn-primary mt-5 inline-flex w-full items-center justify-center gap-2"><Save className="h-4 w-4" />保存工具白名单</button>
-            {saved ? <p role="status" className="mt-3 flex items-center gap-2 text-xs text-success"><CheckCircle2 className="h-4 w-4" />已保存到后端工作区注册表。</p> : null}
+            <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /><h2 className="font-semibold text-foreground"><UiLiteral text={"金融工具白名单"} /></h2></div>
+            <p className="mt-3 text-sm leading-6 text-secondary-text"><UiLiteral text={"只保留研究、选股、组合和策略验证需要的能力。Shell、文件写入、自我修改和远程安装不属于默认金融工具。"} /></p>
+            <button type="button" onClick={() => void save()} className="btn-primary mt-5 inline-flex w-full items-center justify-center gap-2"><Save className="h-4 w-4" /><UiLiteral text={"保存工具白名单"} /></button>
+            {saved ? <p role="status" className="mt-3 flex items-center gap-2 text-xs text-success"><CheckCircle2 className="h-4 w-4" /><UiLiteral text={"已保存到后端工作区注册表。"} /></p> : null}
           </div>
           <div className="rounded-[12px] border border-border bg-background p-4">
-            <div className="flex items-center gap-2"><Database className="h-4 w-4 text-primary" /><p className="text-xs font-semibold text-foreground">数据源不是 Tool</p></div>
-            <p className="mt-2 text-xs leading-5 text-secondary-text">数据源负责事实数据和版本；Tool 负责查询或计算。一个行情 Tool 可以按任务绑定不同的数据源。</p>
-            <Link to="/capabilities/data" className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">管理数据源 <ArrowRight className="h-3.5 w-3.5" /></Link>
+            <div className="flex items-center gap-2"><Database className="h-4 w-4 text-primary" /><p className="text-xs font-semibold text-foreground"><UiLiteral text={"数据源不是 Tool"} /></p></div>
+            <p className="mt-2 text-xs leading-5 text-secondary-text"><UiLiteral text={"数据源负责事实数据和版本；Tool 负责查询或计算。一个行情 Tool 可以按任务绑定不同的数据源。"} /></p>
+            <Link to="/capabilities/data" className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"><UiLiteral text={"管理数据源 "} /><ArrowRight className="h-3.5 w-3.5" /></Link>
           </div>
         </aside>
       </div>

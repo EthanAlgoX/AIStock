@@ -1,3 +1,6 @@
+import { useUiLiteral } from '../hooks/useUiLiteral';
+import { UiLiteral } from '../components/i18n/UiLiteral';
+import { withKorean } from '../i18n/korean';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Markdown from 'react-markdown';
@@ -50,7 +53,7 @@ type ActiveStockContext = Pick<ChatFollowUpContext, 'stock_code' | 'stock_name'>
 
 export type AgentWorkspaceMode = 'general' | 'trading';
 
-const WORKSPACE_COPY: Record<AgentWorkspaceMode, Record<'zh' | 'en', {
+const WORKSPACE_COPY: Record<AgentWorkspaceMode, Record<'zh' | 'en' | 'ko', {
   title: string;
   subtitle: string;
   taskTypeLabel: string;
@@ -58,14 +61,14 @@ const WORKSPACE_COPY: Record<AgentWorkspaceMode, Record<'zh' | 'en', {
   emptyDescription: string;
   placeholder: string;
 }>> = {
-  general: {
+  general: withKorean({
     zh: { title: '投研助理', subtitle: '统一理解目标、调用能力并沉淀决策成果', taskTypeLabel: '自然语言任务', emptyTitle: '描述目标，Agent 负责组织工作', emptyDescription: '从研究一家公司、筛选候选股票或完善策略想法开始。任务启动后，系统会绑定当前上下文，并在完成时形成可追溯成果。', placeholder: '输入目标，例如：分析 600519' },
     en: { title: 'Research assistant', subtitle: 'Understand goals, orchestrate capabilities, and retain decision-ready outputs', taskTypeLabel: 'Natural-language task', emptyTitle: 'Describe your goal — the Agent organizes the work', emptyDescription: 'Start by researching a company, screening candidates, or developing a strategy idea. Each completed task retains its context and traceable output.', placeholder: 'Describe a goal, for example: analyze 600519' },
-  },
-  trading: {
+  }),
+  trading: withKorean({
     zh: { title: '投研助理 · 交易推演', subtitle: '围绕持仓、信号和风险约束形成可复核的交易提案', taskTypeLabel: '交易决策', emptyTitle: '描述你的交易目标与约束', emptyDescription: '输入账户范围、标的、持仓目标和风险边界。Agent 可以调用当前会话能力生成交易提案，但不会绕过风险检查或审批。', placeholder: '输入交易目标，例如：基于当前持仓生成 600519 的调仓提案' },
     en: { title: 'Research assistant · Trade simulation', subtitle: 'Form reviewable proposals from positions, signals, and risk limits', taskTypeLabel: 'Trading decision', emptyTitle: 'Describe your trading objective and constraints', emptyDescription: 'Provide the account scope, symbol, position objective, and risk limits. The Agent can draft a proposal but cannot bypass risk checks or approval.', placeholder: 'Describe a trading goal, for example: rebalance 600519' },
-  },
+  }),
 };
 
 const WORKSPACE_STARTERS: Record<Exclude<AgentWorkspaceMode, 'general'>, string[]> = {
@@ -274,6 +277,7 @@ const restoreActiveStockContextFromMessages = (messages: Message[]): ActiveStock
 };
 
 const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: boolean }> = ({ workspace = 'general', defaultDiscussion = false }) => {
+  const uiLiteral = useUiLiteral();
   const { role } = useAuth();
   const { t, localize, language } = useUiLanguage();
   const workspaceCopy = WORKSPACE_COPY[workspace][language];
@@ -768,7 +772,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
     availableSkillIds,
     language,
   }), [availableSkillIds, language, messages, sessions, stockIndex]);
-  const quickQuestions = personalizedQuickQuestions.length > 0 ? personalizedQuickQuestions : defaultQuickQuestions.map((question) => ({ ...question, label: language === 'en' ? question.labelEn : question.label }));
+  const quickQuestions = personalizedQuickQuestions.length > 0 ? personalizedQuickQuestions : defaultQuickQuestions.map((question) => ({ ...question, label: localize(question.label, question.labelEn) }));
   const showingPersonalizedQuickQuestions = personalizedQuickQuestions.length > 0;
   const workspaceStarters = workspace === 'general' ? [] : WORKSPACE_STARTERS[workspace];
   const selectedSkillIdSet = new Set(selectedSkillIds);
@@ -987,7 +991,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
           expertIds: [],
           expertTeamIds: [],
         },
-        context: contextForSend ?? undefined,
+        context: language === 'ko' ? { ...contextForSend, report_language: 'ko' } : contextForSend ?? undefined,
       };
       if (expertChat.enabled && !authoringActive) {
         const source = followUpContextRef.current?.previous_analysis_summary;
@@ -1019,7 +1023,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
         },
       });
     },
-    [activeStockContext, authoringActive, agentAvailable, agentStatus, capabilityPreview, expertChat, getSkillNames, input, loading, normalizeSelectedSkillIds, requestScrollToBottom, runtimeOwnsStockContext, selectedSkillIds, sessionId, startStream, stockIndex],
+    [activeStockContext, authoringActive, agentAvailable, agentStatus, capabilityPreview, expertChat, getSkillNames, input, language, loading, normalizeSelectedSkillIds, requestScrollToBottom, runtimeOwnsStockContext, selectedSkillIds, sessionId, startStream, stockIndex],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1141,7 +1145,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
           />
         </svg>
         <span className="flex items-center gap-1.5">
-          <span className="opacity-60">思考过程</span>
+          <span className="opacity-60"><UiLiteral text={"思考过程"} /></span>
           <span className="text-muted-text/50">·</span>
           <span className="opacity-50">{summary}</span>
         </span>
@@ -1259,7 +1263,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                         <>
                           <span className="separator" />
                           <span className="meta">
-                            {new Date(s.last_active).toLocaleDateString(language === 'en' ? 'en-US' : 'zh-CN', { month: 'short', day: 'numeric' })}
+                            {new Date(s.last_active).toLocaleDateString(language === 'ko' ? 'ko-KR' : (language === 'en' ? 'en-US' : 'zh-CN'), { month: 'short', day: 'numeric' })}
                           </span>
                         </>
                       )}
@@ -1368,7 +1372,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
       {/* Main Agent workspace */}
       <div className="flex h-full min-w-0 flex-1 overflow-hidden bg-card">
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex-shrink-0 border-b border-border/75 px-4 py-3 md:px-5">
+        <header className="relative z-20 flex-shrink-0 border-b border-border/75 px-4 py-3 md:px-5">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
@@ -1381,7 +1385,15 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h1 className="hidden shrink-0 text-base font-semibold tracking-[-0.015em] text-foreground sm:block">{workspaceCopy.title}</h1>
-                  {authoringActive && <span className="text-xs text-primary">{localize('策略创建', 'Strategy authoring')}</span>}
+                  <StrategyAuthoringPanel compact key={sessionId} sessionId={sessionId} messageCount={messages.length} loading={loading || expertChat.pending}
+                    hasDiscussion={messages.length > 0 || !!input.trim()} onMode={setStrategyState}
+                    onCreated={(id, carry) => {
+                      const seed = carry ? [...messages.slice(-6).map((message) => `${message.role}: ${message.content}`), input].join('\n\n').slice(-12000) : input;
+                      handleStartNewChat();
+                      useAgentChatStore.getState().startNewChat(id);
+                      expertChat.update({ expertIds: [] });
+                      setInput(seed);
+                    }} />
                   <span className={cn(
                     'hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium sm:inline-flex',
                     agentAvailable ? 'border-success/25 bg-success/5 text-success' : 'border-border bg-background text-muted-text',
@@ -1532,7 +1544,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
           {sendToast ? (
             <InlineAlert
               variant={sendToast.type === 'success' ? 'success' : 'danger'}
-              title={sendToast.type === 'success' ? '发送成功' : '发送失败'}
+              title={sendToast.type === 'success' ? uiLiteral('发送成功') : uiLiteral('发送失败')}
               message={sendToast.message}
               className="max-w-md rounded-xl px-3 py-2 text-xs shadow-none"
             />
@@ -1613,7 +1625,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                   >
                     {msg.role === 'assistant' && (skillLabel || (msg.backend && msg.backend !== 'external_runtime')) && (
                       <div className="mb-2 flex flex-wrap gap-2">
-                        {skillLabel ? <Badge variant="info" className="chat-skill-badge shadow-none" aria-label={`技能 ${skillLabel}`}>
+                        {skillLabel ? <Badge variant="info" className="chat-skill-badge shadow-none" aria-label={uiLiteral(`技能 ${skillLabel}`)}>
                           <svg
                             className="w-3 h-3"
                             fill="none"
@@ -1658,10 +1670,9 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                             type="button"
                             onClick={() => downloadMessageAsMarkdown(msg)}
                             className="chat-copy-btn"
-                            aria-label="导出此条消息为 Markdown"
+                            aria-label={uiLiteral("导出此条消息为 Markdown")}
                           >
-                            导出
-                          </button>
+                            <UiLiteral text={"导出"} /></button>
                         </div>
                         <div className="chat-prose report-reading">
                           <Markdown remarkPlugins={[remarkGfm]} components={authoringActive ? { ...chartMarkdownComponents, pre: StrategyMessageBlock } : chartMarkdownComponents}>
@@ -1707,15 +1718,14 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                     </span>
                   </div>
                   <p className="mt-2 pl-6 text-xs text-muted-text">
-                    已运行 {formatRunElapsed(runElapsedSeconds)}，可随时停止
-                  </p>
+                    <UiLiteral text={"已运行 "} />{formatRunElapsed(runElapsedSeconds)}<UiLiteral text={"，可随时停止"} /></p>
                 </div>
               </div>
             )}
 
             {expertChat.running && expertChat.run && <div role="status" className="chat-bubble-ai max-w-3xl px-5 py-4">
-              <p className="text-sm font-medium">专家正在协作 · {expertChat.run.taskSnapshot.name}</p>
-              <p className="mt-2 text-xs text-secondary-text">在后台执行，切换页面不会中断。完成后报告会保存在本次对话。</p>
+              <p className="text-sm font-medium"><UiLiteral text={"专家正在协作 · "} />{expertChat.run.taskSnapshot.name}</p>
+              <p className="mt-2 text-xs text-secondary-text"><UiLiteral text={"在后台执行，切换页面不会中断。完成后报告会保存在本次对话。"} /></p>
             </div>}
             <div ref={messagesEndRef} />
           </ScrollArea>
@@ -1729,7 +1739,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                   requestScrollToBottom('smooth');
                   scrollToBottom('smooth');
                 }}
-                aria-label="查看最新消息"
+                aria-label={uiLiteral("查看最新消息")}
               >
                 <svg
                   className="h-3.5 w-3.5"
@@ -1744,8 +1754,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                     d="M19 14l-7 7m0 0l-7-7m7 7V3"
                   />
                 </svg>
-                有新消息
-              </button>
+                <UiLiteral text={"有新消息"} /></button>
             </div>
           )}
 
@@ -1948,15 +1957,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
               </div>
             )}
 
-              <StrategyAuthoringPanel key={sessionId} sessionId={sessionId} messageCount={messages.length} loading={loading || expertChat.pending}
-                hasDiscussion={messages.length > 0 || !!input.trim()} onMode={setStrategyState}
-                onCreated={(id, carry) => {
-                  const seed = carry ? [...messages.slice(-6).map((message) => `${message.role}: ${message.content}`), input].join('\n\n').slice(-12000) : input;
-                  handleStartNewChat();
-                  useAgentChatStore.getState().startNewChat(id);
-                  expertChat.update({ expertIds: [] });
-                  setInput(seed);
-                }} />
+
               {!authoringActive && <section aria-label={localize('对话专家设置', 'Conversation expert settings')} className="grid grid-cols-2 items-start gap-3">
                 <ChoiceList label={localize('选择专家', 'Choose experts')} placement="above" multiple limit={6}
                   loading={!expertChat.catalog && !expertChat.error} disabled={loading || expertChat.pending}

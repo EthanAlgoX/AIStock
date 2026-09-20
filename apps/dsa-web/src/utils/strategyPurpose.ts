@@ -1,3 +1,4 @@
+import { koreanCopy } from '../i18n/korean';
 import type {
   Agent,
   AgentWorkflowVersion,
@@ -40,11 +41,12 @@ export const STRATEGY_PURPOSES: Array<{
   },
 ];
 
-export function purposeDefinition(purpose?: StrategyPurpose, language: "zh" | "en" = "zh") {
+export function purposeDefinition(purpose?: StrategyPurpose, language: 'zh' | 'en' | 'ko' = "zh") {
   const definition = (
     STRATEGY_PURPOSES.find((item) => item.id === purpose) ||
     STRATEGY_PURPOSES[2]
   );
+  if (language === "ko") return koreanCopy(definition);
   if (language === "zh") return definition;
   const english = {
     research_report: {

@@ -8,19 +8,19 @@
 
 投研助理 · 专家圆桌 · 个股研究 · 策略选股 · 交易推演
 
-[![CI](https://github.com/EthanAlgoX/InvestCrew/actions/workflows/ci.yml/badge.svg)](https://github.com/EthanAlgoX/InvestCrew/actions/workflows/ci.yml)
+[![CI](https://github.com/EthanAlgoX/AIStock/actions/workflows/ci.yml/badge.svg)](https://github.com/EthanAlgoX/AIStock/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111)](https://react.dev/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Agent_API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 
-[English](../README.md) · **简体中文** · [繁體中文](README_CHT.md)
+[English](../README.md) · **简体中文** · [繁體中文](README_CHT.md) · [한국어](README_KO.md)
 
 </div>
 
 > AI Stock 面向 A 股、港股和美股，提供研究与模拟交易实验能力。系统不会把模型输出包装成投资建议，也不允许 Agent 绕过确定性风控和执行边界。
 
-项目曾用名 LLM TradeBot、InvestCrew，现统一品牌为 **AI Stock**。GitHub 仓库暂保留 `EthanAlgoX/InvestCrew`，本地目录使用 `AI-Stock`。
+项目曾用名 LLM TradeBot、InvestCrew，现统一品牌为 **AI Stock**。GitHub 仓库暂保留 `EthanAlgoX/AIStock`，本地目录使用 `AI-Stock`。
 
 ## 从提问开始，让研究留下来
 
@@ -88,7 +88,7 @@ Agent 是统一交互与任务编排层；策略定义研究目标和执行约�
 ### 1. 安装并准备配置
 
 ```bash
-git clone https://github.com/EthanAlgoX/InvestCrew.git AI-Stock
+git clone https://github.com/EthanAlgoX/AIStock.git AI-Stock
 cd AI-Stock
 
 python3 -m venv .venv
@@ -120,7 +120,7 @@ python main.py --serve-only --host 127.0.0.1 --port 8000
 2. 直接向**投研助理**提问，或进入**个股研究**运行默认方案。默认方案仍需对应模型、正式策略与工具可用。
 3. 阅读已保存的报告。想比较不同观点时，进入**专家圆桌**，选择专家与协作方式，提交讨论话题。
 
-顶部提供中英文切换并保存语言偏好，主要工作区、研究配置、默认方案和报告控件跟随切换。历史报告正文、用户自定义名称与原始资讯保留原文；切换界面不会翻译或改写研究数据。
+顶部提供中文、英文和韩文切换并保存语言偏好。在韩文界面中，投研助理的新请求会明确要求韩文回复；定时报告等分析的韩文输出可配置 `REPORT_LANGUAGE=ko`。主要工作区、研究配置、默认方案和报告控件跟随切换。历史报告正文、用户自定义名称与原始资讯保留原文；切换界面不会翻译或改写研究数据。
 
 前端开发时，保持后端运行，在 `apps/dsa-web` 中执行 `npm run dev`。Vite 默认监听 <http://127.0.0.1:5173>，将 `/api` 代理到 8000 端口；后端地址不同时可配置 `DSA_WEB_API_PROXY_TARGET`。
 

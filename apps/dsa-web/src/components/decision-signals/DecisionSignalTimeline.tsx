@@ -1,3 +1,4 @@
+import { withKorean } from '../../i18n/korean';
 import type React from 'react';
 import { Activity } from 'lucide-react';
 import {
@@ -39,10 +40,10 @@ const STATUS_LABEL_KEYS: Record<DecisionSignalStatus, UiTextKey> = {
   archived: 'decisionSignals.archived',
 };
 
-const LOCALE_BY_LANGUAGE: Record<UiLanguage, string> = {
+const LOCALE_BY_LANGUAGE: Record<UiLanguage, string> = withKorean({
   zh: 'zh-CN',
   en: 'en-US',
-};
+});
 
 export type DecisionSignalTimelineProps = {
   items: DecisionSignalItem[];

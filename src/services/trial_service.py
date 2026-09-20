@@ -432,7 +432,7 @@ class TrialService:
                 except Exception:
                     evidence = 'Market history unavailable; do not invent current prices or signals.'
             from src.services.expert_personas import build_expert_prompt
-            language = 'English only' if request['language'] == 'en' else '简体中文'
+            language = {'en': 'English only', 'zh': '简体中文', 'ko': '한국어로만 답변하세요'}.get(request['language'], '简体中文')
             boundary = (f'Reply in {language}. Produce a concise Markdown research report with conclusion, evidence, '
                         'counterarguments, risks and next checks. This is a read-only limited trial, not the full workflow. '
                         'Only supplied public price history is available. State dates and data gaps. Never invent current '

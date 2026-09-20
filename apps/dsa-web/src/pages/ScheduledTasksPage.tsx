@@ -1,3 +1,5 @@
+import { useUiLiteral } from '../hooks/useUiLiteral';
+import { UiLiteral } from '../components/i18n/UiLiteral';
 import {
   ArrowLeft,
   ArrowRight,
@@ -241,6 +243,7 @@ const getTargetSummary = (plan: ScheduledTaskPlan) => {
 };
 
 export default function ScheduledTasksPage() {
+  const uiLiteral = useUiLiteral();
   const { localize: l, language } = useUiLanguage();
   const location = useLocation();
   const navigationState = location.state as ScheduledTaskNavigationState | null;
@@ -429,12 +432,12 @@ export default function ScheduledTasksPage() {
     <AppPage className="space-y-6 pb-20" data-testid="scheduled-tasks-page">
       <PageHeader
         eyebrow="Agent task scheduler"
-        title="定时任务"
-        description="为单股分析、选股和交易策略安排运行节奏。调度只负责何时启动，任务仍使用各自的 Agent、Skill、内置工具、MCP 服务、数据源和专家配置。"
+        title={uiLiteral("定时任务")}
+        description={uiLiteral("为单股分析、选股和交易策略安排运行节奏。调度只负责何时启动，任务仍使用各自的 Agent、Skill、内置工具、MCP 服务、数据源和专家配置。")}
         actions={prefillSource ? (
           <Link to={sourcePath} className="btn-secondary inline-flex items-center gap-2">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            返回{prefillSource}
+            <UiLiteral text={"返回"} />{prefillSource}
           </Link>
         ) : undefined}
       />
@@ -444,8 +447,8 @@ export default function ScheduledTasksPage() {
       <div className="flex items-start gap-3 rounded-[12px] border border-warning/25 bg-warning/5 px-4 py-3.5 text-sm leading-6">
         <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
         <div>
-          <p className="font-medium text-foreground">计划由后端持久化调度器运行</p>
-          <p className="text-secondary-text">浏览器关闭后计划仍会保留；服务重启后会恢复调度。每次触发都会创建独立 Run、数据快照和成果记录。</p>
+          <p className="font-medium text-foreground"><UiLiteral text={"计划由后端持久化调度器运行"} /></p>
+          <p className="text-secondary-text"><UiLiteral text={"浏览器关闭后计划仍会保留；服务重启后会恢复调度。每次触发都会创建独立 Run、数据快照和成果记录。"} /></p>
         </div>
       </div>
 
@@ -454,11 +457,11 @@ export default function ScheduledTasksPage() {
           <div className="border-b border-border/70 px-5 py-5 sm:px-6">
             <div className="flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-primary" aria-hidden="true" />
-              <h2 id="schedule-builder-heading" className="text-base font-semibold text-foreground">新建运行计划</h2>
+              <h2 id="schedule-builder-heading" className="text-base font-semibold text-foreground"><UiLiteral text={"新建运行计划"} /></h2>
             </div>
-            <p className="mt-1 text-sm text-secondary-text">先选择任务，再定义运行对象和触发节奏。</p>
+            <p className="mt-1 text-sm text-secondary-text"><UiLiteral text={"先选择任务，再定义运行对象和触发节奏。"} /></p>
 
-            <div className="mt-5 grid grid-cols-3 gap-2" role="radiogroup" aria-label="任务类型">
+            <div className="mt-5 grid grid-cols-3 gap-2" role="radiogroup" aria-label={uiLiteral("任务类型")}>
               {TASK_TYPES.map((item) => {
                 const Icon = item.icon;
                 const active = draft.kind === item.id;
@@ -486,7 +489,7 @@ export default function ScheduledTasksPage() {
             </div>
 
             <div className="mt-4 rounded-[10px] border border-border bg-background px-4 py-3 xl:hidden" aria-live="polite">
-              <p className="text-[11px] font-medium text-primary">当前输出契约</p>
+              <p className="text-[11px] font-medium text-primary"><UiLiteral text={"当前输出契约"} /></p>
               <p className="mt-1 text-sm font-semibold text-foreground">{output.title}</p>
               <p className="mt-1 text-xs leading-5 text-muted-text">{output.boundary}</p>
             </div>
@@ -495,33 +498,31 @@ export default function ScheduledTasksPage() {
               <div className="mt-4 flex items-start gap-3 rounded-[10px] border border-primary/20 bg-primary/5 px-4 py-3" role="status">
                 <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                 <div>
-                  <p className="text-sm font-medium text-foreground">已从{prefillSource}带入当前配置</p>
-                  <p className="mt-1 text-xs leading-5 text-secondary-text">运行对象、业务条件和 {capabilityCount} 项 Agent 能力已预填；这里只需要确认运行时间。</p>
+                  <p className="text-sm font-medium text-foreground"><UiLiteral text={"已从"} />{prefillSource}<UiLiteral text={"带入当前配置"} /></p>
+                  <p className="mt-1 text-xs leading-5 text-secondary-text"><UiLiteral text={"运行对象、业务条件和 "} />{capabilityCount} <UiLiteral text={" 项 Agent 能力已预填；这里只需要确认运行时间。"} /></p>
                 </div>
               </div>
             ) : null}
           </div>
 
           <div className="border-b border-border/70 px-5 py-5 sm:px-6">
-            <h3 className="text-sm font-semibold text-foreground">任务对象</h3>
+            <h3 className="text-sm font-semibold text-foreground"><UiLiteral text={"任务对象"} /></h3>
             {draft.scheduleMode === "daily" && <label className="mt-4 block text-sm">{l("每隔几天运行", "Run every (days)")}<input type="number" min="1" max="365" step="1" required value={draft.intervalDays} onChange={e => updateDraft("intervalDays", e.target.value)} className="ml-3 w-24 rounded-lg border border-border bg-background p-2" /></label>}
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-medium text-foreground">
-                计划名称
-                <input
+                <UiLiteral text={"计划名称"} /><input
                   id="schedule-field-name"
                   required
                   aria-invalid={errorField === "name"}
                   aria-describedby={errorField === "name" ? "schedule-form-error" : undefined}
                   value={draft.name}
                   onChange={(event) => updateDraft("name", event.target.value)}
-                  placeholder={draft.kind === "research" ? "例如：每日贵州茅台复盘" : draft.kind === "screening" ? "例如：每日价值候选池" : "例如：趋势策略模拟巡检"}
+                  placeholder={draft.kind === "research" ? uiLiteral("例如：每日贵州茅台复盘") : draft.kind === "screening" ? uiLiteral("例如：每日价值候选池") : uiLiteral("例如：趋势策略模拟巡检")}
                   className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
                 />
               </label>
               <label className="text-sm font-medium text-foreground">
-                市场
-                <select value={draft.market} onChange={(event) => changeMarket(event.target.value as MarketId)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary">
+                <UiLiteral text={"市场"} /><select value={draft.market} onChange={(event) => changeMarket(event.target.value as MarketId)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary">
                   {MARKETS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                 </select>
               </label>
@@ -530,7 +531,7 @@ export default function ScheduledTasksPage() {
             {draft.kind === "research" ? (
               <>
                 <div className="mt-4">
-                  <label htmlFor="schedule-field-stock" className="block text-sm font-medium text-foreground">股票</label>
+                  <label htmlFor="schedule-field-stock" className="block text-sm font-medium text-foreground"><UiLiteral text={"股票"} /></label>
                   <div className="relative mt-2">
                     <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-text" aria-hidden="true" />
                     <input
@@ -545,13 +546,13 @@ export default function ScheduledTasksPage() {
                         setError("");
                         setErrorField(null);
                       }}
-                      placeholder={stockIndex.loading ? "正在读取股票目录…" : "搜索股票代码或名称"}
+                      placeholder={stockIndex.loading ? uiLiteral("正在读取股票目录…") : uiLiteral("搜索股票代码或名称")}
                       className="h-10 w-full rounded-[9px] border border-border bg-background pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary"
                     />
                     {stockIndex.loading ? <LoaderCircle className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-text" aria-hidden="true" /> : null}
                   </div>
                   {stockSuggestions.length ? (
-                    <div className="mt-2 divide-y divide-border/60 overflow-hidden rounded-[9px] border border-border" role="listbox" aria-label="股票搜索结果">
+                    <div className="mt-2 divide-y divide-border/60 overflow-hidden rounded-[9px] border border-border" role="listbox" aria-label={uiLiteral("股票搜索结果")}>
                       {stockSuggestions.map((stock) => (
                         <button key={stock.canonicalCode} type="button" role="option" aria-selected="false" onClick={() => selectStock(stock)} className="flex w-full items-center justify-between gap-4 bg-background px-3 py-2.5 text-left transition-colors hover:bg-hover/60">
                           <span className="min-w-0"><span className="block truncate text-sm font-medium text-foreground">{stock.nameZh || stock.nameEn || stock.displayCode}</span><span className="mt-0.5 block text-xs text-muted-text">{stock.canonicalCode}</span></span>
@@ -560,12 +561,11 @@ export default function ScheduledTasksPage() {
                       ))}
                     </div>
                   ) : null}
-                  {draft.stock ? <p className="mt-2 text-xs font-medium text-success">已绑定 {draft.stockName} · {draft.stock}</p> : null}
-                  {stockIndex.error ? <p className="mt-2 text-xs text-warning">股票目录使用降级数据，搜索范围可能有限。</p> : null}
+                  {draft.stock ? <p className="mt-2 text-xs font-medium text-success"><UiLiteral text={"已绑定 "} />{draft.stockName} · {draft.stock}</p> : null}
+                  {stockIndex.error ? <p className="mt-2 text-xs text-warning"><UiLiteral text={"股票目录使用降级数据，搜索范围可能有限。"} /></p> : null}
                 </div>
                 <label className="mt-4 block text-sm font-medium text-foreground">
-                  每日关注问题（可选）
-                  <textarea value={draft.objective} onChange={(event) => updateDraft("objective", event.target.value)} placeholder="例如：跟踪盈利质量、估值变化和最新风险事件" className="mt-2 min-h-24 w-full resize-y rounded-[9px] border border-border bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none focus:border-primary" />
+                  <UiLiteral text={"每日关注问题（可选）"} /><textarea value={draft.objective} onChange={(event) => updateDraft("objective", event.target.value)} placeholder={uiLiteral("例如：跟踪盈利质量、估值变化和最新风险事件")} className="mt-2 min-h-24 w-full resize-y rounded-[9px] border border-border bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none focus:border-primary" />
                 </label>
               </>
             ) : null}
@@ -573,17 +573,14 @@ export default function ScheduledTasksPage() {
             {draft.kind === "screening" ? (
               <>
                 <label className="mt-4 block text-sm font-medium text-foreground">
-                  选股目标
-                  <textarea id="schedule-field-objective" required aria-invalid={errorField === "objective"} aria-describedby={errorField === "objective" ? "schedule-form-error" : undefined} value={draft.objective} onChange={(event) => updateDraft("objective", event.target.value)} placeholder="例如：每天寻找盈利持续增长、估值低于行业中位数且近期无重大利空的公司" className="mt-2 min-h-28 w-full resize-y rounded-[9px] border border-border bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none focus:border-primary" />
+                  <UiLiteral text={"选股目标"} /><textarea id="schedule-field-objective" required aria-invalid={errorField === "objective"} aria-describedby={errorField === "objective" ? "schedule-form-error" : undefined} value={draft.objective} onChange={(event) => updateDraft("objective", event.target.value)} placeholder={uiLiteral("例如：每天寻找盈利持续增长、估值低于行业中位数且近期无重大利空的公司")} className="mt-2 min-h-28 w-full resize-y rounded-[9px] border border-border bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none focus:border-primary" />
                 </label>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <label className="block text-sm font-medium text-foreground">
-                    行业范围（可选）
-                    <input value={draft.industry} onChange={(event) => updateDraft("industry", event.target.value)} placeholder="例如：半导体" className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" />
+                    <UiLiteral text={"行业范围（可选）"} /><input value={draft.industry} onChange={(event) => updateDraft("industry", event.target.value)} placeholder={uiLiteral("例如：半导体")} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" />
                   </label>
                   <label className="block text-sm font-medium text-foreground">
-                    每次保留候选数
-                    <select value={draft.candidateCount} onChange={(event) => updateDraft("candidateCount", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary">
+                    <UiLiteral text={"每次保留候选数"} /><select value={draft.candidateCount} onChange={(event) => updateDraft("candidateCount", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary">
                       <option value="10">Top 10</option>
                       <option value="20">Top 20</option>
                       <option value="50">Top 50</option>
@@ -596,8 +593,7 @@ export default function ScheduledTasksPage() {
             {draft.kind === "trading" ? (
               <>
                 <label className="mt-4 block text-sm font-medium text-foreground">
-                  交易策略
-                  <select
+                  <UiLiteral text={"交易策略"} /><select
                     id="schedule-field-strategy"
                     required
                     aria-invalid={errorField === "strategy"}
@@ -612,36 +608,36 @@ export default function ScheduledTasksPage() {
                     disabled={!tradingStrategies.length}
                     className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <option value="">{tradingStrategies.length ? "选择已保存的交易策略" : "尚未保存交易策略"}</option>
+                    <option value="">{tradingStrategies.length ? uiLiteral("选择已保存的交易策略") : uiLiteral("尚未保存交易策略")}</option>
                     {tradingStrategies.map((strategy) => <option key={strategy.id} value={strategy.id}>{strategy.name} · {strategy.versionLabel}</option>)}
                   </select>
                 </label>
-                <p className="mt-2 text-xs leading-5 text-muted-text">计划绑定后端保存的交易任务版本；后续修改策略会生成新的 Task 版本，并保留每次 Run 的冻结快照。{!tradingStrategies.length ? <> 请先<Link to="/trading" className="mx-1 font-medium text-primary hover:underline">保存交易策略</Link>。</> : null}</p>
+                <p className="mt-2 text-xs leading-5 text-muted-text"><UiLiteral text={"计划绑定后端保存的交易任务版本；后续修改策略会生成新的 Task 版本，并保留每次 Run 的冻结快照。"} />{!tradingStrategies.length ? <> <UiLiteral text={" 请先"} /><Link to="/trading" className="mx-1 font-medium text-primary hover:underline"><UiLiteral text={"保存交易策略"} /></Link>。</> : null}</p>
               </>
             ) : null}
 
             <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/70 pt-4 text-xs text-muted-text">
-              <span className="font-medium text-secondary-text">继承 Agent 能力</span>
-              <span>{capabilityCount} 项</span>
+              <span className="font-medium text-secondary-text"><UiLiteral text={"继承 Agent 能力"} /></span>
+              <span>{capabilityCount} <UiLiteral text={" 项"} /></span>
               {capabilityCount ? (
-                <span>Skill {draft.capabilities.skillIds.length} · 工具 {draft.capabilities.toolIds.length} · MCP {draft.capabilities.mcpIds.length} · 数据源 {draft.capabilities.dataSourceIds.length} · 专家 {draft.capabilities.expertIds.length + draft.capabilities.expertTeamIds.length}</span>
-              ) : <span>运行时使用该任务的通用配置</span>}
+                <span>Skill {draft.capabilities.skillIds.length} <UiLiteral text={" · 工具 "} />{draft.capabilities.toolIds.length} · MCP {draft.capabilities.mcpIds.length} <UiLiteral text={" · 数据源 "} />{draft.capabilities.dataSourceIds.length} <UiLiteral text={" · 专家 "} />{draft.capabilities.expertIds.length + draft.capabilities.expertTeamIds.length}</span>
+              ) : <span><UiLiteral text={"运行时使用该任务的通用配置"} /></span>}
             </div>
           </div>
 
           <div className="px-5 py-5 sm:px-6">
             <div className="flex items-center gap-2">
               <Clock3 className="h-4 w-4 text-primary" aria-hidden="true" />
-              <h3 className="text-sm font-semibold text-foreground">运行节奏</h3>
+              <h3 className="text-sm font-semibold text-foreground"><UiLiteral text={"运行节奏"} /></h3>
             </div>
 
             {draft.kind === "trading" ? (
-              <div className="mt-4 inline-flex rounded-[9px] border border-border bg-background p-1" role="radiogroup" aria-label="交易策略运行方式">
-                <button type="button" role="radio" aria-checked={draft.scheduleMode === "daily"} onClick={() => updateDraft("scheduleMode", "daily")} className={cn("rounded-[7px] px-3 py-1.5 text-xs font-medium transition-colors", draft.scheduleMode === "daily" ? "bg-primary text-primary-foreground" : "text-secondary-text hover:text-foreground")}>每天定时</button>
-                <button type="button" role="radio" aria-checked={draft.scheduleMode === "interval"} onClick={() => updateDraft("scheduleMode", "interval")} className={cn("rounded-[7px] px-3 py-1.5 text-xs font-medium transition-colors", draft.scheduleMode === "interval" ? "bg-primary text-primary-foreground" : "text-secondary-text hover:text-foreground")}>按间隔运行</button>
+              <div className="mt-4 inline-flex rounded-[9px] border border-border bg-background p-1" role="radiogroup" aria-label={uiLiteral("交易策略运行方式")}>
+                <button type="button" role="radio" aria-checked={draft.scheduleMode === "daily"} onClick={() => updateDraft("scheduleMode", "daily")} className={cn("rounded-[7px] px-3 py-1.5 text-xs font-medium transition-colors", draft.scheduleMode === "daily" ? "bg-primary text-primary-foreground" : "text-secondary-text hover:text-foreground")}><UiLiteral text={"每天定时"} /></button>
+                <button type="button" role="radio" aria-checked={draft.scheduleMode === "interval"} onClick={() => updateDraft("scheduleMode", "interval")} className={cn("rounded-[7px] px-3 py-1.5 text-xs font-medium transition-colors", draft.scheduleMode === "interval" ? "bg-primary text-primary-foreground" : "text-secondary-text hover:text-foreground")}><UiLiteral text={"按间隔运行"} /></button>
               </div>
             ) : (
-              <p className="mt-2 text-xs leading-5 text-muted-text">单股分析和选股每天运行一次，避免同一天重复生成大量报告或候选池。</p>
+              <p className="mt-2 text-xs leading-5 text-muted-text"><UiLiteral text={"单股分析和选股每天运行一次，避免同一天重复生成大量报告或候选池。"} /></p>
             )}
 
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -652,18 +648,17 @@ export default function ScheduledTasksPage() {
                 </label>
               ) : (
                 <label className="text-sm font-medium text-foreground">
-                  运行频率
-                  <select id="schedule-field-interval" required aria-invalid={errorField === "interval"} aria-describedby={errorField === "interval" ? "schedule-form-error" : undefined} value={draft.intervalMinutes} onChange={(event) => updateDraft("intervalMinutes", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary">
-                    <option value="5">每 5 分钟</option>
-                    <option value="15">每 15 分钟</option>
-                    <option value="30">每 30 分钟</option>
-                    <option value="60">每 1 小时</option>
-                    <option value="240">每 4 小时</option>
+                  <UiLiteral text={"运行频率"} /><select id="schedule-field-interval" required aria-invalid={errorField === "interval"} aria-describedby={errorField === "interval" ? "schedule-form-error" : undefined} value={draft.intervalMinutes} onChange={(event) => updateDraft("intervalMinutes", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary">
+                    <option value="5"><UiLiteral text={"每 5 分钟"} /></option>
+                    <option value="15"><UiLiteral text={"每 15 分钟"} /></option>
+                    <option value="30"><UiLiteral text={"每 30 分钟"} /></option>
+                    <option value="60"><UiLiteral text={"每 1 小时"} /></option>
+                    <option value="240"><UiLiteral text={"每 4 小时"} /></option>
                   </select>
                 </label>
               )}
               <div className="rounded-[10px] border border-border bg-background px-3 py-2.5">
-                <span className="block text-xs text-muted-text">市场时区</span>
+                <span className="block text-xs text-muted-text"><UiLiteral text={"市场时区"} /></span>
                 <span className="mt-1 block text-sm font-medium text-foreground">{market.timezoneLabel}</span>
                 <span className="mt-0.5 block text-[11px] text-muted-text">{market.timezone}</span>
               </div>
@@ -680,21 +675,18 @@ export default function ScheduledTasksPage() {
                 <span className="min-w-0">
                   <span className="flex items-center gap-2 text-sm font-medium text-foreground">
                     <LayoutDashboard className="h-4 w-4 text-primary" aria-hidden="true" />
-                    展示到{market.label}市场看板
-                  </span>
+                    <UiLiteral text={"展示到"} />{market.label}<UiLiteral text={"市场看板"} /></span>
                   <span className="mt-1 block text-xs leading-5 text-muted-text">
-                    看板只展示最近一次成功运行的摘要、数据时间和状态；点击后进入完整成果。
-                  </span>
+                    <UiLiteral text={"看板只展示最近一次成功运行的摘要、数据时间和状态；点击后进入完整成果。"} /></span>
                 </span>
               </label>
             ) : null}
 
             <div className="mt-5 flex flex-col gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs leading-5 text-muted-text">拟定节奏：{getScheduleSummary(draft, language === 'en')}</p>
+              <p className="text-xs leading-5 text-muted-text"><UiLiteral text={"拟定节奏："} />{uiLiteral(getScheduleSummary(draft, language === 'en'))}</p>
               <button type="button" onClick={() => void savePlan()} className="btn-primary inline-flex shrink-0 items-center justify-center gap-2">
                 <Save className="h-4 w-4" aria-hidden="true" />
-                注册定时计划
-              </button>
+                <UiLiteral text={"注册定时计划"} /></button>
             </div>
             {error ? <p id="schedule-form-error" role="alert" className="mt-3 text-sm text-danger">{error}</p> : null}
             {savedMessage ? <p role="status" className="mt-3 text-sm text-success">{savedMessage}</p> : null}
@@ -703,7 +695,7 @@ export default function ScheduledTasksPage() {
 
         <aside className="hidden overflow-hidden rounded-[14px] border border-border bg-card xl:sticky xl:top-6 xl:block" aria-labelledby="output-contract-heading">
           <div className="border-b border-border px-5 py-5">
-            <p className="text-xs font-medium text-primary">当前输出契约</p>
+            <p className="text-xs font-medium text-primary"><UiLiteral text={"当前输出契约"} /></p>
             <h2 id="output-contract-heading" className="mt-2 text-base font-semibold text-foreground">{output.title}</h2>
             <p className="mt-2 text-sm leading-6 text-secondary-text">{output.description}</p>
           </div>
@@ -729,10 +721,10 @@ export default function ScheduledTasksPage() {
       <section className="overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card" aria-labelledby="saved-plans-heading">
         <div className="flex flex-col gap-2 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
-            <h2 id="saved-plans-heading" className="text-base font-semibold text-foreground">已保存计划</h2>
-            <p className="mt-1 text-xs text-muted-text">{loadingPlans ? "正在读取后端计划…" : `共 ${plans.length} 个已注册计划。`}</p>
+            <h2 id="saved-plans-heading" className="text-base font-semibold text-foreground"><UiLiteral text={"已保存计划"} /></h2>
+            <p className="mt-1 text-xs text-muted-text">{loadingPlans ? uiLiteral("正在读取后端计划…") : uiLiteral(`共 ${plans.length} 个已注册计划。`)}</p>
           </div>
-          <span className="inline-flex self-start rounded-full border border-success/25 bg-success/5 px-2.5 py-1 text-[11px] font-medium text-success sm:self-auto">调度已接通</span>
+          <span className="inline-flex self-start rounded-full border border-success/25 bg-success/5 px-2.5 py-1 text-[11px] font-medium text-success sm:self-auto"><UiLiteral text={"调度已接通"} /></span>
         </div>
 
         {plans.length ? (
@@ -744,12 +736,12 @@ export default function ScheduledTasksPage() {
                 <div key={plan.id} className="grid gap-4 px-5 py-4 sm:px-6 lg:grid-cols-[minmax(12rem,1.2fr)_minmax(10rem,1fr)_minmax(11rem,1fr)_minmax(9rem,0.8fr)_auto] lg:items-center">
                   <div className="flex min-w-0 items-start gap-3">
                     <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-border bg-background"><Icon className="h-4 w-4 text-primary" aria-hidden="true" /></span>
-                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-foreground">{plan.name}</span><span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-text"><span>{type.title} · {countScheduledCapabilities(plan.capabilities)} 项能力</span>{plan.publishToMarket ? <span className="text-primary">市场展示</span> : null}</span></span>
+                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-foreground">{plan.name}</span><span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-text"><span>{type.title} · {countScheduledCapabilities(plan.capabilities)} <UiLiteral text={" 项能力"} /></span>{plan.publishToMarket ? <span className="text-primary"><UiLiteral text={"市场展示"} /></span> : null}</span></span>
                   </div>
-                  <div><span className="block text-[11px] text-muted-text">运行对象</span><span className="mt-1 block truncate text-sm text-secondary-text">{getTargetSummary(plan)}</span></div>
-                  <div><span className="block text-[11px] text-muted-text">拟定节奏</span><span className="mt-1 block text-sm text-secondary-text">{getScheduleSummary(plan, language === 'en')}</span></div>
-                  <div><span className="block text-[11px] text-muted-text">输出</span><span className="mt-1 block font-mono text-xs text-secondary-text">{type.output}</span></div>
-                  <button type="button" onClick={() => void deletePlan(plan.id)} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-muted-text transition-colors hover:bg-danger/10 hover:text-danger" aria-label={`删除计划 ${plan.name}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+                  <div><span className="block text-[11px] text-muted-text"><UiLiteral text={"运行对象"} /></span><span className="mt-1 block truncate text-sm text-secondary-text">{getTargetSummary(plan)}</span></div>
+                  <div><span className="block text-[11px] text-muted-text"><UiLiteral text={"拟定节奏"} /></span><span className="mt-1 block text-sm text-secondary-text">{uiLiteral(getScheduleSummary(plan, language === 'en'))}</span></div>
+                  <div><span className="block text-[11px] text-muted-text"><UiLiteral text={"输出"} /></span><span className="mt-1 block font-mono text-xs text-secondary-text">{type.output}</span></div>
+                  <button type="button" onClick={() => void deletePlan(plan.id)} className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-muted-text transition-colors hover:bg-danger/10 hover:text-danger" aria-label={uiLiteral(`删除计划 ${plan.name}`)}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
                 </div>
               );
             })}
@@ -757,8 +749,8 @@ export default function ScheduledTasksPage() {
         ) : (
           <div className="flex min-h-40 flex-col items-center justify-center px-6 py-8 text-center">
             <Repeat2 className="h-7 w-7 text-muted-text" aria-hidden="true" />
-            <p className="mt-3 text-sm font-medium text-foreground">还没有运行计划</p>
-            <p className="mt-1 max-w-md text-xs leading-5 text-muted-text">在上方选择任务类型并保存后，计划会注册到后端并按设定时间运行。</p>
+            <p className="mt-3 text-sm font-medium text-foreground"><UiLiteral text={"还没有运行计划"} /></p>
+            <p className="mt-1 max-w-md text-xs leading-5 text-muted-text"><UiLiteral text={"在上方选择任务类型并保存后，计划会注册到后端并按设定时间运行。"} /></p>
           </div>
         )}
       </section>

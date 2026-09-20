@@ -8,7 +8,7 @@ export function DecisionReportVisuals({ data, kind }: { data: Record<string, unk
   const { localize: l, language } = useUiLanguage();
   const screening = kind === 'screening';
   const rows = (Array.isArray(data.candidates) ? data.candidates : Array.isArray(data.actions) ? data.actions : []).map(record);
-  const format = (value: number) => value.toLocaleString(language === 'en' ? 'en-US' : 'zh-CN', { maximumFractionDigits: 2 });
+  const format = (value: number) => value.toLocaleString(language === 'ko' ? 'ko-KR' : (language === 'en' ? 'en-US' : 'zh-CN'), { maximumFractionDigits: 2 });
   const counts = [
     [l('扫描范围', 'Scanned universe'), data.snapshot_count ?? data.snapshotCount],
     [l('过滤后', 'After filtering'), data.after_filter_count ?? data.afterFilterCount],

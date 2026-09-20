@@ -1,3 +1,4 @@
+import { koreanCopy } from '../i18n/korean';
 import type { SystemConfigDocLink } from '../types/systemConfig';
 
 export interface SettingsHelpContent {
@@ -2560,6 +2561,10 @@ export function getSettingsHelpContent(
     return null;
   }
 
+  if (locale?.toLowerCase().startsWith('ko')) {
+    const source = settingsHelpZhCN[helpKey];
+    return source ? koreanCopy(source) : fallbackDescription ? { title: '설정 도움말', summary: fallbackDescription } : null;
+  }
   const localized = getPreferredHelpMap(locale)[helpKey] ?? settingsHelpZhCN[helpKey];
   if (localized) {
     return localized;

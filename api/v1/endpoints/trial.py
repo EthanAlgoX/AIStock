@@ -46,7 +46,7 @@ class RunRequest(BaseModel):
     kind: Literal['assistant', 'roundtable', 'research', 'screening', 'trading', 'holdings']
     topic: str = Field(min_length=2, max_length=2000)
     stock: str = Field(default='', max_length=20, pattern=r'^[A-Za-z0-9.]*$')
-    language: Literal['en', 'zh'] = 'zh'
+    language: Literal['en', 'zh', 'ko'] = 'zh'
     experts: list[Literal['warren-buffett', 'charlie-munger', 'peter-lynch']] = Field(default_factory=list, max_length=2)
     mode: Literal['independent', 'debate'] = 'independent'
 

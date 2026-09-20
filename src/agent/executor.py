@@ -496,6 +496,8 @@ RUNTIME_CHAT_SYSTEM_PROMPT = """你是一位{market_role}投资分析 Agent。�
 def _build_language_section(report_language: str, *, chat_mode: bool = False) -> str:
     """Build output-language guidance for the agent prompt."""
     normalized = normalize_report_language(report_language)
+    if normalized == "ko":
+        return "\n## 출력 언어\n한국어로 답변하세요. JSON 키, 주식 코드, 도구 이름과 buy|hold|sell 등의 열거형 값은 변경하지 마세요. 사람이 읽는 설명은 한국어로 작성하세요.\n"
     if chat_mode:
         if normalized == "en":
             return """

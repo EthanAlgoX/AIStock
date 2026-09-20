@@ -1,3 +1,5 @@
+import { useUiLiteral } from '../../hooks/useUiLiteral';
+import { UiLiteral } from '../i18n/UiLiteral';
 import {
   Activity,
   ArrowDown,
@@ -136,6 +138,7 @@ function ToolSwitch({
   onToggle: () => void;
   onPolicyChange: (policy: FailurePolicy) => void;
 }) {
+  const uiLiteral = useUiLiteral();
   return (
     <div className={`border px-3 py-3 transition-colors ${enabled ? "border-cyan/35 bg-cyan/5" : "border-border/70 bg-base/35"}`}>
       <div className="flex items-start gap-3">
@@ -154,36 +157,36 @@ function ToolSwitch({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-medium text-foreground">{tool.name}</p>
-            <span className={`text-[11px] font-medium ${enabled ? "text-cyan" : "text-muted-text"}`}>{enabled ? "预览中启用" : "预览中省略"}</span>
+            <span className={`text-[11px] font-medium ${enabled ? "text-cyan" : "text-muted-text"}`}>{enabled ? uiLiteral("预览中启用") : uiLiteral("预览中省略")}</span>
           </div>
           <p className="mt-1 text-xs leading-5 text-secondary-text">{tool.description}</p>
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-text">
-            <span>输出 <code className="text-secondary-text">{tool.output}</code></span>
-            {dependencyNames.length ? <span>依赖 {dependencyNames.join("、")}</span> : <span>无工具硬依赖</span>}
-            {tool.optionalInputs?.length ? <span>可增强 {tool.optionalInputs.join("、")}</span> : null}
+            <span><UiLiteral text={"输出 "} /><code className="text-secondary-text">{tool.output}</code></span>
+            {dependencyNames.length ? <span><UiLiteral text={"依赖 "} />{dependencyNames.join("、")}</span> : <span><UiLiteral text={"无工具硬依赖"} /></span>}
+            {tool.optionalInputs?.length ? <span><UiLiteral text={"可增强 "} />{tool.optionalInputs.join("、")}</span> : null}
           </div>
         </div>
       </div>
       {enabled ? (
         <label className="mt-3 flex items-center justify-between gap-3 border-t border-border/60 pt-2 text-xs text-secondary-text">
-          失败处理
-          <select
-            aria-label={`${tool.name}失败处理`}
+          <UiLiteral text={"失败处理"} /><select
+            aria-label={uiLiteral(`${tool.name}失败处理`)}
             value={policy}
             onChange={(event) => onPolicyChange(event.target.value as FailurePolicy)}
             className="rounded-md border border-border bg-base px-2 py-1.5 text-xs text-foreground"
           >
-            <option value="block">失败则阻止 Agent（规划）</option>
-            <option value="continue">失败则跳过依赖链（规划）</option>
+            <option value="block"><UiLiteral text={"失败则阻止 Agent（规划）"} /></option>
+            <option value="continue"><UiLiteral text={"失败则跳过依赖链（规划）"} /></option>
           </select>
         </label>
       ) : null}
-      {enabled && policy === "continue" ? <p className="mt-2 text-[11px] leading-5 text-muted-text">规划规则：工具仍会尝试执行；失败时跳过依赖它的下游，并向 Agent 写入缺失标记。</p> : null}
+      {enabled && policy === "continue" ? <p className="mt-2 text-[11px] leading-5 text-muted-text"><UiLiteral text={"规划规则：工具仍会尝试执行；失败时跳过依赖它的下游，并向 Agent 写入缺失标记。"} /></p> : null}
     </div>
   );
 }
 
 export function CompositeAgentWorkbench({ llmTemplates, onOpenLlmLibrary }: { llmTemplates: AgentTemplate[]; onOpenLlmLibrary: () => void }) {
+  const uiLiteral = useUiLiteral();
   const [activeId, setActiveId] = useState<CompositeAgentId>("stock-research");
   const [enabledByAgent, setEnabledByAgent] = useState<Record<CompositeAgentId, Set<string>>>(() => ({
     "stock-research": defaultEnabled(definitions["stock-research"]),
@@ -259,18 +262,17 @@ export function CompositeAgentWorkbench({ llmTemplates, onOpenLlmLibrary }: { ll
   return (
     <section aria-labelledby="complete-agent-heading" className="space-y-5">
       <div className="border border-warning/30 bg-warning/5 px-4 py-3 text-sm leading-6 text-secondary-text">
-        <span className="font-medium text-warning">前端结构预览</span>
-        <span className="ml-2">当前只演示工具选择、依赖联动与 Agent 输入覆盖；所有执行、产物和校验均为规划状态，不会保存 AgentVersion，也不会触发任何研究或选股 API。</span>
+        <span className="font-medium text-warning"><UiLiteral text={"前端结构预览"} /></span>
+        <span className="ml-2"><UiLiteral text={"当前只演示工具选择、依赖联动与 Agent 输入覆盖；所有执行、产物和校验均为规划状态，不会保存 AgentVersion，也不会触发任何研究或选股 API。"} /></span>
       </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
-          <h2 id="complete-agent-heading" className="text-xl font-semibold text-foreground">完整 Agent 配置</h2>
-          <p className="mt-2 text-sm leading-6 text-secondary-text">一个完整 Agent 由 LLM 配置、前置工具图和输入输出契约共同构成。工具先形成结构化证据，再由所选 LLM 完成研究推理。</p>
+          <h2 id="complete-agent-heading" className="text-xl font-semibold text-foreground"><UiLiteral text={"完整 Agent 配置"} /></h2>
+          <p className="mt-2 text-sm leading-6 text-secondary-text"><UiLiteral text={"一个完整 Agent 由 LLM 配置、前置工具图和输入输出契约共同构成。工具先形成结构化证据，再由所选 LLM 完成研究推理。"} /></p>
         </div>
         <button type="button" className="btn-secondary inline-flex shrink-0 items-center gap-2" onClick={resetCurrent}>
-          <RefreshCw className="h-4 w-4" aria-hidden="true" />恢复默认工具设置
-        </button>
+          <RefreshCw className="h-4 w-4" aria-hidden="true" /><UiLiteral text={"恢复默认工具设置"} /></button>
       </div>
 
       <div className="grid gap-px overflow-hidden border border-border bg-border lg:grid-cols-2">
@@ -291,7 +293,7 @@ export function CompositeAgentWorkbench({ llmTemplates, onOpenLlmLibrary }: { ll
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2"><span className="font-semibold text-foreground">{item.name}</span><span className="border border-border px-2 py-0.5 text-[11px] text-secondary-text">{item.kind}</span></span>
                 <span className="mt-1.5 block text-sm leading-5 text-secondary-text">{item.description}</span>
-                <span className="mt-2 block text-xs text-muted-text">预览启用 {selectedCount}/{item.tools.length} 个工具</span>
+                <span className="mt-2 block text-xs text-muted-text"><UiLiteral text={"预览启用 "} />{selectedCount}/{item.tools.length} <UiLiteral text={" 个工具"} /></span>
               </span>
               {active ? <CheckCircle2 className="mt-2 h-4 w-4 shrink-0 text-cyan" aria-hidden="true" /> : null}
             </button>
@@ -305,16 +307,16 @@ export function CompositeAgentWorkbench({ llmTemplates, onOpenLlmLibrary }: { ll
         <Card variant="bordered" padding="none" className="overflow-hidden">
           <div className="flex flex-col gap-3 border-b border-border/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="flex items-center gap-2"><GitBranch className="h-4 w-4 text-cyan" aria-hidden="true" /><h3 className="font-semibold text-foreground">前置工具图</h3></div>
-              <p className="mt-1 text-xs text-secondary-text">预览启用 {enabledTools.length} 个；被停用的维度预计作为缺失信息交给 Agent。</p>
+              <div className="flex items-center gap-2"><GitBranch className="h-4 w-4 text-cyan" aria-hidden="true" /><h3 className="font-semibold text-foreground"><UiLiteral text={"前置工具图"} /></h3></div>
+              <p className="mt-1 text-xs text-secondary-text"><UiLiteral text={"预览启用 "} />{enabledTools.length} <UiLiteral text={" 个；被停用的维度预计作为缺失信息交给 Agent。"} /></p>
             </div>
-            <span className="inline-flex w-fit items-center gap-1.5 border border-border bg-base px-2.5 py-1.5 text-xs text-secondary-text"><LockKeyhole className="h-3.5 w-3.5" />选中工具计划为必经步骤</span>
+            <span className="inline-flex w-fit items-center gap-1.5 border border-border bg-base px-2.5 py-1.5 text-xs text-secondary-text"><LockKeyhole className="h-3.5 w-3.5" /><UiLiteral text={"选中工具计划为必经步骤"} /></span>
           </div>
 
           <div className="px-5 py-5">
             <div className="grid gap-3 border border-border/70 bg-base/35 px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-center">
-              <div className="flex items-center gap-3"><Database className="h-4 w-4 text-cyan" aria-hidden="true" /><div><p className="text-sm font-medium text-foreground">运行输入</p><p className="mt-0.5 text-xs text-secondary-text">{definition.inputLabel}</p></div></div>
-              <span className="text-xs text-muted-text">规划骨架 · 后端待接入</span>
+              <div className="flex items-center gap-3"><Database className="h-4 w-4 text-cyan" aria-hidden="true" /><div><p className="text-sm font-medium text-foreground"><UiLiteral text={"运行输入"} /></p><p className="mt-0.5 text-xs text-secondary-text">{definition.inputLabel}</p></div></div>
+              <span className="text-xs text-muted-text"><UiLiteral text={"规划骨架 · 后端待接入"} /></span>
             </div>
             <div className="flex h-8 items-center pl-6 text-muted-text"><ArrowDown className="h-4 w-4" aria-hidden="true" /></div>
 
@@ -349,63 +351,62 @@ export function CompositeAgentWorkbench({ llmTemplates, onOpenLlmLibrary }: { ll
 
             <div className="flex h-8 items-center pl-6 text-muted-text"><ArrowDown className="h-4 w-4" aria-hidden="true" /></div>
             <div className="grid gap-px border border-border bg-border sm:grid-cols-3">
-              <div className="bg-surface px-4 py-4"><div className="flex items-center gap-2"><Braces className="h-4 w-4 text-cyan" /><p className="text-sm font-medium text-foreground">证据组装</p></div><p className="mt-2 break-all font-mono text-xs text-secondary-text">{definition.packLabel}</p><p className="mt-2 text-[11px] text-muted-text">规划骨架 · 预计汇总可用与缺失产物</p></div>
-              <div className="bg-cyan/5 px-4 py-4"><div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-cyan" /><p className="text-sm font-medium text-foreground">{definition.name}</p></div><p className="mt-2 text-xs leading-5 text-secondary-text">规划为只消费 EvidencePack，不自行猜测未提供的数据。</p></div>
-              <div className="bg-surface px-4 py-4"><div className="flex items-center gap-2"><BookOpenCheck className="h-4 w-4 text-success" /><p className="text-sm font-medium text-foreground">结构化输出</p></div><p className="mt-2 break-all font-mono text-xs text-secondary-text">{definition.outputLabel}</p><p className="mt-2 text-[11px] text-muted-text">规划中的输出契约校验</p></div>
+              <div className="bg-surface px-4 py-4"><div className="flex items-center gap-2"><Braces className="h-4 w-4 text-cyan" /><p className="text-sm font-medium text-foreground"><UiLiteral text={"证据组装"} /></p></div><p className="mt-2 break-all font-mono text-xs text-secondary-text">{definition.packLabel}</p><p className="mt-2 text-[11px] text-muted-text"><UiLiteral text={"规划骨架 · 预计汇总可用与缺失产物"} /></p></div>
+              <div className="bg-cyan/5 px-4 py-4"><div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-cyan" /><p className="text-sm font-medium text-foreground">{definition.name}</p></div><p className="mt-2 text-xs leading-5 text-secondary-text"><UiLiteral text={"规划为只消费 EvidencePack，不自行猜测未提供的数据。"} /></p></div>
+              <div className="bg-surface px-4 py-4"><div className="flex items-center gap-2"><BookOpenCheck className="h-4 w-4 text-success" /><p className="text-sm font-medium text-foreground"><UiLiteral text={"结构化输出"} /></p></div><p className="mt-2 break-all font-mono text-xs text-secondary-text">{definition.outputLabel}</p><p className="mt-2 text-[11px] text-muted-text"><UiLiteral text={"规划中的输出契约校验"} /></p></div>
             </div>
           </div>
         </Card>
 
         <div className="space-y-5">
           <Card variant="bordered" padding="lg">
-            <div className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-cyan" /><h3 className="font-semibold text-foreground">Agent 配置</h3></div>
-            <p className="mt-2 text-xs leading-5 text-secondary-text">选择一个真实数据库 LLM 配置作为推理核心，再组合前置工具。职责与 Prompt 继承所选 LLM 版本，不在 Agent 层重复维护。</p>
+            <div className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-cyan" /><h3 className="font-semibold text-foreground"><UiLiteral text={"Agent 配置"} /></h3></div>
+            <p className="mt-2 text-xs leading-5 text-secondary-text"><UiLiteral text={"选择一个真实数据库 LLM 配置作为推理核心，再组合前置工具。职责与 Prompt 继承所选 LLM 版本，不在 Agent 层重复维护。"} /></p>
             <label className="mt-4 block text-xs font-medium text-secondary-text">
-              LLM 推理配置
-              <select
-                aria-label={`${definition.name} LLM 配置`}
+              <UiLiteral text={"LLM 推理配置"} /><select
+                aria-label={uiLiteral(`${definition.name} LLM 配置`)}
                 value={selectedLlmByAgent[activeId]}
                 onChange={(event) => setSelectedLlmByAgent((current) => ({ ...current, [activeId]: event.target.value ? Number(event.target.value) : "" }))}
                 className="mt-2 w-full rounded-md border border-border bg-base px-3 py-2.5 text-sm text-foreground"
               >
-                <option value="">选择数据库 LLM 配置</option>
+                <option value=""><UiLiteral text={"选择数据库 LLM 配置"} /></option>
                 {llmTemplates.filter((template) => template.agentType === definition.llmType).map((template) => (
                   <option key={template.templateId} value={template.templateId}>{llmDisplayName(template.name)} · v{template.currentVersion}</option>
                 ))}
               </select>
             </label>
-            <p className="mt-2 text-[11px] leading-5 text-muted-text">列表来自现有 AgentTemplate API；本版只重新明确其产品角色，不修改后端模型。</p>
+            <p className="mt-2 text-[11px] leading-5 text-muted-text"><UiLiteral text={"列表来自现有 AgentTemplate API；本版只重新明确其产品角色，不修改后端模型。"} /></p>
             <div className="mt-4 border border-border/70 bg-base/40 p-3">
-              <p className="text-xs font-medium text-secondary-text">LLM 继承状态</p>
-              <p className="mt-1 text-sm text-foreground">{selectedLlm ? `${llmDisplayName(selectedLlm.name)} · v${selectedLlm.currentVersion}` : "尚未选择 LLM 配置"}</p>
-              <p className="mt-1 text-[11px] leading-5 text-muted-text">AgentVersion 将引用这个不可变 LLM 配置版本；修改 Prompt 会产生新的 LLM 配置版本。</p>
-              <button type="button" onClick={onOpenLlmLibrary} className="mt-2 text-xs font-medium text-cyan hover:text-foreground">前往 LLM 配置查看或编辑 Prompt</button>
+              <p className="text-xs font-medium text-secondary-text"><UiLiteral text={"LLM 继承状态"} /></p>
+              <p className="mt-1 text-sm text-foreground">{selectedLlm ? `${llmDisplayName(selectedLlm.name)} · v${selectedLlm.currentVersion}` : uiLiteral("尚未选择 LLM 配置")}</p>
+              <p className="mt-1 text-[11px] leading-5 text-muted-text"><UiLiteral text={"AgentVersion 将引用这个不可变 LLM 配置版本；修改 Prompt 会产生新的 LLM 配置版本。"} /></p>
+              <button type="button" onClick={onOpenLlmLibrary} className="mt-2 text-xs font-medium text-cyan hover:text-foreground"><UiLiteral text={"前往 LLM 配置查看或编辑 Prompt"} /></button>
             </div>
             <div className="mt-4 grid gap-3">
-              <div><p className="text-xs font-medium text-secondary-text">输入契约 · 预览</p><ul className="mt-2 space-y-1.5">{definition.inputContract.map((field) => <li key={field} className="border border-border/70 bg-base/40 px-2.5 py-2 font-mono text-[11px] text-secondary-text">{field}</li>)}</ul></div>
-              <div><p className="text-xs font-medium text-secondary-text">输出契约 · 预览</p><ul className="mt-2 space-y-1.5">{definition.outputContract.map((field) => <li key={field} className="border border-border/70 bg-base/40 px-2.5 py-2 font-mono text-[11px] text-secondary-text">{field}</li>)}</ul></div>
+              <div><p className="text-xs font-medium text-secondary-text"><UiLiteral text={"输入契约 · 预览"} /></p><ul className="mt-2 space-y-1.5">{definition.inputContract.map((field) => <li key={field} className="border border-border/70 bg-base/40 px-2.5 py-2 font-mono text-[11px] text-secondary-text">{field}</li>)}</ul></div>
+              <div><p className="text-xs font-medium text-secondary-text"><UiLiteral text={"输出契约 · 预览"} /></p><ul className="mt-2 space-y-1.5">{definition.outputContract.map((field) => <li key={field} className="border border-border/70 bg-base/40 px-2.5 py-2 font-mono text-[11px] text-secondary-text">{field}</li>)}</ul></div>
             </div>
-            <button type="button" disabled className="btn-primary mt-4 w-full disabled:cursor-not-allowed disabled:opacity-50">保存完整 Agent 新版本 · 后端待接入</button>
+            <button type="button" disabled className="btn-primary mt-4 w-full disabled:cursor-not-allowed disabled:opacity-50"><UiLiteral text={"保存完整 Agent 新版本 · 后端待接入"} /></button>
           </Card>
 
           <Card variant="bordered" padding="lg">
-            <div className="flex items-center gap-2"><Gauge className="h-4 w-4 text-cyan" /><h3 className="font-semibold text-foreground">预计 Agent 输入</h3></div>
+            <div className="flex items-center gap-2"><Gauge className="h-4 w-4 text-cyan" /><h3 className="font-semibold text-foreground"><UiLiteral text={"预计 Agent 输入"} /></h3></div>
             <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden border border-border bg-border text-center">
-              <div className="bg-surface px-3 py-3"><dt className="text-[11px] text-muted-text">预计可用</dt><dd className="mt-1 text-xl font-semibold text-foreground">{enabledTools.length}</dd></div>
-              <div className="bg-surface px-3 py-3"><dt className="text-[11px] text-muted-text">预计缺失</dt><dd className="mt-1 text-xl font-semibold text-foreground">{disabledTools.length}</dd></div>
+              <div className="bg-surface px-3 py-3"><dt className="text-[11px] text-muted-text"><UiLiteral text={"预计可用"} /></dt><dd className="mt-1 text-xl font-semibold text-foreground">{enabledTools.length}</dd></div>
+              <div className="bg-surface px-3 py-3"><dt className="text-[11px] text-muted-text"><UiLiteral text={"预计缺失"} /></dt><dd className="mt-1 text-xl font-semibold text-foreground">{disabledTools.length}</dd></div>
             </dl>
             <div className="mt-4 space-y-3">
-              <div><p className="text-xs font-medium text-secondary-text">预计组装产物</p><div className="mt-2 flex flex-wrap gap-1.5">{enabledTools.map((tool) => <code key={tool.id} className="border border-success/25 bg-success/5 px-2 py-1 text-[11px] text-success">{tool.output}</code>)}</div></div>
-              {disabledTools.length ? <div><p className="text-xs font-medium text-secondary-text">预计不进入 Prompt</p><div className="mt-2 flex flex-wrap gap-1.5">{disabledTools.map((tool) => <span key={tool.id} className="border border-border bg-base px-2 py-1 text-[11px] text-muted-text">{tool.name}</span>)}</div></div> : null}
+              <div><p className="text-xs font-medium text-secondary-text"><UiLiteral text={"预计组装产物"} /></p><div className="mt-2 flex flex-wrap gap-1.5">{enabledTools.map((tool) => <code key={tool.id} className="border border-success/25 bg-success/5 px-2 py-1 text-[11px] text-success">{tool.output}</code>)}</div></div>
+              {disabledTools.length ? <div><p className="text-xs font-medium text-secondary-text"><UiLiteral text={"预计不进入 Prompt"} /></p><div className="mt-2 flex flex-wrap gap-1.5">{disabledTools.map((tool) => <span key={tool.id} className="border border-border bg-base px-2 py-1 text-[11px] text-muted-text">{tool.name}</span>)}</div></div> : null}
             </div>
           </Card>
 
           <Card variant="bordered" padding="lg">
-            <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-cyan" /><h3 className="font-semibold text-foreground">本阶段边界</h3></div>
+            <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-cyan" /><h3 className="font-semibold text-foreground"><UiLiteral text={"本阶段边界"} /></h3></div>
             <ul className="mt-3 space-y-2 text-xs leading-5 text-secondary-text">
-              <li className="flex gap-2"><CircleDot className="mt-1 h-3 w-3 shrink-0 text-cyan" />只展示配置结构，不保存工具图。</li>
-              <li className="flex gap-2"><CircleDot className="mt-1 h-3 w-3 shrink-0 text-cyan" />不会改写现有成熟服务或运行结果。</li>
-              <li className="flex gap-2"><CircleDot className="mt-1 h-3 w-3 shrink-0 text-cyan" />关闭工具只改变预览中的证据覆盖。</li>
+              <li className="flex gap-2"><CircleDot className="mt-1 h-3 w-3 shrink-0 text-cyan" /><UiLiteral text={"只展示配置结构，不保存工具图。"} /></li>
+              <li className="flex gap-2"><CircleDot className="mt-1 h-3 w-3 shrink-0 text-cyan" /><UiLiteral text={"不会改写现有成熟服务或运行结果。"} /></li>
+              <li className="flex gap-2"><CircleDot className="mt-1 h-3 w-3 shrink-0 text-cyan" /><UiLiteral text={"关闭工具只改变预览中的证据覆盖。"} /></li>
             </ul>
             <Link to={definition.route} className="btn-secondary mt-4 inline-flex w-full items-center justify-center gap-2">
               {definition.id === "stock-research" ? <Activity className="h-4 w-4" /> : <BarChart3 className="h-4 w-4" />}{definition.routeLabel}

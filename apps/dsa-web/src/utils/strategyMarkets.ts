@@ -1,3 +1,4 @@
+import { translateKorean } from '../i18n/korean';
 import type { StrategyDataSource } from "../api/strategyWorkspace";
 
 export const STRATEGY_MARKETS = [
@@ -8,7 +9,8 @@ export const STRATEGY_MARKETS = [
 
 export type StrategyMarket = (typeof STRATEGY_MARKETS)[number]["value"];
 
-export function strategyMarketLabel(market: string, language: "zh" | "en" = "zh") {
+export function strategyMarketLabel(market: string, language: 'zh' | 'en' | 'ko' = "zh"): string {
+  if (language === "ko") return translateKorean(strategyMarketLabel(market, "zh"));
   if (language === "en") {
     return ({ cn: "China A-shares", hk: "Hong Kong", us: "US" } as Record<string, string>)[market.toLowerCase()] || market.toUpperCase();
   }
@@ -28,8 +30,8 @@ export function dataSourceSupportsMarket(
   );
 }
 
-export function dataSourceMarketSummary(source: StrategyDataSource, language: "zh" | "en" = "zh") {
+export function dataSourceMarketSummary(source: StrategyDataSource, language: 'zh' | 'en' | 'ko' = "zh"): string {
   return source.markets?.length
     ? source.markets.map((market) => strategyMarketLabel(market, language)).join(" / ")
-    : language === "en" ? "Legacy source · no market restriction" : "历史来源 · 未限制市场";
+    : language === 'ko' ? translateKorean("历史来源 · 未限制市场") : (language === "en" ? "Legacy source · no market restriction" : "历史来源 · 未限制市场");
 }

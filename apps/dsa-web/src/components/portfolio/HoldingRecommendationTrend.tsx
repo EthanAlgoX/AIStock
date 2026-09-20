@@ -1,3 +1,4 @@
+import { useUiLiteral } from '../../hooks/useUiLiteral';
 import type { ResearchScorePoint } from '../../api/portfolioResearch';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
 
@@ -6,6 +7,7 @@ const HEIGHT = 116;
 const PAD = { top: 12, right: 12, bottom: 22, left: 28 };
 
 export default function HoldingRecommendationTrend({ history, trend, watch = false }: { history: ResearchScorePoint[]; trend: { direction: string; change: number | null; sessions: number }; watch?: boolean }) {
+  const uiLiteral = useUiLiteral();
   const { localize: l } = useUiLanguage();
   if (!history.length) return null;
   const plotWidth = WIDTH - PAD.left - PAD.right;
@@ -32,6 +34,6 @@ export default function HoldingRecommendationTrend({ history, trend, watch = fal
       <text x={PAD.left} y={HEIGHT - 5} className="fill-secondary-text text-[9px]">{labelDate(history[0])}</text>
       {history.length > 1 && <text x={WIDTH - PAD.right} y={HEIGHT - 5} textAnchor="end" className="fill-secondary-text text-[9px]">{labelDate(history[history.length - 1])}</text>}
     </svg>
-    <table className="sr-only"><caption>{`${title} ${l('明细', 'details')}`}</caption><thead><tr><th>{l('日期', 'Date')}</th><th>{watch ? l('研究', 'Research') : l('建议', 'Recommendation')}</th><th>{l('评分', 'Score')}</th></tr></thead><tbody>{history.map(entry => <tr key={entry.session}><td>{entry.session}</td><td>{entry.label}</td><td>{entry.score}</td></tr>)}</tbody></table>
+    <table className="sr-only"><caption>{uiLiteral(`${title} ${l('明细', 'details')}`)}</caption><thead><tr><th>{l('日期', 'Date')}</th><th>{watch ? l('研究', 'Research') : l('建议', 'Recommendation')}</th><th>{l('评分', 'Score')}</th></tr></thead><tbody>{history.map(entry => <tr key={entry.session}><td>{entry.session}</td><td>{entry.label}</td><td>{entry.score}</td></tr>)}</tbody></table>
   </section>;
 }

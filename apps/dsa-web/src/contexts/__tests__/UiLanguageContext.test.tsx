@@ -117,14 +117,14 @@ describe('UiLanguageContext', () => {
       </UiLanguageProvider>
     );
 
-    const toggle = screen.getByRole('button', { name: '切换界面语言' });
-    expect(toggle).toHaveTextContent('EN');
+    const toggle = screen.getByRole('combobox', { name: '切换界面语言' });
+    expect(toggle).toHaveValue('zh');
 
-    fireEvent.click(toggle);
+    fireEvent.change(toggle, { target: { value: 'en' } });
 
     expect(localStorage.getItem(UI_LANGUAGE_STORAGE_KEY)).toBe('en');
-    expect(screen.getByRole('button', { name: 'Switch UI language' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Switch UI language' })).toHaveTextContent('中');
+    expect(screen.getByRole('combobox', { name: 'Switch UI language' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Switch UI language' })).toHaveValue('en');
   });
 
   it('updates page-local product copy from the same global language state', () => {
@@ -138,7 +138,7 @@ describe('UiLanguageContext', () => {
     );
 
     expect(screen.getByText('验证中心')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '切换界面语言' }));
+    fireEvent.change(screen.getByRole('combobox', { name: '切换界面语言' }), { target: { value: 'en' } });
     expect(screen.getByText('Validation Center')).toBeInTheDocument();
     expect(screen.queryByText('验证中心')).not.toBeInTheDocument();
   });

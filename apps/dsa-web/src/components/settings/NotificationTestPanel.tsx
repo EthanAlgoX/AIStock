@@ -1,3 +1,4 @@
+import { translateKorean } from '../../i18n/korean';
 import { useEffect, useMemo, useState } from 'react';
 import type React from 'react';
 import { Send } from 'lucide-react';
@@ -12,19 +13,19 @@ import type {
 import { ApiErrorAlert, Badge, Button, InlineAlert, Input, Select } from '../common';
 import { SettingsSectionCard } from './SettingsSectionCard';
 
-function getChannelOptions(language: 'zh' | 'en'): Array<{ value: NotificationTestChannel; label: string }> {
+function getChannelOptions(language: 'zh' | 'en' | 'ko'): Array<{ value: NotificationTestChannel; label: string }> {
   return [
-    { value: 'wechat', label: language === 'en' ? 'WeCom' : '企业微信' },
-    { value: 'feishu', label: language === 'en' ? 'Feishu Webhook' : '飞书 Webhook' },
-    { value: 'dingtalk', label: language === 'en' ? 'DingTalk' : '钉钉' },
+    { value: 'wechat', label: language === 'ko' ? translateKorean('企业微信') : (language === 'en' ? 'WeCom' : '企业微信') },
+    { value: 'feishu', label: language === 'ko' ? translateKorean('飞书 Webhook') : (language === 'en' ? 'Feishu Webhook' : '飞书 Webhook') },
+    { value: 'dingtalk', label: language === 'ko' ? translateKorean('钉钉') : (language === 'en' ? 'DingTalk' : '钉钉') },
     { value: 'telegram', label: 'Telegram' },
-    { value: 'email', label: language === 'en' ? 'Email' : '邮件' },
+    { value: 'email', label: language === 'ko' ? translateKorean('邮件') : (language === 'en' ? 'Email' : '邮件') },
     { value: 'pushover', label: 'Pushover' },
     { value: 'ntfy', label: 'ntfy' },
     { value: 'gotify', label: 'Gotify' },
     { value: 'pushplus', label: 'PushPlus' },
     { value: 'serverchan3', label: 'ServerChan3' },
-    { value: 'custom', label: language === 'en' ? 'Custom Webhook' : '自定义 Webhook' },
+    { value: 'custom', label: language === 'ko' ? translateKorean('自定义 Webhook') : (language === 'en' ? 'Custom Webhook' : '自定义 Webhook') },
     { value: 'discord', label: 'Discord' },
     { value: 'slack', label: 'Slack' },
     { value: 'astrbot', label: 'AstrBot' },

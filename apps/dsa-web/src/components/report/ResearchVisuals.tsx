@@ -24,7 +24,7 @@ export function ResearchVisuals({ report }: { report: AnalysisReport }) {
   const high = points.length ? Math.max(...points.map(point => point.value)) : 0;
   const padding = Math.max((high - low) * 0.15, high * 0.005);
   const coordinate = (value: number) => 12 + (high - value + padding) / (high - low + padding * 2) * 216;
-  const format = (value: number) => value.toLocaleString(language === 'en' ? 'en-US' : 'zh-CN', { maximumFractionDigits: 2 });
+  const format = (value: number) => value.toLocaleString(language === 'ko' ? 'ko-KR' : (language === 'en' ? 'en-US' : 'zh-CN'), { maximumFractionDigits: 2 });
   const scores = [
     { label: l('报告情绪', 'Report sentiment'), value: number(report.summary.sentimentScore) },
     { label: l('趋势评分', 'Trend score'), value: number(get(trend, 'trendScore', 'trend_score')) },

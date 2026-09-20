@@ -1,3 +1,4 @@
+import { withKorean } from '../../i18n/korean';
 import type React from 'react';
 import { PanelRightOpen } from 'lucide-react';
 import { Badge, Card, JsonViewer } from '../common';
@@ -58,10 +59,10 @@ const OUTCOME_VARIANTS: Record<DecisionSignalOutcomeValue, BadgeVariant> = {
   neutral: 'warning',
 };
 
-const LOCALE_BY_LANGUAGE: Record<UiLanguage, string> = {
+const LOCALE_BY_LANGUAGE: Record<UiLanguage, string> = withKorean({
   zh: 'zh-CN',
   en: 'en-US',
-};
+});
 
 function formatDateTime(value: string | null | undefined, language: UiLanguage): string {
   const date = parseDecisionSignalDate(value);

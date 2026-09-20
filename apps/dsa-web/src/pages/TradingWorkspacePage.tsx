@@ -1,3 +1,5 @@
+import { useUiLiteral } from '../hooks/useUiLiteral';
+import { UiLiteral } from '../components/i18n/UiLiteral';
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { strategyDraftsApi } from "../api/strategyDrafts";
@@ -71,6 +73,7 @@ const metricLabels = [
 ] as const;
 
 export default function TradingWorkspacePage() {
+  const uiLiteral = useUiLiteral();
   const [params, setParams] = useSearchParams();
   const legacy =
     params.get("view") === "reports" ||
@@ -176,8 +179,7 @@ export default function TradingWorkspacePage() {
       <>
         <div className="px-6 pt-4">
           <Link to="/trading" className="text-primary">
-            ← 返回策略运行
-          </Link>
+            <UiLiteral text={"← 返回策略运行"} /></Link>
         </div>
         <ResearchReportsWorkspace mode="trading" />
       </>
@@ -255,15 +257,13 @@ export default function TradingWorkspacePage() {
     <AppPage>
       <header className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-2xl font-semibold">策略验证与运行</h1>
+          <h1 className="text-2xl font-semibold"><UiLiteral text={"策略验证与运行"} /></h1>
           <p className="mt-2 text-sm text-secondary-text">
-            历史回测与每日模拟，持续跟踪每一笔决策。
-          </p>
+            <UiLiteral text={"历史回测与每日模拟，持续跟踪每一笔决策。"} /></p>
         </div>
         <div className="flex gap-3">
           <Link className="btn-secondary" to="/trading?view=reports">
-            历史研究提案
-          </Link>
+            <UiLiteral text={"历史研究提案"} /></Link>
           <button
             className="btn-primary"
             onClick={() => {
@@ -272,8 +272,7 @@ export default function TradingWorkspacePage() {
               setSymbols("");
             }}
           >
-            配置策略
-          </button>
+            <UiLiteral text={"配置策略"} /></button>
         </div>
       </header>
       {(error || loadError) && (
@@ -287,20 +286,18 @@ export default function TradingWorkspacePage() {
       {creating ? (
         <section>
           <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">配置策略方法与范围</h2>
+            <h2 className="text-xl font-semibold"><UiLiteral text={"配置策略方法与范围"} /></h2>
             <button
               className="btn-secondary"
               onClick={() => setCreating(false)}
             >
-              取消
-            </button>
+              <UiLiteral text={"取消"} /></button>
           </div>
           <form onSubmit={submit} className="max-w-4xl space-y-6">
-            {sourceSession && <p role="status" className="rounded-lg border border-border p-3 text-sm text-secondary-text">已从投研助理载入 Skill、名称和范围描述。请核对市场、行业、资金及风险参数；表单默认值尚未由对话确认。预览范围并保存后，可选择运行一次或持续模拟。</p>}
+            {sourceSession && <p role="status" className="rounded-lg border border-border p-3 text-sm text-secondary-text"><UiLiteral text={"已从投研助理载入 Skill、名称和范围描述。请核对市场、行业、资金及风险参数；表单默认值尚未由对话确认。预览范围并保存后，可选择运行一次或持续模拟。"} /></p>}
             <div className="grid gap-4 sm:grid-cols-2">
               <label>
-                策略名称
-                <input
+                <UiLiteral text={"策略名称"} /><input
                   required
                   maxLength={80}
                   className={inputClass}
@@ -308,41 +305,39 @@ export default function TradingWorkspacePage() {
                   onChange={(e) => change("name", e.target.value)}
                 />
               </label>
-              <h3 className="sm:col-span-2 text-lg font-semibold mt-3">1. 选股配置</h3>
+              <h3 className="sm:col-span-2 text-lg font-semibold mt-3"><UiLiteral text={"1. 选股配置"} /></h3>
               <div className="sm:col-span-2">
                 <label className="block">
-                  股票池（可选，名称或代码，最多 12 只）
-                  <input
+                  <UiLiteral text={"股票池（可选，名称或代码，最多 12 只）"} /><input
                     className={inputClass}
                     value={symbols}
                     onChange={(e) => setSymbols(e.target.value)}
-                    placeholder="例如 贵州茅台、平安银行，或 英伟达、苹果"
+                    placeholder={uiLiteral("例如 贵州茅台、平安银行，或 英伟达、苹果")}
                   />
                 </label>
-                <p className="mt-2 text-sm text-secondary-text">可留空，直接按下方股票范围寻找候选；填写后会进一步限定范围，不会自动补入范围外的股票。</p>
+                <p className="mt-2 text-sm text-secondary-text"><UiLiteral text={"可留空，直接按下方股票范围寻找候选；填写后会进一步限定范围，不会自动补入范围外的股票。"} /></p>
                 <p className="mt-2 text-sm text-secondary-text">
                   {stockIndex.loading
-                    ? "正在加载与个股研究共用的股票目录…"
+                    ? uiLiteral("正在加载与个股研究共用的股票目录…")
                     : poolMarkets.length > 1
-                      ? "包含多个市场，请分别创建策略账户。"
+                      ? uiLiteral("包含多个市场，请分别创建策略账户。")
                       : poolMarket
-                        ? `自动识别市场：${marketLabels[poolMarket]}`
-                        : "输入名称、代码或拼音，自动识别股票和市场。多只股票用逗号或顿号分隔。"}
+                        ? uiLiteral(`自动识别市场：${marketLabels[poolMarket]}`)
+                        : uiLiteral("输入名称、代码或拼音，自动识别股票和市场。多只股票用逗号或顿号分隔。")}
                 </p>
                 {stockIndex.fallback && (
                   <p className="mt-2 text-xs text-warning">
-                    股票目录加载失败，名称识别暂不可用。请重试加载。
-                    <button
+                    <UiLiteral text={"股票目录加载失败，名称识别暂不可用。请重试加载。"} /><button
                       type="button"
                       className="btn-secondary ml-2"
                       onClick={stockIndex.retry}
                       disabled={stockIndex.loading}
                     >
-                      {stockIndex.loading ? "正在加载…" : "重新加载股票目录"}
+                      {stockIndex.loading ? uiLiteral("正在加载…") : uiLiteral("重新加载股票目录")}
                     </button>
                   </p>
                 )}
-                <div className="mt-3 space-y-2" aria-label="股票识别结果">
+                <div className="mt-3 space-y-2" aria-label={uiLiteral("股票识别结果")}>
                   {pool.map((p, i) => (
                     <div
                       key={`${i}-${p.query}`}
@@ -353,7 +348,7 @@ export default function TradingWorkspacePage() {
                           {p.query} → {p.stock.name} · {p.stock.code} ·{" "}
                           {marketLabels[p.stock.market]}
                           {p.stock.name === p.stock.code
-                            ? " · 目录未收录名称，请核对代码"
+                            ? uiLiteral(" · 目录未收录名称，请核对代码")
                             : ""}
                         </span>
                       ) : (
@@ -361,8 +356,8 @@ export default function TradingWorkspacePage() {
                           <p>
                             {p.query}：
                             {p.candidates.length
-                              ? "请选择匹配的股票"
-                              : "尚未识别，请补全名称或代码"}
+                              ? uiLiteral("请选择匹配的股票")
+                              : uiLiteral("尚未识别，请补全名称或代码")}
                           </p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {p.candidates.slice(0, 8).map((c) => (
@@ -402,10 +397,9 @@ export default function TradingWorkspacePage() {
                 onConfig={(patch) => setDraft((d) => ({ ...d, ...patch }))}
                 onPreview={setUniversePreview}
               /></div>
-              <h3 className="sm:col-span-2 text-lg font-semibold mt-3">3. 运行与风控配置</h3>
+              <h3 className="sm:col-span-2 text-lg font-semibold mt-3"><UiLiteral text={"3. 运行与风控配置"} /></h3>
               <label>
-                默认验证资金
-                <input
+                <UiLiteral text={"默认验证资金"} /><input
                   className={inputClass}
                   type="number"
                   min={1000}
@@ -417,8 +411,7 @@ export default function TradingWorkspacePage() {
                 />
               </label>
               <label>
-                最大持仓数量
-                <input
+                <UiLiteral text={"最大持仓数量"} /><input
                   className={inputClass}
                   type="number"
                   min={1}
@@ -430,14 +423,12 @@ export default function TradingWorkspacePage() {
                 />
               </label>
             </div>
-            <label className="block">每次运行 Token 预算
-              <input className={inputClass} type="number" min={10000} max={500000} step={10000}
+            <label className="block"><UiLiteral text={"每次运行 Token 预算"} /><input className={inputClass} type="number" min={10000} max={500000} step={10000}
                 value={draft.runTokenBudget || 100000} onChange={(e) => change("runTokenBudget", Number(e.target.value))} />
             </label>
             <details className="border-y border-border py-4">
               <summary className="cursor-pointer font-medium">
-                仓位、交易成本与指标假设
-              </summary>
+                <UiLiteral text={"仓位、交易成本与指标假设"} /></summary>
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
                 {(
                   [
@@ -450,7 +441,7 @@ export default function TradingWorkspacePage() {
                   ] as const
                 ).map(([key, label, min, max, increment]) => (
                   <label key={key} className="text-sm">
-                    {label}
+                    {uiLiteral(label)}
                     <input
                       type="number"
                       className={inputClass}
@@ -473,18 +464,16 @@ export default function TradingWorkspacePage() {
               </div>
             </details>
             <p className="text-sm leading-6 text-secondary-text">
-              按已收盘日线产生观点，下一交易日开盘价加减滑点模拟成交。规则保存后固定；修改规则请复制策略。保存后再选择回测或模拟。基准使用同市场指数
-              ETF 的价格表现，不含分红。请核对税费和每手股数。
-            </p>
+              <UiLiteral text={"按已收盘日线产生观点，下一交易日开盘价加减滑点模拟成交。规则保存后固定；修改规则请复制策略。保存后再选择回测或模拟。基准使用同市场指数 ETF 的价格表现，不含分红。请核对税费和每手股数。"} /></p>
             <button disabled={sending} className="btn-primary">
-              {sending ? "保存中…" : "保存策略"}
+              {sending ? uiLiteral("保存中…") : uiLiteral("保存策略")}
             </button>
           </form>
         </section>
       ) : (
         <div className="grid gap-7 lg:grid-cols-[250px_minmax(0,1fr)]">
           <aside>
-            <h2 className="mb-3 font-semibold">我的策略</h2>
+            <h2 className="mb-3 font-semibold"><UiLiteral text={"我的策略"} /></h2>
             {definitions.map((d) => (
               <button
                 key={d.id}
@@ -496,17 +485,15 @@ export default function TradingWorkspacePage() {
               >
                 <strong className="block">{d.name}</strong>
                 <span className="mt-2 block text-xs text-secondary-text">
-                  {d.config.market} · {d.config.symbols.length} 只股票 ·{" "}
-                  {items.filter((p) => p.definitionId === d.id).length} 次验证
-                </span>
+                  {d.config.market} · {d.config.symbols.length} <UiLiteral text={" 只股票 ·"} />{" "}
+                  {items.filter((p) => p.definitionId === d.id).length} <UiLiteral text={" 次验证"} /></span>
               </button>
             ))}
             {items.some((p) => !p.definitionId) && (
               <h3 className="mt-6 mb-3 text-sm text-secondary-text">
-                已有独立验证记录
-              </h3>
+                <UiLiteral text={"已有独立验证记录"} /></h3>
             )}
-            {loading && <p role="status">加载中…</p>}
+            {loading && <p role="status"><UiLiteral text={"加载中…"} /></p>}
             {items
               .filter((p) => !p.definitionId)
               .map((p) => (
@@ -517,34 +504,32 @@ export default function TradingWorkspacePage() {
                 >
                   <strong className="block truncate">{p.name}</strong>
                   <span className="mt-2 block text-xs text-secondary-text">
-                    {p.mode === "paper" ? "实时模拟" : "历史回测"} · {p.market}{" "}
-                    · {status(p)}
+                    {p.mode === "paper" ? uiLiteral("实时模拟") : uiLiteral("历史回测")} · {p.market}{" "}
+                    · {uiLiteral(status(p))}
                   </span>
                 </button>
               ))}
             {!loading && !items.length && !definitions.length && (
               <p className="text-sm text-secondary-text">
-                尚无策略。先保存规则，再选择回测或模拟。
-              </p>
+                <UiLiteral text={"尚无策略。先保存规则，再选择回测或模拟。"} /></p>
             )}
           </aside>
-          <section className="min-w-0" aria-label="策略详情">
+          <section className="min-w-0" aria-label={uiLiteral("策略详情")}>
             {definition && (
               <section
                 className="mb-7 border-b border-border pb-6"
-                aria-label="已保存策略"
+                aria-label={uiLiteral("已保存策略")}
               >
                 <h2 className="text-xl font-semibold">{definition.name}</h2>
                 <p className="mt-2 text-sm text-secondary-text">
                   {definition.config.engine === "agent"
                     ? definition.config.skillSnapshot?.name || "Agent 策略 Skill"
-                    : "已下线固定规则"}{" "}
+                    : uiLiteral("已下线固定规则")}{" "}
                   · {definition.config.symbols.join("、")} ·{" "}
                   {definition.config.market}
                 </p>
                 <p className="mt-2 text-sm text-secondary-text">
-                  策略已保存。回测独立记账；运行一次和持续模拟共用最近的模拟账户，不会重置已有持仓。
-                </p>
+                  <UiLiteral text={"策略已保存。回测独立记账；运行一次和持续模拟共用最近的模拟账户，不会重置已有持仓。"} /></p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {definition.config.engine === "agent" ? <>
                   {(
@@ -574,10 +559,10 @@ export default function TradingWorkspacePage() {
                         setError("");
                       }}
                     >
-                      {label}
+                      {uiLiteral(label)}
                     </button>
                   ))}
-                  </> : <p className="text-sm text-secondary-text">此策略的固定规则已下线，历史记录可查看，但不能创建或继续运行。</p>}
+                  </> : <p className="text-sm text-secondary-text"><UiLiteral text={"此策略的固定规则已下线，历史记录可查看，但不能创建或继续运行。"} /></p>}
                   <button
                     className="btn-secondary"
                     onClick={() => {
@@ -591,19 +576,15 @@ export default function TradingWorkspacePage() {
                       setCreating(true);
                     }}
                   >
-                    复制策略
-                  </button>
+                    <UiLiteral text={"复制策略"} /></button>
                 </div>
                 {launch === "backtest" &&
                   definition.config.engine === "agent" && (
                     <div className="mt-4 border-y border-border py-4">
                       <p className="text-sm text-warning">
-                        AI
-                        历史回放：模型可能知道后来的事件，不能等同严格规则回测。每次最多处理20个交易日，预算不足时可继续运行。
-                      </p>
+                        <UiLiteral text={"AI 历史回放：模型可能知道后来的事件，不能等同严格规则回测。每次最多处理20个交易日，预算不足时可继续运行。"} /></p>
                       <label className="mt-3 block">
-                        历史股票范围
-                        <select
+                        <UiLiteral text={"历史股票范围"} /><select
                           className={inputClass}
                           value={universeHistory}
                           onChange={(e) =>
@@ -613,11 +594,9 @@ export default function TradingWorkspacePage() {
                           }
                         >
                           <option value="frozen">
-                            固定保存时名单（存在名单偏差）
-                          </option>
+                            <UiLiteral text={"固定保存时名单（存在名单偏差）"} /></option>
                           <option value="recorded">
-                            当日已归档范围（缺失即停止）
-                          </option>
+                            <UiLiteral text={"当日已归档范围（缺失即停止）"} /></option>
                         </select>
                       </label>
                     </div>
@@ -625,7 +604,7 @@ export default function TradingWorkspacePage() {
                 {launch && (
                   <form
                     className="mt-5 space-y-4 border-y border-border py-5"
-                    aria-label="验证参数"
+                    aria-label={uiLiteral("验证参数")}
                     onSubmit={async (e) => {
                       e.preventDefault();
                       setSending(true);
@@ -672,20 +651,19 @@ export default function TradingWorkspacePage() {
                   >
                     <h3 className="font-semibold">
                       {launch === "backtest"
-                        ? "历史回测参数"
+                        ? uiLiteral("历史回测参数")
                         : launch === "start"
-                          ? "持续模拟参数"
-                          : "单次模拟参数"}
+                          ? uiLiteral("持续模拟参数")
+                          : uiLiteral("单次模拟参数")}
                     </h3>
                     <p className="text-sm text-secondary-text">
                       {launch === "backtest"
-                        ? "选择过去的日期区间（跨度最多两年），按历史日线验证规则。"
-                        : "从今天开始模拟。运行一次只检查最新已收盘行情；持续模拟会自动检查，未收盘时等待。"}
+                        ? uiLiteral("选择过去的日期区间（跨度最多两年），按历史日线验证规则。")
+                        : uiLiteral("从今天开始模拟。运行一次只检查最新已收盘行情；持续模拟会自动检查，未收盘时等待。")}
                     </p>
                     <div className="grid gap-4 sm:grid-cols-3">
                       <label>
-                        验证初始资金
-                        <input
+                        <UiLiteral text={"验证初始资金"} /><input
                           className={inputClass}
                           type="number"
                           required
@@ -700,8 +678,7 @@ export default function TradingWorkspacePage() {
                       {launch === "backtest" && (
                         <>
                           <label>
-                            回测开始
-                            <input
+                            <UiLiteral text={"回测开始"} /><input
                               className={inputClass}
                               type="date"
                               required
@@ -712,8 +689,7 @@ export default function TradingWorkspacePage() {
                             />
                           </label>
                           <label>
-                            回测结束
-                            <input
+                            <UiLiteral text={"回测结束"} /><input
                               className={inputClass}
                               type="date"
                               required
@@ -726,7 +702,7 @@ export default function TradingWorkspacePage() {
                     </div>
                     <div className="flex gap-2">
                       <button className="btn-primary" disabled={sending}>
-                        {sending ? "启动中…" : "确认并开始验证"}
+                        {sending ? uiLiteral("启动中…") : uiLiteral("确认并开始验证")}
                       </button>
                       <button
                         type="button"
@@ -734,12 +710,11 @@ export default function TradingWorkspacePage() {
                         disabled={sending}
                         onClick={() => setLaunch(null)}
                       >
-                        取消
-                      </button>
+                        <UiLiteral text={"取消"} /></button>
                     </div>
                   </form>
                 )}
-                <h3 className="mt-6 font-semibold">验证记录</h3>
+                <h3 className="mt-6 font-semibold"><UiLiteral text={"验证记录"} /></h3>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {items
                     .filter((p) => p.definitionId === definition.id)
@@ -751,15 +726,14 @@ export default function TradingWorkspacePage() {
                         key={p.id}
                         onClick={() => select(p.id)}
                       >
-                        {p.mode === "backtest" ? "回测" : "模拟"} #{p.id} ·{" "}
-                        {status(p)}
+                        {p.mode === "backtest" ? uiLiteral("回测") : uiLiteral("模拟")} #{p.id} ·{" "}
+                        {uiLiteral(status(p))}
                       </button>
                     ))}
                 </div>
                 {!items.some((p) => p.definitionId === definition.id) && (
                   <p className="mt-3 text-sm text-secondary-text">
-                    尚未验证。保存策略不会自动运行或创建模拟账户。
-                  </p>
+                    <UiLiteral text={"尚未验证。保存策略不会自动运行或创建模拟账户。"} /></p>
                 )}
               </section>
             )}
@@ -771,15 +745,15 @@ export default function TradingWorkspacePage() {
                     <h2 className="text-xl font-semibold">{detail.name}</h2>
                     <p className="mt-2 text-sm text-secondary-text">
                       {detail.mode === "paper"
-                        ? "每日持续模拟"
+                        ? uiLiteral("每日持续模拟")
                         : detail.config.engine === "agent"
-                          ? "AI 历史回放"
-                          : "历史回测"}{" "}
-                      · 固定版本 {detail.versionId} · {status(detail)}
+                          ? uiLiteral("AI 历史回放")
+                          : uiLiteral("历史回测")}{" "}
+                      <UiLiteral text={"· 固定版本 "} />{detail.versionId} · {uiLiteral(status(detail))}
                     </p>
                     <p className="mt-1 text-xs text-secondary-text">
-                      观察区间：{days[0]?.date || detail.config.startDate} 至{" "}
-                      {detail.lastDate || "等待收盘"} · {days.length} 个交易日 ·{" "}
+                      <UiLiteral text={"观察区间："} />{days[0]?.date || detail.config.startDate} <UiLiteral text={" 至"} />{" "}
+                      {detail.lastDate || "等待收盘"} · {days.length} <UiLiteral text={" 个交易日 ·"} />{" "}
                       {detail.currency}
                     </p>
                   </div>
@@ -789,7 +763,7 @@ export default function TradingWorkspacePage() {
                       disabled={sending || detail.busy}
                       onClick={() => void control("run")}
                     >
-                      {detail.mode === "backtest" ? "运行回测" : "继续运行一次"}
+                      {detail.mode === "backtest" ? uiLiteral("运行回测") : uiLiteral("继续运行一次")}
                     </button>}
                     {detail.config.engine === "agent" && detail.mode === "paper" && (
                       <button
@@ -801,7 +775,7 @@ export default function TradingWorkspacePage() {
                           )
                         }
                       >
-                        {detail.status === "running" ? "暂停交易" : "持续运行"}
+                        {detail.status === "running" ? uiLiteral("暂停交易") : uiLiteral("持续运行")}
                       </button>
                     )}
                       <button
@@ -817,28 +791,25 @@ export default function TradingWorkspacePage() {
                         setCreating(true);
                       }}
                     >
-                      复制配置
-                    </button>
+                      <UiLiteral text={"复制配置"} /></button>
                   </div>
                 </div>
-                {!!detail.agentCalls?.length && <details className="mb-5 border-y border-border py-4"><summary className="cursor-pointer">Agent 调用记录（含未成交和失败，最近20次）</summary>{detail.agentCalls.map(c=><details key={c.id} className="mt-3"><summary className="cursor-pointer text-sm">{c.createdAt} · {c.model} · {c.usage.total_tokens ?? "未知"} Token · {c.status === "rejected" ? "计划未通过校验" : c.status === "failed" ? "调用失败" : "已收到回答，成交见账本"}</summary>{c.error && <p className="mt-2 text-sm text-danger">{c.error}</p>}<pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{c.answer}</pre><details><summary className="cursor-pointer text-xs">本次输入与 Prompt</summary><pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(c.input,null,2)}</pre></details></details>)}</details>}
+                {!!detail.agentCalls?.length && <details className="mb-5 border-y border-border py-4"><summary className="cursor-pointer"><UiLiteral text={"Agent 调用记录（含未成交和失败，最近20次）"} /></summary>{detail.agentCalls.map(c=><details key={c.id} className="mt-3"><summary className="cursor-pointer text-sm">{c.createdAt} · {c.model} · {c.usage.total_tokens ?? "未知"} Token · {c.status === "rejected" ? uiLiteral("计划未通过校验") : c.status === "failed" ? uiLiteral("调用失败") : uiLiteral("已收到回答，成交见账本")}</summary>{c.error && <p className="mt-2 text-sm text-danger">{c.error}</p>}<pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{c.answer}</pre><details><summary className="cursor-pointer text-xs"><UiLiteral text={"本次输入与 Prompt"} /></summary><pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(c.input,null,2)}</pre></details></details>)}</details>}
                 {detail.error && (
                   <p
                     role="alert"
                     className="mb-4 border border-danger p-3 text-danger"
                   >
-                    {detail.error} 已完成的日期仍保留，可修复后重试。
-                  </p>
+                    {detail.error} <UiLiteral text={" 已完成的日期仍保留，可修复后重试。"} /></p>
                 )}
                 {detail.status === "paused" && (
                   <p className="mb-4 text-sm text-secondary-text">
-                    已暂停自动买卖；持仓保留，继续按收盘价估值。
-                  </p>
+                    <UiLiteral text={"已暂停自动买卖；持仓保留，继续按收盘价估值。"} /></p>
                 )}
                 <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border py-5 xl:grid-cols-4">
                   {metricLabels.map(([key, label, percent]) => (
                     <div key={key}>
-                      <dt className="text-xs text-secondary-text">{label}</dt>
+                      <dt className="text-xs text-secondary-text">{uiLiteral(label)}</dt>
                       <dd className="mt-2 text-xl font-semibold tabular-nums">
                         {fmt(detail.metrics?.[key], percent)}
                       </dd>
@@ -846,11 +817,9 @@ export default function TradingWorkspacePage() {
                   ))}
                 </dl>
                 <p className="mt-3 text-xs leading-5 text-secondary-text">
-                  年化指标至少需要 20
-                  个记账交易日；夏普在零波动、卡玛在零回撤时不定义。当日收益对应最近估值日。收益已扣配置费用与滑点。
-                </p>
+                  <UiLiteral text={"年化指标至少需要 20 个记账交易日；夏普在零波动、卡玛在零回撤时不定义。当日收益对应最近估值日。收益已扣配置费用与滑点。"} /></p>
                 <section className="mt-6 border-b border-border pb-5">
-                  <h3 className="font-semibold">同配置的历史与模拟验证</h3>
+                  <h3 className="font-semibold"><UiLiteral text={"同配置的历史与模拟验证"} /></h3>
                   {detail.comparisons?.length ? (
                     <div className="mt-3 overflow-x-auto">
                       <table className="w-full text-left text-sm">
@@ -878,8 +847,8 @@ export default function TradingWorkspacePage() {
                                   onClick={() => select(c.id)}
                                 >
                                   {c.mode === "backtest"
-                                    ? "历史回测"
-                                    : "实时模拟"}{" "}
+                                    ? uiLiteral("历史回测")
+                                    : uiLiteral("实时模拟")}{" "}
                                   · {c.name}
                                 </button>
                               </td>
@@ -900,24 +869,22 @@ export default function TradingWorkspacePage() {
                     </div>
                   ) : (
                     <p className="mt-2 text-sm text-secondary-text">
-                      尚无同配置的
-                      {detail.mode === "paper" ? "历史回测" : "实时模拟"}
-                      。在所属策略中选择另一种验证；旧记录可先复制配置并保存为策略。
-                    </p>
+                      <UiLiteral text={"尚无同配置的"} />{detail.mode === "paper" ? uiLiteral("历史回测") : uiLiteral("实时模拟")}
+                      <UiLiteral text={"。在所属策略中选择另一种验证；旧记录可先复制配置并保存为策略。"} /></p>
                   )}
                 </section>
                 {days.length ? (
                   <>
                     <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="font-semibold">业绩走势</h3>
+                      <h3 className="font-semibold"><UiLiteral text={"业绩走势"} /></h3>
                       <select
-                        aria-label="曲线范围"
+                        aria-label={uiLiteral("曲线范围")}
                         className="rounded border border-border bg-background p-2 text-sm"
                         value={windowSize}
                         onChange={(e) => setWindowSize(Number(e.target.value))}
                       >
-                        <option value={30}>最近 30 个交易日</option>
-                        <option value={120}>最近 120 个交易日</option>
+                        <option value={30}><UiLiteral text={"最近 30 个交易日"} /></option>
+                        <option value={120}><UiLiteral text={"最近 120 个交易日"} /></option>
                       </select>
                     </div>
                     <AnalysisChart
@@ -979,16 +946,16 @@ export default function TradingWorkspacePage() {
                             }
                             onClick={() => setTab(key)}
                           >
-                            {label}
+                            {uiLiteral(label)}
                           </button>
                         ))}
                       </div>
                       {tab !== "holdings" && (
                         <label className="text-sm">
-                          查看日期{" "}
+                          <UiLiteral text={"查看日期"} />{" "}
                           <select
                             className="rounded border border-border bg-background p-2"
-                            aria-label="查看日期"
+                            aria-label={uiLiteral("查看日期")}
                             value={selected?.date || ""}
                             onChange={(e) => setDate(e.target.value)}
                           >
@@ -1002,8 +969,8 @@ export default function TradingWorkspacePage() {
                     {tab === "holdings" ? (
                       <>
                         <p className="mb-3 text-sm text-secondary-text">
-                          净资产 {fmt(latest?.equity)} · 可用现金{" "}
-                          {fmt(latest?.cash)} · 持仓市值{" "}
+                          <UiLiteral text={"净资产 "} />{fmt(latest?.equity)} <UiLiteral text={" · 可用现金"} />{" "}
+                          {fmt(latest?.cash)} <UiLiteral text={" · 持仓市值"} />{" "}
                           {fmt(latest?.marketValue)}
                         </p>
                         <div className="overflow-x-auto">
@@ -1048,7 +1015,7 @@ export default function TradingWorkspacePage() {
                           </table>
                         </div>
                         {!latest?.holdings.length && (
-                          <p className="py-5 text-secondary-text">当前空仓。</p>
+                          <p className="py-5 text-secondary-text"><UiLiteral text={"当前空仓。"} /></p>
                         )}
                       </>
                     ) : tab === "opinions" ? (
@@ -1067,15 +1034,14 @@ export default function TradingWorkspacePage() {
                                 }
                               >
                                 {o.stance === "bullish"
-                                  ? "看好"
+                                  ? uiLiteral("看好")
                                   : o.stance === "bearish"
-                                    ? "看淡"
-                                    : "中性"}
+                                    ? uiLiteral("看淡")
+                                    : uiLiteral("中性")}
                               </span>
                               {o.held && (
                                 <span className="text-xs text-secondary-text">
-                                  当日持仓
-                                </span>
+                                  <UiLiteral text={"当日持仓"} /></span>
                               )}
                             </div>
                             <p className="mt-2 max-w-3xl text-sm leading-6 text-secondary-text">
@@ -1084,8 +1050,7 @@ export default function TradingWorkspacePage() {
                           </article>
                         ))}
                         <p className="py-3 text-xs text-secondary-text">
-                          观点由保存时冻结的 Agent Skill 生成；每个股票池成员每天都有记录。
-                        </p>
+                          <UiLiteral text={"观点由保存时冻结的 Agent Skill 生成；每个股票池成员每天都有记录。"} /></p>
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
@@ -1114,7 +1079,7 @@ export default function TradingWorkspacePage() {
                               >
                                 <td className="p-3 whitespace-nowrap">
                                   {t.code} ·{" "}
-                                  {t.side === "buy" ? "买入" : "卖出"}
+                                  {t.side === "buy" ? uiLiteral("买入") : uiLiteral("卖出")}
                                 </td>
                                 <td className="p-3">{t.quantity}</td>
                                 <td className="p-3">{fmt(t.price)}</td>
@@ -1124,8 +1089,8 @@ export default function TradingWorkspacePage() {
                                 </td>
                                 <td className="min-w-64 p-3 leading-6">
                                   {t.status === "filled"
-                                    ? "模拟成交"
-                                    : "未成交"}{" "}
+                                    ? uiLiteral("模拟成交")
+                                    : uiLiteral("未成交")}{" "}
                                   · {t.reason}
                                 </td>
                               </tr>
@@ -1134,43 +1099,38 @@ export default function TradingWorkspacePage() {
                         </table>
                         {!selected?.trades.length && (
                           <p className="py-5 text-secondary-text">
-                            当日无买卖。查看每日观点了解持有、等待或暂停原因。
-                          </p>
+                            <UiLiteral text={"当日无买卖。查看每日观点了解持有、等待或暂停原因。"} /></p>
                         )}
                       </div>
                     )}
                     {selected?.replayed && (
                       <p className="mt-3 text-xs text-warning">
-                        此日期在恢复运行时补记，属于规则历史回放，不计作当时在线决策的证明。
-                      </p>
+                        <UiLiteral text={"此日期在恢复运行时补记，属于规则历史回放，不计作当时在线决策的证明。"} /></p>
                     )}
                     {selected?.workspaceRunId && (
                       <Link
                         className="mt-5 inline-block text-sm text-primary"
                         to={`/runs/${selected.workspaceRunId}`}
                       >
-                        查看对应任务与运行 →
-                      </Link>
+                        <UiLiteral text={"查看对应任务与运行 →"} /></Link>
                     )}
                   </>
                 ) : (
                   <div className="py-16 text-center">
-                    <h3 className="text-lg font-medium">尚无已记账交易日</h3>
+                    <h3 className="text-lg font-medium"><UiLiteral text={"尚无已记账交易日"} /></h3>
                     <p className="mt-3 text-sm text-secondary-text">
-                      点击运行一次或持续运行；尚未收盘时会等待行情。首日形成观点，下一交易日才可能成交。
-                    </p>
+                      <UiLiteral text={"点击运行一次或持续运行；尚未收盘时会等待行情。首日形成观点，下一交易日才可能成交。"} /></p>
                   </div>
                 )}
                 {selected?.universe && (
                   <details className="mt-5 border-y border-border py-4">
                     <summary className="cursor-pointer">
-                      当日范围、决策与 Token
-                    </summary>
+                      <UiLiteral text={"当日范围、决策与 Token"} /></summary>
                     <p className="mt-3 text-sm">
                       {selected.validationLabel} ·{" "}
                       {selected.usage
                         ? `${selected.usage.model} · ${selected.usage.tokens} Token`
-                        : "本日无模型决策"}
+                        : uiLiteral("本日无模型决策")}
                     </p>
                     <p className="mt-2 text-xs text-secondary-text">
                       {selected.universe.coverage} · {selected.universe.source}{" "}
@@ -1187,51 +1147,42 @@ export default function TradingWorkspacePage() {
                 )}
                 <details className="mt-7 border-t border-border py-4">
                   <summary className="cursor-pointer font-medium">
-                    策略规则、指标口径与边界
-                  </summary>
+                    <UiLiteral text={"策略规则、指标口径与边界"} /></summary>
                   <div className="mt-4 space-y-3 text-sm leading-6 text-secondary-text">
                     <p>
                       {detail.config.engine === "agent"
-                        ? `${detail.config.skillSnapshot?.name || "Agent 策略 Skill"}：使用保存时冻结的 Skill、交易指令和范围生成每日目标仓位，并由程序风控与模拟账本执行。`
-                        : "固定规则策略已下线；此处仅保留历史账本与指标供查看。"}
+                        ? uiLiteral(`${detail.config.skillSnapshot?.name || "Agent 策略 Skill"}：使用保存时冻结的 Skill、交易指令和范围生成每日目标仓位，并由程序风控与模拟账本执行。`)
+                        : uiLiteral("固定规则策略已下线；此处仅保留历史账本与指标供查看。")}
                     </p>
                     <p>
-                      股票池：{detail.config.symbols.join("、")}。最大持仓{" "}
-                      {detail.config.maxPositions} 只；单股建仓上限{" "}
+                      <UiLiteral text={"股票池："} />{detail.config.symbols.join("、")}<UiLiteral text={"。最大持仓"} />{" "}
+                      {detail.config.maxPositions} <UiLiteral text={" 只；单股建仓上限"} />{" "}
                       {fmt(detail.config.maxWeight, true)}
-                      。当前版本不可修改。佣金{" "}
-                      {fmt(detail.config.commissionRate, true)}，卖出税费{" "}
-                      {fmt(detail.config.sellTaxRate, true)}，滑点{" "}
+                      <UiLiteral text={"。当前版本不可修改。佣金"} />{" "}
+                      {fmt(detail.config.commissionRate, true)}<UiLiteral text={"，卖出税费"} />{" "}
+                      {fmt(detail.config.sellTaxRate, true)}<UiLiteral text={"，滑点"} />{" "}
                       {fmt(detail.config.slippageRate, true)}。
                     </p>
                     <p>
-                      区间换手率 = 买卖成交额总和 ÷ 2 ÷ 平均净资产。年化收益按
-                      252 个交易日复利折算；夏普使用日超额收益与样本标准差；卡玛
-                      = 年化收益 ÷ 最大回撤，无风险利率{" "}
+                      <UiLiteral text={"区间换手率 = 买卖成交额总和 ÷ 2 ÷ 平均净资产。年化收益按 252 个交易日复利折算；夏普使用日超额收益与样本标准差；卡玛 = 年化收益 ÷ 最大回撤，无风险利率"} />{" "}
                       {fmt(detail.config.riskFreeRate, true)}。
                     </p>
                     <p>
-                      使用日线价格进行简化撮合，不模拟盘口、部分成交、涨跌停排队及分红配股。基准
-                      ETF
-                      存在跟踪误差。历史回测与实时模拟分别记账，不拼接收益曲线。行情缺失会中止当日记账。
-                    </p>
+                      <UiLiteral text={"使用日线价格进行简化撮合，不模拟盘口、部分成交、涨跌停排队及分红配股。基准 ETF 存在跟踪误差。历史回测与实时模拟分别记账，不拼接收益曲线。行情缺失会中止当日记账。"} /></p>
                   </div>
                 </details>
               </>
             ) : definition ? null : (
               <div className="py-20 text-center">
                 <h2 className="text-xl font-semibold">
-                  选择一个策略，观察它如何运行
-                </h2>
+                  <UiLiteral text={"选择一个策略，观察它如何运行"} /></h2>
                 <p className="mt-3 text-secondary-text">
-                  先保存策略，再选择历史回测、运行一次或持续模拟，分别积累验证记录。
-                </p>
+                  <UiLiteral text={"先保存策略，再选择历史回测、运行一次或持续模拟，分别积累验证记录。"} /></p>
                 <button
                   className="btn-primary mt-5"
                   onClick={() => { setDraft({ ...seed, engine: "agent" }); setCreating(true); }}
                 >
-                  创建新策略
-                </button>
+                  <UiLiteral text={"创建新策略"} /></button>
               </div>
             )}
           </section>

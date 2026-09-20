@@ -8,13 +8,28 @@ import { useUiLanguage } from '../../contexts/UiLanguageContext';
 const kinds: StrategyKind[] = ['research', 'screening', 'trading'];
 const names = { research: ['个股研究方法', 'Research method'], screening: ['选股策略', 'Screening strategy'], trading: ['交易推演策略', 'Trading simulation strategy'] };
 
-export default function StrategyAuthoringPanel({ sessionId, messageCount, loading, hasDiscussion, onCreated, onMode }: {
+export default function StrategyAuthoringPanel({ sessionId, messageCount, loading, hasDiscussion, onCreated, onMode, compact = false }: {
+  compact?: boolean;
   sessionId: string; messageCount: number; loading: boolean; hasDiscussion: boolean;
   onCreated: (id: string, carry: boolean) => void;
   onMode: (state: StrategyDraftState | null) => void;
 }) {
-  const { language } = useUiLanguage();
-  const l = (zh: string, en: string) => language === 'zh' ? zh : en;
+  const { localize: l } = useUiLanguage();
+  const [open, setOpen] = useState(false);
+  const container = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (!container.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setOpen(false); trigger.current?.focus(); }
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
+  }, [open]);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [state, setState] = useState<StrategyDraftState | null>(null);
@@ -53,10 +68,10 @@ export default function StrategyAuthoringPanel({ sessionId, messageCount, loadin
     finally { setBusy(false); }
   };
   const disabled = busy || loading;
-  return <section aria-label={l('策略创建', 'Strategy authoring')} className="rounded-lg border border-border bg-card p-3 text-sm">
+  const panel = <section aria-label={l('策略创建', 'Strategy authoring')} className="rounded-lg border border-border bg-card p-3 text-sm">
     {state ? <>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <strong>{names[state.kind][language === 'zh' ? 0 : 1]} · {state.draft.name || l('新策略', 'New strategy')}</strong>
+        <strong>{l(names[state.kind][0], names[state.kind][1])} · {state.draft.name || l('新策略', 'New strategy')}</strong>
         <span role="status" className="text-xs text-secondary-text">{loading ? l('正在讨论', 'Discussing') : state.publishedStrategyId ? l('已发布到交易推演', 'Published to simulation') : state.skillId ? l('已保存 Skill', 'Skill saved') : state.validated ? l('完整性检查通过', 'Completeness checked') : l('草稿', 'Draft')} · r{state.revision}</span>
       </div>
       {!!state.draft.missing?.length && <p className="mt-1 text-xs text-secondary-text">{l(`还有 ${state.draft.missing.length} 项待确认`, `${state.draft.missing.length} open questions`)}</p>}
@@ -81,11 +96,23 @@ export default function StrategyAuthoringPanel({ sessionId, messageCount, loadin
     </> : <div className="flex flex-wrap items-center gap-2">
       <label className="text-secondary-text" htmlFor="strategy-kind">{l('创建策略', 'Create strategy')}</label>
       <select id="strategy-kind" value={kind} onChange={(e) => setKind(e.target.value as StrategyKind)} disabled={disabled} className="input-surface min-h-11 rounded-md px-2">
-        {kinds.map((item) => <option key={item} value={item}>{names[item][language === 'zh' ? 0 : 1]}</option>)}
+        {kinds.map((item) => <option key={item} value={item}>{l(names[item][0], names[item][1])}</option>)}
       </select>
       <button type="button" className="btn-secondary" disabled={disabled} onClick={() => void begin(false)}>{l('开始创建', 'Start authoring')}</button>
       {hasDiscussion && <button type="button" className="btn-secondary" disabled={disabled} onClick={() => void begin(true)}>{l('将当前讨论转为策略', 'Use this discussion')}</button>}
     </div>}
     {error && <div role="alert" className="mt-2 text-danger">{error}<button type="button" className="ml-2 underline" onClick={() => setRetry((v) => v + 1)}>{l('重新读取', 'Reload')}</button></div>}
   </section>;
+  if (!compact) return panel;
+  return <div ref={container} className="shrink-0">
+    <button ref={trigger} type="button" aria-expanded={open} aria-controls="chat-strategy-authoring"
+      onClick={() => setOpen((value) => !value)}
+      className="inline-flex min-h-9 items-center whitespace-nowrap rounded-lg px-2 text-xs font-medium text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+      {state ? l('策略创建', 'Strategy authoring') : l('创建策略', 'Create strategy')}
+      <span aria-hidden="true" className="ml-1">{open ? '▴' : '▾'}</span>
+    </button>
+    {open && <div id="chat-strategy-authoring" className="absolute left-3 right-3 top-full z-30 mt-1 max-h-[60dvh] overflow-y-auto rounded-lg bg-card shadow-lg sm:right-auto sm:w-[min(36rem,calc(100vw-3rem))]">
+      {panel}
+    </div>}
+  </div>;
 }

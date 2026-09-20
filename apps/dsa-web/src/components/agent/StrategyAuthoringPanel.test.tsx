@@ -5,7 +5,6 @@ import StrategyAuthoringPanel from './StrategyAuthoringPanel';
 import { strategyDraftsApi, type StrategyDraftState } from '../../api/strategyDrafts';
 
 vi.mock('../../api/strategyDrafts', () => ({ strategyDraftsApi: { sync: vi.fn(), begin: vi.fn(), validate: vi.fn(), save: vi.fn() } }));
-vi.mock('../../contexts/UiLanguageContext', () => ({ useUiLanguage: () => ({ language: 'zh' }) }));
 const state: StrategyDraftState = { sessionId: 'one', kind: 'trading', draft: { name: '网格策略', method: '高成交量高波动', missing: [] }, revision: 1, validated: false, skillId: null, error: null };
 const mode = vi.fn();
 const created = vi.fn();

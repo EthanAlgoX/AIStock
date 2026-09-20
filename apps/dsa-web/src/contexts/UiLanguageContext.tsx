@@ -1,3 +1,4 @@
+import { translateKorean } from '../i18n/korean';
 import type React from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { formatUiText, UI_TEXT, type UiLanguage, type UiTextKey, type UiTextParams } from '../i18n/uiText';
@@ -41,7 +42,7 @@ export const UiLanguageProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
-      document.documentElement.lang = language === 'en' ? 'en' : 'zh-CN';
+      document.documentElement.lang = language === 'ko' ? 'ko' : language === 'en' ? 'en' : 'zh-CN';
     }
   }, [language]);
 
@@ -49,7 +50,7 @@ export const UiLanguageProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     language,
     setLanguage,
     t: (key, params) => formatUiText(UI_TEXT[language][key], params),
-    localize: (zh, en) => (language === 'en' ? en : zh),
+    localize: (zh, en) => (language === 'ko' ? translateKorean(zh) : language === 'en' ? en : zh),
     translate,
   }), [language, setLanguage, translate]);
 

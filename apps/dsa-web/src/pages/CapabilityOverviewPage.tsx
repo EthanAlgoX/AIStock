@@ -1,3 +1,5 @@
+import { useUiLiteral } from '../hooks/useUiLiteral';
+import { UiLiteral } from '../components/i18n/UiLiteral';
 import {
   ArrowRight,
   Bot,
@@ -74,6 +76,7 @@ const capabilityItems = [
 ] as const;
 
 export default function CapabilityOverviewPage() {
+  const uiLiteral = useUiLiteral();
   const [summary, setSummary] = useState<CapabilitySummary>({ skills: null, tools: 0, mcp: 0, data: null, experts: 0 });
   const [loadFailed, setLoadFailed] = useState(false);
 
@@ -112,38 +115,38 @@ export default function CapabilityOverviewPage() {
     >
       <PageHeader
         eyebrow="Capability registry"
-        title="能力中心"
-        description="统一管理投研助理可以发现的工作方法、执行工具、外部连接、事实数据和专家视角；工作区启用不等于本次任务已经挂载。"
-        actions={<Link to="/overview" className="btn-primary">返回投研助理</Link>}
+        title={uiLiteral("能力中心")}
+        description={uiLiteral("统一管理投研助理可以发现的工作方法、执行工具、外部连接、事实数据和专家视角；工作区启用不等于本次任务已经挂载。")}
+        actions={<Link to="/overview" className="btn-primary"><UiLiteral text={"返回投研助理"} /></Link>}
       />
       <CapabilityCenterNav />
 
-      <section className="grid overflow-hidden rounded-[12px] border border-border bg-card lg:grid-cols-[1.15fr_0.85fr]" aria-label="能力中心运行边界">
+      <section className="grid overflow-hidden rounded-[12px] border border-border bg-card lg:grid-cols-[1.15fr_0.85fr]" aria-label={uiLiteral("能力中心运行边界")}>
         <div className="border-b border-border p-5 lg:border-b-0 lg:border-r">
-          <div className="flex items-center gap-2 text-primary"><Network className="h-4 w-4" /><h2 className="text-sm font-semibold">两层能力模型</h2></div>
+          <div className="flex items-center gap-2 text-primary"><Network className="h-4 w-4" /><h2 className="text-sm font-semibold"><UiLiteral text={"两层能力模型"} /></h2></div>
           <div className="mt-4 grid gap-px overflow-hidden rounded-[10px] border border-border bg-border sm:grid-cols-2">
-            <div className="bg-background px-4 py-3"><p className="text-xs font-medium text-foreground">工作区可用</p><p className="mt-1 text-xs leading-5 text-secondary-text">管理员启用并治理能力目录、权限和连接。</p></div>
-            <div className="bg-background px-4 py-3"><p className="text-xs font-medium text-foreground">本次任务使用</p><p className="mt-1 text-xs leading-5 text-secondary-text">研究、选股或交易只挂载完成任务所需的子集。</p></div>
+            <div className="bg-background px-4 py-3"><p className="text-xs font-medium text-foreground"><UiLiteral text={"工作区可用"} /></p><p className="mt-1 text-xs leading-5 text-secondary-text"><UiLiteral text={"管理员启用并治理能力目录、权限和连接。"} /></p></div>
+            <div className="bg-background px-4 py-3"><p className="text-xs font-medium text-foreground"><UiLiteral text={"本次任务使用"} /></p><p className="mt-1 text-xs leading-5 text-secondary-text"><UiLiteral text={"研究、选股或交易只挂载完成任务所需的子集。"} /></p></div>
           </div>
         </div>
         <div className="p-5">
-          <div className="flex items-center gap-2 text-warning"><Braces className="h-4 w-4" /><h2 className="text-sm font-semibold">当前运行边界</h2></div>
-          <p className="mt-3 text-sm leading-6 text-secondary-text">网站已持久化工作区能力、校验任务绑定并冻结运行快照。独立 Agent 引擎 继续承担自己的 ReAct、会话与记忆；站内金融 Tool 通过受控 MCP Endpoint 对外发布。</p>
-          <Link to="/runs" className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">查看任务与运行 <ArrowRight className="h-3.5 w-3.5" /></Link>
+          <div className="flex items-center gap-2 text-warning"><Braces className="h-4 w-4" /><h2 className="text-sm font-semibold"><UiLiteral text={"当前运行边界"} /></h2></div>
+          <p className="mt-3 text-sm leading-6 text-secondary-text"><UiLiteral text={"网站已持久化工作区能力、校验任务绑定并冻结运行快照。独立 Agent 引擎 继续承担自己的 ReAct、会话与记忆；站内金融 Tool 通过受控 MCP Endpoint 对外发布。"} /></p>
+          <Link to="/runs" className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"><UiLiteral text={"查看任务与运行 "} /><ArrowRight className="h-3.5 w-3.5" /></Link>
         </div>
       </section>
 
       {loadFailed ? (
         <div className="flex items-start gap-3 rounded-[12px] border border-warning/25 bg-warning/5 px-4 py-3 text-sm text-secondary-text">
           <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-          <p>工作区能力目录暂时不可用。页面不会用浏览器缓存或推算值补齐，请恢复后端连接后重试。</p>
+          <p><UiLiteral text={"工作区能力目录暂时不可用。页面不会用浏览器缓存或推算值补齐，请恢复后端连接后重试。"} /></p>
         </div>
       ) : null}
 
       <section className="overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card" aria-labelledby="capability-inventory-heading">
         <div className="flex flex-col gap-3 border-b border-border/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div><h2 id="capability-inventory-heading" className="font-semibold text-foreground">能力目录</h2><p className="mt-1 text-xs leading-5 text-secondary-text">当前可见 {configuredCount} 项已启用配置；数量全部来自后端工作区注册表。</p></div>
-          <span className="text-xs text-muted-text">5 类能力 · 分别治理</span>
+          <div><h2 id="capability-inventory-heading" className="font-semibold text-foreground"><UiLiteral text={"能力目录"} /></h2><p className="mt-1 text-xs leading-5 text-secondary-text"><UiLiteral text={"当前可见 "} />{configuredCount} <UiLiteral text={" 项已启用配置；数量全部来自后端工作区注册表。"} /></p></div>
+          <span className="text-xs text-muted-text"><UiLiteral text={"5 类能力 · 分别治理"} /></span>
         </div>
         <div className="divide-y divide-border/60">
           {capabilityItems.map((item) => {
