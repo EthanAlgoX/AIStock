@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [新功能] 交易推演可选择 JEV / TypeSafe 决策模型；AI 模型设置支持 API 配置，保存分类概率与用量，支持可配置调仓比例和次日成交方向约束。
+- [测试] 同步模型设置测试中的报告语言枚举，覆盖现有日文与繁体中文选项。
+
 - [新功能] README 与网站统一支持英文、简体中文、繁体中文、日文和韩文；首次访问默认英文并保留已保存的语言偏好。
 - [改进] 补齐旧页面英文文案，报告语言接口与 Agent 输出指令增加日文及繁体中文。
 

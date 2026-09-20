@@ -526,7 +526,7 @@ export default function TradingWorkspacePage() {
                     ? definition.config.skillSnapshot?.name || "Agent 策略 Skill"
                     : uiLiteral("已下线固定规则")}{" "}
                   · {definition.config.symbols.join("、")} ·{" "}
-                  {definition.config.market}
+                  {definition.config.market} · {definition.config.decisionBackend === "jev" ? `JEV · ${definition.config.jevModel || ""}` : "LLM"}
                 </p>
                 <p className="mt-2 text-sm text-secondary-text">
                   <UiLiteral text={"策略已保存。回测独立记账；运行一次和持续模拟共用最近的模拟账户，不会重置已有持仓。"} /></p>
@@ -569,6 +569,10 @@ export default function TradingWorkspacePage() {
                       setDraft({
                         ...seed,
                         name: `${definition.name} · 新版本`,
+                        decisionBackend: definition.config.decisionBackend,
+                        jevWeightStep: definition.config.jevWeightStep,
+                        skillId: definition.config.skillId,
+                        systemPrompt: definition.config.systemPrompt,
                         market: definition.config.market,
                         symbols: definition.config.symbols,
                       });
@@ -784,6 +788,10 @@ export default function TradingWorkspacePage() {
                           setDraft({
                           ...seed,
                           name: `${detail.name} · 新版本`,
+                          decisionBackend: detail.config.decisionBackend,
+                          jevWeightStep: detail.config.jevWeightStep,
+                          skillId: detail.config.skillId,
+                          systemPrompt: detail.config.systemPrompt,
                           market: detail.config.market as RuleConfig["market"],
                           symbols: detail.config.symbols,
                           });
@@ -1033,7 +1041,9 @@ export default function TradingWorkspacePage() {
                                       : "text-secondary-text"
                                 }
                               >
-                                {o.stance === "bullish"
+                                {o.decisionBackend === "jev"
+                                  ? uiLiteral(o.decision === "buy" ? "买入" : o.decision === "sell" ? "卖出" : "不动")
+                                  : o.stance === "bullish"
                                   ? uiLiteral("看好")
                                   : o.stance === "bearish"
                                     ? uiLiteral("看淡")
@@ -1044,9 +1054,17 @@ export default function TradingWorkspacePage() {
                                   <UiLiteral text={"当日持仓"} /></span>
                               )}
                             </div>
-                            <p className="mt-2 max-w-3xl text-sm leading-6 text-secondary-text">
-                              {o.reason}
-                            </p>
+                            {o.decisionBackend === "jev" ? (
+                              <div className="mt-2 space-y-2 text-sm text-secondary-text">
+                                <p>JEV · {uiLiteral("置信度")} {((o.confidence ?? 0) * 100).toFixed(1)}% · {uiLiteral("目标仓位")} {((o.targetWeight ?? 0) * 100).toFixed(1)}%</p>
+                                <p className="flex flex-wrap gap-x-4 gap-y-1">
+                                  {(["buy", "sell", "hold"] as const).map((key) => <span key={key}>
+                                    {uiLiteral(key === "buy" ? "买入" : key === "sell" ? "卖出" : "不动")} {((o.probabilities?.[key] ?? 0) * 100).toFixed(1)}%
+                                  </span>)}
+                                </p>
+                                <p><UiLiteral text="仅决策结果，无模型解释。目标仓位已应用调仓比例和账户约束，实际成交请查看交易记录。" /></p>
+                              </div>
+                            ) : <p className="mt-2 max-w-3xl text-sm leading-6 text-secondary-text">{o.reason}</p>}
                           </article>
                         ))}
                         <p className="py-3 text-xs text-secondary-text">

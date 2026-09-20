@@ -63,3 +63,13 @@ it("saves Agent strategies without a validation mode or server metadata", async 
   expect(payload).not.toHaveProperty("startDate");
   expect(payload).not.toHaveProperty("definitionId");
 });
+
+
+it.each(["saveDefinition", "create"] as const)("%s sends the selected JEV backend and sizing to the API", async (method) => {
+  client.post.mockResolvedValue({ data: { id: 3 } });
+  await portfoliosApi[method]({name:"JEV", template:"agent", market:"US", symbols:["AAPL"],
+    decisionBackend:"jev", jevWeightStep:0.1, jevModel:"server-frozen-version"} as RuleConfig);
+  const payload = client.post.mock.calls.at(-1)![1];
+  expect(payload).toMatchObject({decisionBackend:"jev", jevWeightStep:0.1});
+  expect(payload).not.toHaveProperty("jevModel");
+});

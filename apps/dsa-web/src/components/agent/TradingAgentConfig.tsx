@@ -319,6 +319,29 @@ export function TradingAgentConfig({
       )}
       <h3 className="pt-4 text-lg font-semibold"><UiLiteral text={"2. 策略配置"} /></h3>
       <label className="block">
+        <UiLiteral text="交易决策模型" />
+        <select className={input} value={config.decisionBackend || "llm"}
+          onChange={(e) => onConfig({ decisionBackend: e.target.value as "llm" | "jev" })}>
+          <option value="llm">{uiLiteral("LLM · 目标仓位与理由")}</option>
+          <option value="jev">{uiLiteral("JEV · 仅决策结果")}</option>
+        </select>
+      </label>
+      {config.decisionBackend === "jev" && (
+        <div className="space-y-3">
+          <p className="text-sm text-secondary-text"><UiLiteral text="JEV 根据 Skill、行情和模拟持仓判断买入、卖出或不动，返回概率，不生成报告。股票范围预览仍使用 LLM。" /></p>
+          {options && !options.decisionModels?.find((m) => m.id === "jev")?.available && (
+            <p role="status" className="text-sm"><UiLiteral text="请先在设置 → AI 模型中配置 JEV API Key。" /></p>
+          )}
+          <label className="block text-sm">
+            <UiLiteral text="每次调仓比例（账户权益 %）" />
+            <input className={input} type="number" min={0.1} max={100} step={0.1}
+              value={Number(((config.jevWeightStep ?? 0.05) * 100).toFixed(4))}
+              onChange={(e) => onConfig({ jevWeightStep: Number(e.target.value) / 100 })} />
+          </label>
+          <p className="text-xs text-secondary-text"><UiLiteral text="买入增加一档，卖出减少一档，不动保留股数。资金和持仓上限可能缩小或阻止调仓；概率不代表仓位比例。" /></p>
+        </div>
+      )}
+      <label className="block">
         <UiLiteral text={"策略 Skill"} /><select
           required
           className={input}

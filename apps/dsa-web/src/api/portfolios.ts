@@ -23,11 +23,15 @@ export type UniversePreview = {
   scope: UniverseScope & { rule?: { description: string } };
 };
 export type AgentOptions = {
+  decisionModels?: { id: "llm" | "jev"; available: boolean; model?: string }[];
   skills: { id: string; name: string; description: string }[];
   accounts: { id: number; name: string; market: string }[];
   defaultPrompt: string;
 };
 export type RuleConfig = {
+  decisionBackend?: "llm" | "jev";
+  jevWeightStep?: number;
+  jevModel?: string;
   engine?: "agent";
   skillId?: string;
   systemPrompt?: string;
@@ -67,6 +71,11 @@ export type Holding = {
   unrealizedPnl: number;
 };
 export type Opinion = {
+  decisionBackend?: "jev";
+  decision?: "buy" | "sell" | "hold";
+  probabilities?: Record<"buy" | "sell" | "hold", number>;
+  confidence?: number;
+  targetWeight?: number;
   code: string;
   stance: "bullish" | "bearish" | "neutral";
   reason: string;
@@ -183,6 +192,8 @@ export const portfoliosApi = {
     return (
       await client.post<StrategyDefinition>(`${root}/definitions`, {
         engine: "agent",
+        decisionBackend: config.decisionBackend,
+        jevWeightStep: config.jevWeightStep,
         skillId: config.skillId,
         systemPrompt: config.systemPrompt,
         universePreviewId: config.universePreviewId,
@@ -267,6 +278,8 @@ export const portfoliosApi = {
         startDate,
         endDate,
         engine: "agent",
+        decisionBackend: config.decisionBackend,
+        jevWeightStep: config.jevWeightStep,
         skillId,
         systemPrompt,
         universePreviewId,

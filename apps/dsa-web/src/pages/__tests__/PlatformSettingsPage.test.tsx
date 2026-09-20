@@ -20,7 +20,8 @@ vi.mock('../../hooks', () => ({
     maskToken: '******',
     llmModelProviders: ['openai'],
     itemsByCategory: {
-      ai_model: [{ key: 'LITELLM_MODEL', value: 'openai/test', schema: { category: 'ai_model' } }],
+      ai_model: [{ key: 'LITELLM_MODEL', value: 'openai/test', schema: { category: 'ai_model' } },
+        ...['TYPESAFE_API_KEY','TYPESAFE_BASE_URL','TYPESAFE_MODEL'].map(key => ({key,value:'',schema:{category:'ai_model'}}))],
       system: [
         { key: 'HTTP_PROXY', value: '', schema: { category: 'system' } },
         { key: 'SCHEDULE_ENABLED', value: 'true', schema: { category: 'system' } },
@@ -43,6 +44,7 @@ vi.mock('../../hooks', () => ({
     save,
     resetDraft,
     setDraftValue,
+    getChangedItems: () => [{key:"TYPESAFE_API_KEY", value:"test-key"},{key:"HTTP_PROXY",value:"unsaved"}],
     refreshAfterExternalSave,
   }),
 }));
@@ -100,4 +102,13 @@ describe('PlatformSettingsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '保存 1 项' }));
     expect(save).toHaveBeenCalledTimes(1);
   });
+});
+
+
+it('exposes JEV on the routed model settings page and saves only JEV fields', () => {
+  renderPage();
+  expect(screen.getByRole('heading', {name:'JEV · 仅决策结果'})).toBeVisible();
+  expect(screen.getByText('TYPESAFE_API_KEY')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', {name:'保存 JEV 配置'}));
+  expect(save).toHaveBeenCalledWith([{key:'TYPESAFE_API_KEY',value:'test-key'}]);
 });

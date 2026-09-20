@@ -123,6 +123,13 @@ def step(config, state, day, history, benchmark_close):
         equity_open = cash + sum(p['quantity'] * prices[c]['open'] for c, p in positions.items())
         targets = {code: math.floor(equity_open * weight / prices[code]['open'] / config['lotSize']) * config['lotSize']
                    for code, weight in pending['weights'].items() if weight > 0}
+        # Direction-only decisions must never rebalance a hold or reverse a side
+        # just because prices moved between the signal close and the next open.
+        for code, direction in pending.get('directions', {}).items():
+            held = positions.get(code, {}).get('quantity', 0)
+            target = targets.get(code, 0)
+            targets[code] = (held if direction == 'hold' else max(held, target)
+                             if direction == 'buy' else min(held, target))
         for code in list(positions):
             quantity = positions[code]['quantity'] - targets.get(code, 0)
             if quantity > 0:

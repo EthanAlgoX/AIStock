@@ -196,13 +196,15 @@ it("saves the selected Agent Skill and approved universe without launching", asy
   fireEvent.click(screen.getByRole("button", {name:"配置策略"}));
   await screen.findByRole("option", {name:"价格策略"});
   fireEvent.change(screen.getByLabelText("策略 Skill"), {target:{value:"price"}});
+  fireEvent.change(screen.getByLabelText("交易决策模型"), {target:{value:"jev"}});
+  fireEvent.change(screen.getByLabelText("每次调仓比例（账户权益 %）"), {target:{value:"10"}});
   fireEvent.change(screen.getByLabelText("策略名称"), {target:{value:"Agent试验"}});
   fireEvent.change(screen.getByLabelText("股票池（可选，名称或代码，最多 12 只）"), {target:{value:"英伟达"}});
   fireEvent.change(screen.getByLabelText("范围来源"), {target:{value:"fixed"}});
   fireEvent.click(screen.getByRole("button", {name:"预览股票范围"}));
   await screen.findByLabelText("范围预览");
   fireEvent.click(screen.getByRole("button", {name:"保存策略"}));
-  await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({engine:"agent",skillId:"price",universePreviewId:9,market:"US",symbols:["NVDA"]})));
+  await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({engine:"agent",decisionBackend:"jev",jevWeightStep:0.1,skillId:"price",universePreviewId:9,market:"US",symbols:["NVDA"]})));
   expect(api.createValidation).not.toHaveBeenCalled();
 });
 
@@ -260,4 +262,30 @@ it('imports an assistant skill into the existing configuration without starting 
   expect(api.createValidation).not.toHaveBeenCalled();
   expect(api.control).not.toHaveBeenCalled();
   sync.mockRestore();
+});
+
+it("configures JEV separately from report generation and shows allocation sizing", async () => {
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", { name: "配置策略" }));
+  const select = await screen.findByLabelText("交易决策模型");
+  expect(select).toHaveValue("llm");
+  fireEvent.change(select, { target: { value: "jev" } });
+  expect(screen.getByLabelText("每次调仓比例（账户权益 %）")).toHaveValue(5);
+  fireEvent.change(screen.getByLabelText("每次调仓比例（账户权益 %）"), { target: { value: "10" } });
+  expect(screen.getByLabelText("每次调仓比例（账户权益 %）")).toHaveValue(10);
+  expect(await screen.findByText("请先在设置 → AI 模型中配置 JEV API Key。")).toBeVisible();
+});
+
+it("renders JEV categories and probabilities without a fabricated explanation", async () => {
+  const jev = { ...structuredClone(detail), days: [{ ...structuredClone(detail.days[0]), opinions: [] as import("../../api/portfolios").Opinion[] }] };
+  jev.days![0].opinions = [{code:"600519", stance:"neutral", held:true, reason:"not a model explanation",
+    decisionBackend:"jev", decision:"hold", confidence:0.8, targetWeight:0.1,
+    probabilities:{buy:0.1,sell:0.05,hold:0.85}}];
+  api.list.mockResolvedValue([jev]);
+  api.detail.mockResolvedValue(jev);
+  render(<MemoryRouter initialEntries={["/trading?portfolio=1"]}><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", {name:"每日观点"}));
+  expect(await screen.findByText(/85.0%/)).toBeVisible();
+  expect(screen.getByText(/仅决策结果，无模型解释/)).toBeVisible();
+  expect(screen.queryByText("not a model explanation")).not.toBeInTheDocument();
 });

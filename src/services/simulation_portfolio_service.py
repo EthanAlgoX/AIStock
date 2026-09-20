@@ -36,6 +36,17 @@ class SimulationPortfolioService:
         self.agent = agent
 
     def _prepare_config(self, payload):
+        backend = payload.get("decisionBackend", "llm")
+        if backend not in {"llm", "jev"}:
+            raise ValueError("Unsupported trading decision backend")
+        if backend == "jev":
+            from src.services.jev_decision_service import JevDecisionService
+            JevDecisionService().validate_settings()
+            step_size = payload.get("jevWeightStep", 0.05)
+            if type(step_size) not in {int, float} or not math.isfinite(step_size) or not 0.001 <= step_size <= 1:
+                raise ValueError("Invalid JEV allocation step")
+            from src.config import get_config
+            payload = dict(payload, jevModel=payload.get("jevModel") or get_config().typesafe_model)
         market, template = payload["market"], payload["template"]
         if payload.get('engine') == 'agent' and not payload.get('skillSnapshot'):
             raise ValueError('Agent 策略请先保存 Skill 和已确认范围，再创建验证。')
@@ -531,6 +542,12 @@ class SimulationPortfolioService:
                 state['pending'] = dict(date=day, selected=[o['code'] for o in opinions if o['targetWeight'] > 0],
                                         weights={o['code']: o['targetWeight'] for o in opinions},
                                         reasons={o['code']: o['reason'] for o in opinions})
+                if config.get('decisionBackend') == 'jev':
+                    state['pending']['directions'] = {
+                        o['code']: ('buy' if o['targetWeight'] > o['currentWeight'] + 1e-8 else
+                                    'sell' if o['targetWeight'] < o['currentWeight'] - 1e-8 else 'hold')
+                        for o in opinions
+                    }
                 state['agentModel'] = usage['model']
                 output['opinions'] = opinions
             state['universe'], state['universeDate'] = snapshot, day

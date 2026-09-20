@@ -1,0 +1,54 @@
+# JEV trading decisions / JEV 交易决策
+
+JEV is an optional TypeSafe System One backend for the trading simulation page. It evaluates a frozen skill, dated market bars, candidate universe and simulated account state. It returns `buy`, `sell` or `hold`, with category probabilities and confidence. It does not generate reports or explanations.
+
+JEV 是交易推演可显式选择的决策模型。输入包括冻结的 Skill、用户交易指令、截至决策日的行情、候选股票与模拟账户现金和持仓。输出仅包含买入、卖出、不动，以及概率和置信度；不要求生成报告，也不补造模型理由。
+
+## Configuration / 配置
+
+In **Settings → Models & runtime**, configure:
+
+| Setting | Meaning | Default |
+| --- | --- | --- |
+| `TYPESAFE_API_KEY` | TypeSafe API key / API 密钥 | Empty; optional |
+| `TYPESAFE_BASE_URL` | HTTPS service root, optionally ending in `/v1` / 服务根地址 | `https://api.typesafe.ai` |
+| `TYPESAFE_MODEL` | Alias or fixed model version / 模型名称或固定版本 | `jev-latest` |
+
+Then choose **JEV · Decisions only** in the trading strategy configuration, select a skill, preview and confirm the universe, and save. The saved strategy freezes the model name, skill and allocation step. Existing strategies without `decisionBackend` retain LLM execution. Copy/create a new strategy to change the backend or model for an existing validation.
+
+在 **设置 → 模型与运行时** 保存配置后，在交易策略中选择 **JEV · 仅决策结果**，选择 Skill、预览股票范围并保存。股票范围预览及按日更新范围仍使用现有 LLM，JEV 不加入研究报告、聊天或选股的 LLM fallback 列表。API 失败会明确报错，不自动切换模型。
+
+These settings use the existing configuration persistence and runtime reload mechanism, including Docker environment configuration. API keys stay in server settings and are never stored in strategy definitions or trading call records. The current platform/member model-configuration scope is unchanged. No SDK installation or database migration is required; the existing HTTP client is used.
+
+这些配置复用现有设置保存与重载机制，支持环境变量和 Docker。密钥不进入策略定义或交易调用记录。平台／成员模型配置的权限边界保持现状，不新增独立成员密钥系统。无需安装新 SDK 或执行数据库迁移。
+
+## Decision and execution contract / 决策与执行
+
+- `decisionBackend`: `llm` (default) or `jev` on the existing portfolio strategy API.
+- `jevWeightStep`: allocation change as a fraction of account equity, default `0.05` (5 percentage points), allowed `0.001–1`.
+- Buy increases the current allocation by one step, limited by the single-stock cap. Sell decreases it by one step, floored at zero. Hold preserves the number of shares at the next open.
+- Sell changes are considered before buy increments. Available allocation is shared proportionally among permitted buy increments. If new positions exceed available slots, buy probability ranks them; stock code resolves ties. Probability is never treated as an allocation weight or expected return.
+- Stocks leaving the candidate universe may not increase their allocation. The common cash, single-stock and position-count validation still applies. An existing overweight hold can therefore reject the plan rather than silently override the model's direction.
+- Execution remains next-open simulation with existing lot size, fees and slippage. Price movement must not turn a JEV buy into a sell, a sell into a buy, or a hold into a rebalance. Funding and lot limits may prevent a fill. A decision is not an executed trade.
+
+买入增加一档、卖出减少一档，默认一档为账户权益的 5%。资金和持仓上限可能缩小或阻止调仓；不动保持股数。概率只在新增持仓名额不足时用于排序，不是仓位比例或收益率。模型决定方向，程序负责仓位转换、风控和撮合；这里不新增固定价格信号策略。
+
+The same backend is used by manual runs, daily automatic simulation and AI historical replay. Historical replay uses dated inputs but cannot eliminate knowledge embedded in model training; it retains the existing AI replay designation.
+
+手动运行、每日自动模拟和 AI 历史回放使用同一决策入口。历史回放只输入当时行情，但模型训练知识可能包含未来信息，因此仍标记为 AI 历史回放。
+
+## Results and failures / 结果与失败
+
+The daily opinions view shows the JEV decision, confidence, three category probabilities, and the constrained target allocation. It explicitly identifies the absence of a model explanation. Call records retain the request without credentials, raw structured response, actual model version and token usage. No softmax or invented logits are applied. Existing validations reject a change in the actual returned model version.
+
+每日观点展示分类、置信度、三类概率及受约束后的目标仓位，明确标注无模型解释。调用记录保留不含密钥的输入、原始结构化响应、实际模型版本和用量。不会再次 softmax，不会编造 logits，也不把分类伪装成研究评分。
+
+HTTP calls have a 10-second connect timeout and a 60-second read timeout, with redirects disabled. This integration makes one attempt per decision request (no automatic retry or model fallback). HTTP 401/422/429/529, malformed/incomplete answers, invalid probability distributions, missing token usage or model version, and budget overruns fail without creating a new trading plan. Retry from the existing run control after resolving the cause. No endpoint error body is surfaced as an application error.
+
+## Validation and rollback / 验证与回滚
+
+Deterministic tests mock only the HTTP response and market-data boundaries; they exercise request construction, audit persistence, configuration reload, saved strategy propagation, real five-day simulation accounting, and next-open direction preservation. Frontend tests cover backend/step persistence and probability display. Live TypeSafe inference requires a configured account key and is a separate verification step.
+
+回滚可恢复改动前代码；没有数据库迁移。停用新 JEV 策略，并新建使用 LLM 的策略；不要直接改写正在运行的历史策略配置。已记录的结构化决策继续保存在原有 JSON 记录中。
+
+Official references: [HTTP API](https://docs.typesafe.ai/api), [Choice](https://docs.typesafe.ai/primitives/choice). These describe the public structured API, not an OpenAI-compatible chat endpoint.

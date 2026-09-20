@@ -421,8 +421,23 @@ class TradingAgentService:
             )
         system = TRADING_PROMPT + '\n策略 Skill：\n' + config['skillSnapshot']['instructions'] + '\n用户交易指令：\n' + config.get('systemPrompt', '')
         system += '\n只返回JSON：{"opinions":[{"code":"股票代码","targetWeight":0.0,"reason":"依据"}]}。必须覆盖输入中的所有股票且不重复，仓位和不能超过1。'
-        result, usage = self.call(system, payload, budget, run_id, config.get("portfolioId"))
+        jev_opinions = None
+        if config.get('decisionBackend', 'llm') == 'jev':
+            from src.services.jev_decision_service import JevDecisionService, allocation_plan
+            service = JevDecisionService()
+            payload['allocationStep'] = config.get('jevWeightStep', 0.05)
+            # Use the frozen method and user instruction, not the LLM's JSON/report contract.
+            instructions = config['skillSnapshot']['instructions'] + '\n' + config.get('systemPrompt', '')
+            answers, usage = service.evaluate(self.db, payload, instructions,
+                                             config.get('jevModel') or service.config.typesafe_model,
+                                             budget, run_id, config.get('portfolioId'))
+            result = None
+        else:
+            result, usage = self.call(system, payload, budget, run_id, config.get("portfolioId"))
         try:
+            if config.get('decisionBackend', 'llm') == 'jev':
+                jev_opinions = allocation_plan(answers, config, state, histories, candidates)
+                result = {'opinions': [{k: o[k] for k in ('code', 'targetWeight', 'reason')} for o in jev_opinions]}
             decisions = Decision.model_validate(result).opinions
             weights = {d.code: d.targetWeight for d in decisions}
             if len(weights) != len(decisions) or set(weights) != set(histories):
@@ -438,6 +453,10 @@ class TradingAgentService:
                         raise ValueError('退出候选范围的持仓不得增仓，未记账。')
             if state.get('agentModel') and state['agentModel'] != usage['model']:
                 raise ValueError('模型版本已改变，请复制策略建立新验证。')
+            if jev_opinions is not None:
+                return [dict(o, stance='bullish' if o['decision'] == 'buy' else
+                             'bearish' if o['decision'] == 'sell' else 'neutral',
+                             held=o['code'] in state['positions']) for o in jev_opinions], usage
             return [dict(code=d.code, targetWeight=d.targetWeight, reason=d.reason,
                          stance='bullish' if d.targetWeight > 0 else 'bearish' if d.code in state['positions'] else 'neutral',
                          held=d.code in state['positions']) for d in decisions], usage

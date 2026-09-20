@@ -50,6 +50,9 @@ const categoryDescriptionMap: Record<UiLanguage, Partial<Record<SystemConfigCate
 });
 
 const fieldTitleMap: Record<string, string> = {
+  TYPESAFE_API_KEY: "JEV API 密钥",
+  TYPESAFE_BASE_URL: "JEV API 地址",
+  TYPESAFE_MODEL: "JEV 模型",
   STOCK_LIST: '自选股列表',
   TUSHARE_TOKEN: 'Tushare Token',
   FRED_API_KEY: 'FRED 宏观数据 API Key',
@@ -224,6 +227,9 @@ const fieldTitleMap: Record<string, string> = {
 };
 
 const fieldDescriptionMap: Record<string, string> = {
+  TYPESAFE_API_KEY: "仅用于交易决策，不生成报告。",
+  TYPESAFE_BASE_URL: "TypeSafe System One 服务根地址，必须使用 HTTPS。",
+  TYPESAFE_MODEL: "新策略使用的模型名称或固定版本。",
   STOCK_LIST: '推荐使用英文逗号分隔股票代码；中文逗号、顿号、分号、空格和换行会在保存后规范为英文逗号。',
   TUSHARE_TOKEN: '用于接入 Tushare Pro 数据服务的凭据。',
   FRED_API_KEY: '用于读取 FRED 官方美债收益率、实际利率、信用利差、通胀和就业序列；密钥不会提供给 Agent。',

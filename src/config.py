@@ -963,6 +963,11 @@ class Config:
     anthropic_max_tokens: int = 8192  # Max tokens for Anthropic responses
 
     # OpenAI 兼容 API（备选，当 Gemini/Anthropic 不可用时使用）
+    # Structured decision backend; never participates in text-generation fallback.
+    typesafe_api_key: str = ""
+    typesafe_base_url: str = "https://api.typesafe.ai"
+    typesafe_model: str = "jev-latest"
+
     openai_api_key: Optional[str] = None
     openai_base_url: Optional[str] = None  # 如: https://api.openai.com/v1
     openai_model: str = "gpt-5.5"  # OpenAI 兼容模型名称
@@ -1875,6 +1880,9 @@ class Config:
             # OPENAI_BASE_URL override is provided.
             # Model names match upstream (e.g. gemini-3.1-pro-preview, gpt-5.5, deepseek-v4-flash).
             openai_api_key=openai_api_keys[0] if openai_api_keys else None,
+            typesafe_api_key=os.getenv("TYPESAFE_API_KEY", "").strip(),
+            typesafe_base_url=os.getenv("TYPESAFE_BASE_URL", "https://api.typesafe.ai").strip(),
+            typesafe_model=os.getenv("TYPESAFE_MODEL", "jev-latest").strip(),
             openai_base_url=openai_base_url,
             openai_model=_openai_model_name,
             openai_vision_model=os.getenv('OPENAI_VISION_MODEL') or None,

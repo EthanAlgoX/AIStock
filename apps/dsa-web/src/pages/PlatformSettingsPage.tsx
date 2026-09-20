@@ -102,10 +102,13 @@ const PlatformSettingsPage: React.FC = () => {
     save,
     resetDraft,
     setDraftValue,
+    getChangedItems,
     refreshAfterExternalSave,
   } = useSystemConfig();
 
   const modelItems = itemsByCategory.ai_model ?? [];
+  const jevItems = modelItems.filter((item) => item.key.startsWith("TYPESAFE_"));
+  const jevChanges = getChangedItems().filter((item) => item.key.startsWith("TYPESAFE_"));
   const notificationItems = useMemo(() => itemsByCategory.notification ?? [], [itemsByCategory.notification]);
   const notificationByKey = useMemo(() => new Map(notificationItems.map(item => [item.key, item])), [notificationItems]);
   const notificationFields = (keys: string[]) => keys.flatMap(key => {
@@ -241,6 +244,14 @@ const PlatformSettingsPage: React.FC = () => {
                 title={localize(uiLiteral('策略模型运行时'), 'Strategy model runtime')}
                 description={localize(uiLiteral('这些通道会被策略研究、验证和运行链路真实调用。可先检查后端状态，再编辑和测试模型通道。'), 'These channels are used by strategy research, validation, and runs. Check runtime health before editing or testing channels.')}
               >
+                {jevItems.length > 0 && <section className="mb-6 space-y-3 border-b border-border pb-6" aria-label="JEV">
+                  <h3 className="font-semibold">{uiLiteral("JEV · 仅决策结果")}</h3>
+                  <p className="text-sm text-secondary-text">{uiLiteral("仅用于交易决策，不生成报告。")}</p>
+                  {jevItems.map((item) => <SettingsField key={item.key} item={item} value={item.value}
+                    disabled={isSaving} onChange={setDraftValue} issues={issueByKey[item.key]} />)}
+                  <Button variant="primary" disabled={isSaving || jevChanges.length === 0}
+                    onClick={() => { void save(jevChanges); }}>{uiLiteral("保存 JEV 配置")}</Button>
+                </section>}
                 <GenerationBackendStatusPanel
                   items={modelItems.map((item) => ({ key: item.key, value: item.value }))}
                   maskToken={maskToken}

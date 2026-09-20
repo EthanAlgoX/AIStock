@@ -16,6 +16,8 @@ class StrategyConfig(BaseModel):
     market: Literal["CN", "US", "HK"]
     symbols: list[str] = Field(default_factory=list, max_length=12)
     engine: Literal['agent'] = 'agent'
+    decisionBackend: Literal['llm', 'jev'] = 'llm'
+    jevWeightStep: float = Field(default=0.05, ge=0.001, le=1)
     skillId: str | None = None
     systemPrompt: str = Field(default='', max_length=6000)
     universePreviewId: int | None = None
@@ -95,7 +97,12 @@ def agent_options():
     from src.services.workspace_service import WorkspaceService
     from src.services.portfolio_service import PortfolioService
     from src.services.trading_agent_service import TRADING_PROMPT
-    return dict(skills=[s for s in WorkspaceService().list_skills() if s['enabled']],
+    from src.config import get_config
+    config = get_config()
+    return dict(decisionModels=[
+        dict(id="llm", available=True),
+        dict(id="jev", available=bool(config.typesafe_api_key.strip()), model=config.typesafe_model),
+    ], skills=[s for s in WorkspaceService().list_skills() if s['enabled']],
                 accounts=PortfolioService().list_accounts(), defaultPrompt=TRADING_PROMPT)
 
 
