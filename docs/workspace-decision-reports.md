@@ -2,7 +2,17 @@
 
 `/screening` 与 `/trading` 沿用个股研究的阅读原则：正式成果与关键数字在前，详细依据、风险、专家意见和原始记录在后。已结束任务的运行上下文置后并折叠；运行中、失败或缺少成果时仍优先显示运行信息。设置、后台运行和历史记录机制不变。
 
-## 选股
+## 场景 Prompt 边界
+
+工作台共用 Agent 和 Skill 能力，但任务说明与正式结果解读按场景区分：个股研究评价当次股票状态，命中实际持仓时传入冻结持仓、分账户解释建议；只关注股票不传入持仓、不提供操作建议。每日研究不引用历史研究结论或评分，曲线在研究完成后汇总。研究评分缺失不补为 50。
+
+策略选股在真实候选池内比较策略匹配度，保留正式候选身份、排名与分数，未验证的自然语言条件明确列为待核实。补充研究优先级不覆盖原始排名。交易推演结合模拟账户资金、持仓、行情和 Skill 给出目标仓位与调整依据，也可以保持仓位；研究评分与选股匹配分不能直接映射为买入或目标仓位。
+
+本次仅调整后端任务语义与上下文传递，保留现有 JSON 成果合同、页面字段和历史记录。工作台交易提案与交易推演撮合继续使用各自原有输出合同；不新增真实下单能力。
+
+Scenario prompts share Agent/Skill infrastructure but separate stock research, candidate ranking and simulated portfolio decisions. Holdings research uses frozen account evidence; watch-only research excludes position advice. Daily scores remain independent of historical research. Screening scores express strategy fit, while trading weights express a fraction of simulated account equity. Neither score implies an order. Existing response schemas and history remain compatible.
+
+## 选股展示
 
 成功的 CandidateList 显示扫描范围、过滤后数量、实际候选数量和评分对照。保持服务返回顺序，不重新排名。评分图只接受 0–100 的有限数值，零分保留，缺失与越界不绘条。候选表用于精确查询，研究档案继续展示原有因子、入选依据、催化和失效条件。数据降级提示前置且去重；失败结果仍显示失败原因，不能当作成功的空候选。
 

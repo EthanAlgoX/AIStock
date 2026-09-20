@@ -9,6 +9,60 @@ from src.services.workspace_service import WorkspaceService, WorkspaceError
 from src.services.workspace_outcomes import business_outcome
 
 
+@pytest.mark.parametrize("completed", [False, True])
+@pytest.mark.parametrize("kind", ["research", "screening", "trading"])
+def test_task_prompts_keep_scenario_contracts_separate(kind, completed):
+    task = dict(kind=kind, name="测试", market="CN", objective="应用同一个 Skill",
+                config={}, subject={})
+    if completed:
+        task["workflowResult"] = {"result": {"summary": "本次证据"}}
+    prompt = WorkspaceService._task_prompt(task)
+    roles = {"research": "你是个股研究 Agent", "screening": "你是策略选股 Agent",
+             "trading": "你是交易计划 Agent"}
+    assert roles[kind] in prompt
+    assert all(role not in prompt for other, role in roles.items() if other != kind)
+    if kind == "research":
+        assert "历史评分" in prompt
+        assert "候选补充研究" not in prompt
+    if kind == "screening":
+        assert "匹配评分" in prompt
+        assert "实际持仓背景" not in prompt
+    if not completed and kind == "trading":
+        assert '"TradeProposal"' in prompt
+
+
+def test_research_interpretation_uses_holdings_but_watch_does_not():
+    task = dict(kind="research", name="测试", market="CN", objective="研究", subject={},
+                config={}, portfolioContext={"account_name": "持仓账户甲", "quantity": 123},
+                workflowResult={"result": {"score": 72}})
+    prompt = WorkspaceService._task_prompt(task)
+    assert "这是持仓研究" in prompt and "持仓账户甲" in prompt and "123" in prompt
+    task["config"] = {"portfolioWatch": {"symbol": "600519"}}
+    prompt = WorkspaceService._task_prompt(task)
+    assert "这是只关注股票研究" in prompt
+    assert "持仓账户甲" not in prompt
+    assert "实际持仓背景" not in prompt
+
+
+@pytest.mark.parametrize("watch", [False, True])
+def test_formal_research_receives_frozen_context_and_watch_overrides_it(watch):
+    service = WorkspaceService.__new__(WorkspaceService)
+    service.resolve_skill_selection = Mock(return_value=([], ""))
+    service._set_run_stage = Mock()
+    task = dict(kind="research", config={"strategyVersionId": 1}, subject={"stock": "600519"},
+                market="CN", capabilities={"toolIds": ["run_stock_research"]},
+                portfolioContext={"quantity": 100, "avg_cost": 10})
+    if watch:
+        task["config"]["portfolioWatch"] = {"symbol": "600519"}
+    # Stop after the real task dispatch boundary; no model or ledger mutations needed.
+    with patch("src.agent.tools.workflow_tools.execute_research_workflow",
+               return_value={"status": "failed", "message": "stop after capture"}) as execute:
+        service._execute_agent_task("test", task, Event())
+    inputs = execute.call_args.args[2]
+    assert inputs["portfolioContext"] == ({} if watch else task["portfolioContext"])
+    assert inputs["watchResearch" if watch else "holdingResearch"] is True
+
+
 def test_only_valid_high_confidence_directional_conflicts_trigger_review():
     def opinion(identifier, stance, confidence):
         return {"expertId": identifier, "structured": {"stance": stance, "confidence": confidence}}

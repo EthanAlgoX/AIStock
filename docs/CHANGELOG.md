@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 > For user-friendly release highlights, see the [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) page.
 
 ## [Unreleased]
+
+- [改进] 区分个股研究、策略选股与交易推演的任务 Prompt 和结果解读，明确持仓/关注边界及研究评分、匹配评分、目标仓位的不同语义。
 - [修复] 交易推演范围预览缩短候选输入并提高结构化回答 Token 上限，避免推理模型耗尽默认输出额度后没有返回最终股票名单。
 - [改进] 交易推演的自定义范围改由 LLM 在冻结候选集合内结合行业、自然语言描述和市值数据选择股票，程序只校验范围与数量并冻结结果。
 - [修复] 交易推演预设行业扩展为常见细分行业与概念词，避免上层行业名称与数据源分类不一致而找不到候选。
