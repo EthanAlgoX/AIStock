@@ -13,19 +13,33 @@ from sqlalchemy import select
 from src.storage import DatabaseManager, SimulationUniverseSnapshotRecord, SimulationTradingCallRecord, persist_llm_usage
 
 INDUSTRY_ALIASES = {
-    '金融': ('金融', '银行', '证券', '保险', '多元金融'),
-    '医药生物': ('医药', '医疗', '生物', '制药'),
-    '信息技术': ('信息技术', '计算机', '软件', 'IT服务'),
+    '金融': ('金融', '银行', '证券', '保险', '资本市场', '多元金融'),
+    '医药生物': ('医药', '医疗', '生物', '制药', '卫生'),
+    '信息技术': ('信息技术', '计算机', '软件', '互联网', 'IT服务'),
     '半导体': ('半导体', '芯片', '集成电路', '电子'),
     '通信': ('通信', '电信', '通信设备'),
     '能源': ('能源', '煤炭', '石油', '油气'),
     '原材料': ('原材料', '化工', '有色', '钢铁', '建材'),
-    '工业制造': ('工业', '机械', '制造', '设备', '军工'),
+    '工业制造': ('工业', '机械', '通用设备', '专用设备', '运输设备', '仪器', '军工'),
     '可选消费': ('可选消费', '汽车', '家电', '消费电子', '零售'),
     '必选消费': ('必选消费', '食品饮料', '农林牧渔', '日用'),
     '公用事业': ('公用事业', '电力', '环保', '燃气'),
     '房地产': ('房地产', '地产', '建筑装饰'),
     '传媒教育': ('传媒', '教育', '文化', '游戏'),
+}
+
+INDUSTRY_ENGLISH = {
+    '金融': ('bank', 'insurance', 'financial', 'capital markets', 'credit services'),
+    '医药生物': ('health', 'medical', 'biotech', 'pharma', 'drug'),
+    '信息技术': ('technology', 'software', 'information', 'computer', 'internet'),
+    '半导体': ('semiconductor',), '通信': ('telecom', 'communication'),
+    '能源': ('energy', 'oil', 'gas', 'coal'),
+    '原材料': ('material', 'chemical', 'steel', 'mining', 'metal'),
+    '工业制造': ('industrial', 'machinery', 'aerospace', 'defense', 'equipment'),
+    '可选消费': ('auto', 'retail', 'leisure', 'apparel', 'restaurant', 'travel'),
+    '必选消费': ('food', 'beverage', 'household', 'tobacco', 'farm'),
+    '公用事业': ('utilities',), '房地产': ('real estate', 'reit'),
+    '传媒教育': ('entertainment', 'media', 'education', 'publishing'),
 }
 
 
@@ -39,7 +53,7 @@ def _broader_cn_candidates(limit):
         records = [row for row in records if str(row.get('code') or '').zfill(6).isdigit()]
         records.sort(key=lambda row: float(row.get('total_mv') or 0), reverse=True)
         return [dict(code=str(row['code']).zfill(6), name=row.get('name') or '', industry='',
-                     volatility=None, raw=row, reason='市场快照候选') for row in records[:limit]]
+                     volatility=None, raw=row, reason='市场快照候选') for row in (records[:limit] if limit else records)]
     except (OSError, KeyError, TypeError, ValueError):
         return []
 
@@ -48,7 +62,60 @@ def _industry_terms(selected_industries):
     terms = []
     for industry in selected_industries:
         terms.extend(INDUSTRY_ALIASES.get(industry, (industry,)))
+        terms.extend(INDUSTRY_ENGLISH.get(industry, ()))
     return list(dict.fromkeys(terms))
+
+
+def _cn_industry_candidates(terms):
+    """Discover industry constituents before any candidate-size bound."""
+    import akshare as ak
+    from src.services.screening.source_guard import call_with_timeout
+    from src.workspace_scope import ContextThreadPoolExecutor
+    catalog = call_with_timeout(lambda: ak.stock_sector_spot(indicator='行业'),
+                                timeout_sec=15, label='trading industry catalog')
+    boards = [row for row in catalog.to_dict('records')
+              if any(term.casefold() in str(row.get('板块', '')).casefold() for term in terms)]
+    if not boards:
+        raise ValueError('行业目录未匹配所选行业，请调整行业或指定股票。')
+
+    def fetch(board):
+        frame = call_with_timeout(lambda: ak.stock_sector_detail(sector=board['label']),
+                                  timeout_sec=25, label='trading industry constituents')
+        rows = json.loads(frame.to_json(orient='records'))
+        if not rows:
+            raise ValueError(f"行业 {board['板块']} 未返回成分股，请稍后重试。")
+        for row in rows:
+            row['industry'] = board['板块']
+            for source, target in (('mktcap', 'total_mv'), ('nmc', 'circ_mv')):
+                value = row.get(source)
+                row[target] = float(value) * 10000 if value is not None else None
+        return rows
+
+    with ContextThreadPoolExecutor(max_workers=6) as pool:
+        rows = [row for group in pool.map(fetch, boards) for row in group]
+    return dict(candidates=rows, snapshot_source='sina:industry_constituents')
+
+
+def _bounded_industry_sample(candidates, limit=40):
+    """Balance industry coverage and market-cap scales, not just the largest stocks."""
+    groups = {}
+    for item in candidates:
+        groups.setdefault(item.get('industry') or '', []).append(item)
+    for index, key in enumerate(sorted(groups)):
+        rows = groups[key]
+        rows.sort(key=lambda item: float((item.get('raw') or {}).get('total_mv') or 0), reverse=True)
+        # Spread each industry's representatives over its size distribution.
+        quota = max(1, limit // max(len(groups), 1) + (index < limit % max(len(groups), 1)))
+        count = min(len(rows), quota)
+        groups[key] = [rows[round(i * (len(rows) - 1) / max(count - 1, 1))] for i in range(count)]
+    result = []
+    for i in range(limit):
+        for key in sorted(groups):
+            if i < len(groups[key]):
+                result.append(groups[key][i])
+                if len(result) == limit:
+                    return result
+    return result
 
 
 TRADING_PROMPT = """你是模拟交易决策 Agent。依据本次冻结的 Skill、截止决策日的行情和账户状态，
@@ -197,14 +264,12 @@ class TradingAgentService:
         if scope['mode'] == 'custom':
             query = scope.get('query', '').strip()
             discovery_scope = dict(scope, maxCandidates=50,
-                rule=dict(industryTerms=[], minVolatility=None, description='候选发现'))
+                rule=dict(industryTerms=[] if scope.get('allIndustries') else _industry_terms(selected_industries),
+                          minVolatility=None, description='市场与行业候选发现'))
             try:
                 discovered = self.resolve(market, discovery_scope)
             except (RuntimeError, TimeoutError) as exc:
                 raise ValueError('范围数据源暂时不可用，未编造候选；请稍后重试，或改用指定股票/持仓范围。') from exc
-            broader = _broader_cn_candidates(40) if market == 'CN' and self.screener is None and not scope.get('symbols') else []
-            if broader:
-                discovered = dict(discovered, candidates=broader, source='market_snapshot')
             evidence = []
             for candidate in discovered['candidates']:
                 raw = candidate.get('raw') or {}
@@ -214,26 +279,33 @@ class TradingAgentService:
                     circulatingMarketValue=raw.get('circ_mv'), volatility20dPct=candidate.get('volatility')))
             result, usage = self.call(
                 '你是股票范围选择器。仅从候选列表选择符合用户范围的股票，绝不可编造或返回范围外代码。'
-                '行业、市场和市值要求均由你结合候选证据判断；市值单位未知时只比较候选间相对规模。'
-                '中市值以上表示排除候选集中市值较小的一档。若证据不足，可保守返回空列表并在summary说明。'
-                '只返回严格JSON：candidates（最多12项，每项code和reason）和summary。',
+                '市场和所选行业已先按数据源分类筛选；行业分类可能较粗，需核实与用户意图的匹配。'
+                '市值、波动、成长等自然语言要求由你根据证据判断，不按固定关键词规则筛选。'
+                '市值单位为对应市场本币；没有明确阈值时说明采用的判断口径，不能把样本相对大小当全市场分位。'
+                '缺失指标不得推断为满足。若证据不足可返回空列表并在summary说明。'
+                '仅基于给定证据简短筛选，不展开逐股长篇讨论。'
+                '只返回严格JSON：candidates（最多12项，每项code和reason，reason不超过60字）和summary（不超过150字）。',
                 dict(market=market, requestedIndustries=selected_industries,
                     allIndustries=bool(scope.get('allIndustries')), query=query,
                     maxCandidates=scope.get('maxCandidates', 12), candidates=evidence),
-                30000, 'trading_range', max_output_tokens=8192)
+                30000, 'trading_range', max_output_tokens=16384)
             selection = RangeSelection.model_validate(result)
             by_code = {item['code']: item for item in discovered['candidates']}
             chosen = []
             for item in selection.candidates:
                 code = item.code
-                if code in by_code and len(chosen) < scope.get('maxCandidates', 12):
-                    chosen.append(dict(by_code[code], reason=item.reason))
+                if code not in by_code or any(row['code'] == code for row in chosen):
+                    raise ValueError('模型返回范围外或重复股票，本次未生成范围，请重试。')
+                if len(chosen) >= scope.get('maxCandidates', 12):
+                    raise ValueError('模型返回股票数量超过配置上限，请重试。')
+                chosen.append(dict(by_code[code], reason=item.reason))
             if not chosen:
                 raise ValueError('模型未能从当前候选集中确认符合范围的股票；请放宽描述、选择全行业或指定股票。')
             scope['selection'] = dict(summary=selection.summary, candidates=[item.code for item in selection.candidates])
-            scope['rule'] = dict(industryTerms=[], minVolatility=None, description=selection.summary or '模型根据冻结候选范围选择')
+            scope['rule'] = dict(industryTerms=discovery_scope['rule']['industryTerms'], minVolatility=None,
+                                 description=selection.summary or '模型根据冻结候选范围选择')
             snapshot = dict(candidates=chosen, source=discovered['source'], observedAt=discovered['observedAt'],
-                coverage='LLM 仅从冻结候选集中选择，程序已校验返回代码。')
+                coverage=discovered['coverage'] + ' LLM 按自然语言筛选，程序校验代码与数量。')
         else:
             usage = None
             snapshot = self.resolve(market, scope)
@@ -257,8 +329,6 @@ class TradingAgentService:
                 allowed = {_normalize_tool_stock_code(s) for s in chosen}
                 candidates = [c for c in candidates if _normalize_tool_stock_code(c['code']) in allowed]
         else:
-            from src.config import get_config
-            from src.services.screening_service import _call_screening_screen, _normalize_candidates, _to_plain
             if self.screener:
                 data = self.screener(market)
             elif market in {'US', 'HK'}:
@@ -266,24 +336,29 @@ class TradingAgentService:
                 from src.services.screening.snapshot_us import fetch_us_snapshot, fetch_us_universe
                 from src.services.screening.source_guard import call_with_timeout
                 tickers = scope.get('symbols') or fetch_us_universe('env' if os.getenv('SCREENING_US_TICKERS') else 'default')
-                tickers = [str(int(s[2:])).zfill(4) + '.HK' if s.upper().startswith('HK') else s for s in tickers[:50]]
+                tickers = [str(int(s[2:])).zfill(4) + '.HK' if s.upper().startswith('HK') else s for s in tickers]
                 frame = call_with_timeout(lambda: fetch_us_snapshot(tickers=tickers), timeout_sec=90, label='trading scope snapshot')
                 data = dict(candidates=json.loads(frame.to_json(orient='records')), snapshot_source='yfinance:bounded_universe')
             else:
-                raw = _to_plain(_call_screening_screen('balanced_alpha', market.lower(), 50, get_config(), use_llm=False))
-                data = dict(candidates=_normalize_candidates(raw), snapshot_source=raw.get('snapshot_source', 'screening'))
+                if scope['rule']['industryTerms']:
+                    data = _cn_industry_candidates(scope['rule']['industryTerms'])
+                else:
+                    rows = _broader_cn_candidates(None)
+                    if not rows:
+                        raise ValueError('市场候选快照不可用，请先刷新选股行情或指定股票。')
+                    data = dict(candidates=rows, snapshot_source='market_snapshot')
             source = data.get('snapshot_source') or data.get('run_id') or 'screening'
             rule = scope['rule']
             for candidate in data.get('candidates', []):
                 row = dict(candidate.get('raw') or {}, **candidate)
-                industry = str(row.get('industry') or '') + ' ' + str(row.get('concepts') or '')
+                industry = str(row.get('industry') or '').strip()
                 if rule['industryTerms'] and not any(t.casefold() in industry.casefold() for t in rule['industryTerms']):
                     continue
                 vol = row.get('volatility_20d_pct')
                 if rule['minVolatility'] is not None and (not isinstance(vol, (int, float)) or not math.isfinite(vol) or vol < rule['minVolatility']):
                     continue
                 candidates.append({'code': row.get('code') or row.get('symbol'), 'name': row.get('name'),
-                                   'industry': industry, 'volatility': vol, 'reason': rule['description']})
+                                   'industry': industry, 'volatility': vol, 'reason': rule['description'], 'raw': row})
         normalized = {}
         for item in candidates:
             code = _normalize_tool_stock_code(str(item.get('code') or ''))
@@ -292,12 +367,16 @@ class TradingAgentService:
         if scope['mode'] == 'custom' and scope.get('symbols'):
             restricted = {_normalize_tool_stock_code(s) for s in scope['symbols']}
             normalized = {k: v for k, v in normalized.items() if k in restricted}
+        if scope['mode'] == 'custom' and scope.get('selection'):
+            approved = set(scope['selection']['candidates'])
+            normalized = {key: value for key, value in normalized.items() if key in approved}
         ordered = [normalized[k] for k in sorted(normalized)] if scope['mode'] == 'custom' else list(normalized.values())
-        selected = ordered[:scope.get('maxCandidates', 12)]
+        selected = _bounded_industry_sample(ordered) if scope['mode'] == 'custom' else ordered[:scope.get('maxCandidates', 12)]
         if not selected and not allow_empty:
             raise ValueError('数据源未找到符合范围的同市场股票，未扩大范围或编造候选；请调整条件或指定股票。')
         return dict(candidates=selected, source=source, observedAt=datetime.now(timezone.utc).isoformat(),
-                    coverage='自定义范围在现有选股源返回的最多50个候选中筛选，不代表全市场行业成分股。' if scope['mode'] == 'custom' else '指定范围')
+                    coverage=(f'数据源按市场及行业得到 {len(ordered)} 只候选；送入模型 {len(selected)} 只，'
+                              '按行业及市值规模分层取样，不代表全市场穷尽筛选。') if scope['mode'] == 'custom' else '指定范围')
 
     def store(self, market, scope, payload, kind='daily', session=None):
         with (nullcontext(session) if session is not None else self.db.session_scope()) as session:

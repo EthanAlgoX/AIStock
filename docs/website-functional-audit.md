@@ -23,9 +23,9 @@
 6. 前端测试漂移：选股字段已明确改为分析关注点，运行账本已切换分页接口；测试仍依赖旧文案、旧接口及非行为性的 CSS 类。同步测试并保留提交、分页查询和按钮可操作性检查。
 7. 浏览器截图发现窄桌面宽度下英文主导航溢出、覆盖品牌和辅助导航：导航区域改为可横向滚动，保持按钮可访问。
 
-## 待产品确认
+## 已确认的范围规则
 
-交易范围预览目前使用市值排序截断的 A 股候选快照，无法保证行业覆盖。待选择：先按市场/行业取候选再由 LLM 筛选，或明确限定大市值池，或由 LLM 提议后逐只核验。未获确认前不修改范围语义。
+已确认采用先按市场/行业取得真实候选，再由 LLM 按自然语言筛选。具体数据源、分层取样和冻结名单边界见 `simulation-trading.md`。
 
 ## 验证边界
 
@@ -35,4 +35,4 @@
 
 ## English summary
 
-Research, holdings/watch tracking, screening and simulated trading retain distinct input and output contracts. This audit fixes watch-history precedence, execution-field leakage in watch artifacts, empty holding inputs, same-stock archive retry and archive localization. Tests now follow current labels and the paginated run-history API. Candidate-universe policy remains pending product confirmation. Historical prose is unchanged; browser checks use read-only fixtures, and no external notifications are sent during validation.
+Research, holdings/watch tracking, screening and simulated trading retain distinct input and output contracts. This audit fixes watch-history precedence, execution-field leakage in watch artifacts, empty holding inputs, same-stock archive retry and archive localization. Tests now follow current labels and the paginated run-history API. Candidate discovery now filters by market and industry before LLM selection, as confirmed by the user. Historical prose is unchanged; browser checks use read-only fixtures, and no external notifications are sent during validation.

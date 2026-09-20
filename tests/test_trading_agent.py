@@ -17,6 +17,60 @@ def fixed():
     return dict(mode='fixed', symbols=['AAPL'], query='', maxCandidates=12)
 
 
+def test_industry_filter_precedes_sampling_and_preserves_market_cap(workspace):
+    captured = []
+    rows = [dict(code=f'{600000+i}', industry='银行', total_mv=1e12) for i in range(80)]
+    rows += [dict(code='688001', name='行业候选', industry='半导体', total_mv=2e10),
+             dict(code='NVDA', industry='半导体', total_mv=5e12)]
+    adapter = SimpleNamespace(call_text=lambda messages, **kw: captured.append(json.loads(messages[-1]['content'])) or
+        SimpleNamespace(content=json.dumps(dict(candidates=[dict(code='688001', reason='规模满足')], summary='已筛选')),
+                        usage={'total_tokens': 100}, model='fixture', provider='fixture'))
+    agent = TradingAgentService(workspace.db, adapter, lambda market: dict(candidates=rows))
+    result = agent.preview('CN', dict(mode='custom', query='中市值以上', industries=['半导体'], maxCandidates=12))
+    assert [row['code'] for row in captured[0]['candidates']] == ['688001']
+    assert captured[0]['candidates'][0]['totalMarketValue'] == 2e10
+    assert result['scope']['rule']['industryTerms']
+    rows.append(dict(code='688002', industry='半导体', total_mv=3e10))
+    assert [row['code'] for row in agent.resolve('CN', result['scope'])['candidates']] == ['688001']
+
+
+def test_sample_covers_industries_and_size_scales():
+    from src.services.trading_agent_service import _bounded_industry_sample
+    rows = [dict(code=f'{group}-{i}', industry=group, raw={'total_mv': i + 1})
+            for group in ('半导体', '软件') for i in range(100)]
+    selected = _bounded_industry_sample(rows)
+    assert len(selected) == 40
+    assert len({row['code'] for row in selected}) == 40
+    for group in ('半导体', '软件'):
+        caps = [row['raw']['total_mv'] for row in selected if row['industry'] == group]
+        assert min(caps) == 1 and max(caps) == 100
+
+
+def test_cn_source_reads_matching_industry_constituents_and_normalizes_units():
+    import pandas as pd
+    from src.services.trading_agent_service import _cn_industry_candidates
+    with patch('akshare.stock_sector_spot', return_value=pd.DataFrame([
+        {'label': 'tech', '板块': '计算机、通信和其他电子设备制造业'},
+        {'label': 'bank', '板块': '货币金融服务'},
+    ])), patch('akshare.stock_sector_detail', return_value=pd.DataFrame([
+        {'code': '688001', 'name': '样本', 'mktcap': 2000000, 'nmc': 1000000},
+    ])) as detail:
+        result = _cn_industry_candidates(['电子'])
+    detail.assert_called_once_with(sector='tech')
+    assert result['candidates'][0]['total_mv'] == 2e10
+    assert result['candidates'][0]['industry'] == '计算机、通信和其他电子设备制造业'
+
+
+@pytest.mark.parametrize('codes', [['AAPL', 'AAPL'], ['MSFT']])
+def test_preview_rejects_duplicate_and_outside_codes(workspace, codes):
+    adapter = SimpleNamespace(call_text=lambda *a, **kw: SimpleNamespace(
+        content=json.dumps(dict(candidates=[dict(code=code, reason='test') for code in codes])),
+        usage={'total_tokens': 100}, model='fixture', provider='fixture'))
+    agent = TradingAgentService(workspace.db, adapter, lambda market: dict(candidates=[dict(code='AAPL', industry='Software')]))
+    with pytest.raises(ValueError, match='范围外或重复'):
+        agent.preview('US', dict(mode='custom', query='中市值以上', industries=['信息技术']))
+
+
 def test_range_filters_use_source_fields_and_freeze_interpretation(workspace):
     calls = []
     adapter = SimpleNamespace(call_text=lambda *a, **k: calls.append(k) or SimpleNamespace(content=json.dumps(dict(candidates=[dict(code='AAPL', reason='科技且中市值以上')], summary='科技范围')), usage={'total_tokens':100}, model='fixture', provider='fixture'))
@@ -27,7 +81,7 @@ def test_range_filters_use_source_fields_and_freeze_interpretation(workspace):
     ]))
     preview = agent.preview('US', dict(mode='custom', query='科技弹性大', symbols=[], maxCandidates=12))
     assert [c['code'] for c in preview['candidates']] == ['AAPL']
-    assert calls[0]['max_tokens'] == 8192
+    assert calls[0]['max_tokens'] == 16384
     assert calls[0]['timeout'] == 60
     assert agent.approved(preview['id'], 'US')['scope']['selection']['candidates'] == ['AAPL']
     with pytest.raises(ValueError):
