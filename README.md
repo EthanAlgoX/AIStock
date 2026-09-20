@@ -20,6 +20,16 @@ Research assistant · Expert roundtable · Stock research · Strategy screening 
 
 AI Stock brings market data, news, calculations, and AI analysis into one website. Ask about a stock, read the evidence and risks, compare different investing perspectives, and test a strategy through paper trading. It supports **mainland China, Hong Kong, and US equities**; coverage depends on the selected data sources and strategy.
 
+## Try it online (recommended)
+
+The easiest way to try AI Stock is the hosted website. **Sign up with an invitation code, then log in to start—no local deployment needed.**
+
+**[Open AI Stock](https://myaistock.top/)** · **[Request an invitation code](mailto:im.hanyx@gmail.com?subject=AI%20Stock%20invitation%20code%20request)**
+
+Click **Request an invitation code** to open your configured default email app with the recipient and subject filled in, then send your request. You will receive a code by email; use it to register on the website, then log in. Already have an account? Log in directly.
+
+> **Use your own email account:** Gmail, Outlook, QQ Mail, 163 Mail, and other providers can all send the request. If no email app opens, right-click or long-press the request link and copy the email address, then compose a message in your usual mailbox with the subject “AI Stock invitation code request”. If you copied the full link, use only the address between `mailto:` and `?` as the recipient.
+
 **Start here:** [What you can do](#what-you-can-do) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Your first report](#your-first-report)
 
 ## What you can do
@@ -52,7 +62,7 @@ Research and simulation have different inputs: a research report can use news an
 
 ## Quick start
 
-Already have access to a running instance? Open it and skip to [Your first report](#your-first-report). To run your own instance, follow the steps below.
+For the quickest start, use [AI Stock online](https://myaistock.top/) and [request an invitation code](#try-it-online-recommended). **The installation steps below are only for running your own instance.**
 
 ### 1. Prepare your computer
 
@@ -92,6 +102,8 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Keep this terminal running 
 **The website opening is only the first step.** Configure and test your model before asking it to analyze stocks.
 
 ## Your first report
+
+Using the hosted website? After registration and login, go straight to **Stock research** or **Research assistant**; steps 3–4 below explain how to start and read a report. Steps 1–2 cover model and data setup for your own instance.
 
 ![First-run checklist: connect a model, check capabilities, submit a stock, read the report](docs/assets/readme/first-report-en.svg)
 
