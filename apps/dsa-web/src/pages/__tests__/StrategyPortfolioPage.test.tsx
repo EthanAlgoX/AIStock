@@ -354,3 +354,24 @@ it('invalidates the previous approval when previewing again fails', async () => 
   expect(await screen.findByText('请先预览并确认股票范围。')).toBeVisible();
   expect(api.saveDefinition).not.toHaveBeenCalled();
 });
+
+it("defaults new strategies to the grid skill and restores it when starting a fresh form", async () => {
+  api.agentOptions.mockResolvedValue({skills:[
+    {id:"price",name:"价格策略",description:"依据日线"},
+    {id:"high_volume_volatility_grid",name:"高量高波动网格",description:"每日收盘网格"},
+  ],accounts:[],defaultPrompt:"交易"});
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole("button", {name:"配置策略"}));
+  await screen.findByRole("option", {name:"高量高波动网格"});
+  await waitFor(() => expect(screen.getByLabelText("策略 Skill")).toHaveValue("high_volume_volatility_grid"));
+  expect(screen.getByLabelText("观察周期（交易日）")).toHaveValue(5);
+  expect(screen.getByLabelText("最低成交量倍数")).toHaveValue(1.3);
+  expect(screen.getByLabelText(/最低区间波动率/)).toHaveValue(0.05);
+  expect(screen.getByLabelText("网格档数")).toHaveValue(5);
+  fireEvent.change(screen.getByLabelText("策略 Skill"), {target:{value:"price"}});
+  expect(screen.getByLabelText("策略 Skill")).toHaveValue("price");
+  fireEvent.click(screen.getByRole("button", {name:"配置策略"}));
+  await waitFor(() => expect(screen.getByLabelText("策略 Skill")).toHaveValue("high_volume_volatility_grid"));
+  expect(api.saveDefinition).not.toHaveBeenCalled();
+  expect(api.createValidation).not.toHaveBeenCalled();
+});

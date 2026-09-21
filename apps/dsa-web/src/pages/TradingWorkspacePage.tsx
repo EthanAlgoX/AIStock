@@ -43,6 +43,7 @@ const seed: RuleConfig = {
   name: "",
   template: "agent",
   engine: "agent",
+  skillId: "high_volume_volatility_grid",
   market: "CN",
   symbols: [],
   mode: "paper",
