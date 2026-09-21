@@ -481,3 +481,45 @@ it('stops and removes an independent validation', async () => {
   fireEvent.click(screen.getByRole('button', {name:'停止并删除'}));
   await waitFor(() => expect(api.deletePortfolio).toHaveBeenCalledWith(1));
 });
+
+it('edits all paused strategy settings in place and requires a fresh preview', async () => {
+  const savedConfig = {...config,market:'US',symbols:['NVDA'],skillId:'price',definitionRevision:3,
+    initialCash:230000,maxPositions:4,maxWeight:0.4,lotSize:1,commissionRate:0.002,sellTaxRate:0.003,slippageRate:0.004,riskFreeRate:0.02,
+    gridLookbackDays:9,gridMinVolumeRatio:2,gridMinRange:0.12,gridLevels:7,
+    decisionBackend:'jev',jevWeightStep:0.15,jevTask:{question:'原问题',criteria:{buy:'买入',sell:'卖出',hold:'等待'},background:'原背景',lookbackDays:8},
+    scopeRefresh:'weekly',runTokenBudget:180000,systemPrompt:'原指令',
+    universe:{id:2,market:'US',scope:{mode:'fixed',symbols:['NVDA'],query:'',maxCandidates:8},candidates:[{code:'NVDA'}]}};
+  api.definitions.mockResolvedValue([{id:7,name:config.name,config:savedConfig}]);
+  api.list.mockResolvedValue([{...detail,definitionId:7,config:savedConfig}]);
+  api.previewUniverse.mockResolvedValue({...savedConfig.universe,id:9});
+  api.saveDefinition.mockResolvedValue({id:7,name:config.name,config:{...savedConfig,definitionRevision:4}});
+  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button',{name:'修改配置'}));
+  await screen.findByRole('option',{name:'价格策略'});
+  expect(screen.getByLabelText('判断问题')).toHaveValue('原问题');
+  expect(screen.getByLabelText('补充背景材料')).toHaveValue('原背景');
+  fireEvent.change(screen.getByLabelText('判断问题'),{target:{value:'新问题'}});
+  fireEvent.click(screen.getByRole('button',{name:'保存修改'}));
+  expect(await screen.findByText('请先预览并确认股票范围。')).toBeVisible();
+  expect(api.saveDefinition).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button',{name:'预览股票范围'}));
+  await screen.findByLabelText('范围预览');
+  fireEvent.click(screen.getByRole('button',{name:'保存修改'}));
+  await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({
+    ...savedConfig,universePreviewId:9,jevTask:{...savedConfig.jevTask,question:'新问题'},
+  }),{id:7,revision:3}));
+  expect(api.control).not.toHaveBeenCalled();
+});
+
+it('blocks editing active strategies and never resumes an obsolete account', async () => {
+  api.definitions.mockResolvedValue([{id:7,name:config.name,config:{...config,definitionRevision:2}}]);
+  api.list.mockResolvedValue([{...detail,definitionId:7,status:'running'}]);
+  const view=render(<MemoryRouter initialEntries={['/trading?strategy=7']}><TradingWorkspacePage /></MemoryRouter>);
+  expect(await screen.findByRole('button',{name:'修改配置'})).toBeDisabled();
+  view.unmount();
+  api.list.mockResolvedValue([{...detail,definitionId:7,status:'stopped'}]);
+  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button',{name:'运行一次'}));
+  expect(await screen.findByLabelText('验证初始资金')).toBeVisible();
+  expect(api.control).not.toHaveBeenCalled();
+});

@@ -104,7 +104,7 @@ class SimulationPortfolioService:
         config["name"] = name
         return config
 
-    def save_definition(self, payload):
+    def _definition_config(self, payload):
         if payload.get('engine') == 'agent':
             from src.services.trading_agent_service import TradingAgentService
             agent = self.agent or TradingAgentService(self.db)
@@ -114,11 +114,55 @@ class SimulationPortfolioService:
         config = self._prepare_config(dict(payload, mode="paper"))
         for key in ("mode", "startDate", "endDate"):
             config.pop(key, None)
+        return config
+
+    def save_definition(self, payload):
+        config = dict(self._definition_config(payload), definitionRevision=1)
         with self.db.session_scope() as session:
             row = SimulationPortfolioDefinitionRecord(name=config["name"], config_json=json.dumps(config))
             session.add(row)
             session.flush()
             return dict(id=row.id, name=row.name, config=config)
+
+    def update_definition(self, definition_id, payload):
+        payload = dict(payload)
+        expected = payload.pop('expectedRevision')
+        with self.db.get_session() as session:
+            definition = session.get(SimulationPortfolioDefinitionRecord, definition_id)
+            if definition is None or definition.deleted_at is not None:
+                raise LookupError('策略不存在')
+        config = self._definition_config(payload)
+        with self.db.session_scope() as session:
+            self._lock_definition(session, definition_id)
+            definition = session.get(SimulationPortfolioDefinitionRecord, definition_id)
+            revision = json.loads(definition.config_json).get('definitionRevision', 1)
+            if expected != revision:
+                raise ValueError('策略配置已更新，请刷新后重新编辑。')
+            runs = [row for row in session.scalars(select(SimulationPortfolioRunRecord).where(
+                SimulationPortfolioRunRecord.status != 'deleted'
+            )).all() if json.loads(row.config_json).get('definitionId') == definition_id]
+            if any(row.status == 'running' or (
+                row.status != 'paused' and row.lease_until and row.lease_until > utc_naive_now()
+            ) for row in runs):
+                raise ValueError('请先暂停或停止运行，再修改配置。')
+            # Preserve immutable ledgers, but revoke queued/in-flight work for the old config.
+            for row in runs:
+                self._halt(row, 'stopped')
+            config['definitionRevision'] = revision + 1
+            definition.name = config['name']
+            definition.config_json = json.dumps(config)
+            return dict(id=definition.id, name=definition.name, config=config)
+
+    @staticmethod
+    def _check_revision(session, config):
+        definition_id = config.get('definitionId')
+        if definition_id is None:
+            return
+        definition = session.get(SimulationPortfolioDefinitionRecord, definition_id)
+        if definition is None or definition.deleted_at is not None:
+            raise LookupError('策略不存在')
+        if config.get('definitionRevision', 1) != json.loads(definition.config_json).get('definitionRevision', 1):
+            raise ValueError('这是旧版配置的历史记录，请从策略页运行最新配置。')
 
     def definitions(self):
         with self.db.get_session() as session:
@@ -200,6 +244,7 @@ class SimulationPortfolioService:
         with self.db.session_scope() as session:
             if config.get('definitionId') is not None:
                 self._lock_definition(session, config['definitionId'])
+                self._check_revision(session, config)
             strategy = SimulationStrategyRecord(
                 name=f"{name} · {uuid.uuid4().hex[:8]}", description="每日价格规则组合；独立模拟账户"
             )
@@ -345,6 +390,8 @@ class SimulationPortfolioService:
             if row is None or row.status == "deleted":
                 raise LookupError("策略账户不存在")
             config = json.loads(row.config_json)
+            if action in {'start', 'run', 'pause'}:
+                self._check_revision(session, config)
             if action in {'start', 'run'} and config.get('engine') != 'agent':
                 raise ValueError('固定规则策略已下线，历史记录仅供查看。请新建 Agent + 策略 Skill。')
             if action == "start":

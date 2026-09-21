@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { portfoliosApi, type RuleConfig } from "../portfolios";
-const client = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
+const client = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn() }));
 vi.mock("../index", () => ({ default: client }));
 it("uses the versioned endpoint and strips server metadata when copying an account", async () => {
   client.get.mockResolvedValue({ data: { items: [] } });
@@ -72,4 +72,12 @@ it.each(["saveDefinition", "create"] as const)("%s sends the selected JEV backen
   const payload = client.post.mock.calls.at(-1)![1];
   expect(payload).toMatchObject({decisionBackend:"jev", jevWeightStep:0.1, jevTask:{question:"Range direction?",lookbackDays:7}});
   expect(payload).not.toHaveProperty("jevModel");
+});
+
+it("updates only writable settings with optimistic revision control", async () => {
+  client.put.mockResolvedValue({data:{id:7}});
+  await portfoliosApi.saveDefinition({name:"Changed",definitionRevision:3,mode:"paper",universe:{id:9},skillSnapshot:{name:"frozen"}} as RuleConfig,{id:7,revision:3});
+  expect(client.put).toHaveBeenCalledWith("/api/v1/simulation/portfolios/definitions/7",expect.objectContaining({name:"Changed",expectedRevision:3}));
+  const payload=client.put.mock.calls.at(-1)![1];
+  for (const field of ["definitionRevision","mode","universe","skillSnapshot"]) expect(payload).not.toHaveProperty(field);
 });

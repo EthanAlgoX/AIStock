@@ -5824,5 +5824,13 @@
   "停止并删除": "Stop and delete",
   "已停止运行，不再自动调用模型或更新估值，待执行计划已取消；历史记录和模拟持仓保留。": "Stopped. Automatic model calls and valuation updates are off, and pending plans are cancelled. History and simulated holdings are retained.",
   "删除后将停止该策略的所有回测和模拟，并从交易推演中移除策略及验证记录。历史账本保留供审计，界面无法恢复；已发出的模型请求可能仍会计费，但不会继续记账。": "Deleting stops all backtests and simulations for this strategy and removes it and its validations from Trade simulation. Historical ledgers remain for audit, but cannot be restored through the interface. Model requests already sent may still incur charges; their results will not update the ledger.",
-  "删除后将停止并移除此验证记录，不影响同策略的其他验证。历史账本保留供审计，界面无法恢复；已发出的模型请求可能仍会计费，但不会继续记账。": "Deleting stops and removes this validation without affecting other validations of the same strategy. Historical ledgers remain for audit, but cannot be restored through the interface. Model requests already sent may still incur charges; their results will not update the ledger."
+  "删除后将停止并移除此验证记录，不影响同策略的其他验证。历史账本保留供审计，界面无法恢复；已发出的模型请求可能仍会计费，但不会继续记账。": "Deleting stops and removes this validation without affecting other validations of the same strategy. Historical ledgers remain for audit, but cannot be restored through the interface. Model requests already sent may still incur charges; their results will not update the ledger.",
+  "修改配置": "Edit configuration",
+  "保存修改": "Save changes",
+  "请先暂停或停止运行，再修改配置。": "Pause or stop all active runs before editing the configuration.",
+  "策略配置已更新，请刷新后重新编辑。": "The configuration has changed. Refresh before editing again.",
+  "这是旧版配置的历史记录，请从策略页运行最新配置。": "This record uses an older configuration. Start the latest configuration from the strategy page.",
+  "正在修改已有策略。所有初始设置均可调整，请重新预览股票范围。保存后旧记录只供查看，新配置需手动启动，并按初始资金重新模拟。": "Editing an existing strategy. All initial settings can be changed; preview the stock universe again. Saving makes old records read-only. Start the new configuration manually to simulate again with its initial capital.",
+  "同一版配置共用最近的模拟账户，回测独立记账。修改配置后，下次运行创建新账户，旧持仓和历史保留。": "Runs with the same configuration revision share the latest paper account; backtests use separate ledgers. After editing, the next run creates a new account. Previous holdings and history are retained.",
+  "按已收盘日线产生观点，下一交易日开盘价加减滑点模拟成交。暂停或停止后可修改全部配置；保存修改后重新开始模拟，旧记录保留。保存后再选择回测或模拟。基准使用同市场指数 ETF 的价格表现，不含分红。请核对税费和每手股数。": "Opinions use closed daily bars; simulated fills use the next session’s opening price plus or minus slippage. Pause or stop to edit all settings. Saving changes restarts simulation with historical records retained. Choose backtesting or paper trading after saving. Benchmarks use same-market index ETF prices, excluding dividends. Check fees and lot sizes."
 }

@@ -35,6 +35,7 @@ export type JevTaskConfig = {
   lookbackDays?: number;
 };
 export type RuleConfig = {
+  definitionRevision?: number;
   jevTask?: JevTaskConfig;
   decisionBackend?: "llm" | "jev";
   jevWeightStep?: number;
@@ -183,7 +184,7 @@ export const portfoliosApi = {
   definitions: async () =>
     (await client.get<{ items: StrategyDefinition[] }>(`${root}/definitions`))
       .data.items,
-  saveDefinition: async (config: RuleConfig) => {
+  saveDefinition: async (config: RuleConfig, editing?: { id: number; revision: number }) => {
     const {
       name,
       template,
@@ -202,35 +203,36 @@ export const portfoliosApi = {
       gridMinRange,
       gridLevels,
     } = config;
-    return (
-      await client.post<StrategyDefinition>(`${root}/definitions`, {
-        engine: "agent",
-        decisionBackend: config.decisionBackend,
-        jevWeightStep: config.jevWeightStep,
-        jevTask: config.jevTask,
-        skillId: config.skillId,
-        systemPrompt: config.systemPrompt,
-        universePreviewId: config.universePreviewId,
-        scopeRefresh: config.scopeRefresh,
-        runTokenBudget: config.runTokenBudget,
-        name,
-        template,
-        market,
-        symbols,
-        initialCash,
-        maxPositions,
-        maxWeight,
-        lotSize,
-        commissionRate,
-        sellTaxRate,
-        slippageRate,
-        riskFreeRate,
-        gridLookbackDays,
-        gridMinVolumeRatio,
-        gridMinRange,
-        gridLevels,
-      })
-    ).data;
+    const data = {
+      engine: "agent",
+      decisionBackend: config.decisionBackend,
+      jevWeightStep: config.jevWeightStep,
+      jevTask: config.jevTask,
+      skillId: config.skillId,
+      systemPrompt: config.systemPrompt,
+      universePreviewId: config.universePreviewId,
+      scopeRefresh: config.scopeRefresh,
+      runTokenBudget: config.runTokenBudget,
+      name,
+      template,
+      market,
+      symbols,
+      initialCash,
+      maxPositions,
+      maxWeight,
+      lotSize,
+      commissionRate,
+      sellTaxRate,
+      slippageRate,
+      riskFreeRate,
+      gridLookbackDays,
+      gridMinVolumeRatio,
+      gridMinRange,
+      gridLevels,
+    };
+    return editing
+      ? (await client.put<StrategyDefinition>(`${root}/definitions/${editing.id}`, { ...data, expectedRevision: editing.revision })).data
+      : (await client.post<StrategyDefinition>(`${root}/definitions`, data)).data;
   },
   createValidation: async (id: number, options: ValidationOptions) =>
     (

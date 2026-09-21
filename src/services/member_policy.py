@@ -36,6 +36,8 @@ def member_api_allowed(path, method):
     if group == 'simulation':
         # Executable package intake, arbitrary strategy source editing and live
         # broker operations are administrative. Built-in versions remain readable.
+        if resource == 'portfolios' and method == 'PUT':
+            return len(parts) == 6 and parts[4] == 'definitions' and parts[5].isdigit()
         if resource == 'portfolios' and method == 'DELETE':
             return (len(parts) == 5 and parts[4].isdigit()) or (
                 len(parts) == 6 and parts[4] == 'definitions' and parts[5].isdigit()

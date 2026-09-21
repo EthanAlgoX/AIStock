@@ -39,6 +39,10 @@ class StrategyConfig(BaseModel):
     gridLevels: int = Field(default=5, ge=2, le=10)
 
 
+class StrategyUpdate(StrategyConfig):
+    expectedRevision: int = Field(ge=1)
+
+
 class PortfolioCreate(StrategyConfig):
     mode: Literal["paper", "backtest"] = "paper"
     startDate: str | None = None
@@ -128,6 +132,11 @@ def definitions():
 @router.post("/definitions")
 def save_definition(body: StrategyConfig):
     return call(SimulationPortfolioService().save_definition, body.model_dump())
+
+
+@router.put("/definitions/{definition_id}")
+def update_definition(definition_id: int, body: StrategyUpdate):
+    return call(SimulationPortfolioService().update_definition, definition_id, body.model_dump())
 
 
 @router.post("/definitions/{definition_id}/stop")

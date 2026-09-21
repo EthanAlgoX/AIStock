@@ -8,7 +8,7 @@ New trading strategies preselect the high-volume high-volatility grid Skill with
 
 High-volume high-volatility grid is a built-in Strategy Skill. The Agent receives frozen daily bars and grid parameters, and may form a grid target only when recent volume reaches its configured multiple of prior average volume and the recent high-low range reaches its volatility threshold; failed conditions require a zero target weight. Its lookback, volume multiple, price-range threshold, and grid count are configurable. Trades remain next-open simulation-ledger executions. This is an end-of-day grid, not intraday execution. Accounts accept 1–12 fixed symbols in one market (CN/CNY, US/USD, HK/HKD). CN supports 100-share lots only; users must verify HK lot sizes and configured costs.
 
-Historical tests support up to two years. Forward accounts start on their creation date in the market timezone. Both use the same engine, but keep separate accounts and observation periods. Saved configuration is immutable; copy it to change parameters or create the other validation mode. Matching configurations can be compared in account details.
+Historical tests support up to two years. Forward accounts start on their creation date in the market timezone. Both use the same engine, but keep separate accounts and observation periods. Pause or stop to edit all settings in place. Old ledgers remain unchanged; new revisions use a new paper account. Matching configurations can be compared in account details.
 
 Yesterday's intent executes at today's open with configured slippage, commission and sell-side tax. The close marks positions and generates tomorrow's rule views. The first day generates views only. Retained selections are held, removed selections sold, and new selections bought within cash, lot and entry-weight limits. Entry limits are not continuous weight caps after price changes. Rejected intents retain their reasons.
 
@@ -52,7 +52,7 @@ Top-level run-once and continuous actions resume the latest paper account for th
 
 ## Agent strategies and universes
 
-New strategies use an Agent with an enabled Skill, frozen instructions/digest and optional custom trading instructions. Save first, then launch once, continuously or as a historical validation. Clone to change instructions. The first actual model name is retained; a later name change halts validation.
+New strategies use an Agent with an enabled Skill, frozen instructions/digest and optional custom trading instructions. Save first, then launch once, continuously or as a historical validation. Pause and use Edit configuration to change instructions. The first actual model name is retained; a later name change halts validation.
 
 Scopes support explicit stocks, a private holdings account, or industry and 20-day volatility conditions. For custom scopes, an LLM selects from the frozen same-market candidate set using preset industries, natural-language constraints, and available market-value evidence. It may return only candidate-set codes; the service validates scope and count before freezing the list. Preview and confirm the interpreted criteria, source, timestamp and candidates before saving. Custom scopes filter at most 50 candidates from the existing screener; this is not complete market/industry coverage. Optional explicit stocks restrict that list by intersection. No match is an error, not a broader fallback. Holdings import symbols only, not real cash/costs. Snapshot/daily/weekly refresh is supported. Existing positions leaving the universe remain valued and may be reduced or exited, but not increased.
 
@@ -77,3 +77,12 @@ Use **Stop running** at the top of a saved strategy to stop all its backtests an
 New endpoints: `POST /api/v1/simulation/portfolios/definitions/{id}/stop`, `DELETE /api/v1/simulation/portfolios/definitions/{id}`, and `DELETE /api/v1/simulation/portfolios/{id}`. The existing `/control` also accepts `stop`. Accounts add `stopped` and `deleted` statuses; deleted records are excluded from lists, details, comparisons and scheduling. All endpoints use the authenticated user's private database.
 
 Startup adds a nullable `deleted_at` column to `simulation_portfolio_definitions` without rewriting existing data. Back up the database before deployment. Restore that backup when rolling back to an older application version: older versions do not recognize deletion markers and may redisplay removed strategies. Stopping does not liquidate simulated holdings or place broker orders.
+
+
+## Edit after pausing
+
+Pause or stop all active runs for the strategy, then choose **Edit configuration**. The complete creation form is prefilled: name, market, universe, Skill, LLM/JEV tasks and allocation step, capital, position limits, grid parameters, refresh frequency, Token budget and costs. Preview the universe again before saving. Cancelling leaves the saved configuration unchanged.
+
+Saving updates the same strategy and increments its configuration revision, cancelling old pending plans and execution leases. Previous holdings, trades, model calls and returns remain available as read-only history. Saving does not start execution. The next run creates a separate account using the new initial capital; subsequent runs of that revision reuse its latest paper account. Stale edits require a refresh instead of overwriting newer settings.
+
+`PUT /api/v1/simulation/portfolios/definitions/{id}` accepts the same writable fields as creation plus required `expectedRevision`. Responses include `config.definitionRevision`; existing records default to revision 1 without a schema migration. Active runs and non-paused execution leases block editing. Outstanding model calls may still incur costs, but cannot commit to the old ledger after saving. Rolling back to code without revision checks requires restoring the pre-release database backup to avoid resuming obsolete runs.

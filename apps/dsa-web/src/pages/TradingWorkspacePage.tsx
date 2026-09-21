@@ -101,6 +101,7 @@ export default function TradingWorkspacePage() {
   );
   const [sourceQuery, setSourceQuery] = useState("");
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<{id: number; revision: number} | null>(null);
   const [formRevision, setFormRevision] = useState(0);
   const [draft, setDraft] = useState<RuleConfig>(seed);
   const [symbols, setSymbols] = useState("");
@@ -177,6 +178,7 @@ export default function TradingWorkspacePage() {
       setSymbols('');
       setSourceQuery(source.draft.scope || '');
       setUniversePreview(null);
+      setEditing(null);
       setCreating(true);
     }).catch((e) => { if (active) setError(failure(e)); });
     return () => { active = false; };
@@ -204,6 +206,20 @@ export default function TradingWorkspacePage() {
   };
   const days = detail?.id === id ? detail.days || [] : [];
   const latest = days.at(-1);
+  const detailDefinition = definitions.find(d => d.id === detail?.definitionId);
+  const historical = !!detailDefinition && (detail?.config.definitionRevision ?? 1) !== (detailDefinition.config.definitionRevision ?? 1);
+  const editBlocked = !!definition && items.some(p => p.definitionId === definition.id &&
+    (p.status === 'running' || (p.busy && p.status !== 'paused')));
+  const openConfig = (config: RuleConfig, name: string) => {
+    setDraft({ ...seed, ...config, name });
+    setSymbols((config.universe?.scope.mode === 'custom' ? config.universe.scope.symbols : config.symbols).join(', '));
+    setSourceQuery('');
+    setUniversePreview(null);
+    setFormRevision(x => x + 1);
+    setError('');
+    setLaunch(null);
+    setCreating(true);
+  };
   const selected = days.find((d) => d.date === date) || latest;
   const change = <K extends keyof RuleConfig>(key: K, value: RuleConfig[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
@@ -221,7 +237,7 @@ export default function TradingWorkspacePage() {
     }
     setSending(true);
     try {
-      const p = await portfoliosApi.saveDefinition({
+      const config: RuleConfig = {
         ...draft,
         symbols: codes,
         market:
@@ -233,7 +249,10 @@ export default function TradingWorkspacePage() {
               : 100
             : poolLot,
         universePreviewId: universePreview?.id,
-      });
+      };
+      const p = editing
+        ? await portfoliosApi.saveDefinition(config, editing)
+        : await portfoliosApi.saveDefinition(config);
       setParams({ strategy: String(p.id) });
       setCreating(false);
       setLaunch(null);
@@ -304,6 +323,7 @@ export default function TradingWorkspacePage() {
               setSourceQuery('');
               setError('');
               setLaunch(null);
+              setEditing(null);
               setCreating(true);
               setDraft({ ...seed, engine: "agent" });
               setSymbols("");
@@ -331,6 +351,7 @@ export default function TradingWorkspacePage() {
               <UiLiteral text={"取消"} /></button>
           </div>
           <form onSubmit={submit} className="max-w-4xl space-y-6">
+            {editing && <p role="status" className="rounded-lg border border-border p-3 text-sm text-secondary-text"><UiLiteral text="正在修改已有策略。所有初始设置均可调整，请重新预览股票范围。保存后旧记录只供查看，新配置需手动启动，并按初始资金重新模拟。" /></p>}
             {sourceSession && <p role="status" className="rounded-lg border border-border p-3 text-sm text-secondary-text"><UiLiteral text={"已从投研助理载入 Skill、名称和范围描述。请核对市场、行业、资金及风险参数；表单默认值尚未由对话确认。预览范围并保存后，可选择运行一次或持续模拟。"} /></p>}
             <div className="grid gap-4 sm:grid-cols-2">
               <label>
@@ -501,9 +522,9 @@ export default function TradingWorkspacePage() {
               </div>
             </details>
             <p className="text-sm leading-6 text-secondary-text">
-              <UiLiteral text={"按已收盘日线产生观点，下一交易日开盘价加减滑点模拟成交。规则保存后固定；修改规则请复制策略。保存后再选择回测或模拟。基准使用同市场指数 ETF 的价格表现，不含分红。请核对税费和每手股数。"} /></p>
+              <UiLiteral text={"按已收盘日线产生观点，下一交易日开盘价加减滑点模拟成交。暂停或停止后可修改全部配置；保存修改后重新开始模拟，旧记录保留。保存后再选择回测或模拟。基准使用同市场指数 ETF 的价格表现，不含分红。请核对税费和每手股数。"} /></p>
             <button disabled={sending} className="btn-primary">
-              {sending ? uiLiteral("保存中…") : uiLiteral("保存策略")}
+              {sending ? uiLiteral("保存中…") : uiLiteral(editing ? "保存修改" : "保存策略")}
             </button>
           </form>
         </section>
@@ -560,6 +581,10 @@ export default function TradingWorkspacePage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h2 className="min-w-0 break-words text-xl font-semibold">{definition.name}</h2>
                   <div className="flex flex-wrap gap-2">
+                    {definition.config.engine === 'agent' && <button className="btn-secondary" disabled={sending || editBlocked} onClick={() => {
+                      setEditing({id: definition.id, revision: definition.config.definitionRevision ?? 1});
+                      openConfig({ ...seed, ...definition.config }, definition.name);
+                    }}><UiLiteral text="修改配置" /></button>}
                     <button className="btn-secondary" disabled={sending || !items.some(p => p.definitionId === definition.id && (p.busy || ['running', 'paused'].includes(p.status)))} onClick={() => void stopDefinition(definition.id)}>
                       <UiLiteral text="停止运行" />
                     </button>
@@ -568,6 +593,7 @@ export default function TradingWorkspacePage() {
                     </button>
                   </div>
                 </div>
+                {editBlocked && <p className="mt-3 text-sm text-secondary-text"><UiLiteral text="请先暂停或停止运行，再修改配置。" /></p>}
                 {items.some(p => p.definitionId === definition.id && p.status === 'stopped') && !items.some(p => p.definitionId === definition.id && (p.busy || ['running', 'paused'].includes(p.status))) &&
                   <p role="status" className="mt-3 text-sm text-secondary-text"><UiLiteral text="已停止运行，不再自动调用模型或更新估值，待执行计划已取消；历史记录和模拟持仓保留。" /></p>}
                 <p className="mt-2 text-sm text-secondary-text">
@@ -578,7 +604,7 @@ export default function TradingWorkspacePage() {
                   {definition.config.market} · {definition.config.decisionBackend === "jev" ? `JEV · ${definition.config.jevModel || ""}` : "LLM"}
                 </p>
                 <p className="mt-2 text-sm text-secondary-text">
-                  <UiLiteral text={"策略已保存。回测独立记账；运行一次和持续模拟共用最近的模拟账户，不会重置已有持仓。"} /></p>
+                  <UiLiteral text={"同一版配置共用最近的模拟账户，回测独立记账。修改配置后，下次运行创建新账户，旧持仓和历史保留。"} /></p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {definition.config.engine === "agent" ? <>
                   {(
@@ -596,6 +622,7 @@ export default function TradingWorkspacePage() {
                         const paper = items.find(
                           (p) =>
                             p.definitionId === definition.id &&
+                            (p.config.definitionRevision ?? 1) === (definition.config.definitionRevision ?? 1) &&
                             p.mode === "paper",
                         );
                         if (action !== "backtest" && paper) {
@@ -615,18 +642,8 @@ export default function TradingWorkspacePage() {
                   <button
                     className="btn-secondary"
                     onClick={() => {
-                      setDraft({
-                        ...seed,
-                        name: `${definition.name} · 新版本`,
-                        decisionBackend: definition.config.decisionBackend,
-                        jevWeightStep: definition.config.jevWeightStep,
-                        skillId: definition.config.skillId,
-                        systemPrompt: definition.config.systemPrompt,
-                        market: definition.config.market,
-                        symbols: definition.config.symbols,
-                      });
-                      setSymbols(definition.config.symbols.join("、"));
-                      setCreating(true);
+                      setEditing(null);
+                      openConfig({ ...seed, ...definition.config }, `${definition.name} · 新版本`);
                     }}
                   >
                     <UiLiteral text={"复制策略"} /></button>
@@ -819,7 +836,7 @@ export default function TradingWorkspacePage() {
                     </button>
                     {detail.config.engine === "agent" && <button
                       className="btn-secondary"
-                      disabled={sending || detail.busy}
+                      disabled={sending || detail.busy || historical}
                       onClick={() => void control("run")}
                     >
                       {detail.mode === "backtest" ? uiLiteral("运行回测") : uiLiteral("继续运行一次")}
@@ -827,7 +844,7 @@ export default function TradingWorkspacePage() {
                     {detail.config.engine === "agent" && detail.mode === "paper" && (
                       <button
                         className="btn-primary"
-                        disabled={sending}
+                        disabled={sending || historical}
                         onClick={() =>
                           void control(
                             detail.status === "running" ? "pause" : "start",
@@ -840,23 +857,14 @@ export default function TradingWorkspacePage() {
                       <button
                         className="btn-secondary"
                         onClick={() => {
-                          setDraft({
-                          ...seed,
-                          name: `${detail.name} · 新版本`,
-                          decisionBackend: detail.config.decisionBackend,
-                          jevWeightStep: detail.config.jevWeightStep,
-                          skillId: detail.config.skillId,
-                          systemPrompt: detail.config.systemPrompt,
-                          market: detail.config.market as RuleConfig["market"],
-                          symbols: detail.config.symbols,
-                          });
-                        setSymbols(detail.config.symbols.join(", "));
-                        setCreating(true);
+                        setEditing(null);
+                        openConfig(detail.config, `${detail.name} · 新版本`);
                       }}
                     >
                       <UiLiteral text={"复制配置"} /></button>
                   </div>
                 </div>
+                {historical && <p role="status" className="mb-4 text-sm text-secondary-text"><UiLiteral text="这是旧版配置的历史记录，请从策略页运行最新配置。" /></p>}
                 {!!detail.agentCalls?.length && <details className="mb-5 border-y border-border py-4"><summary className="cursor-pointer"><UiLiteral text={"Agent 调用记录（含未成交和失败，最近20次）"} /></summary>{detail.agentCalls.map(c=><details key={c.id} className="mt-3"><summary className="cursor-pointer text-sm">{c.createdAt} · {c.model} · {c.usage.total_tokens ?? "未知"} Token · {c.status === "rejected" ? uiLiteral("计划未通过校验") : c.status === "failed" ? uiLiteral("调用失败") : uiLiteral("已收到回答，成交见账本")}</summary>{c.error && <p className="mt-2 text-sm text-danger">{c.error}</p>}<pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{c.answer}</pre><details><summary className="cursor-pointer text-xs"><UiLiteral text={"本次输入与 Prompt"} /></summary><pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(c.input,null,2)}</pre></details></details>)}</details>}
                 {detail.error && (
                   <p
@@ -1254,7 +1262,7 @@ export default function TradingWorkspacePage() {
                   <UiLiteral text={"先保存策略，再选择历史回测、运行一次或持续模拟，分别积累验证记录。"} /></p>
                 <button
                   className="btn-primary mt-5"
-                  onClick={() => { setDraft({ ...seed, engine: "agent" }); setCreating(true); }}
+                  onClick={() => { setDraft({ ...seed, engine: "agent" }); setEditing(null); setCreating(true); }}
                 >
                   <UiLiteral text={"创建新策略"} /></button>
               </div>
