@@ -1,6 +1,6 @@
 import { useUiLiteral } from '../../hooks/useUiLiteral';
 import { UiLiteral } from '../i18n/UiLiteral';
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   portfoliosApi,
   type AgentOptions,
@@ -34,6 +34,7 @@ export function TradingAgentConfig({
   onPreview: (preview: UniversePreview | null) => void;
 }) {
   const uiLiteral = useUiLiteral();
+  const helpId = useId();
   const [options, setOptions] = useState<AgentOptions | null>(null);
   const [scope, setScope] = useState<UniverseScope>(
     config.universe?.scope || {
@@ -337,36 +338,51 @@ export function TradingAgentConfig({
           )}
           <fieldset className="space-y-4">
             <legend className="font-medium"><UiLiteral text="JEV 判断任务与输入" /></legend>
-            <p className="text-xs leading-6 text-secondary-text"><UiLiteral text="留空沿用默认判断。自定义内容随策略冻结；三类仍按最高概率选择，不设置置信度门槛。" /></p>
+            <p className="text-sm leading-6 text-secondary-text"><UiLiteral text="文字项均为选填，留空即可按默认规则运行；也可以只修改其中一项。" /></p>
+            <button type="button" className="text-sm text-primary underline underline-offset-4"
+              onClick={() => onConfig({ jevTask: {}, jevWeightStep: 0.05 })}>
+              <UiLiteral text="恢复 JEV 默认设置" />
+            </button>
             <label className="block text-sm"><UiLiteral text="判断问题" />
               <textarea className={input} rows={3} maxLength={4000} value={config.jevTask?.question || ""}
+                aria-describedby={`${helpId}-question`}
+                placeholder={uiLiteral("默认：根据当前 Skill、行情与模拟持仓，判断该股票应买入、卖出还是不动；证据不足时不动。")}
                 onChange={(e) => onConfig({ jevTask: { ...config.jevTask, question: e.target.value } })} />
             </label>
-            {([['buy', '买入判定条件'], ['sell', '卖出判定条件'], ['hold', '不动判定条件']] as const).map(([key, label]) => (
+            <p id={`${helpId}-question`} className="text-xs leading-6 text-secondary-text"><UiLiteral text="留空使用默认问题；填写后补充你的判断重点，不覆盖系统规则。" /></p>
+            <p id={`${helpId}-criteria`} className="text-xs leading-6 text-secondary-text"><UiLiteral text="以下条件均可留空。默认按所选 Skill 判断方向，买卖各调整一档。" /></p>
+            {([
+              ['buy', '买入判定条件', '默认：策略支持增加该股票仓位时买入，每次增加一档。'],
+              ['sell', '卖出判定条件', '默认：策略支持降低该股票仓位时卖出，每次减少一档。'],
+              ['hold', '不动判定条件', '默认：保持当前持仓不变；未持有则继续空仓。'],
+            ] as const).map(([key, label, hint]) => (
               <label key={key} className="block text-sm">{uiLiteral(label)}
                 <textarea className={input} rows={2} maxLength={2000} value={config.jevTask?.criteria?.[key] || ""}
+                  aria-describedby={`${helpId}-criteria`} placeholder={uiLiteral(hint)}
                   onChange={(e) => onConfig({ jevTask: { ...config.jevTask, criteria: { ...config.jevTask?.criteria, [key]: e.target.value } } })} />
               </label>
             ))}
             <label className="block text-sm"><UiLiteral text="行情观察天数" />
               <input className={input} type="number" min={3} max={21} step={1}
-                value={config.jevTask?.lookbackDays ?? 21}
-                onChange={(e) => onConfig({ jevTask: { ...config.jevTask, lookbackDays: Number(e.target.value) } })} />
+                value={config.jevTask?.lookbackDays ?? 21} aria-describedby={`${helpId}-lookback`}
+                onChange={(e) => onConfig({ jevTask: { ...config.jevTask, lookbackDays: e.target.value === "" ? undefined : Number(e.target.value) } })} />
             </label>
-            <p className="text-xs leading-6 text-secondary-text"><UiLiteral text="输入最近 3–21 个交易日的可用日线，不能少于网格观察周期。现金、持仓、决策日期与账户约束由系统提供。" /></p>
+            <p id={`${helpId}-lookback`} className="text-xs leading-6 text-secondary-text"><UiLiteral text="默认使用最近 21 个交易日，可调整为 3–21 天，且不能少于网格观察周期。行情、现金和持仓由系统提供。" /></p>
             <label className="block text-sm"><UiLiteral text="补充背景材料" />
               <textarea className={input} rows={3} maxLength={6000} value={config.jevTask?.background || ""}
+                aria-describedby={`${helpId}-background`}
+                placeholder={uiLiteral("例如：偏好低换手，优先控制仓位；已有持仓分批调整。没有补充要求可留空。")}
                 onChange={(e) => onConfig({ jevTask: { ...config.jevTask, background: e.target.value } })} />
             </label>
-            <p className="text-xs leading-6 text-secondary-text"><UiLiteral text="背景作为独立材料传入，不覆盖行情或账户数据。它不会每日自动更新；请勿填入密钥，历史回放请勿加入未来信息。" /></p>
+            <p id={`${helpId}-background`} className="text-xs leading-6 text-secondary-text"><UiLiteral text="选填。留空不添加额外背景，仅使用 Skill 与系统数据。填写内容会固定保存，不会每日更新；历史回放请勿加入未来信息。" /></p>
           </fieldset>
           <label className="block text-sm">
             <UiLiteral text="每次调仓比例（账户权益 %）" />
             <input className={input} type="number" min={0.1} max={100} step={0.1}
-              value={Number(((config.jevWeightStep ?? 0.05) * 100).toFixed(4))}
-              onChange={(e) => onConfig({ jevWeightStep: Number(e.target.value) / 100 })} />
+              value={Number(((config.jevWeightStep ?? 0.05) * 100).toFixed(4))} aria-describedby={`${helpId}-step`}
+              onChange={(e) => onConfig({ jevWeightStep: e.target.value === "" ? undefined : Number(e.target.value) / 100 })} />
           </label>
-          <p className="text-xs text-secondary-text"><UiLiteral text="买入增加一档，卖出减少一档，不动保留股数。资金和持仓上限可能缩小或阻止调仓；概率不代表仓位比例。" /></p>
+          <p id={`${helpId}-step`} className="text-xs leading-6 text-secondary-text"><UiLiteral text="默认每档为账户权益的 5%，买入增加一档，卖出减少一档；实际调仓仍受可用资金和持仓上限约束。" /></p>
         </div>
       )}
       <label className="block">
@@ -426,12 +442,15 @@ export function TradingAgentConfig({
             rows={5}
             maxLength={6000}
             value={config.systemPrompt || ""}
+            aria-describedby={`${helpId}-instructions`}
             onChange={(e) => onConfig({ systemPrompt: e.target.value })}
             placeholder={uiLiteral("例如优先控制换手；证据不足时维持现有仓位")}
           />
         </label>
-        <p className="mt-2 text-xs text-secondary-text">
-          {config.decisionBackend !== "jev" && options?.defaultPrompt}
+        <p id={`${helpId}-instructions`} className="mt-2 text-xs text-secondary-text">
+          {config.decisionBackend === "jev"
+            ? uiLiteral("选填。留空使用所选 Skill 和系统交易规则，无需自行编写提示词。")
+            : options?.defaultPrompt}
         </p>
       </details>
     </div>

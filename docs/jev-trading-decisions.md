@@ -28,6 +28,14 @@ Select JEV in Trade simulation to configure **JEV decision task & inputs**. Thes
 
 在交易推演中选择 JEV 后，配置 **JEV 判断任务与输入**。配置属于当前策略，不是全局模型连接设置；以 `jevTask` 保存，复制策略时保留，手动、每日运行及历史回放共用。旧策略不配置时沿用默认行为。
 
+For a quick start, leave all task text fields and the advanced custom trading instructions empty. The default task uses the selected Skill, market data and simulated holdings to choose buy/sell/hold, with hold when evidence is missing. Inputs display localized defaults or examples without saving those hints as custom instructions. History defaults to 21 trading days and each allocation step to 5% of account equity; clearing either numeric input restores its default. You still need model credentials, a Skill and a confirmed stock universe.
+
+快速上手时，判断问题、三类条件、补充背景以及高级设置中的自定义交易指令都可留空。默认根据所选 Skill、行情和模拟持仓判断买入／卖出／不动，证据不足时不动。输入框显示对应语言的默认说明或示例，提示内容不会自动保存为自定义指令。观察周期默认 21 个交易日，每次调仓默认账户权益的 5%；清空数字输入会恢复默认值。仍需配置模型密钥、选择 Skill 并确认股票范围。
+
+**Restore JEV defaults** clears the task question, criteria and background, and restores 21 days / 5%. It preserves the Skill, stock universe and separate advanced custom trading instructions. Changes take effect when the strategy is saved.
+
+**恢复 JEV 默认设置**会清空判断问题、三类条件和补充背景，并恢复 21 天／5%；保留所选 Skill、股票范围和高级设置中的独立自定义交易指令。保存策略后生效。
+
 | Field / 字段 | Meaning / 含义 |
 | --- | --- |
 | `question` | Additional judgment question, up to 4,000 characters / 补充判断问题，最多 4,000 字符 |

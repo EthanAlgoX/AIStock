@@ -5803,5 +5803,18 @@
   "平台数据依赖": "Platform data dependencies",
   "策略版本 #{0}": "Strategy version #{0}",
   "问股会话": "Stock research conversation",
-  "{0} 行情未更新至 {1} 或包含重复日期，请稍后重试": "Market data for {0} is not updated through {1} or contains duplicate dates. Please retry later."
+  "{0} 行情未更新至 {1} 或包含重复日期，请稍后重试": "Market data for {0} is not updated through {1} or contains duplicate dates. Please retry later.",
+  "文字项均为选填，留空即可按默认规则运行；也可以只修改其中一项。": "All text fields are optional. Leave them blank to use the defaults, or customize only what you need.",
+  "恢复 JEV 默认设置": "Restore JEV defaults",
+  "默认：根据当前 Skill、行情与模拟持仓，判断该股票应买入、卖出还是不动；证据不足时不动。": "Default: use the selected Skill, market data and simulated holdings to choose buy, sell or hold. Hold when evidence is insufficient.",
+  "留空使用默认问题；填写后补充你的判断重点，不覆盖系统规则。": "Leave blank for the default question. Your text adds a focus without replacing system rules.",
+  "以下条件均可留空。默认按所选 Skill 判断方向，买卖各调整一档。": "These conditions are optional. By default, the selected Skill determines direction, with one allocation step per buy or sell.",
+  "默认：策略支持增加该股票仓位时买入，每次增加一档。": "Default: buy when the strategy supports increasing this holding, one allocation step at a time.",
+  "默认：策略支持降低该股票仓位时卖出，每次减少一档。": "Default: sell when the strategy supports reducing this holding, one allocation step at a time.",
+  "默认：保持当前持仓不变；未持有则继续空仓。": "Default: keep current holdings unchanged; stay out if no shares are held.",
+  "默认使用最近 21 个交易日，可调整为 3–21 天，且不能少于网格观察周期。行情、现金和持仓由系统提供。": "Defaults to the last 21 trading days. Choose 3–21 days, covering at least the grid lookback. Market data, cash and holdings are supplied automatically.",
+  "例如：偏好低换手，优先控制仓位；已有持仓分批调整。没有补充要求可留空。": "Example: prefer low turnover, prioritize position limits and adjust existing holdings gradually. Leave blank if no extra context is needed.",
+  "选填。留空不添加额外背景，仅使用 Skill 与系统数据。填写内容会固定保存，不会每日更新；历史回放请勿加入未来信息。": "Optional. Blank means no extra background; only the Skill and system data are used. Saved text does not update daily. Do not add future information to historical replays.",
+  "默认每档为账户权益的 5%，买入增加一档，卖出减少一档；实际调仓仍受可用资金和持仓上限约束。": "Each step defaults to 5% of account equity: buy adds one step and sell removes one. Available cash and position limits still constrain the actual adjustment.",
+  "选填。留空使用所选 Skill 和系统交易规则，无需自行编写提示词。": "Optional. Leave blank to use the selected Skill and system trading rules; no custom prompt is required."
 }

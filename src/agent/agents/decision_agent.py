@@ -134,6 +134,8 @@ should sum to 100; all-zero means no effective signal and must not be faked.
 ``strongest_bullish_signal`` is the name of the strongest bullish signal (e.g., MACD golden cross, earnings surprise, low valuation).
 ``strongest_bearish_signal`` is the name of the strongest bearish signal (e.g., MA death cross, earnings warning, high valuation).
 """
+        from src.report_quality import REPORT_EVIDENCE_RULES
+        prompt += REPORT_EVIDENCE_RULES
         if report_language == "en":
             return prompt + """
 

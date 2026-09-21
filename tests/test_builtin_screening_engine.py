@@ -507,7 +507,7 @@ def test_default_scorecard_scores_full_pool_before_seeded_rotation(monkeypatch) 
     }
 
     assert all(statuses == ["completed"] * 5 for statuses in observed_statuses)
-    assert len(variants) >= 2
+    assert len(variants) == 1
 
 
 def test_dsa_provider_context_respects_host_max_candidates_setting() -> None:

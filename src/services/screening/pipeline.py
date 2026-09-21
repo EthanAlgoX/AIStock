@@ -6,7 +6,6 @@
 import copy
 import logging
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -515,10 +514,8 @@ def screen(
         picks,
         max_output=output_count,
         seed=selection_seed,
-        period=(
-            f"{datetime.now(timezone.utc).date().isoformat()}"
-            f":{market}:{strategy}:{run_id}"
-        ),
+        # Run IDs identify executions; they must not change a replay's selection.
+        period=f"{market}:{strategy}:{strat.version}",
         analyzer_names=analyzer_names,
     )
     picks = selection_variant.picks

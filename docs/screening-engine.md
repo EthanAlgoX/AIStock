@@ -48,7 +48,7 @@ SCREENING_EASTMONEY_JITTER_SEC=0.3
 | `/api/v1/screening/strategies` | GET | 返回选股策略 |
 | `/api/v1/screening/hotspots` | GET | 读取缓存或显式刷新热点题材 |
 | `/api/v1/screening/hotspots/{topic}` | GET | 返回题材路线、成分股与核心股；`include_search=true` 时按需搜索近期消息 |
-| `/api/v1/screening/screen` | POST | 同步执行选股；可传匿名 `variant_seed` 在每次运行中生成有界的近分候选组合 |
+| `/api/v1/screening/screen` | POST | 同步执行选股；默认严格排名；显式传 `variant_seed` 才生成可复现的近分候选组合 |
 | `/api/v1/screening/screen/tasks` | POST | 提交后台选股任务；请求字段与同步接口一致 |
 | `/api/v1/screening/screen/tasks/{task_id}` | GET | 查询任务进度、错误或最终结果 |
 | `/api/v1/screening/history` | GET | 按策略、市场查询最近完成的选股运行摘要 |
@@ -85,7 +85,7 @@ SCREENING_EASTMONEY_JITTER_SEC=0.3
 
 ## 结果轮换
 
-Web 会在浏览器本地生成一个不含用户信息的匿名种子，并随同步或后台选股请求传入 `variant_seed`。如果 Web Storage 不可读写，则在当前页面会话的模块内存中复用同一个临时种子，保证同步和后台任务入口一致。服务端将匿名种子与本次运行 ID、市场和策略共同作为扰动输入：不同浏览器以及同一浏览器的不同运行，都可能在质量接近的候选中看到不同股票。
+Web 同步、后台选股及已发布策略批次默认不启用轮换，返回严格 Top-N。API 调用方可显式传入 `variant_seed` 探索近分候选；相同候选输入顺序、最终分数、策略版本和 seed 会产生相同的选择，不再混入随机运行 ID 或当前日期。行情、模型响应或策略版本变化仍可能改变结果，因此复现实验需要同时固定这些输入。
 
 扰动不是随机改分，也不会绕过策略：硬过滤、风险否决、因子/LLM 得分、最终评分和组合集中度惩罚全部先执行。默认本地评分覆盖完整短名单；启用有数量上限的远程后置分析时，只有完成相同分析的候选才可参与轮换。分析器产出的候选顺序是轮换输入的权威顺序，并列分不会再按股票代码重新排序；原 Top-N 的前半部分和明显高于截止分的候选始终受保护，只有后半部分名额可从不低于原截止分 1.5 分的近分池中抽取，入选候选继续保持该输入相对顺序。种子不写入选股结果或运行历史。未传 `variant_seed` 或将轮换比例设为 0 时返回严格输入 Top-N，保持脚本与旧客户端兼容。
 
@@ -165,3 +165,10 @@ AlphaSift 是参考来源，不是自动同步源。更新时应：
 - 业务回滚：设置 `SCREENING_ENABLED=false` 并重启；普通个股分析、报告、通知和问股不受影响。
 - 代码回滚：revert 引入选股引擎的提交并重建后端、Docker 与桌面产物。
 - 数据回滚：如需保留选股缓存和运行历史，先备份 `data/screening/` 与 DSA 数据库；代码回滚不会主动删除 `screening_runs` 用户数据。
+
+
+## 数据覆盖与研究质量
+
+`risk_level=unknown` 表示已知因子扣分较低，但日线质量、LLM 风险信息或行业分类存在缺失，不能视为低风险。已知中高风险仍保留原等级，并通过 `risk_coverage_incomplete:*` 标记未覆盖项；此变更不额外扣分、不改变风险否决阈值。
+
+LLM 排序失败仍保留 `ranking_mode=factor`、`llm_ranked=false`、`llm_failure_reason` 和 warnings；不能把因子降级结果描述为 AI 排序成功。单股报告的价位校验及历史日期边界见 [研究输出质量](research-quality.md)。

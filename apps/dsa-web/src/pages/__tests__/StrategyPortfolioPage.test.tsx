@@ -375,3 +375,50 @@ it("defaults new strategies to the grid skill and restores it when starting a fr
   expect(api.saveDefinition).not.toHaveBeenCalled();
   expect(api.createValidation).not.toHaveBeenCalled();
 });
+
+it('explains empty JEV fields and restores only JEV task defaults', async () => {
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: '配置策略' }));
+  await screen.findByRole('option', { name: '价格策略' });
+  fireEvent.change(screen.getByLabelText('策略 Skill'), { target: { value: 'price' } });
+  fireEvent.change(screen.getByLabelText('交易决策模型'), { target: { value: 'jev' } });
+  const labels = ['判断问题', '买入判定条件', '卖出判定条件', '不动判定条件', '补充背景材料'];
+  for (const label of labels) {
+    const field = screen.getByLabelText(label);
+    expect(field).toHaveValue('');
+    expect(field).not.toBeRequired();
+    expect(field.getAttribute('placeholder')).toBeTruthy();
+    expect(field).toHaveAccessibleDescription();
+    fireEvent.change(field, { target: { value: '自定义内容' } });
+  }
+  const days = screen.getByLabelText('行情观察天数');
+  const step = screen.getByLabelText('每次调仓比例（账户权益 %）');
+  expect(days).toHaveValue(21);
+  expect(step).toHaveValue(5);
+  fireEvent.change(days, { target: { value: '7' } });
+  fireEvent.change(step, { target: { value: '10' } });
+  fireEvent.change(days, { target: { value: '' } });
+  fireEvent.change(step, { target: { value: '' } });
+  expect(days).toHaveValue(21);
+  expect(step).toHaveValue(5);
+  fireEvent.change(days, { target: { value: '7' } });
+  fireEvent.change(step, { target: { value: '10' } });
+  fireEvent.change(screen.getByLabelText('自定义交易指令'), { target: { value: '保留指令' } });
+  fireEvent.click(screen.getByRole('button', { name: '恢复 JEV 默认设置' }));
+  for (const label of labels) expect(screen.getByLabelText(label)).toHaveValue('');
+  expect(days).toHaveValue(21);
+  expect(step).toHaveValue(5);
+  expect(screen.getByLabelText('策略 Skill')).toHaveValue('price');
+  expect(screen.getByLabelText('自定义交易指令')).toHaveValue('保留指令');
+  fireEvent.change(screen.getByLabelText('自定义交易指令'), { target: { value: '' } });
+  api.previewUniverse.mockResolvedValue({id:11,market:'US',candidates:[{code:'NVDA'}],scope:{mode:'fixed',symbols:['NVDA']},source:'fixture'});
+  api.saveDefinition.mockResolvedValue({id:4,name:'默认 JEV',config});
+  fireEvent.change(screen.getByLabelText('策略名称'), { target: { value: '默认 JEV' } });
+  fireEvent.change(screen.getByLabelText('股票池（可选，名称或代码，最多 12 只）'), { target: { value: 'NVDA' } });
+  fireEvent.click(screen.getByRole('button', { name: '预览股票范围' }));
+  await screen.findByLabelText('范围预览');
+  fireEvent.click(screen.getByRole('button', { name: '保存策略' }));
+  await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({
+    decisionBackend:'jev', jevTask:{}, jevWeightStep:0.05, systemPrompt:'', skillId:'price',
+  })));
+});

@@ -69,6 +69,19 @@ def apply_risk_overlay(
         pick.risk_penalty = round(penalty, 4)
         pick.risk_score = round(0.0 if max_penalty == 0 else min(points / max_penalty * 100, 100), 4)
         pick.risk_level = _risk_level(points, max_penalty)
+        # A low penalty only describes observed factors, not unobserved risks.
+        missing = []
+        if pick.daily_quality_score is None:
+            missing.append("daily")
+        if pick.llm_confidence is None:
+            missing.append("llm")
+        if not (pick.industry or pick.llm_sector):
+            missing.append("industry")
+        if missing:
+            flags.append("risk_coverage_incomplete:" + ",".join(missing))
+            if pick.risk_level == "low":
+                pick.risk_level = "unknown"
+
         pick.risk_flags = _unique([*pick.risk_flags, *flags])
         pick.final_score = round(float(pick.final_score) - penalty, 4)
         pick.excluded_by_risk = veto_high_risk and pick.risk_level == "high"

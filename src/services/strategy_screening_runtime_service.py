@@ -57,7 +57,7 @@ class StrategyScreeningRuntimeService:
             else:
                 screening = screener.screen(
                     strategy=policy["strategy"], market=policy["market"], max_results=policy["maxCandidates"],
-                    selection_seed=f"published-strategy-batch-{batch_id}",
+                    selection_seed="",
                     data_source_config=policy["dataSourceConfig"],
                 )
             self._ensure_active(batch_id)

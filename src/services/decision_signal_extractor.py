@@ -20,7 +20,7 @@ from src.schemas.decision_scale import (
 )
 from src.services.decision_signal_service import DecisionSignalService
 from src.services.portfolio_service import VALID_MARKETS
-from src.utils.sniper_points import extract_sniper_points
+from src.utils.sniper_points import extract_sniper_points, normalize_trade_plan
 
 
 logger = logging.getLogger(__name__)
@@ -58,6 +58,7 @@ def build_decision_signal_payload_from_report(
     if profile_source not in _PROFILE_SOURCES:
         raise ValueError(f"invalid profile_source: {profile_source}")
 
+    normalize_trade_plan(result)
     dashboard = _as_mapping(getattr(result, "dashboard", None))
     score_calibration = _as_mapping(dashboard.get("decision_score_calibration"))
     score = _effective_signal_score(

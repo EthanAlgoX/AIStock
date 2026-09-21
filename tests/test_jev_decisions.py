@@ -299,3 +299,18 @@ def test_custom_history_must_cover_grid_window(workspace, jev_config):
         JevDecisionService(jev_config).evaluate(workspace.db, payload, 'Skill', 'jev-latest',
                                                100000, 'test', None, customization={'lookbackDays': 5})
     post.assert_not_called()
+
+
+@pytest.mark.parametrize('customization', [
+    {}, {'question': '', 'criteria': {'buy': '', 'sell': '', 'hold': ''}, 'background': ''},
+    {'question': '  ', 'criteria': {'buy': '  ', 'sell': '\n', 'hold': '\t'}, 'background': '  '},
+])
+def test_blank_task_uses_same_request_as_default(workspace, jev_config, customization):
+    service = JevDecisionService(jev_config)
+    with patch('requests.post', return_value=http_result(response())) as post:
+        service.evaluate(workspace.db, inputs(), 'Skill', 'jev-latest', 100000, 'test', None)
+        default_request = post.call_args.kwargs['json']
+        service.evaluate(workspace.db, inputs(), 'Skill', 'jev-latest', 100000, 'test', None,
+                         customization=customization)
+        assert post.call_args.kwargs['json'] == default_request
+    assert 'strategyBackground' not in default_request['state']

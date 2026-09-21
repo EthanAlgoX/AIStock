@@ -269,7 +269,7 @@ describe('screeningApi', () => {
 
     expect(post).toHaveBeenCalledWith(
       '/api/v1/screening/screen',
-      { market: 'cn', strategy: 'dual_low', max_results: 3, variant_seed: 'browser-seed' },
+      { market: 'cn', strategy: 'dual_low', max_results: 3, variant_seed: '' },
       { timeout: 180000 }
     );
   });
@@ -291,7 +291,7 @@ describe('screeningApi', () => {
 
     expect(post).toHaveBeenCalledWith(
       '/api/v1/screening/screen/tasks',
-      { market: 'cn', strategy: 'dual_low', max_results: 3, variant_seed: 'browser-seed' }
+      { market: 'cn', strategy: 'dual_low', max_results: 3, variant_seed: '' }
     );
     expect(result.taskId).toBe('screen-task-1');
     expect(result.maxResults).toBe(3);
@@ -312,6 +312,14 @@ describe('screeningApi', () => {
       '/api/v1/screening/screen/tasks',
       expect.objectContaining({ strategy_version_id: 120 }),
     );
+  });
+
+  it('only rotates when a caller explicitly supplies a seed', async () => {
+    post.mockResolvedValue({ data: { enabled: true, candidates: [] } });
+    await screeningApi.screen({ market: 'cn', strategy: 'dual_low', maxResults: 3, variantSeed: 'replay' });
+    await screeningApi.startScreen({ market: 'cn', strategy: 'dual_low', maxResults: 3, variantSeed: 'replay' });
+    expect(post.mock.calls[0]?.[1]).toMatchObject({ variant_seed: 'replay' });
+    expect(post.mock.calls[1]?.[1]).toMatchObject({ variant_seed: 'replay' });
   });
 
   it('keeps one opaque screening variant seed per browser', async () => {
@@ -360,8 +368,8 @@ describe('screeningApi', () => {
       await isolatedScreening.screeningApi.screen({ market: 'cn', strategy: 'dual_low', maxResults: 3 });
       await isolatedScreening.screeningApi.startScreen({ market: 'cn', strategy: 'dual_low', maxResults: 3 });
 
-      expect(post.mock.calls[0]?.[1]).toMatchObject({ variant_seed: first });
-      expect(post.mock.calls[1]?.[1]).toMatchObject({ variant_seed: first });
+      expect(post.mock.calls[0]?.[1]).toMatchObject({ variant_seed: '' });
+      expect(post.mock.calls[1]?.[1]).toMatchObject({ variant_seed: '' });
     } finally {
       getItem.mockRestore();
       setItem.mockRestore();

@@ -21,7 +21,7 @@ from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
 from concurrent.futures import as_completed
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
-from typing import List, Dict, Any, Optional, Tuple, Callable
+from typing import List, Dict, Any, Optional, Tuple, Callable, Union
 
 import pandas as pd
 
@@ -225,6 +225,7 @@ class StockAnalysisPipeline:
         portfolio_context: Optional[Dict[str, Any]] = None,
         daily_market_context_enabled: Optional[bool] = None,
         daily_market_context_allow_generate: bool = True,
+        context_only: bool = False,
     ):
         """
         初始化调度器
@@ -232,7 +233,9 @@ class StockAnalysisPipeline:
         Args:
             config: 配置对象（可选，默认使用全局配置）
             max_workers: 最大并发线程数（可选，默认从配置读取）
+            context_only: 只返回采集结果，不生成报告、运行 Agent 或通知。
         """
+        self.context_only = context_only
         self.config = config or get_config()
         self.max_workers = max_workers or self.config.max_workers
         self.source_message = source_message
@@ -251,15 +254,15 @@ class StockAnalysisPipeline:
             if daily_market_context_enabled is None
             else bool(daily_market_context_enabled)
         )
-        self.daily_market_context_allow_generate = daily_market_context_allow_generate
+        self.daily_market_context_allow_generate = daily_market_context_allow_generate and not context_only
         
         # 初始化各模块
         self.db = get_db()
         self.fetcher_manager = DataFetcherManager()
         # 不再单独创建 akshare_fetcher，统一使用 fetcher_manager 获取增强数据
         self.trend_analyzer = StockTrendAnalyzer()  # 技术分析器
-        self.analyzer = GeminiAnalyzer(config=self.config, skills=self.analysis_skills)
-        self.notifier = NotificationService(source_message=source_message)
+        self.analyzer = None if context_only else GeminiAnalyzer(config=self.config, skills=self.analysis_skills)
+        self.notifier = None if context_only else NotificationService(source_message=source_message)
         self.market_structure_service = MarketStructureService(fetcher_manager=self.fetcher_manager)
         self.market_hotspot_service: Optional[MarketHotspotService] = None
         try:
@@ -409,7 +412,7 @@ class StockAnalysisPipeline:
         report_type: ReportType,
         query_id: str,
         current_time: Optional[datetime] = None,
-    ) -> Optional[AnalysisResult]:
+    ) -> Optional[Union[AnalysisResult, PipelineAnalysisArtifacts]]:
         """
         分析单只股票（增强版：含量比、换手率、筹码分析、多维度情报）
         
@@ -582,7 +585,7 @@ class StockAnalysisPipeline:
             except Exception as e:
                 logger.warning(f"{stock_name}({code}) 趋势分析失败: {e}", exc_info=True)
 
-            if use_agent:
+            if use_agent and not getattr(self, 'context_only', False):
                 logger.info(f"{stock_name}({code}) 启用 Agent 模式进行分析")
                 self._emit_progress(58, f"{stock_name}：正在切换 Agent 分析链路")
                 return self._analyze_with_agent(
@@ -708,27 +711,33 @@ class StockAnalysisPipeline:
             if isinstance(market_structure_context, dict):
                 enhanced_context["market_structure_context"] = market_structure_context
             
+            # Shared collection boundary: decision consumers can use the inputs
+            # without generating a report, running an Agent, or sending notices.
+            artifacts = self._build_legacy_analysis_artifacts(
+                code=code,
+                stock_name=stock_name,
+                market=market,
+                phase=market_phase_context_dict,
+                context=context,
+                enhanced_context=enhanced_context,
+                realtime_quote=realtime_quote,
+                trend_result=trend_result,
+                chip_data=chip_data,
+                fundamental_context=fundamental_context,
+                news_context=news_context,
+                news_result_count=news_result_count,
+                query_id=query_id,
+                portfolio_context=portfolio_context,
+            )
+            if getattr(self, "context_only", False):
+                return artifacts
+
             # Step 7: 调用 AI 分析（传入增强的上下文和新闻）
             (
                 analysis_context_pack_summary,
                 analysis_context_pack_overview,
             ) = self._build_analysis_context_pack_outputs(
-                self._build_legacy_analysis_artifacts(
-                    code=code,
-                    stock_name=stock_name,
-                    market=market,
-                    phase=market_phase_context_dict,
-                    context=context,
-                    enhanced_context=enhanced_context,
-                    realtime_quote=realtime_quote,
-                    trend_result=trend_result,
-                    chip_data=chip_data,
-                    fundamental_context=fundamental_context,
-                    news_context=news_context,
-                    news_result_count=news_result_count,
-                    query_id=query_id,
-                    portfolio_context=portfolio_context,
-                ),
+                artifacts,
                 report_language=report_language,
                 code=code,
                 query_id=query_id,
@@ -836,6 +845,10 @@ class StockAnalysisPipeline:
                     report_type=report_type.value,
                     previous_operation_advice=action_source_advice,
                 )
+
+            if result:
+                from src.report_quality import disclose_missing_news
+                disclose_missing_news(result, news_result_count)
 
             # Step 8: 保存分析历史记录
             if result and result.success:
@@ -2111,6 +2124,8 @@ class StockAnalysisPipeline:
         report_type: Any,
         previous_operation_advice: Any,
     ) -> AnalysisResult:
+        from src.utils.sniper_points import normalize_trade_plan
+        normalize_trade_plan(result)
         # A guardrail may rewrite the advice after the Agent action was parsed;
         # discard that stale action before using the same resolver as the
         # downstream DecisionSignal builder.
@@ -3024,7 +3039,7 @@ class StockAnalysisPipeline:
         report_type: ReportType = ReportType.SIMPLE,
         analysis_query_id: Optional[str] = None,
         current_time: Optional[datetime] = None,
-    ) -> Optional[AnalysisResult]:
+    ) -> Optional[Union[AnalysisResult, PipelineAnalysisArtifacts]]:
         """
         处理单只股票的完整流程
 
@@ -3084,6 +3099,8 @@ class StockAnalysisPipeline:
             if current_time is not None:
                 analyze_kwargs["current_time"] = current_time
             result = self.analyze_stock(code, report_type, **analyze_kwargs)
+            if getattr(self, "context_only", False):
+                return result
             
             if result and result.success:
                 logger.info(
@@ -3140,6 +3157,9 @@ class StockAnalysisPipeline:
         Returns:
             分析结果列表
         """
+        if getattr(self, "context_only", False):
+            raise ValueError("context_only requires process_single_stock, not report batch run")
+
         start_time = time.time()
         
         # 使用配置中的股票列表

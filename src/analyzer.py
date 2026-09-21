@@ -2369,6 +2369,8 @@ class GeminiAnalyzer:
                 .replace("{default_skill_policy_section}", default_skill_policy_section)
                 .replace("{skills_section}", skills_section)
             )
+        from src.report_quality import REPORT_EVIDENCE_RULES
+        base_prompt += REPORT_EVIDENCE_RULES
         if lang == "en":
             return base_prompt + """
 
@@ -3658,6 +3660,8 @@ class GeminiAnalyzer:
                     )
                     break
 
+            from src.utils.sniper_points import normalize_trade_plan
+            normalize_trade_plan(result)
             if should_persist_usage_telemetry(llm_usage):
                 persist_llm_usage(llm_usage, model_used, call_type="analysis", stock_code=code)
 

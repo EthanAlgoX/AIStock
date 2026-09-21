@@ -62,7 +62,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from src.agent.provider_trace import PROVIDER_TRACE_RETENTION_LIMIT
 from src.config import get_config
 from src.schemas.decision_profile import extract_legacy_decision_profile
-from src.utils.sniper_points import extract_sniper_points, parse_sniper_value
+from src.utils.sniper_points import extract_sniper_points, parse_sniper_value, normalize_trade_plan
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -3690,6 +3690,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         if result is None:
             return 0
 
+        normalize_trade_plan(result)
         sniper_points = self._extract_sniper_points(result)
         raw_result = self._build_raw_result(result)
         context_text = None
@@ -4386,14 +4387,16 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         """
         if target_date is None:
             target_date = date.today()
-        # 注意：尽管入参提供了 target_date，但当前实现实际使用的是“最新两天数据”（get_latest_data），
-        # 并不会按 target_date 精确取当日/前一交易日的上下文。
-        # 因此若未来需要支持“按历史某天复盘/重算”的可解释性，这里需要调整。
-        # 该行为目前保留（按需求不改逻辑）。
-        
-        # 获取最近2天数据
-        recent_data = self.get_latest_data(code, days=2)
-        
+        # Bound both bars to the requested date; never leak later prices into
+        # historical context. A non-trading date resolves to the previous bars.
+        with self.get_session() as session:
+            recent_data = list(session.execute(
+                select(StockDaily)
+                .where(StockDaily.code == code, StockDaily.date <= target_date)
+                .order_by(desc(StockDaily.date))
+                .limit(2)
+            ).scalars().all())
+
         if not recent_data:
             logger.warning(f"未找到 {code} 的数据")
             return None

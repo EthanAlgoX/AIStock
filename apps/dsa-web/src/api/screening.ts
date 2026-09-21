@@ -366,23 +366,23 @@ export const screeningApi = {
     return toCamelCase<ScreeningStatus>(response.data);
   },
 
-  async screen(payload: { market: string; strategy: string; maxResults: number; strategyVersionId?:number }): Promise<ScreeningScreenResponse> {
+  async screen(payload: { market: string; strategy: string; maxResults: number; strategyVersionId?:number; variantSeed?: string }): Promise<ScreeningScreenResponse> {
     const response = await apiClient.post<Record<string, unknown>>('/api/v1/screening/screen', {
       market: payload.market,
       strategy: payload.strategy,
       max_results: payload.maxResults,
-      variant_seed: getScreeningVariantSeed(),
+      variant_seed: payload.variantSeed ?? '',
       ...(payload.strategyVersionId !== undefined && { strategy_version_id: payload.strategyVersionId }),
     }, { timeout: SCREENING_SCREEN_TIMEOUT_MS });
     return toCamelCase<ScreeningScreenResponse>(response.data);
   },
 
-  async startScreen(payload: { market: string; strategy: string; maxResults: number; strategyVersionId?:number }): Promise<ScreeningScreenAccepted> {
+  async startScreen(payload: { market: string; strategy: string; maxResults: number; strategyVersionId?:number; variantSeed?: string }): Promise<ScreeningScreenAccepted> {
     const response = await apiClient.post<Record<string, unknown>>('/api/v1/screening/screen/tasks', {
       market: payload.market,
       strategy: payload.strategy,
       max_results: payload.maxResults,
-      variant_seed: getScreeningVariantSeed(),
+      variant_seed: payload.variantSeed ?? '',
       ...(payload.strategyVersionId !== undefined && { strategy_version_id: payload.strategyVersionId }),
     });
     return toCamelCase<ScreeningScreenAccepted>(response.data);

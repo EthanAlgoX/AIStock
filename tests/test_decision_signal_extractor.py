@@ -624,3 +624,18 @@ def test_extract_and_persist_missing_price_plan_does_not_fabricate_fields(isolat
     assert item["entry_high"] is None
     assert item["stop_loss"] is None
     assert item["target_price"] is None
+
+
+def test_invalid_long_plan_cannot_become_a_buy_signal():
+    result = _result(sentiment_score=85, action="buy", operation_advice="买入")
+    result.dashboard["battle_plan"]["sniper_points"] = {
+        "ideal_buy": 85.4, "stop_loss": 85.4, "take_profit": 88.74,
+    }
+    payload = build_decision_signal_payload_from_report(
+        result, trace_id="invalid-plan", query_source="test", report_type="full",
+        profile_source="auto_default",
+    )
+    assert payload["action"] == "watch"
+    assert "entry_low" not in payload
+    assert "stop_loss" not in payload
+    assert payload["metadata"]["guardrail_reason"] == "invalid_trade_prices"

@@ -758,6 +758,9 @@ class AgentExecutor:
             language_section=_build_language_section(report_language),
         )
 
+        from src.report_quality import REPORT_EVIDENCE_RULES
+        system_prompt += REPORT_EVIDENCE_RULES
+
         # Build tool declarations in OpenAI format (litellm handles all providers)
         tool_decls = self.tool_registry.to_openai_tools()
 
