@@ -77,7 +77,7 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-      - name: 🤖 Check AI governance assets
+      - name: 🛡️ Check local-only files are excluded
         run: python scripts/check_ai_assets.py
 
   backend-tests:

@@ -4,6 +4,7 @@
 *.env
 *.env.local
 .env.*.local
+!.env.example
 
 # 测试文件（可能包含敏感配置）
 # 仅忽略仓库根目录下的临时 test_*.py 脚本；tests/ 目录下的单元测试需要纳入版本控制。
@@ -14,7 +15,7 @@
 /.codex
 /.playwright-cli/
 **/.playwright-cli/
-/.impeccable/critique/
+/.impeccable/
 /.tmp
 /review.md
 /litellm_config.yaml
@@ -87,11 +88,14 @@ run.sh
 
 verify_*.py
 
-# ignore Claude workspace artifacts, but keep shared repo skills versioned
+# Local AI development instructions and tooling (not product Skills)
 .artifacts/
-.claude/*
-!.claude/skills/
-!.claude/skills/**
+/.claude/
+/.agents/
+/AGENTS.md
+/CLAUDE.md
+/.github/copilot-instructions.md
+/.github/instructions/
 
 # ignore static files
 static/
@@ -99,3 +103,22 @@ static/
 /apps/dsa-desktop/node_modules/
 /node_modules/
 docs/specs/
+
+# Local secrets, broker credentials and backups
+/longbridge_tokens/
+/credentials.json
+/credentials.*.json
+/service-account*.json
+/backups/
+*.log
+*.pem
+*.key
+*.p12
+*.pfx
+*.bak
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm

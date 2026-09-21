@@ -2079,6 +2079,7 @@ class SimulationPortfolioDefinitionRecord(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(80), nullable=False)
     config_json = Column(Text, nullable=False)
+    deleted_at = Column(DateTime)
     created_at = Column(DateTime, nullable=False, default=utc_naive_now)
 
 
@@ -2469,6 +2470,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         if not self._is_sqlite_engine:
             return
         columns = {
+            'simulation_portfolio_definitions': {'deleted_at': 'DATETIME'},
             'workspace_schedules': {'interval_days': 'INTEGER NOT NULL DEFAULT 1'},
             'workspace_experts': {'avatar': 'TEXT'},
             'simulation_strategies': {

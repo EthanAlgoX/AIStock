@@ -11,6 +11,9 @@ import TradingWorkspacePage from "../TradingWorkspacePage";
 const stockState = vi.hoisted(() => ({ loading: false }));
 const api = vi.hoisted(() => ({
   list: vi.fn(),
+  stopDefinition: vi.fn(),
+  deleteDefinition: vi.fn(),
+  deletePortfolio: vi.fn(),
   detail: vi.fn(),
   control: vi.fn(),
   create: vi.fn(),
@@ -421,4 +424,60 @@ it('explains empty JEV fields and restores only JEV task defaults', async () => 
   await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({
     decisionBackend:'jev', jevTask:{}, jevWeightStep:0.05, systemPrompt:'', skillId:'price',
   })));
+});
+
+
+it('stops all validations from the saved strategy and confirms deletion', async () => {
+  api.definitions.mockResolvedValue([{id:7,name:'待删除策略',config}]);
+  api.list.mockResolvedValue([{...detail,definitionId:7,status:'running'}]);
+  api.stopDefinition.mockResolvedValue({id:7});
+  api.deleteDefinition.mockResolvedValue({deleted:true});
+  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><TradingWorkspacePage /></MemoryRouter>);
+  await screen.findByRole('heading', {name:'待删除策略'});
+  fireEvent.click(screen.getByRole('button', {name:'停止运行'}));
+  await waitFor(() => expect(api.stopDefinition).toHaveBeenCalledWith(7));
+  await waitFor(() => expect(screen.getByRole('button', {name:'删除策略'})).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', {name:'删除策略'}));
+  expect(screen.getByRole('dialog')).toHaveTextContent('所有回测和模拟');
+  expect(api.deleteDefinition).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', {name:'取消'}));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name:'删除策略'}));
+  api.definitions.mockResolvedValue([]);
+  api.list.mockResolvedValue([]);
+  fireEvent.click(screen.getByRole('button', {name:'停止并删除'}));
+  await waitFor(() => expect(api.deleteDefinition).toHaveBeenCalledWith(7));
+  expect(await screen.findByText('尚无策略。先保存规则，再选择回测或模拟。')).toBeVisible();
+});
+
+it('keeps a failed delete visible for retry without removing the strategy', async () => {
+  api.definitions.mockResolvedValue([{id:7,name:'失败重试策略',config}]);
+  api.deleteDefinition.mockRejectedValue(new Error('服务暂不可用'));
+  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button', {name:'删除策略'}));
+  fireEvent.click(screen.getByRole('button', {name:'停止并删除'}));
+  await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('服务暂不可用'));
+  expect(screen.getByRole('heading', {name:'失败重试策略'})).toBeVisible();
+  expect(screen.getByRole('button', {name:'停止并删除'})).toBeEnabled();
+});
+
+it('can delete a strategy before its first validation', async () => {
+  api.definitions.mockResolvedValue([{id:7,name:'未运行策略',config}]);
+  api.list.mockResolvedValue([]);
+  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><TradingWorkspacePage /></MemoryRouter>);
+  expect(await screen.findByRole('button', {name:'删除策略'})).toBeEnabled();
+  expect(screen.getByRole('button', {name:'停止运行'})).toBeDisabled();
+});
+
+it('stops and removes an independent validation', async () => {
+  api.detail.mockResolvedValue({...detail,status:'running'});
+  api.control.mockResolvedValue({...detail,status:'stopped'});
+  api.deletePortfolio.mockResolvedValue({deleted:true});
+  render(<MemoryRouter initialEntries={['/trading?portfolio=1']}><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button', {name:'停止运行'}));
+  await waitFor(() => expect(api.control).toHaveBeenCalledWith(1, 'stop'));
+  await waitFor(() => expect(screen.getByRole('button', {name:'删除验证记录'})).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', {name:'删除验证记录'}));
+  fireEvent.click(screen.getByRole('button', {name:'停止并删除'}));
+  await waitFor(() => expect(api.deletePortfolio).toHaveBeenCalledWith(1));
 });

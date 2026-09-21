@@ -67,3 +67,13 @@ US custom scopes reuse Yahoo snapshots over configured US tickers or the built-i
 New Agent strategies default to an explicit-symbol scope: enter symbols, preview and confirm the list, then save. Switch to a custom industry/volatility scope and enter a scope description when screening is intended; explicit symbols may then be omitted or used as an intersection restriction. Saving an approved Agent scope does not wait for the stock-name catalog.
 
 Configuration is ordered as stock selection, strategy, then execution/risk: confirm the universe, choose the Skill/instructions, and finally set capital, position limits, costs and Token budget.
+
+## Stop and delete
+
+Use **Stop running** at the top of a saved strategy to stop all its backtests and simulations, cancel pending plans and revoke execution leases. Automatic model calls and valuation updates stop; the strategy, history and simulated holdings remain. Use the existing run-once or continuous-simulation actions to resume. A validation can also be stopped individually. **Pause trading** keeps its existing meaning: suspend automatic trades while continuing valuation updates.
+
+**Delete strategy** requires confirmation and removes the strategy and every linked validation, including strategies that have never run. **Delete validation** removes only the selected validation. Deletion is logical: historical ledgers and call audits remain in the private database, with no restore action in the interface. Model requests already sent may still incur charges, but results returning after stop/delete cannot commit to the ledger. Failed deletions remain open for retry.
+
+New endpoints: `POST /api/v1/simulation/portfolios/definitions/{id}/stop`, `DELETE /api/v1/simulation/portfolios/definitions/{id}`, and `DELETE /api/v1/simulation/portfolios/{id}`. The existing `/control` also accepts `stop`. Accounts add `stopped` and `deleted` statuses; deleted records are excluded from lists, details, comparisons and scheduling. All endpoints use the authenticated user's private database.
+
+Startup adds a nullable `deleted_at` column to `simulation_portfolio_definitions` without rewriting existing data. Back up the database before deployment. Restore that backup when rolling back to an older application version: older versions do not recognize deletion markers and may redisplay removed strategies. Stopping does not liquidate simulated holdings or place broker orders.

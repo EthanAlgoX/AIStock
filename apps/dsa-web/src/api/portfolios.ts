@@ -174,6 +174,12 @@ export const portfoliosApi = {
         { timeout: 180000 },
       )
     ).data,
+  stopDefinition: async (id: number) =>
+    (await client.post(`${root}/definitions/${id}/stop`)).data,
+  deleteDefinition: async (id: number) =>
+    (await client.delete(`${root}/definitions/${id}`)).data,
+  deletePortfolio: async (id: number) =>
+    (await client.delete(`${root}/${id}`)).data,
   definitions: async () =>
     (await client.get<{ items: StrategyDefinition[] }>(`${root}/definitions`))
       .data.items,
@@ -297,6 +303,6 @@ export const portfoliosApi = {
       })
     ).data;
   },
-  control: async (id: number, action: "run" | "start" | "pause") =>
+  control: async (id: number, action: "run" | "start" | "pause" | "stop") =>
     (await client.post<Portfolio>(`${root}/${id}/control`, { action })).data,
 };

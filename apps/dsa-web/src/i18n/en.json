@@ -5816,5 +5816,13 @@
   "例如：偏好低换手，优先控制仓位；已有持仓分批调整。没有补充要求可留空。": "Example: prefer low turnover, prioritize position limits and adjust existing holdings gradually. Leave blank if no extra context is needed.",
   "选填。留空不添加额外背景，仅使用 Skill 与系统数据。填写内容会固定保存，不会每日更新；历史回放请勿加入未来信息。": "Optional. Blank means no extra background; only the Skill and system data are used. Saved text does not update daily. Do not add future information to historical replays.",
   "默认每档为账户权益的 5%，买入增加一档，卖出减少一档；实际调仓仍受可用资金和持仓上限约束。": "Each step defaults to 5% of account equity: buy adds one step and sell removes one. Available cash and position limits still constrain the actual adjustment.",
-  "选填。留空使用所选 Skill 和系统交易规则，无需自行编写提示词。": "Optional. Leave blank to use the selected Skill and system trading rules; no custom prompt is required."
+  "选填。留空使用所选 Skill 和系统交易规则，无需自行编写提示词。": "Optional. Leave blank to use the selected Skill and system trading rules; no custom prompt is required.",
+  "删除策略": "Delete strategy",
+  "停止运行": "Stop running",
+  "已停止运行": "Stopped",
+  "删除验证记录": "Delete validation",
+  "停止并删除": "Stop and delete",
+  "已停止运行，不再自动调用模型或更新估值，待执行计划已取消；历史记录和模拟持仓保留。": "Stopped. Automatic model calls and valuation updates are off, and pending plans are cancelled. History and simulated holdings are retained.",
+  "删除后将停止该策略的所有回测和模拟，并从交易推演中移除策略及验证记录。历史账本保留供审计，界面无法恢复；已发出的模型请求可能仍会计费，但不会继续记账。": "Deleting stops all backtests and simulations for this strategy and removes it and its validations from Trade simulation. Historical ledgers remain for audit, but cannot be restored through the interface. Model requests already sent may still incur charges; their results will not update the ledger.",
+  "删除后将停止并移除此验证记录，不影响同策略的其他验证。历史账本保留供审计，界面无法恢复；已发出的模型请求可能仍会计费，但不会继续记账。": "Deleting stops and removes this validation without affecting other validations of the same strategy. Historical ledgers remain for audit, but cannot be restored through the interface. Model requests already sent may still incur charges; their results will not update the ledger."
 }

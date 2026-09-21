@@ -29,6 +29,10 @@ _POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="paper-portfolio")
 _LOG = logging.getLogger(__name__)
 
 
+class PortfolioCancelled(Exception):
+    """The execution lease was revoked by a stop/delete operation."""
+
+
 class SimulationPortfolioService:
     def __init__(self, db=None, fetcher=None, agent=None):
         self.db = db or DatabaseManager.get_instance()
@@ -118,15 +122,70 @@ class SimulationPortfolioService:
 
     def definitions(self):
         with self.db.get_session() as session:
-            rows = session.scalars(select(SimulationPortfolioDefinitionRecord).order_by(
+            rows = session.scalars(select(SimulationPortfolioDefinitionRecord).where(SimulationPortfolioDefinitionRecord.deleted_at.is_(None)).order_by(
                 SimulationPortfolioDefinitionRecord.id.desc()
             )).all()
             return [dict(id=r.id, name=r.name, config=json.loads(r.config_json)) for r in rows]
 
+    @staticmethod
+    def _lock_definition(session, definition_id):
+        # Acquire a write lock before reading: validation creation and removal
+        # must not leave an orphan run when two requests race.
+        changed = session.execute(update(SimulationPortfolioDefinitionRecord).where(
+            SimulationPortfolioDefinitionRecord.id == definition_id,
+            SimulationPortfolioDefinitionRecord.deleted_at.is_(None),
+        ).values(id=SimulationPortfolioDefinitionRecord.id)).rowcount
+        if not changed:
+            raise LookupError("策略不存在")
+
+    @staticmethod
+    def _halt(row, status):
+        state = json.loads(row.state_json)
+        state['pending'] = None
+        row.state_json = json.dumps(state)
+        row.status, row.lease_token, row.lease_until = status, None, None
+        row.error_message = None
+
+    def control_definition(self, definition_id, *, remove=False):
+        with self.db.session_scope() as session:
+            self._lock_definition(session, definition_id)
+            rows = session.scalars(select(SimulationPortfolioRunRecord).where(
+                SimulationPortfolioRunRecord.status != 'deleted'
+            )).all()
+            affected = [r for r in rows if json.loads(r.config_json).get('definitionId') == definition_id]
+            for row in affected:
+                self._halt(row, 'deleted' if remove else 'stopped')
+            if remove:
+                session.get(SimulationPortfolioDefinitionRecord, definition_id).deleted_at = utc_naive_now()
+            return dict(id=definition_id, deleted=remove, affectedRuns=len(affected))
+
+    def delete_portfolio(self, portfolio_id):
+        with self.db.session_scope() as session:
+            changed = session.execute(update(SimulationPortfolioRunRecord).where(
+                SimulationPortfolioRunRecord.id == portfolio_id
+            ).values(id=SimulationPortfolioRunRecord.id)).rowcount
+            if not changed:
+                raise LookupError("策略账户不存在")
+            row = session.get(SimulationPortfolioRunRecord, portfolio_id)
+            self._halt(row, 'deleted')
+        return dict(id=portfolio_id, deleted=True)
+
+    @staticmethod
+    def _claim_day(session, portfolio_id, token):
+        # Serializes the final ledger commit against stop/delete, including
+        # work that was already waiting for a remote model response.
+        changed = session.execute(update(SimulationPortfolioRunRecord).where(
+            SimulationPortfolioRunRecord.id == portfolio_id,
+            SimulationPortfolioRunRecord.lease_token == token,
+            SimulationPortfolioRunRecord.status.notin_(['stopped', 'deleted']),
+        ).values(lease_token=token)).rowcount
+        if not changed:
+            raise PortfolioCancelled()
+
     def create_validation(self, definition_id, options):
         with self.db.get_session() as session:
             definition = session.get(SimulationPortfolioDefinitionRecord, definition_id)
-            if definition is None:
+            if definition is None or definition.deleted_at is not None:
                 raise LookupError("策略不存在")
             config = json.loads(definition.config_json)
         if config.get('engine') != 'agent' or config.get('template') != 'agent':
@@ -139,6 +198,8 @@ class SimulationPortfolioService:
         config = self._prepare_config(payload)
         market, name = config["market"], config["name"]
         with self.db.session_scope() as session:
+            if config.get('definitionId') is not None:
+                self._lock_definition(session, config['definitionId'])
             strategy = SimulationStrategyRecord(
                 name=f"{name} · {uuid.uuid4().hex[:8]}", description="每日价格规则组合；独立模拟账户"
             )
@@ -177,7 +238,7 @@ class SimulationPortfolioService:
     def list(self):
         with self.db.get_session() as session:
             rows = session.scalars(
-                select(SimulationPortfolioRunRecord).order_by(SimulationPortfolioRunRecord.id.desc())
+                select(SimulationPortfolioRunRecord).where(SimulationPortfolioRunRecord.status != "deleted").order_by(SimulationPortfolioRunRecord.id.desc())
             ).all()
             return [self._item(row) for row in rows]
 
@@ -203,7 +264,7 @@ class SimulationPortfolioService:
     def detail(self, portfolio_id):
         with self.db.get_session() as session:
             row = session.get(SimulationPortfolioRunRecord, portfolio_id)
-            if row is None:
+            if row is None or row.status == "deleted":
                 raise LookupError("策略账户不存在")
             result = self._item(row)
             runs = session.scalars(
@@ -243,7 +304,7 @@ class SimulationPortfolioService:
             result["comparisons"] = []
             others = session.scalars(
                 select(SimulationPortfolioRunRecord)
-                .where(SimulationPortfolioRunRecord.mode != row.mode)
+                .where(SimulationPortfolioRunRecord.mode != row.mode, SimulationPortfolioRunRecord.status != "deleted")
                 .order_by(SimulationPortfolioRunRecord.id.desc())
             ).all()
             for other in others:
@@ -277,8 +338,11 @@ class SimulationPortfolioService:
 
     def control(self, portfolio_id, action):
         with self.db.session_scope() as session:
+            session.execute(update(SimulationPortfolioRunRecord).where(
+                SimulationPortfolioRunRecord.id == portfolio_id
+            ).values(id=SimulationPortfolioRunRecord.id))
             row = session.get(SimulationPortfolioRunRecord, portfolio_id)
-            if row is None:
+            if row is None or row.status == "deleted":
                 raise LookupError("策略账户不存在")
             config = json.loads(row.config_json)
             if action in {'start', 'run'} and config.get('engine') != 'agent':
@@ -287,10 +351,14 @@ class SimulationPortfolioService:
                 if row.mode != "paper":
                     raise ValueError("历史回测只能单次运行")
                 row.status, row.next_check_at = "running", utc_naive_now()
+            elif action == "stop":
+                self._halt(row, 'stopped')
             elif action == "pause":
                 row.status = "paused"
             elif action != "run":
                 raise ValueError("无效操作")
+            elif row.status == 'stopped':
+                row.status = 'ready'
         if action in {"start", "run"}:
             self.enqueue(portfolio_id, automatic=action == "start")
         return self.detail(portfolio_id)
@@ -300,6 +368,7 @@ class SimulationPortfolioService:
         with self.db.session_scope() as session:
             query = update(SimulationPortfolioRunRecord).where(
                 SimulationPortfolioRunRecord.id == portfolio_id,
+                SimulationPortfolioRunRecord.status.notin_(['stopped', 'deleted']),
                 or_(SimulationPortfolioRunRecord.lease_until.is_(None), SimulationPortfolioRunRecord.lease_until < now),
             )
             if automatic:
@@ -344,13 +413,16 @@ class SimulationPortfolioService:
         for portfolio_id in ids:
             with self.db.get_session() as session:
                 row = session.get(SimulationPortfolioRunRecord, portfolio_id)
+                if row is None or row.status not in {'running', 'paused'}:
+                    continue
                 config = json.loads(row.config_json)
                 last = row.last_date
             if config.get('engine') != 'agent':
                 with self.db.session_scope() as session:
-                    legacy = session.get(SimulationPortfolioRunRecord, portfolio_id)
-                    legacy.status = 'paused'
-                    legacy.error_message = '固定规则策略已下线，已暂停；历史记录仍可查看。'
+                    session.execute(update(SimulationPortfolioRunRecord).where(
+                        SimulationPortfolioRunRecord.id == portfolio_id,
+                        SimulationPortfolioRunRecord.status.in_(['running', 'paused']),
+                    ).values(status='paused', error_message='固定规则策略已下线，已暂停；历史记录仍可查看。'))
                 continue
             try:
                 closed = self._last_closed(config["market"]).isoformat()
@@ -513,8 +585,10 @@ class SimulationPortfolioService:
             recheck_member()
             with self.db.get_session() as session:
                 row = session.get(SimulationPortfolioRunRecord, portfolio_id)
-                if row.lease_token != token or (automatic and row.status not in {'running', 'paused'}):
-                    break
+                if row is None or row.lease_token != token:
+                    raise PortfolioCancelled()
+                if automatic and row.status not in {'running', 'paused'}:
+                    raise PortfolioCancelled()
                 previous, previous_date, previous_status = json.loads(row.state_json), row.last_date, row.status
             paused = automatic and previous_status == 'paused'
             if paused:
@@ -543,6 +617,10 @@ class SimulationPortfolioService:
             state, output = step(daily_config, previous, day, histories, baseline)
             usage = None
             if histories and not paused and (current or config['mode'] == 'backtest'):
+                with self.db.get_session() as session:
+                    active = session.get(SimulationPortfolioRunRecord, portfolio_id)
+                    if active is None or active.lease_token != token:
+                        raise PortfolioCancelled()
                 opinions, usage = agent.decide(dict(config, portfolioId=portfolio_id), state, day, histories, candidates, remaining, audit_id)
                 remaining -= usage['tokens']
                 state['pending'] = dict(date=day, selected=[o['code'] for o in opinions if o['targetWeight'] > 0],
@@ -563,6 +641,7 @@ class SimulationPortfolioService:
                           validationLabel='AI 历史回放（非严格规则回测）' if config['mode'] == 'backtest' else 'Agent 每日模拟',
                           skillDigest=config['skillSnapshot']['digest'])
             with self.db.session_scope() as session:
+                self._claim_day(session, portfolio_id, token)
                 row = session.get(SimulationPortfolioRunRecord, portfolio_id)
                 if row.lease_token != token or row.last_date != previous_date or row.status != previous_status:
                     raise ValueError('运行状态已改变，本日未记账；可在当前状态下重试。')
@@ -575,6 +654,7 @@ class SimulationPortfolioService:
                 break
         if config['mode'] == 'backtest':
             with self.db.session_scope() as session:
+                self._claim_day(session, portfolio_id, token)
                 row = session.get(SimulationPortfolioRunRecord, portfolio_id)
                 if row.lease_token == token:
                     row.status = 'completed' if dates and row.last_date == dates[-1] else 'ready'
@@ -583,9 +663,12 @@ class SimulationPortfolioService:
     def execute(self, portfolio_id, token, automatic=False):
         workspace, audit_id, failure = None, None, None
         processed = 0
+        cancelled = False
         try:
             with self.db.get_session() as session:
                 row = session.get(SimulationPortfolioRunRecord, portfolio_id)
+                if row is None or row.lease_token != token or row.status in {'stopped', 'deleted'}:
+                    raise PortfolioCancelled()
                 config, last = json.loads(row.config_json), row.last_date
             from src.services.workspace_service import WorkspaceService
             from src.services.workspace_external_runs import begin
@@ -627,6 +710,7 @@ class SimulationPortfolioService:
                 if not math.isfinite(baseline) or baseline <= 0:
                     raise ValueError("基准行情无效")
                 with self.db.session_scope() as session:
+                    self._claim_day(session, portfolio_id, token)
                     row = session.get(SimulationPortfolioRunRecord, portfolio_id)
                     if row.lease_token != token or (automatic and row.status not in {"running", "paused"}):
                         return
@@ -648,9 +732,12 @@ class SimulationPortfolioService:
                     self._persist_day(session, row, state, output, day, histories, baseline, sources)
                     processed += 1
             with self.db.session_scope() as session:
+                self._claim_day(session, portfolio_id, token)
                 row = session.get(SimulationPortfolioRunRecord, portfolio_id)
                 if row.lease_token == token and row.mode == "backtest":
                     row.status = "completed"
+        except PortfolioCancelled:
+            cancelled = True
         except Exception as exc:
             failure = str(exc)[:600]
             _LOG.exception("Paper portfolio %s failed", portfolio_id)
@@ -661,7 +748,7 @@ class SimulationPortfolioService:
         finally:
             try:
                 if workspace and audit_id:
-                    if not failure:
+                    if not failure and not cancelled:
                         workspace._store_artifact(
                             audit_id,
                             "PortfolioUpdate",
@@ -669,7 +756,7 @@ class SimulationPortfolioService:
                             {"portfolioId": portfolio_id, "processedDays": processed, "engineVersion": 1, "decisionEngine": config.get("engine", "rule")},
                             text=f"策略账户 #{portfolio_id} 检查完成，本次新增 {processed} 个交易日记录。请在交易推演查看净值、持仓与逐日买卖。",
                         )
-                    workspace._finish_run(audit_id, "failed" if failure else "completed", error_message=failure)
+                    workspace._finish_run(audit_id, "cancelled" if cancelled else "failed" if failure else "completed", error_message=failure)
             finally:
                 with self.db.session_scope() as session:
                     session.execute(

@@ -59,7 +59,6 @@ jobs:
             const isReviewable = filename =>
               /\.(py|md|ts|tsx)$/.test(filename) ||
               filename === 'README.md' ||
-              filename === 'AGENTS.md' ||
               filename === 'requirements.txt' ||
               filename === '.github/requirements-ci.txt' ||
               filename === 'pyproject.toml' ||

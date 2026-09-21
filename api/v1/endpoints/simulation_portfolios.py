@@ -72,7 +72,7 @@ class UniversePreview(BaseModel):
 
 
 class Control(BaseModel):
-    action: Literal["start", "pause", "run"]
+    action: Literal["start", "pause", "run", "stop"]
 
 
 def call(fn, *args):
@@ -128,6 +128,21 @@ def definitions():
 @router.post("/definitions")
 def save_definition(body: StrategyConfig):
     return call(SimulationPortfolioService().save_definition, body.model_dump())
+
+
+@router.post("/definitions/{definition_id}/stop")
+def stop_definition(definition_id: int):
+    return call(SimulationPortfolioService().control_definition, definition_id)
+
+
+@router.delete("/definitions/{definition_id}")
+def delete_definition(definition_id: int):
+    return call(lambda: SimulationPortfolioService().control_definition(definition_id, remove=True))
+
+
+@router.delete("/{portfolio_id}")
+def delete_portfolio(portfolio_id: int):
+    return call(SimulationPortfolioService().delete_portfolio, portfolio_id)
 
 
 @router.post("/definitions/{definition_id}/validations")

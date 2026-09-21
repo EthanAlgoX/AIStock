@@ -9,7 +9,7 @@ import { useStockIndex } from "../hooks/useStockIndex";
 import { resolveStrategyPool } from "../utils/strategyStockPool";
 import { TradingAgentConfig } from "../components/agent/TradingAgentConfig";
 import ResearchReportsWorkspace from "./ResearchReportsWorkspace";
-import { AppPage } from "../components/common";
+import { AppPage, ConfirmDialog } from "../components/common";
 import { AnalysisChart } from "../components/report/AnalysisChart";
 import {
   portfoliosApi,
@@ -30,7 +30,9 @@ const status = (p: Portfolio) =>
       ? "持续模拟"
       : p.status === "paused"
         ? "已暂停交易"
-        : p.status === "completed"
+        : p.status === "stopped"
+          ? "已停止运行"
+          : p.status === "completed"
           ? "回测完成"
           : "待运行";
 const failure = (e: unknown) => {
@@ -106,6 +108,8 @@ export default function TradingWorkspacePage() {
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{kind: 'definition' | 'portfolio'; id: number; name: string} | null>(null);
+  const [deleteError, setDeleteError] = useState('');
   const [date, setDate] = useState("");
   const [tab, setTab] = useState("trades");
   const [windowSize, setWindowSize] = useState(120);
@@ -240,7 +244,7 @@ export default function TradingWorkspacePage() {
       setSending(false);
     }
   };
-  const control = async (action: "run" | "start" | "pause", targetId = id) => {
+  const control = async (action: "run" | "start" | "pause" | "stop", targetId = id) => {
     if (!targetId) return;
     setSending(true);
     setError("");
@@ -252,6 +256,30 @@ export default function TradingWorkspacePage() {
     } finally {
       setSending(false);
     }
+  };
+  const stopDefinition = async (targetId: number) => {
+    setSending(true);
+    setError('');
+    try {
+      await portfoliosApi.stopDefinition(targetId);
+      setRefresh((x) => x + 1);
+    } catch (e) { setError(failure(e)); }
+    finally { setSending(false); }
+  };
+  const remove = async () => {
+    if (!deleteTarget) return;
+    setSending(true);
+    setDeleteError('');
+    try {
+      if (deleteTarget.kind === 'definition') await portfoliosApi.deleteDefinition(deleteTarget.id);
+      else await portfoliosApi.deletePortfolio(deleteTarget.id);
+      setDeleteTarget(null);
+      setDetail(null);
+      setLaunch(null);
+      setParams({});
+      setRefresh((x) => x + 1);
+    } catch (e) { setDeleteError(failure(e)); }
+    finally { setSending(false); }
   };
   const visible = days.slice(-windowSize);
   const inputClass =
@@ -529,7 +557,19 @@ export default function TradingWorkspacePage() {
                 className="mb-7 border-b border-border pb-6"
                 aria-label={uiLiteral("已保存策略")}
               >
-                <h2 className="text-xl font-semibold">{definition.name}</h2>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="min-w-0 break-words text-xl font-semibold">{definition.name}</h2>
+                  <div className="flex flex-wrap gap-2">
+                    <button className="btn-secondary" disabled={sending || !items.some(p => p.definitionId === definition.id && (p.busy || ['running', 'paused'].includes(p.status)))} onClick={() => void stopDefinition(definition.id)}>
+                      <UiLiteral text="停止运行" />
+                    </button>
+                    <button className="btn-secondary text-danger" disabled={sending} onClick={() => { setDeleteError(''); setDeleteTarget({kind:'definition', id:definition.id, name:definition.name}); }}>
+                      <UiLiteral text="删除策略" />
+                    </button>
+                  </div>
+                </div>
+                {items.some(p => p.definitionId === definition.id && p.status === 'stopped') && !items.some(p => p.definitionId === definition.id && (p.busy || ['running', 'paused'].includes(p.status))) &&
+                  <p role="status" className="mt-3 text-sm text-secondary-text"><UiLiteral text="已停止运行，不再自动调用模型或更新估值，待执行计划已取消；历史记录和模拟持仓保留。" /></p>}
                 <p className="mt-2 text-sm text-secondary-text">
                   {definition.config.engine === "agent"
                     ? definition.config.skillSnapshot?.name || "Agent 策略 Skill"
@@ -771,6 +811,12 @@ export default function TradingWorkspacePage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <button className="btn-secondary" disabled={sending || !(detail.busy || ['running', 'paused'].includes(detail.status))} onClick={() => void control('stop')}>
+                      <UiLiteral text="停止运行" />
+                    </button>
+                    <button className="btn-secondary text-danger" disabled={sending} onClick={() => { setDeleteError(''); setDeleteTarget({kind:'portfolio', id:detail.id, name:detail.name}); }}>
+                      <UiLiteral text="删除验证记录" />
+                    </button>
                     {detail.config.engine === "agent" && <button
                       className="btn-secondary"
                       disabled={sending || detail.busy}
@@ -819,6 +865,7 @@ export default function TradingWorkspacePage() {
                   >
                     {detail.error} <UiLiteral text={" 已完成的日期仍保留，可修复后重试。"} /></p>
                 )}
+                {detail.status === "stopped" && <p role="status" className="mb-4 text-sm text-secondary-text"><UiLiteral text="已停止运行，不再自动调用模型或更新估值，待执行计划已取消；历史记录和模拟持仓保留。" /></p>}
                 {detail.status === "paused" && (
                   <p className="mb-4 text-sm text-secondary-text">
                     <UiLiteral text={"已暂停自动买卖；持仓保留，继续按收盘价估值。"} /></p>
@@ -1215,6 +1262,16 @@ export default function TradingWorkspacePage() {
           </section>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={deleteTarget !== null}
+        title={`${uiLiteral(deleteTarget?.kind === 'definition' ? '删除策略' : '删除验证记录')} · ${deleteTarget?.name || ''}`}
+        message={deleteError || uiLiteral(deleteTarget?.kind === 'definition'
+          ? '删除后将停止该策略的所有回测和模拟，并从交易推演中移除策略及验证记录。历史账本保留供审计，界面无法恢复；已发出的模型请求可能仍会计费，但不会继续记账。'
+          : '删除后将停止并移除此验证记录，不影响同策略的其他验证。历史账本保留供审计，界面无法恢复；已发出的模型请求可能仍会计费，但不会继续记账。')}
+        confirmText={uiLiteral(sending ? '处理中…' : '停止并删除')}
+        confirmDisabled={sending} cancelDisabled={sending} isDanger
+        onConfirm={() => void remove()} onCancel={() => { setDeleteTarget(null); setDeleteError(''); }}
+      />
     </AppPage>
   );
 }

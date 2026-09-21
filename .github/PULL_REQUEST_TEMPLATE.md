@@ -24,7 +24,7 @@ For English contributors: please fill in English. All fields marked (EN) accept 
 
 > 注意：请按实际 `git diff` 全量列出文件范围（建议注明文件总数），避免遗漏文档/后端/API/前端文件导致描述不一致。
 
-> 若本 PR 修改了 `.github/PULL_REQUEST_TEMPLATE.md`、`.github/copilot-instructions.md`、`AGENTS.md`、`.github/instructions/*` 或 `.claude/skills/**` 等协作与治理文件，请补充“变更原因 + 影响面 + 回滚方式（默认 revert）”到 Summary / Compatibility / Rollback，避免 Scope 与描述不一致。
+> 若本 PR 修改了 `.github/PULL_REQUEST_TEMPLATE.md`、`.gitignore`、`.dockerignore`、`scripts/check_ai_assets.py` 或 CI 工作流等提交与构建边界文件，请补充“变更原因 + 影响面 + 回滚方式（默认 revert）”到 Summary / Compatibility / Rollback，避免 Scope 与描述不一致。
 
 > 建议先执行并粘贴以下命令输出，避免与实际 diff 不一致：
 
@@ -62,7 +62,7 @@ python -m pytest -m "not network"
 > 若 `Full-suite note` 与当前 Head CI 不一致，PR 文本不完整，请先更新 PR 描述后再提交。
 
 - 请在下面按实际结果填写并与 `Full-suite note` 保持一致（任一未填视为信息缺失）：
-  - ai-governance：`pass` / `fail`，附链接
+  - ai-governance（本地专用文件排除检查）：`pass` / `fail`，附链接
   - backend-gate：`pass` / `fail`，附链接
   - docker-build：`pass` / `fail`，附链接
   - web-gate：`pass` / `fail`，附链接

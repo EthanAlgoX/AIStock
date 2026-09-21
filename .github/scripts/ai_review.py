@@ -18,7 +18,6 @@ REVIEW_PATHS = [
     '*.ts',
     '*.tsx',
     'README.md',
-    'AGENTS.md',
     'docs/**',
     '.github/PULL_REQUEST_TEMPLATE.md',
     'requirements.txt',
@@ -212,7 +211,7 @@ def get_pr_context():
 
 def classify_files(files):
     py_files = [f for f in files if f.endswith('.py')]
-    doc_files = [f for f in files if f.endswith('.md') or f.startswith('docs/') or f in ('README.md', 'AGENTS.md')]
+    doc_files = [f for f in files if f.endswith('.md') or f.startswith('docs/') or f == 'README.md']
     frontend_files = [f for f in files if f.startswith('apps/dsa-web/') or f.endswith(('.tsx', '.ts'))]
     ci_files = [f for f in files if f.startswith('.github/workflows/')]
     config_files = [
@@ -253,7 +252,7 @@ def _build_ci_context():
 
 
 def build_prompt(diff_content, files, truncated, pr_title, pr_body):
-    """Build AI review prompt aligned with AGENTS.md requirements."""
+    """Build AI review prompt using the public review criteria below."""
     truncate_notice = ''
     if truncated:
         truncate_notice = "\n\n> ⚠️ 注意：diff 过长已截断，请基于可见内容审查并标注不确定点。\n"
@@ -282,7 +281,7 @@ def build_prompt(diff_content, files, truncated, pr_title, pr_body):
 {diff_content}
 ```
 {ci_context}
-## 必须对齐的审查规则（来自仓库 AGENTS.md）
+## 必须对齐的公开审查规则
 1. 必要性（Necessity）：是否有明确问题/业务价值，避免无效重构。
 2. 关联性（Traceability）：是否有关联 Issue（Fixes/Refs）；自然语言关联（如"关联 issue 为 #xxx"）也可接受，不因格式问题判定不通过。无 Issue 时是否给出动机与验收标准。
 3. 类型判定（Type）：fix/feat/refactor/docs/chore/test 是否匹配。

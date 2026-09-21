@@ -27,7 +27,10 @@ env/
 # 忽略本地仓库、CI 元数据和运行产物
 .git/
 .github/
-.claude/reviews/
+.claude/
+.codex/
+.agents/
+.impeccable/
 data/
 logs/
 reports/
@@ -51,3 +54,24 @@ apps/dsa-web/node_modules/
 apps/dsa-web/dist/
 apps/dsa-web/build/
 apps/dsa-web/coverage/
+
+# Local secrets and backups must not enter the build context
+longbridge_tokens/
+credentials.json
+credentials.*.json
+service-account*.json
+backups/
+*.pem
+*.key
+*.p12
+*.pfx
+*.bak
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
