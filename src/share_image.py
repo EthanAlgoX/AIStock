@@ -24,12 +24,15 @@ import markdown2
 
 
 PROJECT_URL = "https://github.com/ZhuLinsen/daily_stock_analysis"
+from src.core.market_review_locale import MARKET_NAMES
+from src.utils.market_review_region import MARKET_REVIEW_REGION_ORDER
+
 PROJECT_REPOSITORY = "ZhuLinsen/daily_stock_analysis"
 PROJECT_DISPLAY_NAME = "股票智能分析系统"
 DEFAULT_XIAOHONGSHU_QR_PATH = "src/assets/share_image/xiaohongshu_qr.jpg"
 DEFAULT_XIAOHONGSHU_HANDLE = "@霸天土小豆"
 _MARKET_RE = re.compile(
-    r"(?:大盘复盘|市场复盘|market\s+(?:review|recap)|시황\s*리뷰)", re.IGNORECASE
+    r"(?:大盘复盘|市场复盘|大盤複盤|市場総括|market\s+(?:review|recap)|시황\s*리뷰)", re.IGNORECASE
 )
 _MARKET_SCOPE_RE = re.compile(
     r"(?:A股|港股|美股|日股|韩股|中国\s*A주|미국|홍콩|일본|한국|\b(?:cn|hk|us|jp|kr)\b|a[-\s]?share|hong\s+kong|japan|korea|u\.?s\.?)",
@@ -105,6 +108,38 @@ _POSTER_TEXT = {
         "disclaimer": "AI 생성 연구 자료이며 투자 조언이 아닙니다. 투자에는 위험이 따릅니다.",
         "source": "데이터 소스",
     },
+    "ja": {
+        "brand": "AI株式分析", "stock_subtitle": "銘柄判断カード · 結論、価格水準、リスク", "market_subtitle": "指数、市場の広がり、テーマとリスクの総括",
+        "multi_title": "複数市場の総括", "multi_subtitle": "市場別の指数、テーマ、リスク条件", "dashboard_subtitle": "複数銘柄の判断要約",
+        "score": "スコア", "confidence": "確信度", "trend": "トレンド",
+        "core": "主な結論", "snapshot": "市場スナップショット", "execution": "実行計画",
+        "technical": "テクニカル指標", "next_watch": "次の確認事項", "positive_catalysts": "好材料",
+        "risk_alerts": "リスク警告", "catalysts_risks": "材料とリスク", "no_position": "未保有",
+        "holding": "保有中", "position": "ポジション", "entry": "エントリー",
+        "risk_control": "リスク管理", "position_advice": "保有方針", "market_signal": "市場シグナル",
+        "today_conclusion": "本日の結論", "breadth": "騰落銘柄数", "dimensions": "シグナルの内訳",
+        "leaders": "強いセクター", "laggards": "弱いセクター", "focus_tag": "注目",
+        "avoid_tag": "回避", "focus": "注目対象", "funds": "資金動向",
+        "strategy": "次の取引日の方針", "risks": "リスク", "tagline": "株式調査をより簡単に、効率的に",
+        "open_source": "オープンソース · GitHub", "xiaohongshu": "小紅書", "disclaimer": "AI生成の調査資料であり、投資助言ではありません。投資にはリスクが伴います。",
+        "source": "データソース",
+    },
+    "zh-TW": {
+        "brand": "AI 股票分析", "stock_subtitle": "個股決策卡 · 結論、價位與風險", "market_subtitle": "指數、寬度、主線與風險的收盤複盤",
+        "multi_title": "多市場複盤", "multi_subtitle": "按市場分段顯示指數、主線與風險邊界", "dashboard_subtitle": "多股決策摘要",
+        "score": "評分", "confidence": "信心水準", "trend": "趨勢",
+        "core": "核心結論", "snapshot": "市場快照", "execution": "執行計畫",
+        "technical": "技術參考", "next_watch": "下一步觀察", "positive_catalysts": "利多催化",
+        "risk_alerts": "風險警報", "catalysts_risks": "催化與風險", "no_position": "未持倉",
+        "holding": "持倉中", "position": "部位", "entry": "進場",
+        "risk_control": "風險控制", "position_advice": "部位建議", "market_signal": "市場訊號",
+        "today_conclusion": "今日結論", "breadth": "市場寬度", "dimensions": "訊號拆解",
+        "leaders": "強勢板塊", "laggards": "弱勢板塊", "focus_tag": "關注",
+        "avoid_tag": "迴避", "focus": "重點追蹤", "funds": "資金觀察",
+        "strategy": "次日策略", "risks": "風險提示", "tagline": "讓股票研究更簡單、更有效率",
+        "open_source": "開源專案 · GitHub", "xiaohongshu": "小紅書", "disclaimer": "AI 產生，僅供研究交流，不構成投資建議。市場有風險，決策需謹慎。",
+        "source": "資料來源",
+    },
 }
 _POSTER_LABELS = {
     "en": {
@@ -124,6 +159,28 @@ _POSTER_LABELS = {
         "行动窗口": "행동 구간", "下次检查": "다음 점검", "上涨": "상승", "下跌": "하락",
         "涨停": "상한가", "跌停": "하한가", "成交额": "거래대금", "赚钱效应": "시장 폭 점수",
         "指数强度": "지수 강도", "涨停结构": "상한가 구조",
+    },
+    "ja": {
+        "当前/收盘": "現在値/終値", "现价": "現在値", "涨跌幅": "騰落率",
+        "涨跌": "騰落", "量比": "出来高比率", "换手率": "売買回転率",
+        "换手": "回転率", "理想买入": "理想的な買値", "确认买入": "確認後の買値",
+        "止损": "損切り", "目标": "目標", "均线": "移動平均線",
+        "量能": "出来高", "趋势分": "トレンドスコア", "MA5乖离": "MA5乖離率",
+        "支撑": "支持線", "压力": "抵抗線", "行动窗口": "実行期間",
+        "下次检查": "次回確認", "上涨": "上昇", "下跌": "下落",
+        "涨停": "ストップ高", "跌停": "ストップ安", "成交额": "売買代金",
+        "赚钱效应": "市場の広がりのスコア", "指数强度": "指数の強さ", "涨停结构": "ストップ高の構成",
+    },
+    "zh-TW": {
+        "当前/收盘": "目前/收盤", "现价": "現價", "涨跌幅": "漲跌幅",
+        "涨跌": "漲跌", "量比": "量比", "换手率": "週轉率",
+        "换手": "週轉率", "理想买入": "理想買入", "确认买入": "確認買入",
+        "止损": "停損", "目标": "目標", "均线": "均線",
+        "量能": "量能", "趋势分": "趨勢分數", "MA5乖离": "MA5乖離",
+        "支撑": "支撐", "压力": "壓力", "行动窗口": "行動時段",
+        "下次检查": "下次檢查", "上涨": "上漲", "下跌": "下跌",
+        "涨停": "漲停", "跌停": "跌停", "成交额": "成交金額",
+        "赚钱效应": "市場寬度分數", "指数强度": "指數強度", "涨停结构": "漲停結構",
     },
 }
 _MARKET_LABEL_PATTERNS = (
@@ -348,8 +405,16 @@ def _poster_language(
             return "en"
         if normalized.startswith("ko"):
             return "ko"
+        if normalized in {"zh-tw", "zh-hant", "zh-hk"}:
+            return "zh-TW"
+        if normalized.startswith("ja"):
+            return "ja"
         if normalized.startswith("zh"):
             return "zh"
+    if re.search(r"[\u3040-\u30ff]", markdown_text or ""):
+        return "ja"
+    if "大盤複盤" in (markdown_text or ""):
+        return "zh-TW"
     if re.search(r"[\uac00-\ud7af]", markdown_text or ""):
         return "ko"
     if re.search(
@@ -373,6 +438,8 @@ def _poster_label(language: str, label: str) -> str:
         return label.replace("观察 ", "Watch ", 1)
     if language == "ko" and label.startswith("观察 "):
         return label.replace("观察 ", "관찰 ", 1)
+    if language in {"ja", "zh-TW"} and label.startswith("观察 "):
+        return label.replace("观察 ", "注目 " if language == "ja" else "觀察 ", 1)
     return label
 
 
@@ -852,6 +919,11 @@ def _market_label(text: str) -> str:
     for label, pattern in _MARKET_LABEL_PATTERNS:
         if pattern.search(scope):
             return label
+    for region in MARKET_REVIEW_REGION_ORDER:
+        if any(re.search(r"(?<![A-Za-z])" + re.escape(names[region]) + r"(?![A-Za-z])", scope, re.I)
+               for language, names in MARKET_NAMES.items()
+               if region not in {"cn", "hk", "us", "jp", "kr"} or language in {"ja", "zh-TW"}):
+            return MARKET_NAMES["zh"][region]
     return ""
 
 
@@ -861,13 +933,7 @@ def _market_region_hint(markdown_text: str) -> str:
 
 
 def _market_label_for_region(region: str) -> str:
-    return {
-        "cn": "A股",
-        "hk": "港股",
-        "us": "美股",
-        "jp": "日股",
-        "kr": "韩股",
-    }.get((region or "").strip().lower(), "")
+    return MARKET_NAMES["zh"].get((region or "").strip().lower(), "")
 
 
 def _stock_heading_entry(raw_title: str) -> Optional[tuple[str, str]]:
@@ -913,7 +979,7 @@ def _is_market_review_title(title: str) -> bool:
 
 
 def _has_market_scope(title: str) -> bool:
-    return bool(_MARKET_SCOPE_RE.search(_plain(title)))
+    return bool(_MARKET_SCOPE_RE.search(_plain(title)) or _market_label(title))
 
 
 def _market_segments(markdown_text: str) -> list[MarketSegment]:
@@ -1270,7 +1336,7 @@ def _stock_data_from_payload(
 def _market_title(markdown_text: str) -> str:
     first_title = next((title for title, _body, _level in _extract_sections(markdown_text)), "")
     language = _poster_language(markdown_text)
-    if language in {"en", "ko"} and _is_market_review_title(first_title):
+    if language in {"en", "ko", "ja", "zh-TW"} and _is_market_review_title(first_title):
         return first_title
     market = _market_label(first_title)
     if market:
@@ -1942,13 +2008,7 @@ def _generic_body(report_html: str) -> str:
 
 def _market_region_for_segment(segment: MarketSegment) -> str:
     label = _market_label(segment.title) or _market_label(segment.markdown[:500])
-    return {
-        "A股": "cn",
-        "港股": "hk",
-        "美股": "us",
-        "日股": "jp",
-        "韩股": "kr",
-    }.get(label, "")
+    return next((region for region, name in MARKET_NAMES["zh"].items() if name == label), "")
 
 
 def _multi_market_body(
@@ -1960,7 +2020,7 @@ def _multi_market_body(
     markets = structured_payload.get("markets") if isinstance(structured_payload, Mapping) else None
     market_payloads = markets if isinstance(markets, Mapping) else {}
     unused_regions = [
-        region for region in ("cn", "hk", "us", "jp", "kr")
+        region for region in MARKET_REVIEW_REGION_ORDER
         if isinstance(market_payloads.get(region), Mapping)
     ]
     for segment in segments:
@@ -2023,7 +2083,7 @@ def _footer(branding: ShareImageBranding, source_line: str, language: str) -> st
     return f"""
     <footer class="poster-footer">
       <div class="{brand_class}">
-        <div class="footer-title"><strong>DSA</strong><span>{_escape(PROJECT_DISPLAY_NAME)}</span></div>
+        <div class="footer-title"><strong>DSA</strong><span>{_escape(PROJECT_DISPLAY_NAME if language == "zh" else _poster_text(language, "brand"))}</span></div>
         <small>{_escape(_poster_text(language, "tagline"))}</small>
         <div class="repo-line">
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.64 0 8.13c0 3.59 2.29 6.64 5.47 7.71.4.08.55-.18.55-.39 0-.19-.01-.83-.01-1.51-2.01.38-2.53-.5-2.69-.96-.09-.23-.48-.96-.82-1.15-.28-.15-.68-.53-.01-.54.63-.01 1.08.59 1.23.83.72 1.23 1.87.88 2.33.67.07-.53.28-.88.51-1.08-1.78-.21-3.64-.91-3.64-4.02 0-.89.31-1.62.82-2.19-.08-.21-.36-1.04.08-2.16 0 0 .67-.22 2.2.84A7.45 7.45 0 0 1 8 3.91c.68 0 1.36.09 2 .27 1.53-1.06 2.2-.84 2.2-.84.44 1.12.16 1.95.08 2.16.51.57.82 1.3.82 2.19 0 3.12-1.87 3.81-3.65 4.02.29.25.54.74.54 1.5 0 1.08-.01 1.95-.01 2.22 0 .22.15.47.55.39A8.15 8.15 0 0 0 16 8.13C16 3.64 12.42 0 8 0Z"/></svg>
@@ -2111,7 +2171,7 @@ def build_share_image_html(
     poster_branding = branding or ShareImageBranding()
 
     return f"""<!DOCTYPE html>
-<html lang="{'en' if language == 'en' else 'ko' if language == 'ko' else 'zh-CN'}">
+<html lang="{language if language != 'zh' else 'zh-CN'}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=1080, initial-scale=1">

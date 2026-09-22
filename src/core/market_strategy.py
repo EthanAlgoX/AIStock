@@ -4,6 +4,8 @@
 from dataclasses import dataclass
 from typing import List
 
+from src.core.market_profile import INTERNATIONAL_MARKET_DETAILS
+
 
 @dataclass(frozen=True)
 class StrategyDimension:
@@ -229,14 +231,30 @@ KR_BLUEPRINT = MarketStrategyBlueprint(
     ],
 )
 
+
+INTERNATIONAL_BLUEPRINTS = {
+    region: MarketStrategyBlueprint(
+        region=region, title=f"{name} market review", positioning=f"Assess {indices}, local catalysts and global risk context.",
+        principles=["Use only supplied observations; distinguish facts from hypotheses.",
+                    "Never substitute US or A-share breadth, sector rankings or policy for local evidence.",
+                    "A single index does not establish market-wide participation or sector leadership."],
+        dimensions=[
+            StrategyDimension("Index structure", f"Interpret the available {indices} observations.",
+                              ["Separate daily moves from trends requiring history", "Identify missing confirmation"]),
+            StrategyDimension("Local and global context", f"Investigate {drivers}.",
+                              ["Cite dated evidence for each catalyst", "Treat missing local macro data as unavailable"]),
+        ],
+        action_framework=["State a conditional scenario, its required evidence and invalidation conditions.",
+                          "Do not invent price targets, capital flows or investment certainty from missing data."],
+    )
+    for region, (name, code, currency, indices, drivers) in INTERNATIONAL_MARKET_DETAILS.items()
+}
+
+
 def get_market_strategy_blueprint(region: str) -> MarketStrategyBlueprint:
     """Return strategy blueprint by market region."""
-    if region == "us":
-        return US_BLUEPRINT
-    if region == "hk":
-        return HK_BLUEPRINT
-    if region == "jp":
-        return JP_BLUEPRINT
-    if region == "kr":
-        return KR_BLUEPRINT
-    return CN_BLUEPRINT
+    blueprints = {"cn": CN_BLUEPRINT, "hk": HK_BLUEPRINT, "us": US_BLUEPRINT, "jp": JP_BLUEPRINT, "kr": KR_BLUEPRINT, **INTERNATIONAL_BLUEPRINTS}
+    try:
+        return blueprints[region]
+    except KeyError:
+        raise ValueError(f"Unsupported market review region: {region}") from None

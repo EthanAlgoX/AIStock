@@ -11,6 +11,7 @@
 """
 
 from typing import Optional, List, Any, Dict, Literal
+from src.utils.market_review_region import MarketSnapshotRegion
 from enum import Enum
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
@@ -133,9 +134,9 @@ class MarketReviewRequest(BaseModel):
         min_length=1,
         max_length=64,
         description=(
-            "本次大盘复盘市场覆盖。合法 token 为 cn、hk、us、jp、kr、both；"
-            "both 只能单独使用，其余 token 可用逗号组合。输入会忽略大小写和 token 两侧空格、"
-            "去重并按 cn,hk,us,jp,kr 排序；空值、空 token、未知 token、both 混用或超过 "
+            "本次大盘复盘市场覆盖。合法 token 为 cn、hk、us、jp、kr、tw、gb、ca、au、in、de、fr、both；"
+            "both 只能单独使用，保持 cn,hk,us,jp,kr 的历史范围；其余 token 可用逗号组合。输入会忽略大小写和 token 两侧空格、"
+            "去重并按 cn,hk,us,jp,kr,tw,gb,ca,au,in,de,fr 排序；空值、空 token、未知 token、both 混用或超过 "
             "64 个字符会整体返回 4xx，不会部分执行。未传时使用运行时全局 MARKET_REVIEW_REGION。"
         ),
         json_schema_extra={
@@ -179,7 +180,7 @@ class MarketSnapshotResponse(BaseModel):
 
     version: int = 1
     kind: Literal["market_snapshot"] = "market_snapshot"
-    region: Literal["cn", "hk", "us"]
+    region: MarketSnapshotRegion
     market_scope: str
     generated_at: str
     date: str

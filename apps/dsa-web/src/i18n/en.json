@@ -5891,5 +5891,13 @@
   "使用现有单股研究内核分析法国股票，核验行情、趋势、新闻与基本面；不可用的数据明确标注，不产生订单。": "Research French stocks using the existing engine. Verify prices, trends, news and fundamentals; flag unavailable evidence. No orders are created.",
   "日本官方 J-Quants V2 日线行情；免费方案延迟 12 周。": "J-Quants V2 official Japanese daily prices. The Free plan is delayed by 12 weeks.",
   "KRX 官方日线行情；需要 API 审批及数据使用授权。": "KRX daily prices. API approval and data-use permissions are required.",
-  "此市场请先指定股票，再按行业或波动率条件筛选。": "Specify stocks for this market before filtering by industry or volatility."
+  "此市场请先指定股票，再按行业或波动率条件筛选。": "Specify stocks for this market before filtering by industry or volatility.",
+  "当前展示全球宏观变量；该市场的专属宏观框架尚未接入。": "Global macro indicators are shown. A dedicated macro framework for this market is not yet available.",
+  "展示全球宏观变量和已接入市场的专属驱动。": "Show global macro indicators and available market-specific drivers.",
+  "台湾加权指数": "Taiwan Weighted Index",
+  "台湾柜买指数": "Taiwan OTC Index",
+  "日经225": "Nikkei 225",
+  "东证指数": "TOPIX",
+  "市场数据工作台": "Market data workspace",
+  "支持 cn/hk/us/jp/kr/tw/gb/ca/au/in/de/fr，可用逗号组合；both 保留原五市场 cn,hk,us,jp,kr。": "Supports cn/hk/us/jp/kr/tw/gb/ca/au/in/de/fr and comma-separated subsets; both retains the original cn,hk,us,jp,kr markets."
 }

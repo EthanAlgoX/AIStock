@@ -1,12 +1,17 @@
 # -*- coding: utf-8 -*-
 """Shared normalization rules for market-review region values."""
 
-from typing import Optional
+from typing import Optional, Literal, get_args
 
 
-MARKET_REVIEW_REGION_ORDER = ("cn", "hk", "us", "jp", "kr")
+MarketSnapshotRegion = Literal["cn", "hk", "us", "tw", "jp", "kr", "gb", "ca", "au", "in", "de", "fr"]
+MARKET_SNAPSHOT_REGIONS = frozenset(get_args(MarketSnapshotRegion))
+
+LEGACY_BOTH_REGIONS = ("cn", "hk", "us", "jp", "kr")
+MARKET_REVIEW_REGION_ORDER = (*LEGACY_BOTH_REGIONS, "tw", "gb", "ca", "au", "in", "de", "fr")
 MARKET_REVIEW_REGION_SET = frozenset(MARKET_REVIEW_REGION_ORDER)
-MARKET_REVIEW_REGION_ALL = ",".join(MARKET_REVIEW_REGION_ORDER)
+# Keep existing scheduled `both` jobs at five markets; new markets are opt-in.
+MARKET_REVIEW_REGION_ALL = ",".join(LEGACY_BOTH_REGIONS)
 MARKET_REVIEW_REGION_VALID_INPUTS = (*MARKET_REVIEW_REGION_ORDER, "both")
 
 
@@ -14,7 +19,7 @@ def normalize_market_review_region_lenient(value: Optional[str]) -> Optional[str
     """Normalize persistent config input while preserving legacy filtering.
 
     ``None`` and an empty string retain the historical ``cn`` default. Comma
-    lists keep only supported markets, and ``both`` expands to every market.
+    lists keep only supported markets, and ``both`` preserves the legacy five-market scope.
     ``None`` is returned only when a non-defaultable value has no valid token.
     """
 
@@ -46,7 +51,7 @@ def normalize_market_review_region_strict(value: str) -> str:
     normalized = value.strip().lower()
     valid_hint = (
         f"{', '.join(MARKET_REVIEW_REGION_VALID_INPUTS)}，"
-        "或 cn/hk/us/jp/kr 的合法逗号分隔组合"
+        "或以上市场的合法逗号分隔组合（both 保留原五市场范围）"
     )
     if not normalized:
         raise ValueError(f"region 不能为空；合法值：{valid_hint}")

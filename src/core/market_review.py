@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-股票智能分析系统 - 大盘复盘模块（支持 A 股 / 港股 / 美股 / 日本 / 韩国）
+股票智能分析系统 - 大盘复盘模块（支持 12 个市场）
 ===================================
 
 职责：
-1. 根据 MARKET_REVIEW_REGION 配置选择市场区域（cn / hk / us / jp / kr / both）
+1. 根据 MARKET_REVIEW_REGION 配置选择市场区域（12 个市场代码、逗号组合，both 保留原五市场）
 2. 执行大盘复盘分析并生成复盘报告
 3. 保存和发送复盘报告
 """
@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional
 import uuid
 
 from src.config import get_config
+from src.core.market_review_locale import MARKET_NAMES, REVIEW_COPY, review_heading
 from src.notification import NotificationService
 from src.market_analyzer import MarketAnalyzer
 from src.report_language import normalize_report_language
@@ -41,12 +42,9 @@ logger = logging.getLogger(__name__)
 
 MARKET_REVIEW_HISTORY_CODE = "MARKET"
 MARKET_REVIEW_REPORT_TYPE = "market_review"
-_MARKET_REVIEW_MARKETS = (
-    ('cn', 'cn_title', 'A 股'),
-    ('hk', 'hk_title', '港股'),
-    ('us', 'us_title', '美股'),
-    ('jp', 'jp_title', '日股'),
-    ('kr', 'kr_title', '韩股'),
+_MARKET_REVIEW_MARKETS = tuple(
+    (region, f"{region}_title", MARKET_NAMES["zh"][region])
+    for region in MARKET_REVIEW_REGION_ORDER
 )
 _MARKET_REVIEW_REGION_ORDER = MARKET_REVIEW_REGION_ORDER
 
@@ -114,37 +112,12 @@ def _collect_market_light_snapshot(
 
 def _get_market_review_text(language: str) -> dict[str, str]:
     normalized = normalize_report_language(language)
-    if normalized == "en":
-        return {
-            "root_title": "# 🎯 Market Review",
-            "push_title": "🎯 Market Review",
-            "cn_title": "# A-share Market Recap",
-            "us_title": "# US Market Recap",
-            "hk_title": "# HK Market Recap",
-            "jp_title": "# Japan Market Recap",
-            "kr_title": "# Korea Market Recap",
-            "separator": "> Next market recap follows",
-        }
-    if normalized == "ko":
-        return {
-            "root_title": "# 🎯 시황 리뷰",
-            "push_title": "🎯 시황 리뷰",
-            "cn_title": "# 중국 A주 시황 리뷰",
-            "us_title": "# 미국 시황 리뷰",
-            "hk_title": "# 홍콩 시황 리뷰",
-            "jp_title": "# 일본 시황 리뷰",
-            "kr_title": "# 한국 시황 리뷰",
-            "separator": "> 다음 시장 시황 리뷰",
-        }
+    copy = REVIEW_COPY[normalized]
     return {
-        "root_title": "# 🎯 大盘复盘",
-        "push_title": "🎯 大盘复盘",
-        "cn_title": "# A股大盘复盘",
-        "us_title": "# 美股大盘复盘",
-        "hk_title": "# 港股大盘复盘",
-        "jp_title": "# 日股大盘复盘",
-        "kr_title": "# 韩股大盘复盘",
-        "separator": "> 以下为下一市场大盘复盘",
+        "root_title": f"# 🎯 {copy['root']}",
+        "push_title": f"🎯 {copy['root']}",
+        "separator": f"> {copy['separator']}",
+        **{f"{region}_title": f"# {review_heading(region, normalized)}" for region in MARKET_REVIEW_REGION_ORDER},
     }
 
 
@@ -737,6 +710,10 @@ def _render_sector_payload_block(payload: Dict[str, Any]) -> str:
         return ""
 
     language = normalize_report_language(payload.get("language"))
+    # The model renders localized sector commentary for these languages. Keep
+    # raw provider labels in the structured payload instead of appending mixed prose.
+    if language not in {"zh", "en"}:
+        return ""
     lines = []
     if top:
         if language == "en":
@@ -802,6 +779,10 @@ def _persist_market_review_history(
             stock_name = "시황 리뷰"
             operation_advice = "리뷰 보기"
             trend_prediction = "시황 리뷰"
+        elif report_language in {"ja", "zh-TW"}:
+            stock_name = REVIEW_COPY[report_language]["root"]
+            operation_advice = "総括を見る" if report_language == "ja" else "查看複盤"
+            trend_prediction = stock_name
         else:
             stock_name = "大盘复盘"
             operation_advice = "查看复盘"
@@ -908,7 +889,7 @@ def _build_market_review_context_overview(
     label = (
         "Market review" if report_language == "en"
         else "시황 리뷰" if report_language == "ko"
-        else "大盘复盘"
+        else REVIEW_COPY[normalize_report_language(report_language)]["root"]
     )
     return {
         "pack_version": "market_review/1.0",
@@ -950,4 +931,4 @@ def _summarize_market_review(review_report: str, report_language: str) -> str:
         return "Market review report generated."
     if report_language == "ko":
         return "시황 리뷰 리포트가 생성되었습니다."
-    return "大盘复盘报告已生成。"
+    return {"ja": "市場総括レポートが生成されました。", "zh-TW": "大盤複盤報告已產生。"}.get(report_language, "大盘复盘报告已生成。")

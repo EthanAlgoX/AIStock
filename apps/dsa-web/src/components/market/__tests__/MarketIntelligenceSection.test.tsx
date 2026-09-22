@@ -312,6 +312,39 @@ describe('MarketIntelligenceSection', () => {
     }));
   });
 
+  it.each(['zh', 'en', 'ja', 'ko', 'zh-TW'])('uses %s for new market reviews', async (language) => {
+    window.localStorage.setItem('dsa.uiLanguage', language);
+    window.localStorage.setItem('dsa.market-intelligence-market.v1', 'jp');
+    renderPage();
+    await waitFor(() => expect(api.getMarketSnapshot).toHaveBeenCalledWith('jp', false));
+    const { translateWorkspaceText } = await import('../../../i18n/translateWorkspaceText');
+    const group = screen.getByRole('group', { name: translateWorkspaceText('选择市场', language as import('../../../i18n/uiText').UiLanguage) });
+    expect(within(group).getAllByRole('button')).toHaveLength(12);
+    fireEvent.click(screen.getByRole('button', { name: translateWorkspaceText('生成最新复盘', language as import('../../../i18n/uiText').UiLanguage) }));
+    await waitFor(() => expect(api.triggerMarketReview).toHaveBeenCalledWith({
+      sendNotification: false, regions: ['jp'], reportLanguage: language,
+    }));
+  });
+
+  it.each([
+    ['台股', 'tw'], ['日股', 'jp'], ['韩股', 'kr'], ['英国股票', 'gb'],
+    ['加拿大股票', 'ca'], ['澳大利亚股票', 'au'], ['印度股票', 'in'],
+    ['德国股票', 'de'], ['法国股票', 'fr'],
+  ])('loads the %s dashboard without falling back to China', async (label, region) => {
+    renderPage();
+    await screen.findByText('市场整体走强，成长板块领涨。');
+    fireEvent.click(screen.getByRole('button', { name: label }));
+    await waitFor(() => expect(api.getMarketSnapshot).toHaveBeenCalledWith(region, false));
+    await waitFor(() => expect(api.getMarketDashboard).toHaveBeenCalledWith(region.toUpperCase()));
+    expect(screen.queryByText('市场整体走强，成长板块领涨。')).not.toBeInTheDocument();
+    const review = screen.getByRole('button', { name: '生成最新复盘' });
+    expect(review).toBeEnabled();
+    fireEvent.click(review);
+    await waitFor(() => expect(api.triggerMarketReview).toHaveBeenCalledWith({
+      sendNotification: false, regions: [region], reportLanguage: 'zh',
+    }));
+  });
+
   it('starts a real market review task without sending notifications and polls progress', async () => {
     renderPage();
     await screen.findByText('市场整体走强，成长板块领涨。');
@@ -321,6 +354,7 @@ describe('MarketIntelligenceSection', () => {
     await waitFor(() => expect(api.triggerMarketReview).toHaveBeenCalledWith({
       sendNotification: false,
       regions: ['cn'],
+      reportLanguage: 'zh',
     }));
     await waitFor(() => expect(api.getStatus).toHaveBeenCalledWith('task-market'));
     expect(await screen.findByText(/正在生成 A 股 最新复盘/)).toBeInTheDocument();

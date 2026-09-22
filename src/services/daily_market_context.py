@@ -18,6 +18,7 @@ from src.core.market_review_lock import (
     try_acquire_market_review_lock,
 )
 from src.report_language import normalize_report_language
+from src.core.market_review_locale import MARKET_NAMES
 from src.services.run_diagnostics import (
     activate_run_diagnostic_context,
     reset_run_diagnostic_context,
@@ -30,8 +31,8 @@ MARKET_REVIEW_HISTORY_CODE = "MARKET"
 MARKET_REVIEW_REPORT_TYPE = "market_review"
 
 
-_REGION_LABEL_ZH = {"cn": "A股", "hk": "港股", "us": "美股", "jp": "日股", "kr": "韩股"}
-_REGION_LABEL_EN = {"cn": "A-share", "hk": "HK", "us": "US", "jp": "Japan", "kr": "Korea"}
+_REGION_LABEL_ZH = MARKET_NAMES["zh"]
+_REGION_LABEL_EN = MARKET_NAMES["en"]
 _VALID_REGIONS = frozenset(_REGION_LABEL_ZH)
 _LEGACY_BOTH_REGIONS = frozenset({"cn", "hk", "us"})
 _UNTRUSTED_MARKET_SUMMARY_SENTINELS = (

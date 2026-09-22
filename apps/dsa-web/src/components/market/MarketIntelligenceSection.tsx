@@ -1,3 +1,4 @@
+import { RESEARCH_MARKETS } from "../../utils/markets";
 import { uiLocale } from '../../utils/uiLanguage';
 import { translateSource } from '../../i18n/localize';
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
@@ -53,7 +54,7 @@ import type {
   MarketReviewIndex,
   MarketMacroIndicator,
   MarketReviewPayload,
-  MarketReviewRegion,
+  MarketSnapshotRegion,
   MarketSnapshot,
   SectorRankingItem,
   TaskInfo,
@@ -73,20 +74,17 @@ type MarketDashboardLayout = {
 const MARKET_DASHBOARD_KEY = 'dsa.market-intelligence-layout.v3';
 const MARKET_SELECTION_KEY = 'dsa.market-intelligence-market.v1';
 const DEFAULT_WIDGET_IDS: WidgetId[] = ['overview', 'subscriptions', 'macro', 'indices', 'breadth', 'sectors', 'news'];
-const MARKET_OPTIONS: Array<{ id: MarketReviewRegion; label: string }> = [
-  { id: 'cn', label: 'A 股' },
-  { id: 'hk', label: '港股' },
-  { id: 'us', label: '美股' },
-];
-const MARKET_TIMEZONES: Record<string, string> = {
-  cn: 'Asia/Shanghai',
-  hk: 'Asia/Hong_Kong',
-  us: 'America/New_York',
+const MARKET_OPTIONS = RESEARCH_MARKETS.map(({ id, label }) => ({ id: id.toLowerCase() as MarketSnapshotRegion, label }));
+const MARKET_TIMEZONES: Record<MarketSnapshotRegion, string> = {
+  cn: 'Asia/Shanghai', hk: 'Asia/Hong_Kong', us: 'America/New_York',
+  tw: 'Asia/Taipei', jp: 'Asia/Tokyo', kr: 'Asia/Seoul', gb: 'Europe/London',
+  ca: 'America/Toronto', au: 'Australia/Sydney', in: 'Asia/Kolkata',
+  de: 'Europe/Berlin', fr: 'Europe/Paris',
 };
 const WIDGET_OPTIONS: Array<{ id: WidgetId; label: string; description: string; sourceHint: string }> = [
   { id: 'overview', label: 'Agent 市场摘要', description: '展示最近一次完整复盘形成的核心判断。', sourceHint: '行情、资讯与 Agent' },
   { id: 'subscriptions', label: '分析订阅', description: '展示定时任务最近一次成功运行的摘要。', sourceHint: 'Task、Run 与 Artifact' },
-  { id: 'macro', label: '宏观监控', description: '展示三地共同宏观变量和当前市场的专属驱动。', sourceHint: '宏观行情快照与监控框架' },
+  { id: 'macro', label: '宏观监控', description: '展示全球宏观变量和已接入市场的专属驱动。', sourceHint: '宏观行情快照与监控框架' },
   { id: 'indices', label: '主要指数', description: '展示指数点位、涨跌幅和相对波动。', sourceHint: '行情提供方' },
   { id: 'breadth', label: '市场宽度', description: '展示涨跌家数、涨跌停与成交额。', sourceHint: 'A 股行情提供方' },
   { id: 'sectors', label: '板块排行', description: '展示最近一次复盘中的领涨和承压板块。', sourceHint: '板块行情' },
@@ -125,7 +123,7 @@ const COMMON_MACRO_CHECKLIST: MacroChecklistItem[] = [
   { key: 'global_pmi', label: '中美欧 PMI', category: '全球周期', rationale: '识别全球扩张、放缓、衰退或复苏' },
 ];
 
-const MARKET_RELEASES: Record<'cn' | 'hk' | 'us', Array<{ key: string; label: string }>> = {
+const MARKET_RELEASES: Partial<Record<MarketSnapshotRegion, Array<{ key: string; label: string }>>> = {
   cn: [
     { key: 'china_pmi', label: '中国制造业 PMI' },
     { key: 'china_cpi_yoy', label: '中国 CPI 同比' },
@@ -144,7 +142,7 @@ const MARKET_RELEASES: Record<'cn' | 'hk' | 'us', Array<{ key: string; label: st
   ],
 };
 
-const MARKET_MACRO_FRAMEWORKS: Record<'cn' | 'hk' | 'us', MarketMacroFramework> = {
+const MARKET_MACRO_FRAMEWORKS: Partial<Record<MarketSnapshotRegion, MarketMacroFramework>> = {
   cn: {
     chain: '信用周期 → 财政力度 → 房地产 → 国内流动性 → 经济修复',
     summary: 'A 股更偏内生，核心问题是中国是否进入新的信用扩张阶段。',
@@ -196,7 +194,7 @@ const readDashboardLayout = (): MarketDashboardLayout => {
   }
 };
 
-const toWorkspaceMarket = (market: MarketReviewRegion): WorkspaceTask['market'] => market.toUpperCase() as WorkspaceTask['market'];
+const toWorkspaceMarket = (market: MarketSnapshotRegion): WorkspaceTask['market'] => market.toUpperCase() as WorkspaceTask['market'];
 
 const dashboardLayout = (dashboard: MarketDashboard): MarketDashboardLayout => ({
   widgetIds: dashboard.widgetIds,
@@ -204,10 +202,10 @@ const dashboardLayout = (dashboard: MarketDashboard): MarketDashboardLayout => (
   newsKeywords: dashboard.newsKeywords || [],
 });
 
-const readMarket = (): MarketReviewRegion => {
+const readMarket = (): MarketSnapshotRegion => {
   if (typeof window === 'undefined') return 'cn';
   const value = window.localStorage.getItem(MARKET_SELECTION_KEY);
-  return MARKET_OPTIONS.some((market) => market.id === value) ? value as MarketReviewRegion : 'cn';
+  return MARKET_OPTIONS.some((market) => market.id === value) ? value as MarketSnapshotRegion : 'cn';
 };
 
 const toggleItem = <T,>(items: T[], value: T): T[] => (
@@ -246,7 +244,7 @@ const clampText = (value: string, maxLength = 240): string => (
   value.length > maxLength ? `${value.slice(0, maxLength).trim()}…` : value
 );
 
-const resolvePayload = (report: AnalysisReport | null, market: MarketReviewRegion): MarketReviewPayload | null => {
+const resolvePayload = (report: AnalysisReport | null, market: MarketSnapshotRegion): MarketReviewPayload | null => {
   const payload = report?.details?.contextSnapshot?.marketReviewPayload;
   if (!payload) return null;
   if (payload.markets?.[market]) return payload.markets[market];
@@ -288,13 +286,13 @@ const snapshotAgeHours = (value?: string | null): number | null => {
   return Math.max(0, (Date.now() - timestamp) / (60 * 60 * 1000));
 };
 
-const historyMatchesMarket = (item: HistoryItem, market: MarketReviewRegion): boolean => {
+const historyMatchesMarket = (item: HistoryItem, market: MarketSnapshotRegion): boolean => {
   const region = String(item.region || '').toLowerCase();
   if (region.split(',').map((token) => token.trim()).includes(market)) return true;
   return String(item.stockCode || '').toLowerCase().endsWith(`_${market}`);
 };
 
-const taskMatchesMarket = (task: TaskInfo, market: MarketReviewRegion): boolean => {
+const taskMatchesMarket = (task: TaskInfo, market: MarketSnapshotRegion): boolean => {
   if (String(task.stockCode || '').toLowerCase() !== 'market_review') return false;
   const region = String(task.region || '').toLowerCase();
   return !region || region.split(',').map((token) => token.trim()).includes(market);
@@ -337,7 +335,7 @@ const IndexPerformance = ({ indices }: { indices: MarketReviewIndex[] }) => {
         return (
           <div key={`${index.code}-${tx(index.name)}`} className="grid grid-cols-[minmax(5rem,1fr)_4rem] items-center gap-x-4 gap-y-1.5">
             <div className="flex min-w-0 items-baseline justify-between gap-3">
-              <span className="truncate text-sm font-medium text-foreground">{index.name}</span>
+              <span className="truncate text-sm font-medium text-foreground">{tx(index.name)}</span>
               <span className="shrink-0 text-xs tabular-nums text-muted-text">
                 {toFiniteNumber(index.current)?.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) || '—'}
               </span>
@@ -539,17 +537,17 @@ const MacroMonitor = ({
   indices,
   analysisSkills,
 }: {
-  market: MarketReviewRegion;
+  market: MarketSnapshotRegion;
   macroIndicators: MarketMacroIndicator[];
   indices: MarketReviewIndex[];
   analysisSkills: string[];
 }) => {
   const { translate: tx, language } = useUiLanguage();
   const formatDateTime = (value?: string | null, includeYear = false) => formatDateTimeForLanguage(language, value, includeYear);
-  const framework = MARKET_MACRO_FRAMEWORKS[market as 'cn' | 'hk' | 'us'];
+  const framework = MARKET_MACRO_FRAMEWORKS[market];
   const observations = resolveMacroIndicators(macroIndicators, indices);
   const availableCount = COMMON_MACRO_CHECKLIST.filter((item) => observations.has(item.key)).length;
-  const marketReleases = MARKET_RELEASES[market as 'cn' | 'hk' | 'us'];
+  const marketReleases = MARKET_RELEASES[market] || [];
 
   return (
     <section className="border-t border-border px-5 py-6 sm:px-7" aria-labelledby="macro-monitor-title">
@@ -572,7 +570,7 @@ const MacroMonitor = ({
 
       <div className="mt-5 grid border-y border-border lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <div className="border-b border-border py-5 lg:border-b-0 lg:border-r lg:pr-6">
-          <p className="text-xs font-semibold text-primary">{tx("当前市场传导链")}</p>
+          {framework ? <><p className="text-xs font-semibold text-primary">{tx("当前市场传导链")}</p>
           <p className="mt-2 text-base font-semibold leading-7 text-foreground">{tx(framework.chain)}</p>
           <p className="mt-2 text-xs leading-5 text-secondary-text">{tx(framework.summary)}</p>
           <div className="mt-5 divide-y divide-border border-t border-border">
@@ -592,6 +590,7 @@ const MacroMonitor = ({
               {framework.secondary.map((label) => <span key={tx(label)} className="text-xs text-secondary-text">{tx(label)}</span>)}
             </div>
           </div>
+          </> : <p className="text-sm leading-6 text-muted-text">{tx("当前展示全球宏观变量；该市场的专属宏观框架尚未接入。")}</p>}
         </div>
 
         <div className="py-5 lg:pl-6">
@@ -660,7 +659,7 @@ export const MarketIntelligenceSection = () => {
   const { translate: tx, language } = useUiLanguage();
   const formatDateTime = (value?: string | null, includeYear = false) => formatDateTimeForLanguage(language, value, includeYear);
   const initialLayout = useMemo(() => readDashboardLayout(), []);
-  const [market, setMarket] = useState<MarketReviewRegion>(() => readMarket());
+  const [market, setMarket] = useState<MarketSnapshotRegion>(() => readMarket());
   const [loadState, setLoadState] = useState<LoadState>('idle');
   const [snapshotState, setSnapshotState] = useState<LoadState>('idle');
   const [liveSnapshot, setLiveSnapshot] = useState<MarketSnapshot | null>(null);
@@ -698,7 +697,7 @@ export const MarketIntelligenceSection = () => {
   const loadSequenceRef = useRef(0);
 
   const load = useCallback(async (
-    selectedMarket: MarketReviewRegion = market,
+    selectedMarket: MarketSnapshotRegion = market,
     forceSnapshot = false,
   ) => {
     const sequence = ++loadSequenceRef.current;
@@ -855,7 +854,7 @@ export const MarketIntelligenceSection = () => {
     setRefreshError('');
     setRefreshProgress(0);
     try {
-      const accepted = await analysisApi.triggerMarketReview({ sendNotification: false, regions: [market] });
+      const accepted = await analysisApi.triggerMarketReview({ sendNotification: false, regions: [market], reportLanguage: language });
       if (!accepted.taskId) throw new Error('市场复盘任务未返回任务 ID。');
       setRefreshTaskId(accepted.taskId);
       setRefreshState('running');
@@ -865,7 +864,7 @@ export const MarketIntelligenceSection = () => {
     }
   };
 
-  const changeMarket = (value: MarketReviewRegion) => {
+  const changeMarket = (value: MarketSnapshotRegion) => {
     setMarket(value);
     window.localStorage.setItem(MARKET_SELECTION_KEY, value);
     setRefreshState('idle');
@@ -1028,7 +1027,7 @@ export const MarketIntelligenceSection = () => {
         market: toWorkspaceMarket(market),
         objective,
         subject: analysisKind === 'industry_analysis' ? { industry: objective } : { scope: market },
-        config: { outputLanguage: 'zh', dashboardSummary: true },
+        config: { outputLanguage: language, reportLanguage: language, dashboardSummary: true },
         capabilities: analysisCapabilities,
       });
       await workspaceApi.createSchedule({
@@ -1077,7 +1076,7 @@ export const MarketIntelligenceSection = () => {
       <div className="flex flex-col gap-5 border-b border-border pb-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-            <BarChart3 className="h-4 w-4" aria-hidden="true" />Verified market workspace
+            <BarChart3 className="h-4 w-4" aria-hidden="true" />{tx("市场数据工作台")}
           </div>
           <h1 id="market-intelligence-title" className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{tx("市场雷达")}</h1>
           <p className="mt-2 max-w-[72ch] text-sm leading-6 text-secondary-text">{tx("切换市场即可读取真实指数与宏观快照，并结合已保存的 Agent 复盘和资讯服务数据。页面不会用示例行情填充空缺；每项内容都会标明数据时间与运行状态。")}</p>
@@ -1087,7 +1086,7 @@ export const MarketIntelligenceSection = () => {
             <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />{tx("编辑展示")}</button>
           <button type="button" onClick={() => void load(market, true)} disabled={(loadState === 'loading' && snapshotState === 'loading') || generating} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 text-xs font-medium text-secondary-text transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-wait disabled:opacity-60">
             <RefreshCw className={cn('h-3.5 w-3.5', (loadState === 'loading' || snapshotState === 'loading') && 'animate-spin')} aria-hidden="true" />{tx("刷新数据")}</button>
-          <button type="button" onClick={() => void triggerRefresh()} disabled={generating} className="btn-primary inline-flex h-10 items-center gap-2 disabled:cursor-wait disabled:opacity-65">
+          <button type="button" onClick={() => void triggerRefresh()} disabled={generating} className="btn-primary inline-flex h-10 items-center gap-2 disabled:cursor-not-allowed disabled:opacity-65">
             {generating ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
             {refreshState === 'submitting' ? tx("正在提交…") : refreshState === 'running' ? tx("正在生成 {0}%", String(refreshProgress)) : tx("生成最新复盘")}
           </button>

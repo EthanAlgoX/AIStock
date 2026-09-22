@@ -56,3 +56,13 @@ Open-source adapters do not grant redistribution rights. Review [TWSE](https://o
 Offline tests cover routing, market isolation, official schemas, date/unit conversion, pagination and simulation configuration. TWSE and TPEx monthly bars were checked online during development. Japanese/Korean authenticated endpoints require real credentials for live acceptance; mocked tests are not live verification.
 
 Before reverting, stop automatic tasks for newly supported markets and back up the database. Do not run those configurations on an older version that lacks their market support. Preserve historical reports and ledgers.
+
+## Market radar
+
+Radar shares the same 12 market choices as stock research. Switching markets updates index snapshots, news filters and saved dashboards; overseas markets never fall back to A-share indices. UK, Canadian, Australian, Indian, German and French indices use the existing Yahoo Finance provider, with symbols checked against its [world index directory](https://finance.yahoo.com/markets/world-indices/). Missing data remains unavailable rather than being replaced with sample quotes.
+
+All 12 markets support one-click reviews with their own indices, news queries and analysis frameworks. Missing breadth, capital flows and sector data are never substituted from another market. New reviews, analysis subscriptions and data-only reports when AI is unavailable follow the selected language. Historical news and reports retain their original language.
+
+`MARKET_REVIEW_REGION` accepts one market or comma-separated subsets such as `tw,jp,kr` and `gb,de,fr`. To preserve the scope and cost of existing schedules, `both` still means `cn,hk,us,jp,kr`. Explicitly select `cn,hk,us,jp,kr,tw,gb,ca,au,in,de,fr` for all markets. No database migration is needed; when rolling back code, also restore region settings to values supported by the older version.
+
+Dedicated macro monitoring panels currently cover CN, HK and US; other markets display global observations and an availability note. Their review reports use the appropriate market framework and available evidence. News depends on configured sources, not built-in coverage for every market.

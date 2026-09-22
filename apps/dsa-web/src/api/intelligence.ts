@@ -1,7 +1,7 @@
 import apiClient from './index';
 import { toCamelCase } from './utils';
 
-export type IntelligenceMarket = 'cn' | 'hk' | 'us' | 'jp' | 'kr' | 'tw' | 'global';
+export type IntelligenceMarket = import('../types/analysis').MarketSnapshotRegion | 'global';
 
 export type IntelligenceSource = {
   id: number;

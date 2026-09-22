@@ -3,7 +3,7 @@
 大盘复盘市场区域配置
 
 定义各市场区域的指数、新闻搜索词、Prompt 提示等元数据，
-供 MarketAnalyzer 按 region 切换 A 股/港股/美股/日韩复盘行为。
+供 MarketAnalyzer 按 region 切换各市场复盘行为。
 """
 
 from dataclasses import dataclass
@@ -14,7 +14,7 @@ from typing import List
 class MarketProfile:
     """大盘复盘市场区域配置"""
 
-    region: str  # "cn" | "hk" | "us" | "jp" | "kr"
+    region: str  # See MARKET_REVIEW_REGION_ORDER.
     # 用于判断整体走势的指数代码，cn 用上证 000001，us 用标普 SPX
     mood_index_code: str
     # 新闻搜索关键词
@@ -93,14 +93,31 @@ KR_PROFILE = MarketProfile(
 )
 
 
+# Dedicated identities for markets that share an index/news-only data contract.
+INTERNATIONAL_MARKET_DETAILS = {
+    "tw": ("Taiwan", "TWII", "TWD", "Taiwan Weighted Index and OTC Index", "semiconductor exports, TWD and Taiwan monetary policy"),
+    "gb": ("UK", "FTSE", "GBP", "FTSE 100", "Bank of England policy, GBP and international earnings exposure"),
+    "ca": ("Canada", "GSPTSE", "CAD", "S&P/TSX Composite", "Bank of Canada policy, CAD, energy and financials"),
+    "au": ("Australia", "AXJO", "AUD", "S&P/ASX 200", "Reserve Bank of Australia policy, AUD, resources and banks"),
+    "in": ("India", "NSEI", "INR", "NIFTY 50", "Reserve Bank of India policy, INR, inflation and domestic demand"),
+    "de": ("Germany", "GDAXI", "EUR", "DAX", "ECB policy, EUR, manufacturing and export demand"),
+    "fr": ("France", "FCHI", "EUR", "CAC 40", "ECB policy, EUR, consumer demand and international earnings"),
+}
+INTERNATIONAL_PROFILES = {
+    region: MarketProfile(
+        region=region, mood_index_code=code,
+        news_queries=[f"{name} stock market {indices}", f"{name} equities {drivers}"],
+        prompt_index_hint=f"Analyze {indices}; distinguish observed moves from hypotheses and unavailable data.",
+        has_market_stats=False, has_sector_rankings=False,
+    )
+    for region, (name, code, currency, indices, drivers) in INTERNATIONAL_MARKET_DETAILS.items()
+}
+
+
 def get_profile(region: str) -> MarketProfile:
-    """根据 region 返回对应的 MarketProfile"""
-    if region == "us":
-        return US_PROFILE
-    if region == "hk":
-        return HK_PROFILE
-    if region == "jp":
-        return JP_PROFILE
-    if region == "kr":
-        return KR_PROFILE
-    return CN_PROFILE
+    """Return an explicit profile; never substitute an unrelated market."""
+    profiles = {"cn": CN_PROFILE, "hk": HK_PROFILE, "us": US_PROFILE, "jp": JP_PROFILE, "kr": KR_PROFILE, **INTERNATIONAL_PROFILES}
+    try:
+        return profiles[region]
+    except KeyError:
+        raise ValueError(f"Unsupported market review region: {region}") from None

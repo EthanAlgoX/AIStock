@@ -22,6 +22,7 @@ import json
 import logging
 import re
 import uuid
+from src.utils.market_review_region import MarketSnapshotRegion, MARKET_REVIEW_REGION_SET
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Union, Dict, Any, Literal
@@ -564,7 +565,7 @@ def _handle_sync_analysis(
     description="读取指定市场的真实指数与宏观观测，不调用 LLM，也不创建或保存市场复盘报告。",
 )
 def get_market_snapshot(
-    region: Literal["cn", "hk", "us"] = Query(..., description="市场区域"),
+    region: MarketSnapshotRegion = Query(..., description="市场区域"),
     force_refresh: bool = Query(False, description="是否跳过进程内短时缓存"),
     config: Config = Depends(get_config_dep),
 ) -> MarketSnapshotResponse:
@@ -622,7 +623,7 @@ def trigger_market_review(
         from src.services.workspace_service import WorkspaceService
         from src.services.workspace_external_runs import begin, execute
         workspace = WorkspaceService()
-        begin(workspace, 'market_analysis', '大盘复盘', {'cn':'CN', 'us':'US'}.get(effective_region, 'GLOBAL'), {}, {},
+        begin(workspace, 'market_analysis', '大盘复盘', effective_region.upper() if effective_region in MARKET_REVIEW_REGION_SET else 'GLOBAL', {}, {},
               run_id=task_id, trigger='market_review')
         task = get_task_queue().submit_background_task(
             lambda: execute(workspace, task_id, lambda: _run_market_review_background(

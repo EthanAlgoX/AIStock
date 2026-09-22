@@ -23,7 +23,8 @@ import pandas as pd
 from src.config import get_config
 from src.report_language import normalize_report_language
 from src.search_service import SearchService
-from src.core.market_profile import get_profile, MarketProfile
+from src.core.market_profile import get_profile, MarketProfile, INTERNATIONAL_MARKET_DETAILS
+from src.core.market_review_locale import market_name, review_heading, REVIEW_COPY
 from src.core.market_strategy import get_market_strategy_blueprint
 from src.llm.backend_registry import (
     resolve_generation_backend_id,
@@ -148,7 +149,7 @@ class MarketAnalyzer:
         self.search_service = search_service
         self.analyzer = analyzer
         self.data_manager = DataFetcherManager()
-        self.region = region if region in ("cn", "us", "hk", "jp", "kr") else "cn"
+        self.region = region
         self.profile: MarketProfile = get_profile(self.region)
         self.strategy = get_market_strategy_blueprint(self.region)
 
@@ -156,7 +157,7 @@ class MarketAnalyzer:
         return f"component=market_review region={self.region}"
 
     def _get_output_language(self) -> str:
-        """Return the truthful report language (zh/en/ko) for payload and directives."""
+        """Return the selected report language for payload and directives."""
         return normalize_report_language(
             getattr(getattr(self, "config", None), "report_language", "zh")
         )
@@ -172,6 +173,8 @@ class MarketAnalyzer:
 
     def _get_market_scope_name(self, review_language: str | None = None) -> str:
         review_language = review_language or self._get_review_language()
+        if review_language not in {"en", "zh"} or self.region in INTERNATIONAL_MARKET_DETAILS:
+            return market_name(self.region, review_language)
         if self.region == "us":
             return "US market" if review_language == "en" else "美股市场"
         if self.region == "hk":
@@ -186,6 +189,8 @@ class MarketAnalyzer:
 
     def _get_turnover_unit_label(self) -> str:
         """Return the turnover unit label for the current market/language."""
+        if self.region in INTERNATIONAL_MARKET_DETAILS:
+            return f"{INTERNATIONAL_MARKET_DETAILS[self.region][2]} bn"
         if self.region == "us":
             return "USD bn" if self._get_review_language() == "en" else "十亿美元"
         if self.region == "hk":
@@ -200,7 +205,7 @@ class MarketAnalyzer:
         """Format raw turnover according to market-specific units."""
         if amount_raw == 0.0:
             return "N/A"
-        if self.region in ("us", "hk", "jp", "kr"):
+        if self.region != "cn":
             return f"{amount_raw / 1e9:.2f}"
         if amount_raw > 1e6:
             return f"{amount_raw / 1e8:.0f}"
@@ -215,18 +220,11 @@ class MarketAnalyzer:
         return "🟢" if change_pct > 0 else "🔴"
 
     def _get_review_title(self, date: str) -> str:
-        if self._get_review_language() == "en":
-            market_names = {
-                "us": "US Market Recap",
-                "hk": "HK Market Recap",
-                "jp": "Japan Market Recap",
-                "kr": "Korea Market Recap",
-            }
-            market_name = market_names.get(self.region, "A-share Market Recap")
-            return f"## {date} {market_name}"
-        return f"## {date} 大盘复盘"
+        return f"## {date} {review_heading(self.region, self._get_output_language())}"
 
     def _get_index_hint(self) -> str:
+        if self.region in INTERNATIONAL_MARKET_DETAILS:
+            return self.profile.prompt_index_hint
         if self._get_review_language() == "en":
             if self.region == "us":
                 return "Analyze the key moves in the S&P 500, Nasdaq, Dow, and other major indices."
@@ -668,7 +666,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             logger.info("[大盘] %s action=search_market_news status=start", self._log_context())
             
             # 根据 region 设置搜索上下文名称，避免美股搜索被解读为 A 股语境
-            market_name = market_names.get(self.region, "大盘")
+            market_name = market_names.get(self.region) or self._get_market_scope_name(review_language)
             for query in search_queries:
                 response = self.search_service.search_stock_news(
                     stock_code="market",
@@ -946,6 +944,10 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         news: Optional[List] = None,
     ) -> str:
         """Inject structured data tables into the corresponding LLM prose sections."""
+        # The model supplies localized tables for these languages. Injecting the
+        # Chinese/English-only legacy blocks would contaminate the chosen language.
+        if self._get_output_language() not in {"zh", "en"}:
+            return review
         # Build data blocks
         stats_block = self._build_stats_block(overview)
         indices_block = self._build_indices_block(overview)
@@ -1603,7 +1605,7 @@ Concept lagging: {bottom_concepts_text if bottom_concepts_text else "N/A"}"""
         output_template_sections = self._build_output_template_sections(review_language)
         zh_market_scope_name = self._get_market_scope_name("zh")
         zh_report_title = f"{overview.date} 大盘复盘"
-        if self.region in ("jp", "kr"):
+        if self.region not in ("cn", "us", "hk"):
             zh_report_title = f"{overview.date} {zh_market_scope_name}大盘复盘"
         workflow_hint = (
             "报告要像交易员盘后工作台：先给结论，再按数据表、主线、催化、计划展开"
@@ -1621,6 +1623,8 @@ Concept lagging: {bottom_concepts_text if bottom_concepts_text else "N/A"}"""
 - No code blocks
 - Use emoji sparingly in headings (at most one per heading)
 - The entire fixed shell, headings, guidance, and conclusion must be in {shell_language_label}
+- Translate source prose and index names into that language; keep official ticker codes and proper names
+- Include the supplied index observations in a localized table; do not fabricate missing observations
 {data_boundary_requirement}
 
 ---
@@ -1731,8 +1735,31 @@ Output the report content directly, no extra commentary.
 请直接输出复盘报告内容，不要输出其他说明文字。
 """
     
+    def _generate_localized_data_review(self, overview: MarketOverview) -> str:
+        """Data-only fallback: localized fixed copy, no invented model conclusions."""
+        language = self._get_output_language()
+        copy = REVIEW_COPY[language]
+        lines = [self._get_review_title(overview.date), "", copy["fallback"], "",
+                 f"### {copy['indices']}"]
+        # Exchange index codes and macro keys are stable identifiers, not prose.
+        lines.extend(f"- **{item.code}**: {item.current:.2f} ({item.change_pct:+.2f}%)"
+                     for item in overview.indices)
+        if not overview.indices:
+            lines.append(copy["missing"])
+        lines.extend(["", f"### {copy['macro']}"])
+        unit_codes = {"点": "", "人民币": "CNY", "日元": "JPY", "美元/桶": "USD/bbl", "美元/磅": "USD/lb"}
+        for item in overview.macro_indicators:
+            unit = unit_codes.get(item.get("unit", ""), item.get("unit", ""))
+            lines.append(f"- **{item.get('key', '')}**: {item.get('current', '')} {unit}".rstrip())
+        if not overview.macro_indicators:
+            lines.append(copy["missing"])
+        lines.extend(["", copy["limits"]])
+        return "\n".join(lines)
+
     def _generate_template_review(self, overview: MarketOverview, news: List) -> str:
         """使用模板生成复盘报告（无大模型时的备选方案）"""
+        if self._get_output_language() not in {"zh", "en"} or self.region in INTERNATIONAL_MARKET_DETAILS:
+            return self._generate_localized_data_review(overview)
         template_language = self._get_template_review_language()
         mood_code = self.profile.mood_index_code
         # 根据 mood_index_code 查找对应指数

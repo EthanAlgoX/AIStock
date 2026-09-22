@@ -1,4 +1,5 @@
 import type React from 'react';
+import { RESEARCH_MARKETS } from '../../utils/markets';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Globe2, RotateCcw } from 'lucide-react';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
@@ -19,7 +20,7 @@ export const MarketReviewRegionSelector: React.FC<MarketReviewRegionSelectorProp
   disabled = false,
   onChange,
 }) => {
-  const { t } = useUiLanguage();
+  const { t, translate: tx } = useUiLanguage();
   const [open, setOpen] = useState(false);
   const menuOpen = open && !disabled;
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -28,13 +29,9 @@ export const MarketReviewRegionSelector: React.FC<MarketReviewRegionSelectorProp
 
   const displayedRegions = value ?? [];
 
-  const regionLabels: Record<MarketReviewRegion, string> = {
-    cn: t('home.marketRegionCn'),
-    hk: t('home.marketRegionHk'),
-    us: t('home.marketRegionUs'),
-    jp: t('home.marketRegionJp'),
-    kr: t('home.marketRegionKr'),
-  };
+  const regionLabels = Object.fromEntries(
+    RESEARCH_MARKETS.map(({ id, label }) => [id.toLowerCase(), tx(label)]),
+  ) as Record<MarketReviewRegion, string>;
 
   const formatRegions = (regions: MarketReviewRegion[]) => (
     regions.map((region) => regionLabels[region]).join(' + ')
@@ -129,7 +126,7 @@ export const MarketReviewRegionSelector: React.FC<MarketReviewRegionSelectorProp
               close(true);
             }
           }}
-          className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-subtle bg-surface/95 p-2 shadow-2xl shadow-black/25 backdrop-blur-xl"
+          className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] max-h-[min(36rem,70dvh)] overflow-y-auto rounded-2xl border border-subtle bg-surface/95 p-2 shadow-2xl shadow-black/25 backdrop-blur-xl"
         >
           <div className="border-b border-subtle px-2.5 py-2">
             <p className="text-sm font-semibold text-foreground">{t('home.marketRegionTitle')}</p>

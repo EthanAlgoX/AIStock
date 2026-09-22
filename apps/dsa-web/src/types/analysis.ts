@@ -8,7 +8,9 @@
 export type StockReportType = 'simple' | 'detailed' | 'full' | 'brief';
 export type ReportType = StockReportType | 'market_review';
 export type AnalysisPhase = 'auto' | 'premarket' | 'intraday' | 'postmarket';
-export type MarketReviewRegion = 'cn' | 'hk' | 'us' | 'jp' | 'kr';
+export type MarketSnapshotRegion = Lowercase<import('../utils/markets').ResearchMarket>;
+
+export type MarketReviewRegion = MarketSnapshotRegion;
 
 export interface AnalysisRequest {
   stockCode?: string;
@@ -321,7 +323,7 @@ export interface MarketReviewPayload {
 
 export interface MarketSnapshot extends MarketReviewPayload {
   kind: 'market_snapshot';
-  region: MarketReviewRegion;
+  region: MarketSnapshotRegion;
   generatedAt: string;
   date: string;
   marketScope: string;

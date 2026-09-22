@@ -8,7 +8,7 @@ import type {
   AnalysisReport,
   MarketReviewAccepted,
   MarketReviewRequest,
-  MarketReviewRegion,
+  MarketSnapshotRegion,
   MarketSnapshot,
   TaskStatus,
   TaskListResponse,
@@ -23,7 +23,7 @@ export const analysisApi = {
    * Fetch live index and macro observations without invoking the LLM.
    */
   getMarketSnapshot: async (
-    region: MarketReviewRegion,
+    region: MarketSnapshotRegion,
     forceRefresh = false,
   ): Promise<MarketSnapshot> => {
     const response = await apiClient.get<Record<string, unknown>>(

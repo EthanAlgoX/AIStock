@@ -380,6 +380,21 @@ class YfinanceFetcher(BaseFetcher):
         if region == "tw":
             return self._get_tw_main_indices(yf)
 
+        international_indices = {
+            "gb": ("^FTSE", "FTSE 100"),
+            "ca": ("^GSPTSE", "S&P/TSX Composite"),
+            "au": ("^AXJO", "S&P/ASX 200"),
+            "in": ("^NSEI", "NIFTY 50"),
+            "de": ("^GDAXI", "DAX"),
+            "fr": ("^FCHI", "CAC 40"),
+        }
+        if region in international_indices:
+            symbol, name = international_indices[region]
+            item = self._fetch_yf_ticker_data(yf, symbol, name, symbol.lstrip("^"))
+            return [item] if item else None
+        if region != "cn":
+            return None
+
         # A 股指数：akshare 代码 -> (yfinance 代码, 显示名称)
         yf_mapping = {
             'sh000001': ('000001.SS', '上证指数'),
