@@ -173,7 +173,21 @@ export const portfoliosApi = {
     (
       await client.post<UniversePreview>(
         `${root}/universe-preview`,
-        { market, scope, reportLanguage: getRuntimeInitialLanguage() },
+        {
+          market,
+          // Saved previews contain derived selection/rule metadata. Only send
+          // editable inputs so re-previewing recomputes the candidate selection.
+          scope: {
+            mode: scope.mode,
+            symbols: scope.symbols,
+            accountId: scope.accountId,
+            query: scope.query,
+            industries: scope.industries,
+            allIndustries: scope.allIndustries,
+            maxCandidates: scope.maxCandidates,
+          },
+          reportLanguage: getRuntimeInitialLanguage(),
+        },
         { timeout: 180000 },
       )
     ).data,

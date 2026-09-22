@@ -81,3 +81,44 @@ it("updates only writable settings with optimistic revision control", async () =
   const payload=client.put.mock.calls.at(-1)![1];
   for (const field of ["definitionRevision","mode","universe","skillSnapshot"]) expect(payload).not.toHaveProperty(field);
 });
+
+it.each(["custom", "fixed", "holdings"] as const)(
+  "re-previews a saved %s scope using only editable fields",
+  async (mode) => {
+    const inputs = {
+      mode, symbols: ["688233"], accountId: 7,
+      query: "半导体，成交活跃", industries: ["半导体"],
+      allIndustries: false, maxCandidates: 1,
+    };
+    const savedScope = {
+      ...inputs,
+      selection: { summary: "Old selection", candidates: ["688233", "688981"] },
+      rule: { industryTerms: ["半导体"], minVolatility: null, description: "Old rule" },
+      reportLanguage: "en",
+    };
+    const snapshot = structuredClone(savedScope);
+    const preview = { id: 42, scope: { ...inputs }, candidates: [{ code: "688233" }] };
+    client.post.mockResolvedValueOnce({ data: preview });
+
+    expect(await portfoliosApi.previewUniverse("CN", savedScope)).toEqual(preview);
+    expect(client.post).toHaveBeenLastCalledWith(
+      "/api/v1/simulation/portfolios/universe-preview",
+      { market: "CN", scope: inputs, reportLanguage: "zh" },
+      { timeout: 180000 },
+    );
+    expect(savedScope).toEqual(snapshot);
+
+    client.put.mockResolvedValueOnce({ data: { id: 7 } });
+    await portfoliosApi.saveDefinition({
+      name: "Renamed high volume strategy", universePreviewId: preview.id,
+      symbols: preview.candidates.map((candidate) => candidate.code),
+    } as RuleConfig, { id: 7, revision: 3 });
+    expect(client.put).toHaveBeenLastCalledWith(
+      "/api/v1/simulation/portfolios/definitions/7",
+      expect.objectContaining({
+        name: "Renamed high volume strategy", universePreviewId: 42,
+        symbols: ["688233"], expectedRevision: 3,
+      }),
+    );
+  },
+);

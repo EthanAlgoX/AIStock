@@ -83,6 +83,8 @@ Startup adds a nullable `deleted_at` column to `simulation_portfolio_definitions
 
 Pause or stop all active runs for the strategy, then choose **Edit configuration**. The complete creation form is prefilled: name, market, universe, Skill, LLM/JEV tasks and allocation step, capital, position limits, grid parameters, refresh frequency, Token budget and costs. Preview the universe again before saving. Cancelling leaves the saved configuration unchanged.
 
+Re-previewing sends only the market and editable scope inputs (source, symbols, account, query, industries and candidate limit), excluding derived fields such as `selection` and `rule` from the old preview. Changing the candidate limit reruns selection; saving uses the new preview’s candidates.
+
 Saving updates the same strategy and increments its configuration revision, cancelling old pending plans and execution leases. Previous holdings, trades, model calls and returns remain available as read-only history. Saving does not start execution. The next run creates a separate account using the new initial capital; subsequent runs of that revision reuse its latest paper account. Stale edits require a refresh instead of overwriting newer settings.
 
 `PUT /api/v1/simulation/portfolios/definitions/{id}` accepts the same writable fields as creation plus required `expectedRevision`. Responses include `config.definitionRevision`; existing records default to revision 1 without a schema migration. Active runs and non-paused execution leases block editing. Outstanding model calls may still incur costs, but cannot commit to the old ledger after saving. Rolling back to code without revision checks requires restoring the pre-release database backup to avoid resuming obsolete runs.
