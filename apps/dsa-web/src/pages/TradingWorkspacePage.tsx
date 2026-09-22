@@ -1,3 +1,4 @@
+import { PortfolioRunExplanation } from "../components/agent/PortfolioRunExplanation";
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import { localizedStockName } from '../utils/markets';
 import { useUiLiteral } from '../hooks/useUiLiteral';
@@ -28,6 +29,8 @@ const formatNumber = (v: number | null | undefined, percent = false, language = 
 const status = (p: Portfolio) =>
   p.busy
     ? "更新中"
+    : p.mode === "backtest" && p.status !== "stopped" && !!p.error
+      ? "历史验证中断"
     : p.status === "running"
       ? "持续模拟"
       : p.status === "paused"
@@ -823,7 +826,7 @@ export default function TradingWorkspacePage() {
                     </p>
                     <p className="mt-1 text-xs text-secondary-text">
                       <UiLiteral text={"观察区间："} />{days[0]?.date || detail.config.startDate} <UiLiteral text={" 至"} />{" "}
-                      {detail.lastDate || "等待收盘"} · {days.length} <UiLiteral text={" 个交易日 ·"} />{" "}
+                      {detail.lastDate || uiLiteral("等待收盘")} · {days.length} <UiLiteral text={" 个交易日 ·"} />{" "}
                       {detail.currency}
                     </p>
                   </div>
@@ -878,6 +881,7 @@ export default function TradingWorkspacePage() {
                   <p className="mb-4 text-sm text-secondary-text">
                     <UiLiteral text={"已暂停自动买卖；持仓保留，继续按收盘价估值。"} /></p>
                 )}
+                <PortfolioRunExplanation portfolio={detail} />
                 <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border py-5 xl:grid-cols-4">
                   {metricLabels.map(([key, label, percent]) => (
                     <div key={key}>
@@ -905,7 +909,7 @@ export default function TradingWorkspacePage() {
                               "最大回撤",
                             ].map((x) => (
                               <th key={x} className="p-2">
-                                {x}
+                                {uiLiteral(x)}
                               </th>
                             ))}
                           </tr>
@@ -963,15 +967,15 @@ export default function TradingWorkspacePage() {
                       chart={{
                         version: 1,
                         type: "line",
-                        title: "累计收益与基准对比",
-                        source: `每日净值账本；${detail.config.benchmarkName}`,
+                        title: uiLiteral("累计收益与基准对比"),
+                        source: `${uiLiteral("每日净值账本")} · ${uiLiteral(detail.config.benchmarkName || "基准")}`,
                         basis: "scenario",
                         unit: "%",
                         series: [
                           {
                             key: "v0",
                             name:
-                              detail.mode === "paper" ? "模拟收益" : "回测收益",
+                              uiLiteral(detail.mode === "paper" ? "模拟收益" : "回测收益"),
                           },
                           {
                             key: "v1",
@@ -992,11 +996,11 @@ export default function TradingWorkspacePage() {
                       chart={{
                         version: 1,
                         type: "bar",
-                        title: "每日收益率",
-                        source: "每日模拟净值变化，非实盘",
+                        title: uiLiteral("每日收益率"),
+                        source: uiLiteral("每日模拟净值变化，非实盘"),
                         basis: "scenario",
                         unit: "%",
-                        series: [{ key: "v0", name: "每日收益" }],
+                        series: [{ key: "v0", name: uiLiteral("每日收益") }],
                         data: visible.map((d) => ({
                           label: d.date,
                           v0: d.dailyReturn * 100,
@@ -1058,7 +1062,7 @@ export default function TradingWorkspacePage() {
                                   "浮动盈亏",
                                 ].map((x) => (
                                   <th className="p-3" key={x}>
-                                    {x}
+                                    {uiLiteral(x)}
                                   </th>
                                 ))}
                               </tr>
@@ -1148,7 +1152,7 @@ export default function TradingWorkspacePage() {
                                 "状态／原因",
                               ].map((x) => (
                                 <th className="p-3" key={x}>
-                                  {x}
+                                  {uiLiteral(x)}
                                 </th>
                               ))}
                             </tr>

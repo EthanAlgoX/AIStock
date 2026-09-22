@@ -88,3 +88,13 @@ Re-previewing sends only the market and editable scope inputs (source, symbols, 
 Saving updates the same strategy and increments its configuration revision, cancelling old pending plans and execution leases. Previous holdings, trades, model calls and returns remain available as read-only history. Saving does not start execution. The next run creates a separate account using the new initial capital; subsequent runs of that revision reuse its latest paper account. Stale edits require a refresh instead of overwriting newer settings.
 
 `PUT /api/v1/simulation/portfolios/definitions/{id}` accepts the same writable fields as creation plus required `expectedRevision`. Responses include `config.definitionRevision`; existing records default to revision 1 without a schema migration. Active runs and non-paused execution leases block editing. Outstanding model calls may still incur costs, but cannot commit to the old ledger after saving. Rolling back to code without revision checks requires restoring the pre-release database backup to avoid resuming obsolete runs.
+
+## Run status and missing trades
+
+The account’s Run details section shows the latest processed day’s target allocations and reasons without opening a separate tab. It distinguishes missing decisions, zero targets with no holdings, rejected orders, paused valuation and fills. Targets are not filled orders. Historical explanations retain their original language.
+
+Until historical validation finishes, metrics cover only processed dates. Failed calls are labelled as interrupted validation, not a completed backtest. After resolving the error, use Run backtest to resume unfinished dates; resuming makes model calls.
+
+Daily simulations check new trading days at least 20 minutes after market close. Earlier plans fill at a subsequent trading day’s opening price, but fills appear only after that day’s closing data is processed. This is not intraday execution.
+
+Daily/weekly refreshes of custom scopes only refresh stocks confirmed in the initial preview. They do not select stocks outside that list. Pause, edit and preview again to change candidates. This UI update does not change existing scopes, thresholds or running states.

@@ -249,11 +249,12 @@ export function TradingAgentConfig({
               }
             >
               <option value="snapshot"><UiLiteral text={"固定本次确认名单"} /></option>
-              <option value="daily"><UiLiteral text={"每天按相同条件更新"} /></option>
-              <option value="weekly"><UiLiteral text={"每周按相同条件更新"} /></option>
+              <option value="daily"><UiLiteral text={"每天更新已确认范围"} /></option>
+              <option value="weekly"><UiLiteral text={"每周更新已确认范围"} /></option>
             </select>
           </label>
         </div>
+        <p className="text-xs text-secondary-text"><UiLiteral text="自定义筛选的定期更新仅刷新首次预览确认的股票，不会重新选出名单外的股票。要更换候选，请暂停策略、修改配置并重新预览。" /></p>
         <button
           type="button"
           className="btn-secondary"

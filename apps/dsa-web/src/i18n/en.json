@@ -5899,5 +5899,22 @@
   "日经225": "Nikkei 225",
   "东证指数": "TOPIX",
   "市场数据工作台": "Market data workspace",
-  "支持 cn/hk/us/jp/kr/tw/gb/ca/au/in/de/fr，可用逗号组合；both 保留原五市场 cn,hk,us,jp,kr。": "Supports cn/hk/us/jp/kr/tw/gb/ca/au/in/de/fr and comma-separated subsets; both retains the original cn,hk,us,jp,kr markets."
+  "支持 cn/hk/us/jp/kr/tw/gb/ca/au/in/de/fr，可用逗号组合；both 保留原五市场 cn,hk,us,jp,kr。": "Supports cn/hk/us/jp/kr/tw/gb/ca/au/in/de/fr and comma-separated subsets; both retains the original cn,hk,us,jp,kr markets.",
+  "历史验证中断": "Historical validation interrupted",
+  "尚无已完成的交易日记录。": "No trading days have been processed yet.",
+  "最近记账日已有模拟成交，详情见买卖记录。": "Simulated fills were recorded on the latest processed day. See trade history for details.",
+  "最近记账日有订单未成交，请查看下方拒绝原因。": "Some orders were rejected on the latest processed day. See the reasons below.",
+  "该记账日已暂停交易，仅更新持仓估值。": "Trading was paused on this date; only holdings were revalued.",
+  "该记账日没有新决策，不能据此判断买卖条件是否满足。": "No new decision was recorded for this date. This does not establish whether trading conditions were met.",
+  "当前空仓，最近决策的目标仓位均为 0，没有生成买入计划。": "There are no holdings. All latest target allocations are 0, so no buy plan was generated.",
+  "最近记账日没有成交；下列目标仓位是决策结果，不代表已经下单或成交。": "No fills were recorded on the latest processed day. The target allocations below are decisions, not placed or filled orders.",
+  "历史验证已中断，以下仅为已完成日期的部分结果，不代表完整回测。": "Historical validation was interrupted. These partial results cover only processed dates, not the full backtest.",
+  "历史验证尚未完成，当前指标仅覆盖已记账日期。": "Historical validation is not complete. Current metrics cover only processed dates.",
+  "排查错误详情后，可点击“运行回测”从未完成的日期继续；继续运行会调用模型。": "After resolving the reported error, select “Run backtest” to resume from the unfinished date. Resuming makes model calls.",
+  "这是日线模拟：收盘至少 20 分钟后检查新交易日；决策按后续交易日开盘价模拟成交，成交记录在该日收盘数据处理后显示。": "This simulation uses daily bars. New trading days are checked at least 20 minutes after close. Decisions fill at a subsequent trading day’s opening price; fills appear after that day’s closing data is processed.",
+  "决策说明保留生成时的语言，切换界面语言不会重新生成历史内容。": "Decision explanations retain their original language. Changing the interface language does not regenerate historical content.",
+  "每天更新已确认范围": "Refresh confirmed scope daily",
+  "每周更新已确认范围": "Refresh confirmed scope weekly",
+  "自定义筛选的定期更新仅刷新首次预览确认的股票，不会重新选出名单外的股票。要更换候选，请暂停策略、修改配置并重新预览。": "Scheduled refreshes of custom screens only update stocks confirmed in the initial preview; they do not select new stocks outside that list. To change candidates, pause the strategy, edit its configuration and preview again.",
+  "每日净值账本": "Daily equity ledger"
 }

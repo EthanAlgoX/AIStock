@@ -121,7 +121,7 @@ it("shows real zero metrics, daily opinions and current positions without invent
   expect(screen.getAllByText("0%").length).toBeGreaterThan(0);
   expect(screen.getByText(/当日无买卖/)).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "每日观点" }));
-  expect(screen.getByText("突破过去高点，拟继续持有")).toBeVisible();
+  screen.getAllByText("突破过去高点，拟继续持有").forEach(element => expect(element).toBeVisible());
   fireEvent.click(screen.getByRole("button", { name: "当前持仓" }));
   expect(screen.getByRole("cell", { name: "600519" })).toBeVisible();
   expect(screen.getByRole("link", { name: "历史研究提案" })).toHaveAttribute(
@@ -522,4 +522,14 @@ it('blocks editing active strategies and never resumes an obsolete account', asy
   fireEvent.click(await screen.findByRole('button',{name:'运行一次'}));
   expect(await screen.findByLabelText('验证初始资金')).toBeVisible();
   expect(api.control).not.toHaveBeenCalled();
+});
+
+it('labels an interrupted historical validation separately from a ready run', async () => {
+  const interrupted = { ...structuredClone(detail), mode: 'backtest', status: 'ready', error: 'timeout' };
+  api.list.mockResolvedValue([interrupted]);
+  api.detail.mockResolvedValue(interrupted);
+  render(<MemoryRouter initialEntries={['/trading?portfolio=1']}><TradingWorkspacePage /></MemoryRouter>);
+  expect(await screen.findByText(/不代表完整回测/)).toBeVisible();
+  expect(screen.getAllByText(/历史验证中断/).length).toBeGreaterThan(0);
+  expect(screen.getByRole('button', { name: '运行回测' })).toBeEnabled();
 });
