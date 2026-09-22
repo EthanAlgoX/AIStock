@@ -47,6 +47,17 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+@router.get('/international-listings')
+def international_listings():
+    import time
+    from data_provider.international_fetcher import taiwan_listings
+    from data_provider.base import DataFetchError
+    try:
+        return {'items': taiwan_listings(int(time.time() // 3600))}
+    except DataFetchError as exc:
+        raise HTTPException(503, '股票目录暂时不可用，请直接输入带市场后缀的代码。') from exc
+
+
 # 须在 /{stock_code} 路由之前定义
 ALLOWED_MIME_STR = ", ".join(ALLOWED_MIME)
 

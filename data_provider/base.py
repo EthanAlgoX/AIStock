@@ -98,6 +98,8 @@ def normalize_stock_code(stock_code: str) -> str:
     """
     code = stock_code.strip()
     upper = code.upper()
+    if is_suffix_market_symbol(upper):
+        return upper
 
     # Normalize HK prefix to a canonical 5-digit form (e.g. hk1810 -> HK01810)
     if upper.startswith('HK') and not upper.startswith('HK.'):
@@ -242,6 +244,10 @@ def _is_meaningful_chip_distribution(chip: Any) -> bool:
 
 def _market_tag(code: str) -> str:
     """返回市场标签: cn/us/hk/jp/kr/tw."""
+    from src.services.market_symbol_utils import get_suffix_market
+    suffix_market = get_suffix_market(code)
+    if suffix_market:
+        return suffix_market
     if _is_us_market(code):
         return "us"
     if _is_hk_market(code):
@@ -634,7 +640,10 @@ class DataFetcherManager:
         "TickFlowFetcher": {"cn"},
         "PytdxFetcher": {"cn"},
         "BaostockFetcher": {"cn"},
-        "YfinanceFetcher": {"cn", "hk", "us", "jp", "kr", "tw"},
+        "TaiwanOfficialFetcher": {"tw"},
+        "JQuantsFetcher": {"jp"},
+        "KrxOfficialFetcher": {"kr"},
+        "YfinanceFetcher": {"cn", "hk", "us", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr"},
         # Macro-only fetchers must never enter the daily OHLCV route.
         "FredMacroFetcher": set(),
         "ApocDataMacroFetcher": set(),
@@ -1190,7 +1199,12 @@ class DataFetcherManager:
         pytdx = PytdxFetcher()      # 通达信数据源（可配 PYTDX_HOST/PYTDX_PORT）
         baostock = BaostockFetcher()
         yfinance = YfinanceFetcher()
-        optional_fetchers: List[BaseFetcher] = [ApocDataMacroFetcher()]
+        from .international_fetcher import TaiwanOfficialFetcher, JQuantsFetcher, KrxOfficialFetcher
+        optional_fetchers: List[BaseFetcher] = [ApocDataMacroFetcher(), TaiwanOfficialFetcher()]
+        if getattr(config, 'jquants_api_key', None):
+            optional_fetchers.append(JQuantsFetcher(config.jquants_api_key))
+        if getattr(config, 'krx_api_key', None):
+            optional_fetchers.append(KrxOfficialFetcher(config.krx_api_key))
 
         fred_api_key = (getattr(config, "fred_api_key", None) or "").strip()
         if fred_api_key:
@@ -1338,9 +1352,9 @@ class DataFetcherManager:
         is_jp = (not is_us) and (not is_hk) and _is_jp_market(stock_code)
         is_kr = (not is_us) and (not is_hk) and _is_kr_market(stock_code)
         is_tw = (not is_us) and (not is_hk) and _is_tw_market(stock_code)
-        market = "us" if is_us else "hk" if is_hk else "jp" if is_jp else "kr" if is_kr else "tw" if is_tw else "cn"
-        if market != "cn":
-            fetchers = self._filter_daily_fetchers_for_market(fetchers, market)
+        from src.services.market_symbol_utils import get_suffix_market
+        market = get_suffix_market(stock_code) or ("us" if is_us else "hk" if is_hk else "cn")
+        fetchers = self._filter_daily_fetchers_for_market(fetchers, market)
         fetchers = self._filter_fetchers_by_capability(fetchers, capability="daily_data")
         total_fetchers = len(fetchers)
 
@@ -1817,7 +1831,8 @@ class DataFetcherManager:
         is_kr = (not is_us) and (not is_hk) and _is_kr_market(stock_code)
         is_tw = (not is_us) and (not is_hk) and _is_tw_market(stock_code)
 
-        if is_jp or is_kr or is_tw:
+        from src.services.market_symbol_utils import get_suffix_market
+        if get_suffix_market(stock_code):
             market_label = "日股" if is_jp else "韩股" if is_kr else "台股"
             quote = self._try_fetcher_quote(stock_code, "YfinanceFetcher")
             if quote is not None:
@@ -3247,7 +3262,7 @@ class DataFetcherManager:
         stock_code = normalize_stock_code(stock_code)
         market = _market_tag(stock_code)
         is_etf = _is_etf_code(stock_code)
-        if market in {"us", "hk", "jp", "kr", "tw"}:
+        if market in {"us", "hk", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr"}:
             return self._build_offshore_fundamental_context(
                 stock_code,
                 market=market,

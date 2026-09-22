@@ -182,6 +182,13 @@ def fetch_daily_history(
     explicit-only (never part of ``auto``) and expects a US ticker rather than
     an A-share code.
     """
+    from src.core.trading_calendar import get_market_for_stock
+
+    if get_market_for_stock(code) not in {"cn", None}:
+        from data_provider.base import DataFetcherManager
+        frame, provider = DataFetcherManager().get_daily_data(code, days=lookback_days)
+        frame.attrs["daily_source"] = provider
+        return frame
     normalized_code = _normalize_daily_code(code)
     normalized_lookback_days = int(lookback_days)
     src = _normalize_daily_source(source)

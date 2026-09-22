@@ -2988,6 +2988,7 @@ def _build_screening_context(config: Config, *, max_results: Optional[int] = Non
     channels = _normalize_dsa_llm_channels(config)
     litellm_model, fallback_models = _resolve_screening_llm_models(config)
     return {
+        "report_language": getattr(config, "report_language", "en"),
         "llm": {
             "model": litellm_model,
             "fallback_models": fallback_models,

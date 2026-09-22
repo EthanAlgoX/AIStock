@@ -71,6 +71,7 @@ def test_bundled_strategies_are_loaded_from_the_internal_package() -> None:
     strategies = load_all_strategies(SCREENING_ROOT / "strategies")
 
     assert set(strategies) == {
+        "international_momentum",
         "balanced_alpha",
         "blue_chip_income",
         "capital_heat",

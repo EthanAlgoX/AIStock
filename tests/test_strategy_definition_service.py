@@ -271,7 +271,7 @@ class StrategyDefinitionServiceTest(unittest.TestCase):
             item["name"]: item for item in self.service.list_strategies()
             if item["productRole"] == "configured"
         }
-        self.assertEqual(len(complete), 18)
+        self.assertEqual(len(complete), 38)
         for label, market in (("港股", "hk"), ("美股", "us")):
             version = self.service.get_version(complete[f"单股研究 · {label}配置"]["currentPublishedVersionId"])
             self.assertEqual(version["screeningPolicy"]["market"], market)
@@ -282,10 +282,10 @@ class StrategyDefinitionServiceTest(unittest.TestCase):
         versions = [self.service.get_version(item["currentPublishedVersionId"])
                     for item in complete.values() if item["currentStrategyPurpose"] == "candidate_screening"]
         self.assertEqual({v["screeningPolicy"]["strategy"] for v in versions}, set(rules))
-        self.assertEqual(len(versions), 10)
+        self.assertEqual(len(versions), 21)
         for version in versions:
             policy = version["screeningPolicy"]
-            self.assertEqual(policy["market"], "cn")
+            self.assertIn(policy["market"], rules[policy["strategy"]].screening.market_scope)
             self.assertEqual(policy["maxCandidates"], 3 if policy["strategy"] == "dual_low"
                              else rules[policy["strategy"]].screening.max_output)
         self.assertEqual({item["id"]: item["currentPublishedVersionId"] for item in complete.values()}, {

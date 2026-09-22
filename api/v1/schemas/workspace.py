@@ -134,7 +134,7 @@ class ExpertTeamUpdateRequest(WorkspaceModel):
 class TaskCreateRequest(WorkspaceModel):
     kind: Literal["research", "screening", "trading", "expert_review", "market_analysis", "industry_analysis"]
     name: str = Field(..., min_length=1, max_length=160)
-    market: Literal["CN", "HK", "US", "GLOBAL"] = "CN"
+    market: Literal["CN", "HK", "US", "TW", "JP", "KR", "GB", "CA", "AU", "IN", "DE", "FR", "GLOBAL"] = "CN"
     objective: str = Field(..., min_length=1, max_length=30000)
     subject: Dict[str, Any] = Field(default_factory=dict)
     config: Dict[str, Any] = Field(default_factory=dict)
@@ -144,7 +144,7 @@ class TaskCreateRequest(WorkspaceModel):
 
 class TaskUpdateRequest(WorkspaceModel):
     name: Optional[str] = Field(None, min_length=1, max_length=160)
-    market: Optional[Literal["CN", "HK", "US", "GLOBAL"]] = None
+    market: Optional[Literal["CN", "HK", "US", "TW", "JP", "KR", "GB", "CA", "AU", "IN", "DE", "FR", "GLOBAL"]] = None
     objective: Optional[str] = Field(None, min_length=1, max_length=30000)
     subject: Optional[Dict[str, Any]] = None
     config: Optional[Dict[str, Any]] = None
@@ -186,7 +186,7 @@ class MarketDashboardUpdateRequest(WorkspaceModel):
 
 class MarketSubscriptionCreateRequest(WorkspaceModel):
     taskId: str = Field(..., min_length=1, max_length=64)
-    market: Literal["CN", "HK", "US", "GLOBAL"]
+    market: Literal["CN", "HK", "US", "TW", "JP", "KR", "GB", "CA", "AU", "IN", "DE", "FR", "GLOBAL"]
     title: Optional[str] = Field(None, min_length=1, max_length=160)
     enabled: bool = True
 

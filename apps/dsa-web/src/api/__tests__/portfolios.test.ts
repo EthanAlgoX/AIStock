@@ -35,7 +35,7 @@ it("uses the versioned endpoint and strips server metadata when copying an accou
   } as RuleConfig);
   expect(client.post).toHaveBeenCalledWith(
     "/api/v1/simulation/portfolios",
-    config,
+    { ...config, reportLanguage: "zh" },
   );
 });
 

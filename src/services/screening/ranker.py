@@ -142,6 +142,8 @@ def rank_candidates_with_metadata(
         degradation=degradation,
     )
 
+    from src.report_language import get_output_language_directive
+    prompt += "\n" + get_output_language_directive((context or {}).get("report_language", "en"))
     model_chain = _dedupe([llm_model, *(fallback_models or [])])
     attempted_models: list[str] = []
     all_errors: list[str] = []

@@ -12,9 +12,10 @@ router = APIRouter()
 
 class StrategyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    reportLanguage: Literal["zh", "en", "ko", "ja", "zh-TW"] = "en"
     name: str = Field(min_length=1, max_length=80)
     template: Literal["agent"] = "agent"
-    market: Literal["CN", "US", "HK"]
+    market: Literal["CN", "US", "HK", "TW", "JP", "KR"]
     symbols: list[str] = Field(default_factory=list, max_length=12)
     engine: Literal['agent'] = 'agent'
     decisionBackend: Literal['llm', 'jev'] = 'llm'
@@ -71,7 +72,8 @@ class Scope(BaseModel):
 
 
 class UniversePreview(BaseModel):
-    market: Literal['CN', 'US', 'HK']
+    reportLanguage: Literal["zh", "en", "ko", "ja", "zh-TW"] = "en"
+    market: Literal['CN', 'US', 'HK', 'TW', 'JP', 'KR']
     scope: Scope
 
 
@@ -121,7 +123,7 @@ def holdings(account_id: int):
 @router.post('/universe-preview')
 def preview_universe(body: UniversePreview):
     from src.services.trading_agent_service import TradingAgentService
-    return call(TradingAgentService().preview, body.market, body.scope.model_dump())
+    return call(TradingAgentService().preview, body.market, dict(body.scope.model_dump(), reportLanguage=body.reportLanguage))
 
 
 @router.get("/definitions")

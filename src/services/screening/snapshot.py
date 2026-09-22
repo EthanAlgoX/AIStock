@@ -74,6 +74,9 @@ def fetch_snapshot_with_fallback(
     """Try live sources, optionally falling back to the last-good snapshot."""
     if market == "us":
         return _fetch_us_snapshot_with_fallback(required_columns)
+    if market in {"hk", "tw", "jp", "kr", "gb", "ca", "au", "in", "de", "fr"}:
+        from src.services.international_screening_service import snapshot
+        return snapshot(market)
 
     errors = []
     required = required_columns or []

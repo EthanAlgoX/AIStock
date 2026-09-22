@@ -11,7 +11,7 @@ from src.services.workspace_service import WorkspaceError, WorkspaceService
 
 # Curated demonstration subjects, not recommendations or performance rankings.
 # Prefer the user's existing watchlist; these provide a reproducible empty-install trial.
-DEMO_STOCKS = {"CN": "600519", "HK": "HK00700", "US": "AAPL"}
+DEMO_STOCKS = {"CN": "600519", "HK": "HK00700", "US": "AAPL", "TW": "2330.TW", "JP": "7203.T", "KR": "005930.KS", "GB": "HSBA.L", "CA": "RY.TO", "AU": "BHP.AX", "IN": "RELIANCE.NS", "DE": "SAP.DE", "FR": "AIR.PA"}
 POLICY_VERSION = "starter-v1"
 
 
@@ -62,7 +62,7 @@ def default_task_plan(workspace: WorkspaceService, kind: str, market: str = "CN"
                 rank = 0 if growth and skills == ["growth_quality"] else 1 if not skills else 9
             else:
                 rule = (version.get("screeningPolicy") or {}).get("strategy")
-                rank = {"balanced_alpha": 0, "quality_value": 1, "dual_low": 2}.get(rule, 9)
+                rank = {"international_momentum": 0, "balanced_alpha": 0, "quality_value": 1, "dual_low": 2}.get(rule, 9)
             if rank < 9:
                 choices.append((rank, item["id"], item, version, skills))
         if not choices:

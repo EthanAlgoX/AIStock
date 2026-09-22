@@ -65,9 +65,10 @@ class SimulationPortfolioService:
         from src.agent.tools.execution import _normalize_tool_stock_code
         from src.market_context import detect_market
 
+        from src.services.market_symbol_utils import get_suffix_market
         symbols = list(dict.fromkeys(_normalize_tool_stock_code(s.strip()) for s in payload["symbols"]))
         if not 1 <= len(symbols) <= 12 or any(
-            not re.fullmatch(r"(?:[0-9]{6}|HK[0-9]{5}|[A-Z]{1,5}(?:[.-][A-Z]{1,2})?)", s)
+            not (get_suffix_market(s) or re.fullmatch(r"(?:[0-9]{6}|HK[0-9]{5}|[A-Z]{1,5}(?:[.-][A-Z]{1,2})?)", s))
             or detect_market(s).upper() != market
             for s in symbols
         ):

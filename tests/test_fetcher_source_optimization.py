@@ -149,6 +149,7 @@ class TestFetcherSourceOptimization(unittest.TestCase):
                 "AkshareFetcher",
                 "PytdxFetcher",
                 "BaostockFetcher",
+                "TaiwanOfficialFetcher",
                 "YfinanceFetcher",
                 "TencentFetcher",
             ],

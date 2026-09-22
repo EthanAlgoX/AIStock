@@ -119,7 +119,7 @@ describe("AgentTaskSetupPage", () => {
     fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
     fireEvent.click(screen.getByRole("button", { name: "运行单股分析" }));
     await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
-      config: { strategyVersionId: 12 },
+      config: { strategyVersionId: 12, reportLanguage: "zh" },
       capabilities: expect.objectContaining({ toolIds: expect.arrayContaining(["run_stock_research"]) }),
     })));
   });
@@ -227,7 +227,7 @@ describe("AgentTaskSetupPage", () => {
     expect(screen.queryByRole("group", { name: "组合策略 Skill" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "运行单股分析" }));
     await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
-      config: { strategyVersionId: 12 }, capabilities: expect.objectContaining({ skillIds: [] }),
+      config: { strategyVersionId: 12, reportLanguage: "zh" }, capabilities: expect.objectContaining({ skillIds: [] }),
     })));
   });
 

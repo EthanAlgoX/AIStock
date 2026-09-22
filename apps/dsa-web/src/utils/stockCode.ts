@@ -1,3 +1,12 @@
+export function suffixMarket(code: string): string | null {
+  const upper = code.trim().toUpperCase();
+  if (/^\d{4,5}\.T$/.test(upper)) return 'JP';
+  if (/^\d{6}\.(KS|KQ)$/.test(upper)) return 'KR';
+  if (/^\d{4,6}\.(TW|TWO)$/.test(upper)) return 'TW';
+  const match = upper.match(/^[A-Z0-9][A-Z0-9.-]{0,14}\.(L|TO|V|AX|DE|F|PA)$/) || upper.match(/^[A-Z0-9][A-Z0-9&.-]{0,19}\.(NS|BO)$/);
+  return match ? ({L:'GB',TO:'CA',V:'CA',AX:'AU',NS:'IN',BO:'IN',DE:'DE',F:'DE',PA:'FR'} as Record<string,string>)[match[1]] : null;
+}
+
 /**
  * Normalize stock code by stripping exchange prefixes/suffixes.
  *
@@ -16,6 +25,7 @@
 export function normalizeStockCode(stockCode: string): string {
   const code = stockCode.trim();
   const upper = code.toUpperCase();
+  if (suffixMarket(upper)) return upper;
 
   // Normalize HK prefix to a canonical 5-digit form (e.g. hk1810 → HK01810)
   if (upper.startsWith('HK') && !upper.startsWith('HK.')) {

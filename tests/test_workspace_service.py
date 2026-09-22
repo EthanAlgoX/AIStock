@@ -330,7 +330,7 @@ def test_legacy_blocked_result_matches_list_and_detail(workspace):
 
 
 def test_unsupported_screening_market_is_rejected_before_creating_run(workspace):
-    task = workspace.create_task(_task_payload(market="HK", capabilities=_empty_bindings(toolIds=["screen_stock_universe"])))
+    task = workspace.create_task(_task_payload(market="GLOBAL", capabilities=_empty_bindings(toolIds=["screen_stock_universe"])))
     with patch("src.services.workspace_service._WORKERS") as workers:
         with pytest.raises(WorkspaceError) as error:
             workspace.create_run(task["id"])

@@ -38,7 +38,7 @@ except ImportError:
     )
 
 # Market -> exchange code (exchange-calendars)
-MARKET_EXCHANGE = {"cn": "XSHG", "hk": "XHKG", "us": "XNYS", "jp": "XTKS", "kr": "XKRX", "tw": "XTAI"}
+MARKET_EXCHANGE = {"cn": "XSHG", "hk": "XHKG", "us": "XNYS", "jp": "XTKS", "kr": "XKRX", "tw": "XTAI", "gb": "XLON", "ca": "XTSE", "au": "XASX", "in": "XBOM", "de": "XFRA", "fr": "XPAR"}
 
 # Market -> IANA timezone for "today"
 MARKET_TIMEZONE = {
@@ -48,6 +48,8 @@ MARKET_TIMEZONE = {
     "jp": "Asia/Tokyo",
     "kr": "Asia/Seoul",
     "tw": "Asia/Taipei",
+    "gb": "Europe/London", "ca": "America/Toronto", "au": "Australia/Sydney",
+    "in": "Asia/Kolkata", "de": "Europe/Berlin", "fr": "Europe/Paris",
 }
 
 # P0 market phase baseline (Issue #1386). This is an intentionally small

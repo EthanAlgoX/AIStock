@@ -79,6 +79,7 @@ def run(context: dict[str, Any]) -> dict[str, Any]:
         agent_mode=analysis_mode == "agent",
         skills=skills,
         portfolio_context=portfolio_context,
+        report_language=inputs.get("reportLanguage"),
     )
     if result is None:
         return {

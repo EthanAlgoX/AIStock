@@ -210,7 +210,10 @@ def builtin_package(
     run_interval: str,
 ) -> dict[str, Any]:
     item = builtin_kernel_catalog()[name]
+    markets = ['cn', 'hk', 'us', 'tw', 'jp', 'kr', 'gb', 'ca', 'au', 'in', 'de', 'fr'] if purpose != "trading_decision" else ["cn"]
+    item["dataRequirements"] = [dict(r, markets=markets if r["kind"] in {"kline", "fundamentals"} else ["cn", "hk", "us"]) for r in item["dataRequirements"]]
     immutable_metadata = {
+        "markets": markets,
         "declaredVersion": item["declaredVersion"],
         "entrypoint": item["entrypoint"],
         "dataRequirements": item["dataRequirements"],
@@ -236,7 +239,7 @@ def builtin_package(
         "executionStatus": "ready",
         "purpose": purpose,
         "outputContract": output_contract,
-        "configurable": {"markets": ["cn"], "timeframes": [timeframe], "runIntervals": [run_interval]},
+        "configurable": {"markets": markets, "timeframes": [timeframe], "runIntervals": [run_interval]},
         "parameters": [],
         "dataRequirements": item["dataRequirements"],
         "inputSchema": item["inputSchema"],

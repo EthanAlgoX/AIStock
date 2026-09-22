@@ -97,7 +97,7 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
         const task = tasks[0];
         if (!task) {
           setCapabilities(catalog.defaults.trading);
-          if (source?.kind === "screening") setDraft({...DEFAULT_DRAFT, sourceRunId:source.id, market:source.taskSnapshot.market === "GLOBAL" ? "CN" : source.taskSnapshot.market});
+          if (source?.kind === "screening") setDraft({...DEFAULT_DRAFT, sourceRunId:source.id, market:(["CN", "HK", "US"].includes(source.taskSnapshot.market) ? source.taskSnapshot.market : "CN") as MarketId});
           return;
         }
         const config = task.config || {};
@@ -110,7 +110,7 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
           ...DEFAULT_DRAFT,
           name: task.name,
           objective: task.objective,
-          market: task.market === "GLOBAL" ? "CN" : task.market,
+          market: (["CN", "HK", "US"].includes(task.market) ? task.market : "CN") as MarketId,
           universeMode: String(task.subject?.universeMode || "screening") as TradingStrategyDraft["universeMode"],
           sourceRunId: String(task.subject?.sourceRunId || ""),
           cadence: String(config.cadence || "15m") as TradingStrategyDraft["cadence"],
@@ -120,7 +120,7 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
           maxPositionPercent: String(risk.maxPositionPercent || "15"),
           maxDailyLossPercent: String(risk.maxDailyLossPercent || "3"),
           requireApproval: risk.requireApproval !== false,
-          ...(source?.kind === "screening" ? {universeMode:"screening",sourceRunId:source.id,market:source.taskSnapshot.market === "GLOBAL" ? "CN" : source.taskSnapshot.market} as const : {}),
+          ...(source?.kind === "screening" ? {universeMode:"screening",sourceRunId:source.id,market:(["CN", "HK", "US"].includes(source.taskSnapshot.market) ? source.taskSnapshot.market : "CN") as MarketId} as const : {}),
         });
       })
       .catch(() => {

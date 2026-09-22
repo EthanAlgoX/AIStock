@@ -1,3 +1,5 @@
+import { RESEARCH_MARKETS, type ResearchMarket, localizedStockName } from '../utils/markets';
+import { suffixMarket, normalizeStockCode } from '../utils/stockCode';
 import { useUiLanguage } from "../contexts/UiLanguageContext";
 import {
   ArrowRight,
@@ -36,7 +38,7 @@ import type { ScheduledTaskNavigationState } from "../types/scheduledTasks";
 import { cn } from "../utils/cn";
 
 type WorkspaceMode = "research" | "screening";
-type MarketId = "CN" | "HK" | "US";
+type MarketId = ResearchMarket;
 
 type PersistedTaskWorkspace = {
   market: MarketId;
@@ -88,11 +90,7 @@ const persistTaskWorkspace = (mode: WorkspaceMode, workspace: PersistedTaskWorks
   window.localStorage.setItem(TASK_DRAFT_KEYS[mode], JSON.stringify(workspace));
 };
 
-const MARKETS: Array<{ id: MarketId; label: string; description: string }> = [
-  { id: "CN", label: "A 股", description: "沪深北市场" },
-  { id: "HK", label: "港股", description: "香港市场" },
-  { id: "US", label: "美股", description: "美国市场" },
-];
+const MARKETS = RESEARCH_MARKETS;
 
 const COPY = {
   research: {
@@ -146,7 +144,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
   const strategyVersionId = String((compatibleWorkflows.find((item) => String(item.currentPublishedVersionId) === preferredVersionId)
     || compatibleWorkflows.find((item) => item.name === (mode === "research" ? "单股研究 · A股配置" : "多因子选股 · A股配置")) || compatibleWorkflows[0])?.currentPublishedVersionId || "");
   const [workflowError, setWorkflowError] = useState("");
-  const stockIndex = useStockIndex(mode === "research");
+  const stockIndex = useStockIndex(mode === "research", market);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -238,6 +236,11 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
   const suggestions = useMemo(() => {
     if (mode !== "research") return [];
     const keyword = query.trim().toLocaleLowerCase();
+    const code = normalizeStockCode(query);
+    const explicit = suffixMarket(code);
+    if (explicit === market && !stockIndex.index.some(s => s.canonicalCode === code)) {
+      return [{canonicalCode:code,displayCode:code,nameZh:code,nameEn:code,market,assetType:'stock' as const,active:true}];
+    }
     return stockIndex.index
       .filter((item) => item.active && item.assetType === "stock" && marketMatches(item, market))
       .filter((item) => {
@@ -268,7 +271,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
 
   const selectStock = (stock: StockIndexItem) => {
     setSelectedStock(stock);
-    setQuery(`${language === "en" ? stock.nameEn || stock.displayCode : stock.nameZh || stock.nameEn || stock.displayCode} · ${stock.displayCode}`);
+    setQuery(`${localizedStockName(stock, language)} · ${stock.displayCode}`);
   };
 
   const scheduleCurrentTask = () => {
@@ -315,15 +318,16 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
       const task = await workspaceApi.createTask({
         kind: mode,
         name: mode === "research"
-          ? `${selectedStock?.nameZh || selectedStock?.nameEn || selectedStock?.canonicalCode} 个股研究`
-          : `${MARKETS.find((item) => item.id === market)?.label || market} 选股`,
+          ? `${selectedStock ? localizedStockName(selectedStock, language) : ""} · ${tx("个股研究")}`
+          : `${tx(MARKETS.find((item) => item.id === market)?.label || market)} · ${tx("策略选股")}`,
         market,
-        objective: objective.trim() || `分析 ${selectedStock?.canonicalCode} 的商业质量、估值与风险`,
+        objective: objective.trim() || tx("分析 {0} 的商业质量、估值与风险", selectedStock?.canonicalCode || ""),
         subject: mode === "research" ? {
           stock: selectedStock?.canonicalCode,
           stockName: selectedStock?.nameZh || selectedStock?.nameEn,
         } : { industry: industry.trim() || null },
         config: {
+          reportLanguage: language,
           ...(mode === "screening" ? { candidateCount: Number(candidateCount) } : {}),
           ...(strategyVersionId ? { strategyVersionId: Number(strategyVersionId) } : {}),
           ...(mode === "screening" && Number(deepResearchCount) ? { deepResearchCount: Number(deepResearchCount), deepResearchVersionId: Number(researchVersionId) } : {}),
@@ -400,7 +404,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
           <section className="border-b border-border/70 px-5 py-5 sm:px-6" aria-labelledby={`${mode}-market-heading`}>
             <h2 id={`${mode}-market-heading`} className="text-base font-semibold text-foreground">{tx("选择市场")}</h2>
             <p className="mt-1 text-sm text-secondary-text">{tx("市场决定可选股票范围与默认数据路由。")}</p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {MARKETS.map((item) => (
                 <button key={item.id} type="button" aria-pressed={market === item.id} onClick={() => changeMarket(item.id)} className={cn("flex min-h-16 items-center justify-between rounded-[10px] border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40", market === item.id ? "border-primary/35 bg-primary/10" : "border-border bg-background hover:border-primary/25 hover:bg-hover/40")}>
                   <span><span className="block text-sm font-semibold text-foreground">{tx(item.label)}</span><span className="mt-1 block text-xs text-muted-text">{tx(item.description)}</span></span>
@@ -421,16 +425,16 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
               {stockIndex.error ? <p className="mt-2 flex items-center gap-2 text-xs text-warning"><CircleAlert className="h-3.5 w-3.5" />{tx("股票目录使用了降级数据，搜索范围可能有限。")}</p> : null}
               {!selectedStock ? (
                 <div className="mt-3 divide-y divide-border/60 overflow-hidden rounded-[10px] border border-border" role="listbox" aria-label={tx("股票搜索结果")}>
-                  {stockIndex.loading ? <p className="flex items-center gap-2 px-4 py-6 text-sm text-secondary-text"><LoaderCircle className="h-4 w-4 animate-spin" />{tx("正在读取股票目录…")}</p> : suggestions.length ? suggestions.map((stock) => (
+                  {stockIndex.loading && !suggestions.length ? <p className="flex items-center gap-2 px-4 py-6 text-sm text-secondary-text"><LoaderCircle className="h-4 w-4 animate-spin" />{tx("正在读取股票目录…")}</p> : suggestions.length ? suggestions.map((stock) => (
                     <button key={stock.canonicalCode} type="button" role="option" aria-selected="false" onClick={() => selectStock(stock)} className="flex w-full items-center justify-between gap-4 bg-background px-4 py-3 text-left transition-colors hover:bg-hover/60">
-                      <span className="min-w-0"><span className="block truncate text-sm font-medium text-foreground">{language === "en" ? stock.nameEn || stock.displayCode : stock.nameZh || stock.nameEn || stock.displayCode}</span><span className="mt-0.5 block text-xs text-muted-text">{stock.canonicalCode}</span></span>
+                      <span className="min-w-0"><span className="block truncate text-sm font-medium text-foreground">{localizedStockName(stock, language)}</span><span className="mt-0.5 block text-xs text-muted-text">{stock.canonicalCode}</span></span>
                       <ArrowRight className="h-4 w-4 shrink-0 text-muted-text" />
                     </button>
                   )) : <p className="px-4 py-6 text-center text-sm text-muted-text">{tx("当前市场没有匹配股票。")}</p>}
                 </div>
               ) : (
                 <div className="mt-3 flex items-center justify-between gap-4 rounded-[10px] border border-success/25 bg-success/5 px-4 py-3">
-                  <span><span className="block text-sm font-medium text-foreground">{language === "en" ? selectedStock.nameEn || selectedStock.canonicalCode : selectedStock.nameZh || selectedStock.nameEn}</span><span className="mt-0.5 block text-xs text-muted-text">{selectedStock.canonicalCode}</span></span>
+                  <span><span className="block text-sm font-medium text-foreground">{localizedStockName(selectedStock, language)}</span><span className="mt-0.5 block text-xs text-muted-text">{selectedStock.canonicalCode}</span></span>
                   <span className="text-xs font-medium text-success">{tx("已选择")}{" "}</span>
                 </div>
               )}

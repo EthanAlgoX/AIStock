@@ -24,6 +24,9 @@ TEMPLATES = [
 ]
 BENCHMARKS = {
     "CN": ("510300", "沪深300 ETF（价格代理）", "CNY"),
+    "TW": ("0050.TW", "Taiwan 50 ETF", "TWD"),
+    "JP": ("1306.T", "TOPIX ETF", "JPY"),
+    "KR": ("069500.KS", "KOSPI 200 ETF", "KRW"),
     "US": ("SPY", "标普500 ETF（价格代理）", "USD"),
     "HK": ("02800", "恒生指数 ETF（价格代理）", "HKD"),
 }

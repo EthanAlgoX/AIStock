@@ -80,6 +80,15 @@ _MARKET_ROLES = {
     },
 }
 
+_MARKET_ROLES.update({
+    'gb': {'zh': '英国股票', 'en': 'UK equities'},
+    'ca': {'zh': '加拿大股票', 'en': 'Canadian equities'},
+    'au': {'zh': '澳大利亚股票', 'en': 'Australian equities'},
+    'in': {'zh': '印度股票', 'en': 'Indian equities'},
+    'de': {'zh': '德国股票', 'en': 'German equities'},
+    'fr': {'zh': '法国股票', 'en': 'French equities'},
+})
+
 _MARKET_GUIDELINES = {
     "cn": {
         "zh": (
@@ -147,6 +156,13 @@ _MARKET_GUIDELINES = {
         ),
     },
 }
+
+
+for _market in ('gb', 'ca', 'au', 'in', 'de', 'fr'):
+    _MARKET_GUIDELINES[_market] = {
+        'zh': f"分析对象为{_MARKET_ROLES[_market]['zh']}。核对当地币种、报价单位、交易日历及公司行动；不得套用 A 股交易规则。缺失财务或新闻必须明确说明，不得编造。",
+        'en': f"Analyze {_MARKET_ROLES[_market]['en']}. Verify local currency, quote units, trading calendar and corporate actions. Do not apply China A-share rules. Explicitly identify unavailable financial or news evidence; never invent it.",
+    }
 
 
 def get_market_role(stock_code: Optional[str], lang: str = "zh", *, market: Optional[str] = None) -> str:

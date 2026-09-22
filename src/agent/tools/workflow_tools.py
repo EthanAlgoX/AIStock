@@ -85,6 +85,7 @@ def _run_tracked_workflow(version_id, purpose, inputs, subject):
     market = str((version.get('screeningPolicy') or {}).get('market') or '').upper()
     if parent_id:
         parent = workspace.get_run(parent_id)
+        inputs = dict(inputs, reportLanguage=(parent['taskSnapshot'].get('config') or {}).get('reportLanguage', 'zh'))
         from src.services.workspace_inputs import stock_code
         same_stock = kind != 'research' or stock_code((parent['taskSnapshot'].get('subject') or {}).get('stock', '')) == stock_code(subject.get('stock', ''))
         if parent['kind'] == kind and parent['taskSnapshot'].get('market') == market and same_stock:

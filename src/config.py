@@ -879,6 +879,8 @@ class Config:
 
     # === 数据源 API Token ===
     tushare_token: Optional[str] = None
+    jquants_api_key: Optional[str] = None
+    krx_api_key: Optional[str] = None
     fred_api_key: Optional[str] = None
     hithink_finance_api_key: Optional[str] = None
     hithink_finance_base_url: str = "https://fuyao.aicubes.cn"
@@ -1799,6 +1801,8 @@ class Config:
             feishu_app_secret=os.getenv('FEISHU_APP_SECRET'),
             feishu_folder_token=os.getenv('FEISHU_FOLDER_TOKEN'),
             tushare_token=os.getenv('TUSHARE_TOKEN'),
+            jquants_api_key=os.getenv('JQUANTS_API_KEY') or None,
+            krx_api_key=os.getenv('KRX_API_KEY') or None,
             fred_api_key=os.getenv('FRED_API_KEY') or None,
             hithink_finance_api_key=os.getenv('HITHINK_FINANCE_API_KEY') or None,
             hithink_finance_base_url=(os.getenv('HITHINK_FINANCE_BASE_URL') or 'https://fuyao.aicubes.cn').strip(),

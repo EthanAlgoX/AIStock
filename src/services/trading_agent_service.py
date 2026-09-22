@@ -261,6 +261,8 @@ class TradingAgentService:
             raise ValueError('请选择行业、选择全行业，或输入行业/波动率范围描述。')
         if scope['mode'] == 'custom' and market == 'HK' and not scope.get('symbols'):
             raise ValueError('港股暂缺行业候选目录，请先指定股票，再按行业或弹性条件筛选。')
+        if scope['mode'] == 'custom' and market in {'JP', 'KR'} and not scope.get('symbols'):
+            raise ValueError('此市场请先指定股票，再按行业或波动率条件筛选。')
         if scope['mode'] == 'custom':
             query = scope.get('query', '').strip()
             discovery_scope = dict(scope, maxCandidates=50,
@@ -284,7 +286,8 @@ class TradingAgentService:
                 '市值单位为对应市场本币；没有明确阈值时说明采用的判断口径，不能把样本相对大小当全市场分位。'
                 '缺失指标不得推断为满足。若证据不足可返回空列表并在summary说明。'
                 '仅基于给定证据简短筛选，不展开逐股长篇讨论。'
-                '只返回严格JSON：candidates（最多12项，每项code和reason，reason不超过60字）和summary（不超过150字）。',
+                '只返回严格JSON：candidates（最多12项，每项code和reason，reason不超过60字）和summary（不超过150字）。'
+                + self.language_directive(scope),
                 dict(market=market, requestedIndustries=selected_industries,
                     allIndustries=bool(scope.get('allIndustries')), query=query,
                     maxCandidates=scope.get('maxCandidates', 12), candidates=evidence),
@@ -314,6 +317,11 @@ class TradingAgentService:
         snapshot['usage'] = usage
         return self.store(market, scope, snapshot, kind='preview')
 
+    @staticmethod
+    def language_directive(scope):
+        from src.report_language import get_output_language_directive
+        return '\n' + get_output_language_directive(scope.get('reportLanguage', 'en'))
+
     def resolve(self, market, scope, allow_empty=False):
         from src.agent.tools.execution import _normalize_tool_stock_code
         from src.market_context import detect_market
@@ -331,7 +339,14 @@ class TradingAgentService:
         else:
             if self.screener:
                 data = self.screener(market)
-            elif market in {'US', 'HK'}:
+            elif market == 'TW':
+                from data_provider.international_fetcher import taiwan_listings
+                import time
+                from src.services.screening.snapshot_us import fetch_us_snapshot
+                tickers = scope.get('symbols') or [s['canonicalCode'] for s in taiwan_listings(int(time.time() // 3600))][:50]
+                frame = fetch_us_snapshot(tickers=tickers)
+                data = dict(candidates=json.loads(frame.to_json(orient='records')), snapshot_source='taiwan_directory:yfinance_snapshot')
+            elif market in {'US', 'HK', 'JP', 'KR'}:
                 import os
                 from src.services.screening.snapshot_us import fetch_us_snapshot, fetch_us_universe
                 from src.services.screening.source_guard import call_with_timeout
@@ -420,6 +435,8 @@ class TradingAgentService:
                 levels=config.get('gridLevels', 5),
             )
         system = TRADING_PROMPT + '\n策略 Skill：\n' + config['skillSnapshot']['instructions'] + '\n用户交易指令：\n' + config.get('systemPrompt', '')
+        from src.report_language import get_output_language_directive
+        system += '\n' + get_output_language_directive(config.get('reportLanguage', 'en'))
         system += '\n只返回JSON：{"opinions":[{"code":"股票代码","targetWeight":0.0,"reason":"依据"}]}。必须覆盖输入中的所有股票且不重复，仓位和不能超过1。'
         jev_opinions = None
         if config.get('decisionBackend', 'llm') == 'jev':

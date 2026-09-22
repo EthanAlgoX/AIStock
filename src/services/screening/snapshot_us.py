@@ -135,9 +135,13 @@ def fetch_us_snapshot(
             volume_ratio = (volume / vol_20d) if vol_20d > 0 else 1.0
 
             info = yf.Ticker(ticker).fast_info
-            market_cap = getattr(info, "market_cap", None) or 0
+            market_cap = getattr(info, "market_cap", None)
             shares = getattr(info, "shares", None) or 0
-            turnover_rate = (volume / shares * 100) if shares > 0 else 0.0
+            turnover_rate = (volume / shares * 100) if shares > 0 else None
+            currency = getattr(info, "currency", None)
+            if currency in {"GBp", "GBX"}:
+                price /= 100
+                currency = "GBP"
 
             from src.services.screening.daily import _volatility_20d_pct
 
@@ -153,7 +157,10 @@ def fetch_us_snapshot(
                 "pe_ratio": None,
                 "pb_ratio": None,
                 "volume_ratio": round(volume_ratio, 2),
-                "turnover_rate": round(turnover_rate, 4),
+                "turnover_rate": round(turnover_rate, 4) if turnover_rate is not None else None,
+                "currency": currency,
+                "quote_date": hist.index[-1].date().isoformat(),
+                "amount_basis": "close_times_volume_estimate",
                 "industry": "",
             }
         except Exception as e:

@@ -1336,7 +1336,7 @@ class WorkspaceService:
         name = str(payload.get("name") or "").strip()
         market = str(payload.get("market") or "CN").strip().upper()
         objective = str(payload.get("objective") or "").strip()
-        if kind not in TASK_KINDS or not name or not objective or market not in {"CN", "HK", "US", "GLOBAL"}:
+        if kind not in TASK_KINDS or not name or not objective or market not in {"CN", "HK", "US", "TW", "JP", "KR", "GB", "CA", "AU", "IN", "DE", "FR", "GLOBAL"}:
             raise WorkspaceError("task_invalid", "任务类型、名称、市场或目标无效。")
         subject = payload.get("subject") if isinstance(payload.get("subject"), dict) else {}
         config = payload.get("config") if isinstance(payload.get("config"), dict) else {}
@@ -1374,7 +1374,7 @@ class WorkspaceService:
                 row.config_json = _dump(payload["config"] if isinstance(payload["config"], dict) else {})
             if "enabled" in payload:
                 row.enabled = bool(payload["enabled"])
-            if not row.name or not row.objective or row.market not in {"CN", "HK", "US", "GLOBAL"}:
+            if not row.name or not row.objective or row.market not in {"CN", "HK", "US", "TW", "JP", "KR", "GB", "CA", "AU", "IN", "DE", "FR", "GLOBAL"}:
                 raise WorkspaceError("task_invalid", "任务名称、市场或目标无效。")
             self._validate_task_contract(
                 row.task_kind,
@@ -1592,7 +1592,7 @@ class WorkspaceService:
                 workflow_inputs.update({"portfolioContext": context, "holdingResearch": True})
             workflow = execute_research_workflow(
                 int(version_id), "research_report" if kind == "research" else "candidate_screening",
-                workflow_inputs if kind == "research" else {},
+                dict(workflow_inputs if kind == "research" else {}, reportLanguage=(task.get("config") or {}).get("reportLanguage", "zh")),
                 market=task.get("market"),
             )
             if cancel_event.is_set():
@@ -1652,7 +1652,8 @@ class WorkspaceService:
             seen.add(symbol)
             try:
                 report = execute_research_workflow(config["deepResearchVersionId"], "research_report", {
-                    "symbol": symbol, **({"skills": builtin_skills} if builtin_skills else {}),
+                    "symbol": symbol, "reportLanguage": config.get("reportLanguage", "zh"),
+                    **({"skills": builtin_skills} if builtin_skills else {}),
                 }, market=task.get("market"))
             except (ToolExecutionCancelled, ToolExecutionDeadlineExceeded):
                 raise
@@ -1687,7 +1688,7 @@ class WorkspaceService:
             "stock_code": subject.get("stock") or subject.get("stockCode") or "",
             "stock_name": subject.get("stockName") or "",
             "market": task.get("market") or "GLOBAL",
-            "report_language": "zh",
+            "report_language": (task.get("config") or {}).get("reportLanguage", "zh"),
             "capability_manifest": self._capability_manifest(bindings),
             "data_snapshot_as_of": (task.get("runContext") or {}).get("asOf") or _iso(utc_naive_now()),
         }
@@ -2361,7 +2362,7 @@ class WorkspaceService:
     @staticmethod
     def _normalize_dashboard_market(value: Any) -> str:
         market = str(value or "").strip().upper()
-        if market not in {"GLOBAL", "CN", "HK", "US"}:
+        if market not in {"GLOBAL", "CN", "HK", "US", "TW", "JP", "KR", "GB", "CA", "AU", "IN", "DE", "FR"}:
             raise WorkspaceError("market_dashboard_market_invalid", "市场看板范围无效。", 422)
         return market
 

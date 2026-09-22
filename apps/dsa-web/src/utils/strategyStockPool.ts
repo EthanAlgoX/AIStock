@@ -1,16 +1,18 @@
 import type { StockIndexItem, StockSuggestion } from "../types/stockIndex";
 import { searchStocks } from "./searchStocks";
-import { normalizeStockCode } from "./stockCode";
+import { normalizeStockCode, suffixMarket } from "./stockCode";
 
 export type PoolStock = {
   code: string;
   name: string;
-  market: "CN" | "HK" | "US";
+  market: "CN" | "HK" | "US" | "TW" | "JP" | "KR";
 };
 export function poolCode(code: string): PoolStock | null {
   const normalized = normalizeStockCode(code)
     .toUpperCase()
     .replace(/\.US$/, "");
+  const offshore = suffixMarket(normalized);
+  if (offshore) return ["TW", "JP", "KR"].includes(offshore) ? {code:normalized,name:normalized,market:offshore as PoolStock["market"]} : null;
   const market = /^\d{6}$/.test(normalized)
     ? "CN"
     : /^HK\d{5}$/.test(normalized)

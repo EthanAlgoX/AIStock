@@ -1,3 +1,4 @@
+import client from '../api';
 /**
  * useStockIndex Hook
  *
@@ -28,7 +29,7 @@ export interface UseStockIndexResult {
  *
  * @returns Index state and data
  */
-export function useStockIndex(enabled = true): UseStockIndexResult {
+export function useStockIndex(enabled = true, market?: string): UseStockIndexResult {
   const [attempt, setAttempt] = useState(0);
   const [index, setIndex] = useState<StockIndexItem[]>([]);
   const [loading, setLoading] = useState(enabled);
@@ -46,7 +47,15 @@ export function useStockIndex(enabled = true): UseStockIndexResult {
       setLoading(true);
       setError(null);
 
-      const result: IndexLoadResult = await loadStockIndex();
+      const result: IndexLoadResult = { ...await loadStockIndex() };
+      if (market === 'TW') {
+        try {
+          const response = await client.get<{items:StockIndexItem[]}>('/api/v1/stocks/international-listings');
+          result.data = [...result.data.filter(s => s.market !== 'TW'), ...response.data.items];
+        } catch (error) {
+          if (mounted) setError(error instanceof Error ? error : new Error('Stock directory unavailable'));
+        }
+      }
 
       if (mounted) {
         setIndex(result.data);
@@ -63,7 +72,7 @@ export function useStockIndex(enabled = true): UseStockIndexResult {
     return () => {
       mounted = false;
     };
-  }, [enabled, attempt]);
+  }, [enabled, attempt, market]);
 
   return {
     retry: () => setAttempt(value => value + 1),

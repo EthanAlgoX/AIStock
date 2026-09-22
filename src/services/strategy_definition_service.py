@@ -67,10 +67,10 @@ class StrategyDefinitionService:
     STARTER_BACKTEST_PROFILE = "fixed_ohlcv_v1"
 
     BUILTIN_DATA_SOURCES = (
-        {"sourceId": "system_market_data", "name": "系统自动选择", "kind": "kline", "description": "按市场和可用性自动选择行情来源；失败时按系统顺序切换。", "connectionKey": "system_market_data", "required": True, "selectionMode": "automatic", "markets": ["cn", "hk", "us", "jp", "kr", "tw"]},
-        {"sourceId": "local_stock_daily", "name": "本地日线库 stock_daily", "kind": "kline", "description": "只使用数据库中已经留存的日线数据，不主动请求外部行情。", "connectionKey": "local_stock_daily", "required": False, "selectionMode": "local", "markets": ["cn", "hk", "us", "jp", "kr", "tw"]},
+        {"sourceId": "system_market_data", "name": "系统自动选择", "kind": "kline", "description": "按市场和可用性自动选择行情来源；失败时按系统顺序切换。", "connectionKey": "system_market_data", "required": True, "selectionMode": "automatic", "markets": ["cn", "hk", "us", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr"]},
+        {"sourceId": "local_stock_daily", "name": "本地日线库 stock_daily", "kind": "kline", "description": "只使用数据库中已经留存的日线数据，不主动请求外部行情。", "connectionKey": "local_stock_daily", "required": False, "selectionMode": "local", "markets": ["cn", "hk", "us", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr"]},
         {"sourceId": "system_news", "name": "系统自动选择", "kind": "news", "description": "保留已配置新闻渠道的优先级；未配置密钥时默认使用免密钥财经 RSS 聚合，并继续故障切换。每次运行记录真实来源。", "connectionKey": "system_news", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us"]},
-        {"sourceId": "system_fundamentals", "name": "按市场自动选择", "kind": "fundamentals", "description": "A 股优先使用 AkShare，海外市场使用 YFinance，并按现有管线补充可用字段。", "connectionKey": "system_fundamentals", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us", "jp", "kr", "tw"]},
+        {"sourceId": "system_fundamentals", "name": "按市场自动选择", "kind": "fundamentals", "description": "A 股优先使用 AkShare，海外市场使用 YFinance，并按现有管线补充可用字段。", "connectionKey": "system_fundamentals", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr"]},
         {"sourceId": "system_macro_data", "name": "系统宏观数据", "kind": "macro", "description": "按市场合并官方与公开宏观序列；缺失项保持缺失，不使用示例值。", "connectionKey": "system_macro_data", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us"]},
         {"sourceId": "system_sentiment", "name": "系统情绪与社交信号", "kind": "other", "description": "预留的情绪与社交研究输入；当前没有绑定可执行适配器，不能挂载到新任务。", "connectionKey": "system_sentiment", "required": False, "selectionMode": "automatic", "selectable": False, "markets": ["cn", "hk", "us"]},
     )
@@ -79,7 +79,7 @@ class StrategyDefinitionService:
         {"sourceId": "kline:tencent", "name": "腾讯行情", "kind": "kline", "description": "指定腾讯日线接口；该连接失败时不会静默改用其他 K 线提供方。", "connectionKey": "kline:tencent", "providerName": "TencentFetcher", "markets": ["cn"], "availabilityKey": "always"},
         {"sourceId": "kline:akshare", "name": "AkShare 行情", "kind": "kline", "description": "指定 AkShare 行情适配器，支持 A 股和港股。", "connectionKey": "kline:akshare", "providerName": "AkshareFetcher", "markets": ["cn", "hk"], "availabilityKey": "always"},
         {"sourceId": "kline:baostock", "name": "Baostock 行情", "kind": "kline", "description": "指定 Baostock 日线数据，仅用于 A 股。", "connectionKey": "kline:baostock", "providerName": "BaostockFetcher", "markets": ["cn"], "availabilityKey": "always"},
-        {"sourceId": "kline:yfinance", "name": "YFinance 行情", "kind": "kline", "description": "指定 YFinance 行情，适合美股及部分海外市场。", "connectionKey": "kline:yfinance", "providerName": "YfinanceFetcher", "markets": ["cn", "hk", "us", "jp", "kr", "tw"], "availabilityKey": "always"},
+        {"sourceId": "kline:yfinance", "name": "YFinance 行情", "kind": "kline", "description": "指定 YFinance 行情，适合美股及部分海外市场。", "connectionKey": "kline:yfinance", "providerName": "YfinanceFetcher", "markets": ["cn", "hk", "us", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr"], "availabilityKey": "always"},
         {"sourceId": "kline:efinance", "name": "Efinance 行情", "kind": "kline", "description": "指定 Efinance 行情适配器，仅用于 A 股。", "connectionKey": "kline:efinance", "providerName": "EfinanceFetcher", "markets": ["cn"], "availabilityKey": "always"},
         {"sourceId": "kline:pytdx", "name": "通达信 Pytdx", "kind": "kline", "description": "指定 Pytdx 行情；使用系统设置中的通达信节点。", "connectionKey": "kline:pytdx", "providerName": "PytdxFetcher", "markets": ["cn"], "availabilityKey": "always"},
         {"sourceId": "kline:tushare", "name": "Tushare 行情", "kind": "kline", "description": "指定 Tushare 行情，需要先配置 TUSHARE_TOKEN。", "connectionKey": "kline:tushare", "providerName": "TushareFetcher", "markets": ["cn", "hk"], "availabilityKey": "tushare"},
@@ -508,13 +508,19 @@ class StrategyDefinitionService:
             screening_preset = next(p for p in presets if p["purpose"] == "candidate_screening")
             configurations = list(presets)
             research_preset = next(p for p in presets if p["purpose"] == "research_report")
-            for market, label in (("hk", "港股"), ("us", "美股")):
+            for market, label in (("hk", "港股"), ("us", "美股"), ("tw", "台股"), ("jp", "日股"), ("kr", "韩股"), ("gb", "英国股票"), ("ca", "加拿大股票"), ("au", "澳大利亚股票"), ("in", "印度股票"), ("de", "德国股票"), ("fr", "法国股票")):
                 configurations.append({
                     **research_preset,
                     "configurationName": f"单股研究 · {label}配置",
                     "configurationDescription": f"使用现有单股研究内核分析{label}，核验行情、趋势、新闻与基本面；不可用的数据明确标注，不产生订单。",
                     "configurationPolicy": {"strategy": "single_stock_research", "market": market, "maxCandidates": 1},
                     "configurationObjective": f"研究运行时指定的{label}股票，使用该市场真实数据形成研究结论、风险和失效条件；不套用 A 股特有数据或交易制度。",
+                })
+                configurations.append({
+                    **screening_preset,
+                    "configurationName": f"海外量价观察 · {label}配置",
+                    "configurationDescription": "在配置的同市场候选范围内比较量价与波动；非全市场筛选，缺失证据保留缺失。",
+                    "configurationPolicy": {"strategy": "international_momentum", "market": market, "maxCandidates": 5},
                 })
             for label, skill_ids in (
                 ("成长质量研究", ["growth_quality"]),
@@ -662,6 +668,9 @@ class StrategyDefinitionService:
                 next_number = (session.execute(select(func.max(SimulationStrategyVersionRecord.version_number)).where(
                     SimulationStrategyVersionRecord.strategy_id == configured_strategy.id,
                 )).scalar() or 0) + 1
+                configured_data_sources = self._load(kernel_version.data_permission_snapshot_json)
+                if configured_screening_policy.get("market") not in {"cn", "hk", "us"}:
+                    configured_data_sources["news"] = {"enabled": False, "connection": "system_news"}
                 now = utc_naive_now()
                 configured_version = SimulationStrategyVersionRecord(
                     strategy_id=configured_strategy.id,
@@ -686,7 +695,7 @@ class StrategyDefinitionService:
                     decision_policy_json=self._dump(configured_decision_policy),
                     risk_policy_json=self._dump(configured_risk_policy),
                     memory_policy_json=kernel_version.memory_policy_json,
-                    data_permission_snapshot_json=kernel_version.data_permission_snapshot_json,
+                    data_permission_snapshot_json=self._dump(configured_data_sources),
                     screening_policy_json=self._dump(configured_screening_policy),
                     change_log=(
                         "冻结本地真实股票池与 OHLCV 可复现规则，使默认交易配置可直接进行正式回放"
@@ -896,7 +905,7 @@ class StrategyDefinitionService:
             raise StrategyDefinitionError("DATA_SOURCE_KIND_INVALID", "请选择 K 线、新闻、基本面、宏观或其他数据类型。")
         raw_markets = payload.get("markets") if isinstance(payload.get("markets"), list) else []
         markets = list(dict.fromkeys(str(item).strip().lower() for item in raw_markets if str(item).strip()))
-        if not markets or any(item not in {"cn", "hk", "us"} for item in markets):
+        if not markets or any(item not in {"cn", "hk", "us", "tw", "jp", "kr", "gb", "ca", "au", "in", "de", "fr"} for item in markets):
             raise StrategyDefinitionError("DATA_SOURCE_MARKETS_INVALID", "请至少选择 A 股、港股或美股中的一个适用市场。")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{1,159}", connection_key):
             raise StrategyDefinitionError("DATA_SOURCE_CONNECTION_INVALID", "连接标识只能包含字母、数字、点、下划线、冒号和短横线；请勿在这里填写密钥或 URL。")

@@ -16,6 +16,14 @@ export interface SettingsHelpContent {
 type SettingsHelpMap = Record<string, SettingsHelpContent>;
 
 const settingsHelpZhCN: SettingsHelpMap = {
+  'settings.data_source.JQUANTS_API_KEY': {
+    title: 'J-Quants API Key',
+    summary: '日本官方 J-Quants V2 日线行情；免费方案延迟 12 周。',
+  },
+  'settings.data_source.KRX_API_KEY': {
+    title: 'KRX API Key',
+    summary: 'KRX 官方日线行情；需要 API 审批及数据使用授权。',
+  },
   'settings.base.STOCK_LIST': {
     title: '自选股列表',
     summary: '配置需要分析的股票代码列表，是手动分析、定时任务和通知报告的基础输入。',

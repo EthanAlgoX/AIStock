@@ -249,7 +249,7 @@ def test_us_scope_volatility_and_industry_come_from_provider_data():
     import yfinance as yf
     from src.services.screening.snapshot_us import fetch_us_snapshot
     from src.services.screening.daily import _volatility_20d_pct
-    bars = pd.DataFrame({'Close':[100+i for i in range(21)],'Volume':[1000]*21})
+    bars = pd.DataFrame({'Close':[100+i for i in range(21)],'Volume':[1000]*21}, index=pd.date_range('2026-08-01', periods=21))
     ticker = SimpleNamespace(fast_info=SimpleNamespace(market_cap=1000000, shares=10000),
                              info=dict(industry='Semiconductors', shortName='Fixture', trailingPE=20, priceToBook=3))
     with patch.object(yf, 'download', return_value=bars), patch.object(yf, 'Ticker', return_value=ticker):

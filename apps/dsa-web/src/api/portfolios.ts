@@ -1,4 +1,5 @@
 import client from "./index";
+import { getRuntimeInitialLanguage } from "../utils/uiLanguage";
 export type UniverseScope = {
   mode: "fixed" | "holdings" | "custom";
   symbols: string[];
@@ -9,7 +10,7 @@ export type UniverseScope = {
   maxCandidates: number;
 };
 export type UniversePreview = {
-  market: "CN" | "HK" | "US";
+  market: "CN" | "HK" | "US" | "TW" | "JP" | "KR";
   id: number;
   candidates: {
     code: string;
@@ -35,6 +36,7 @@ export type JevTaskConfig = {
   lookbackDays?: number;
 };
 export type RuleConfig = {
+  reportLanguage?: string;
   definitionRevision?: number;
   jevTask?: JevTaskConfig;
   decisionBackend?: "llm" | "jev";
@@ -50,7 +52,7 @@ export type RuleConfig = {
   skillSnapshot?: { name: string; digest: string };
   name: string;
   template: "agent";
-  market: "CN" | "US" | "HK";
+  market: "CN" | "US" | "HK" | "TW" | "JP" | "KR";
   symbols: string[];
   mode: "paper" | "backtest";
   initialCash: number;
@@ -171,7 +173,7 @@ export const portfoliosApi = {
     (
       await client.post<UniversePreview>(
         `${root}/universe-preview`,
-        { market, scope },
+        { market, scope, reportLanguage: getRuntimeInitialLanguage() },
         { timeout: 180000 },
       )
     ).data,
@@ -204,6 +206,7 @@ export const portfoliosApi = {
       gridLevels,
     } = config;
     const data = {
+      reportLanguage: getRuntimeInitialLanguage(),
       engine: "agent",
       decisionBackend: config.decisionBackend,
       jevWeightStep: config.jevWeightStep,
@@ -294,6 +297,7 @@ export const portfoliosApi = {
         startDate,
         endDate,
         engine: "agent",
+        reportLanguage: getRuntimeInitialLanguage(),
         decisionBackend: config.decisionBackend,
         jevWeightStep: config.jevWeightStep,
         jevTask: config.jevTask,

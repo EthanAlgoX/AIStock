@@ -41,7 +41,7 @@ from src.services.screening.snapshot import fetch_snapshot_with_fallback
 from src.services.screening.strategy import load_all_strategies
 
 logger = logging.getLogger(__name__)
-SUPPORTED_MARKETS = ("cn", "us")
+SUPPORTED_MARKETS = ("cn", "hk", "us", "tw", "jp", "kr", "gb", "ca", "au", "in", "de", "fr")
 
 
 def screen(

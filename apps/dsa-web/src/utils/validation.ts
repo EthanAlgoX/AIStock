@@ -4,9 +4,11 @@ interface ValidationResult {
   normalized: string;
 }
 
-const SUPPORTED_QUERY_CHARACTERS = /^[A-Z0-9.\u3400-\u9FFF\s]+$/;
+const SUPPORTED_QUERY_CHARACTERS = /^[A-Z0-9.&\-\u3400-\u9FFF\u3040-\u30ff\uac00-\ud7af\s]+$/;
 
 const STOCK_CODE_PATTERNS = [
+  /^\d{4,6}\.(TW|TWO)$/,
+  /^[A-Z0-9][A-Z0-9.-]{0,14}\.(L|TO|V|AX|DE|F|PA)$/, /^[A-Z0-9][A-Z0-9&.-]{0,19}\.(NS|BO)$/,
   /^\d{6}$/, // A-share 6-digit code
   /^(SH|SZ|BJ)\d{6}$/, // A-share code with exchange prefix
   /^\d{6}\.(SH|SZ|SS|BJ)$/, // A-share code with exchange suffix

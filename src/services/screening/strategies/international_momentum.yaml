@@ -1,0 +1,29 @@
+# Derived from AlphaSift revision 9f522747caafd3c0b1ddb7e14d5cf44c8580b6cf.
+# Licensed under Apache-2.0 and modified for daily_stock_analysis.
+name: international_momentum
+display_name: 海外量价观察
+description: 在明确的海外候选范围内比较量价和波动，不把缺失财务指标当作零，不代表全市场穷尽筛选。
+version: "1.0"
+category: framework
+analysis_skills: [bull_trend]
+screening:
+  enabled: true
+  market_scope: [hk, us, tw, jp, kr, gb, ca, au, in, de, fr]
+  hard_filters:
+    exclude_st: false
+    change_pct_min: -20
+    change_pct_max: 20
+  tech_weight: 0.0
+  factor_weights:
+    value: 0.0
+    liquidity: 0.2
+    momentum: 0.35
+    activity: 0.15
+    stability: 0.3
+    reversal: 0.0
+    theme_heat: 0.0
+    size: 0.0
+  ranking_hints: |
+    仅比较已提供的同市场候选。不要把候选样本排名描述为全市场排名。
+    核对数据日期、市场币种和报价单位。未提供的财务、新闻和资金证据明确说明缺失。
+  max_output: 5

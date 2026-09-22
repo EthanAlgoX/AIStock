@@ -97,6 +97,16 @@ const MARKETS: Array<{ id: MarketId; label: string; timezone: string; timezoneLa
   { id: "CN", label: "A 股", timezone: "Asia/Shanghai", timezoneLabel: "中国标准时间" },
   { id: "HK", label: "港股", timezone: "Asia/Hong_Kong", timezoneLabel: "香港时间" },
   { id: "US", label: "美股", timezone: "America/New_York", timezoneLabel: "纽约时间" },
+  { id: "TW", label: "台股", timezone: "Asia/Taipei", timezoneLabel: "Asia/Taipei" },
+  { id: "JP", label: "日股", timezone: "Asia/Tokyo", timezoneLabel: "Asia/Tokyo" },
+  { id: "KR", label: "韩股", timezone: "Asia/Seoul", timezoneLabel: "Asia/Seoul" },
+  { id: "GB", label: "英国股票", timezone: "Europe/London", timezoneLabel: "Europe/London" },
+  { id: "CA", label: "加拿大股票", timezone: "America/Toronto", timezoneLabel: "America/Toronto" },
+  { id: "AU", label: "澳大利亚股票", timezone: "Australia/Sydney", timezoneLabel: "Australia/Sydney" },
+  { id: "IN", label: "印度股票", timezone: "Asia/Kolkata", timezoneLabel: "Asia/Kolkata" },
+  { id: "DE", label: "德国股票", timezone: "Europe/Berlin", timezoneLabel: "Europe/Berlin" },
+  { id: "FR", label: "法国股票", timezone: "Europe/Paris", timezoneLabel: "Europe/Paris" },
+
 ];
 
 const TASK_TYPES: Array<{
@@ -388,6 +398,7 @@ export default function ScheduledTasksPage() {
           objective: draft.objective.trim() || `定时分析 ${draft.stock}`,
           subject: draft.kind === "research" ? { stock: draft.stock, stockName: draft.stockName } : { industry: draft.industry.trim() || null },
           config: {
+            reportLanguage: language,
             ...(draft.kind === "screening" ? { candidateCount: Number(draft.candidateCount) } : {}),
             ...(["research", "screening"].includes(draft.kind) && draft.strategyVersionId ? { strategyVersionId: draft.strategyVersionId } : {}),
             ...(draft.kind === "screening" && draft.deepResearchCount ? { deepResearchCount: draft.deepResearchCount, deepResearchVersionId: draft.deepResearchVersionId } : {}),
@@ -524,7 +535,7 @@ export default function ScheduledTasksPage() {
               </label>
               <label className="text-sm font-medium text-foreground">
                 <UiLiteral text={"市场"} /><select value={draft.market} onChange={(event) => changeMarket(event.target.value as MarketId)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary">
-                  {MARKETS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                  {MARKETS.map((item) => <option key={item.id} value={item.id}>{uiLiteral(item.label)}</option>)}
                 </select>
               </label>
             </div>

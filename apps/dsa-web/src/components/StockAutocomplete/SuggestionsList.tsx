@@ -1,3 +1,6 @@
+import { useUiLiteral } from '../../hooks/useUiLiteral';
+import { useUiLanguage } from '../../contexts/UiLanguageContext';
+import { localizedStockName } from '../../utils/markets';
 /**
  * Stock search suggestion list.
  */
@@ -27,6 +30,7 @@ export function SuggestionsList({
   onMouseEnter,
   style,
 }: SuggestionsListProps) {
+  const { language } = useUiLanguage();
   if (suggestions.length === 0) {
     return null;
   }
@@ -61,7 +65,7 @@ export function SuggestionsList({
 
             <div className="flex flex-col">
               <span className="text-sm font-medium text-primary-text">
-                {suggestion.nameZh}
+                {localizedStockName(suggestion, language)}
               </span>
               <span className="text-sm text-secondary-text">
                 {suggestion.displayCode}
@@ -82,12 +86,20 @@ const MARKET_BADGE_CONFIG = {
   US: { label: '美股', className: 'border-cyan/25 bg-cyan/10 text-cyan' },
   JP: { label: '日股', className: 'border-indigo-500/25 bg-indigo-500/10 text-indigo-500' },
   KR: { label: '韩股', className: 'border-rose-500/25 bg-rose-500/10 text-rose-500' },
+  TW: { label: '台股', className: 'border-border text-secondary-text' },
+  GB: { label: '英国股票', className: 'border-border text-secondary-text' },
+  CA: { label: '加拿大股票', className: 'border-border text-secondary-text' },
+  AU: { label: '澳大利亚股票', className: 'border-border text-secondary-text' },
+  IN: { label: '印度股票', className: 'border-border text-secondary-text' },
+  DE: { label: '德国股票', className: 'border-border text-secondary-text' },
+  FR: { label: '法国股票', className: 'border-border text-secondary-text' },
   INDEX: { label: '指数', className: 'border-purple/25 bg-purple/10 text-purple' },
   ETF: { label: 'ETF', className: 'border-warning/25 bg-warning/10 text-warning' },
   BSE: { label: '北交所', className: 'border-orange-500/25 bg-orange-500/10 text-orange-500' },
 } as const;
 
 function MarketBadge({ market }: { market: string }) {
+  const tx = useUiLiteral();
   const config = MARKET_BADGE_CONFIG[market as keyof typeof MARKET_BADGE_CONFIG];
 
   if (!config) {
@@ -96,12 +108,13 @@ function MarketBadge({ market }: { market: string }) {
 
   return (
     <Badge variant="default" size="sm" className={cn('min-w-[3rem] justify-center shadow-none', config.className)}>
-      {config.label}
+      {tx(config.label)}
     </Badge>
   );
 }
 
 function MatchTypeBadge({ matchType }: { matchType: string }) {
+  const tx = useUiLiteral();
   const configMap = {
     exact: { label: '精确', className: 'border-cyan/25 bg-cyan/10 text-cyan' },
     prefix: { label: '前缀', className: 'border-purple/25 bg-purple/10 text-purple' },
@@ -113,7 +126,7 @@ function MatchTypeBadge({ matchType }: { matchType: string }) {
 
   return (
     <Badge variant="default" size="sm" className={cn('shrink-0 shadow-none', config.className)}>
-      {config.label}
+      {tx(config.label)}
     </Badge>
   );
 }

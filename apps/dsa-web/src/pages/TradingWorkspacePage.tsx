@@ -1,3 +1,5 @@
+import { useUiLanguage } from '../contexts/UiLanguageContext';
+import { localizedStockName } from '../utils/markets';
 import { useUiLiteral } from '../hooks/useUiLiteral';
 import { UiLiteral } from '../components/i18n/UiLiteral';
 import { useEffect, useMemo, useState } from "react";
@@ -19,10 +21,10 @@ import {
   type UniversePreview,
 } from "../api/portfolios";
 
-const fmt = (v: number | null | undefined, percent = false) =>
+const formatNumber = (v: number | null | undefined, percent = false, language = "en") =>
   v == null
     ? "—"
-    : `${(v * (percent ? 100 : 1)).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}${percent ? "%" : ""}`;
+    : `${(v * (percent ? 100 : 1)).toLocaleString(language === "zh" ? "zh-CN" : language, { maximumFractionDigits: 2 })}${percent ? "%" : ""}`;
 const status = (p: Portfolio) =>
   p.busy
     ? "更新中"
@@ -77,6 +79,8 @@ const metricLabels = [
 
 export default function TradingWorkspacePage() {
   const uiLiteral = useUiLiteral();
+  const { language } = useUiLanguage();
+  const fmt = (v: number | null | undefined, percent = false) => formatNumber(v, percent, language);
   const [params, setParams] = useSearchParams();
   const legacy =
     params.get("view") === "reports" ||
@@ -115,7 +119,7 @@ export default function TradingWorkspacePage() {
   const [tab, setTab] = useState("trades");
   const [windowSize, setWindowSize] = useState(120);
   const [refresh, setRefresh] = useState(0);
-  const stockIndex = useStockIndex(creating);
+  const stockIndex = useStockIndex(creating, draft.market);
   const pool = useMemo(
     () => resolveStrategyPool(symbols, stockIndex.index),
     [symbols, stockIndex.index],
@@ -126,11 +130,9 @@ export default function TradingWorkspacePage() {
   const poolMarket = poolMarkets.length === 1 ? poolMarkets[0] : null;
   const poolLot =
     poolMarket && poolMarket !== draft.market
-      ? poolMarket === "US"
-        ? 1
-        : 100
+      ? poolMarket === "TW" ? 1000 : ["US", "KR"].includes(poolMarket) ? 1 : 100
       : draft.lotSize;
-  const marketLabels = { CN: "A 股 · CNY", HK: "港股 · HKD", US: "美股 · USD" };
+  const marketLabels = { CN: `${uiLiteral("A 股")} · CNY`, HK: `${uiLiteral("港股")} · HKD`, US: `${uiLiteral("美股")} · USD`, TW: `${uiLiteral("台股")} · TWD`, JP: `${uiLiteral("日股")} · JPY`, KR: `${uiLiteral("韩股")} · KRW` };
 
   useEffect(() => {
     if (legacy) return;
@@ -244,9 +246,7 @@ export default function TradingWorkspacePage() {
           universePreview.market,
         lotSize:
           universePreview.market !== draft.market
-            ? universePreview!.market === "US"
-              ? 1
-              : 100
+            ? universePreview!.market === "TW" ? 1000 : ["US", "KR"].includes(universePreview!.market) ? 1 : 100
             : poolLot,
         universePreviewId: universePreview?.id,
       };
@@ -380,7 +380,7 @@ export default function TradingWorkspacePage() {
                     : poolMarkets.length > 1
                       ? uiLiteral("包含多个市场，请分别创建策略账户。")
                       : poolMarket
-                        ? uiLiteral(`自动识别市场：${marketLabels[poolMarket]}`)
+                        ? `${uiLiteral("自动识别市场：")}${marketLabels[poolMarket]}`
                         : uiLiteral("输入名称、代码或拼音，自动识别股票和市场。多只股票用逗号或顿号分隔。")}
                 </p>
                 {stockIndex.fallback && (
@@ -433,7 +433,7 @@ export default function TradingWorkspacePage() {
                                   )
                                 }
                               >
-                                {c.nameZh} · {c.canonicalCode} · {c.market}
+                                {localizedStockName(c, language)} · {c.canonicalCode} · {c.market}
                               </button>
                             ))}
                           </div>
@@ -598,7 +598,7 @@ export default function TradingWorkspacePage() {
                   <p role="status" className="mt-3 text-sm text-secondary-text"><UiLiteral text="已停止运行，不再自动调用模型或更新估值，待执行计划已取消；历史记录和模拟持仓保留。" /></p>}
                 <p className="mt-2 text-sm text-secondary-text">
                   {definition.config.engine === "agent"
-                    ? definition.config.skillSnapshot?.name || "Agent 策略 Skill"
+                    ? uiLiteral(definition.config.skillSnapshot?.name || "Agent 策略 Skill")
                     : uiLiteral("已下线固定规则")}{" "}
                   · {definition.config.symbols.join("、")} ·{" "}
                   {definition.config.market} · {definition.config.decisionBackend === "jev" ? `JEV · ${definition.config.jevModel || ""}` : "LLM"}
@@ -975,7 +975,7 @@ export default function TradingWorkspacePage() {
                           },
                           {
                             key: "v1",
-                            name: detail.config.benchmarkName || "基准",
+                            name: uiLiteral(detail.config.benchmarkName || "基准"),
                           },
                         ],
                         data: visible.map((d) => ({
@@ -1173,7 +1173,7 @@ export default function TradingWorkspacePage() {
                                   {t.status === "filled"
                                     ? uiLiteral("模拟成交")
                                     : uiLiteral("未成交")}{" "}
-                                  · {t.reason}
+                                  · {uiLiteral(t.reason)}
                                 </td>
                               </tr>
                             ))}
@@ -1215,13 +1215,13 @@ export default function TradingWorkspacePage() {
                         : uiLiteral("本日无模型决策")}
                     </p>
                     <p className="mt-2 text-xs text-secondary-text">
-                      {selected.universe.coverage} · {selected.universe.source}{" "}
+                      {uiLiteral(selected.universe.coverage)} · {selected.universe.source}{" "}
                       · {selected.universe.observedAt}
                     </p>
                     <ul className="mt-3 space-y-2">
                       {selected.universe.candidates.map((c) => (
                         <li key={c.code} className="text-sm">
-                          {c.code}：{c.reason}
+                          {c.code}：{uiLiteral(c.reason)}
                         </li>
                       ))}
                     </ul>

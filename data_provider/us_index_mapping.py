@@ -88,6 +88,9 @@ def is_us_stock_code(code: str) -> bool:
         False
     """
     normalized = (code or '').strip().upper()
+    from src.services.market_symbol_utils import get_suffix_market
+    if get_suffix_market(normalized):
+        return False
     # 美股指数不是股票
     if normalized in US_INDEX_MAPPING:
         return False

@@ -31,7 +31,7 @@ export default function DefaultTaskLauncher({ kind, market = "CN", stock, onRunS
   const run = async () => {
     if (!plan || busy) return;
     await startRun(async () => {
-      const task = await workspaceApi.createTask(plan.task);
+      const task = await workspaceApi.createTask({ ...plan.task, config: { ...plan.task.config, reportLanguage: language } });
       const started = await workspaceApi.runTask(task.id);
       if (mounted.current) onRunStarted?.(started);
       return started;
@@ -41,7 +41,7 @@ export default function DefaultTaskLauncher({ kind, market = "CN", stock, onRunS
     <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
       <div className="min-w-0 flex-1">
         <h2 className="text-base font-semibold text-foreground">{stock ? tx("为当前股票匹配的默认方案") : tx("无需填写，直接试用")}</h2>
-        <p className="mt-1 text-sm leading-6 text-secondary-text">{plan ? `${String(language === "en" ? plan.task.subject.stock || plan.task.market : plan.task.subject.stockName || plan.task.subject.stock || plan.task.market)} · ${tx(plan.strategyName)} · ${plan.teamName.split("、").map(name => tx(name)).join(language === "en" ? ", " : "、")}` : (error ? tx(error) : "") || tx("正在匹配策略与可用能力…")}</p>
+        <p className="mt-1 text-sm leading-6 text-secondary-text">{plan ? `${String(!["zh", "zh-TW"].includes(language) ? plan.task.subject.stock || plan.task.market : plan.task.subject.stockName || plan.task.subject.stock || plan.task.market)} · ${tx(plan.strategyName)} · ${plan.teamName.split("、").map(name => tx(name)).join(language === "en" ? ", " : "、")}` : (error ? tx(error) : "") || tx("正在匹配策略与可用能力…")}</p>
       </div>
       <button type="button" disabled={!plan || busy} onClick={() => void run()} className="btn-primary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45"><Play className="h-4 w-4" />{tx("运行默认方案")}</button>
     </div>

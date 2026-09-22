@@ -102,13 +102,16 @@ export function TradingAgentConfig({
               onChange={(e) =>
                 onConfig({
                   market: e.target.value as RuleConfig["market"],
-                  lotSize: e.target.value === "US" ? 1 : 100,
+                  lotSize: e.target.value === "TW" ? 1000 : ["US", "KR"].includes(e.target.value) ? 1 : 100,
                 })
               }
             >
               <option value="CN"><UiLiteral text={"A 股"} /></option>
               <option value="US"><UiLiteral text={"美股"} /></option>
               <option value="HK"><UiLiteral text={"港股"} /></option>
+              <option value="TW"><UiLiteral text="台股" /></option>
+              <option value="JP"><UiLiteral text="日股" /></option>
+              <option value="KR"><UiLiteral text="韩股" /></option>
             </select>
           </label>
         </div>
@@ -219,6 +222,7 @@ export function TradingAgentConfig({
             </label>
             <p className="text-sm text-secondary-text">
               <UiLiteral text={"先按市场和行业取得候选，再由模型判断你描述的市值、波动、流动性等条件。上方股票可不填；填写则只在这些股票中筛选。预览会显示数据覆盖范围；港股需先指定股票。"} /></p>
+              <p className="text-xs text-muted-text"><UiLiteral text="港股、日股、韩股的条件筛选需要先指定股票。" /></p>
           </>
         )}
         <div className="grid gap-4 sm:grid-cols-2">
@@ -300,22 +304,22 @@ export function TradingAgentConfig({
       </fieldset>
       {error && (
         <p role="alert" className="text-danger">
-          {error}
+          {uiLiteral(error)}
         </p>
       )}
       {preview && (
         <div aria-label={uiLiteral("范围预览")} className="border-y border-border py-4">
           <p role="status" className="mb-2 text-sm font-medium"><UiLiteral text={"已预览 · "} />{preview.candidates.length} <UiLiteral text={" 只股票，保存策略后生效"} /></p>
           <p className="text-sm">
-            {preview.scope.rule?.description || "已找到符合范围的股票"}
+            {uiLiteral(preview.scope.rule?.description || "已找到符合范围的股票")}
           </p>
           <p className="mt-2 text-xs text-secondary-text">
-            {preview.coverage} · {preview.source} · {preview.observedAt}
+            {uiLiteral(preview.coverage)} · {preview.source} · {preview.observedAt}
           </p>
           <ul className="mt-3 space-y-2">
             {preview.candidates.map((c) => (
               <li key={c.code} className="text-sm">
-                {c.name || c.code} · {c.code}：{c.reason}
+                {c.name || c.code} · {c.code}：{uiLiteral(c.reason)}
               </li>
             ))}
           </ul>
@@ -395,14 +399,14 @@ export function TradingAgentConfig({
           <option value=""><UiLiteral text={"选择策略方法"} /></option>
           {options?.skills.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.name}
+              {uiLiteral(s.name)}
             </option>
           ))}
         </select>
       </label>
       <p className="text-sm text-secondary-text">
-        {options?.skills.find((s) => s.id === config.skillId)?.description ||
-          "Skill 决定分析方法；交易输出规范和程序风控共同约束买卖计划。保存后固定 Skill 内容。"}
+        {uiLiteral(options?.skills.find((s) => s.id === config.skillId)?.description ||
+          "Skill 决定分析方法；交易输出规范和程序风控共同约束买卖计划。保存后固定 Skill 内容。")}
       </p>
       {config.skillId === "high_volume_volatility_grid" && (
         <div className="rounded-lg border border-border p-4">

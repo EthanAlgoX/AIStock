@@ -4,7 +4,7 @@
  * Stock data index for autocomplete functionality
  */
 
-export type Market = 'CN' | 'HK' | 'US' | 'JP' | 'KR' | 'INDEX' | 'ETF' | 'BSE';
+export type Market = 'CN' | 'HK' | 'US' | 'JP' | 'KR' | 'TW' | 'GB' | 'CA' | 'AU' | 'IN' | 'DE' | 'FR' | 'INDEX' | 'ETF' | 'BSE';
 export type AssetType = 'stock' | 'index' | 'etf';
 
 /**
@@ -39,6 +39,7 @@ export interface StockIndexItem {
  * Stock search suggestion item
  */
 export interface StockSuggestion {
+  nameEn?: string;
   /** Canonical code */
   canonicalCode: string;
   /** Display code */

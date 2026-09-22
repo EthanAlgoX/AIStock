@@ -15,7 +15,11 @@ def run(context: dict[str, Any]) -> dict[str, Any]:
     parameters = context.get("parameters") if isinstance(context.get("parameters"), dict) else {}
     configuration = context.get("configuration") if isinstance(context.get("configuration"), dict) else {}
     screening_policy = configuration.get("screeningPolicy") if isinstance(configuration.get("screeningPolicy"), dict) else {}
-    result = ScreeningService(get_config(), DatabaseManager.get_instance()).screen(
+    from copy import copy
+    from src.report_language import normalize_report_language
+    config = copy(get_config())
+    config.report_language = normalize_report_language(inputs.get("reportLanguage") or config.report_language)
+    result = ScreeningService(config, DatabaseManager.get_instance()).screen(
         strategy=str(parameters.get("screeningStrategy") or screening_policy.get("strategy") or inputs.get("strategy") or "dual_low"),
         market=str(configuration.get("market") or inputs.get("market") or "cn"),
         max_results=max(1, min(int(parameters.get("maxResults") or screening_policy.get("maxCandidates") or inputs.get("maxResults") or 3), 100)),

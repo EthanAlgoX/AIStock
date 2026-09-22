@@ -199,6 +199,8 @@ def is_code_like(value: str) -> bool:
     text = value.strip().upper()
     if not text:
         return False
+    if get_suffix_market(text):
+        return True
     if text.isdigit() and len(text) in (5, 6):
         return True
     explicit_parts = _split_explicit_exchange(text)

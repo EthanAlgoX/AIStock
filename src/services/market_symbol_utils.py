@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional
+import re
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,7 @@ class SuffixMarketSpec:
     market: str
     suffixes: tuple[str, ...]
     digit_lengths: tuple[int, ...]
+    symbol_pattern: str = ""
 
 
 _SUFFIX_MARKET_SPECS: tuple[SuffixMarketSpec, ...] = (
@@ -27,6 +29,12 @@ _SUFFIX_MARKET_SPECS: tuple[SuffixMarketSpec, ...] = (
     # Taiwan support mirrors the same suffix-only pattern; keep it here so the
     # shared helpers stay complete for all yfinance-only offshore markets.
     SuffixMarketSpec("tw", ("TW", "TWO"), (4, 5, 6)),
+    SuffixMarketSpec("gb", ("L",), (), r"[A-Z0-9][A-Z0-9.-]{0,14}"),
+    SuffixMarketSpec("ca", ("TO", "V"), (), r"[A-Z0-9][A-Z0-9.-]{0,14}"),
+    SuffixMarketSpec("au", ("AX",), (), r"[A-Z0-9][A-Z0-9.-]{0,14}"),
+    SuffixMarketSpec("in", ("NS", "BO"), (), r"[A-Z0-9][A-Z0-9&.-]{0,19}"),
+    SuffixMarketSpec("de", ("DE", "F"), (), r"[A-Z0-9][A-Z0-9.-]{0,14}"),
+    SuffixMarketSpec("fr", ("PA",), (), r"[A-Z0-9][A-Z0-9.-]{0,14}"),
 )
 
 _MARKET_TO_SPEC = {spec.market: spec for spec in _SUFFIX_MARKET_SPECS}
@@ -59,6 +67,8 @@ def get_suffix_market(stock_code: str) -> Optional[str]:
     spec = _SUFFIX_TO_SPEC.get(suffix)
     if spec is None:
         return None
+    if spec.symbol_pattern:
+        return spec.market if re.fullmatch(spec.symbol_pattern, base) else None
     if not (base.isdigit() and len(base) in spec.digit_lengths):
         return None
     return spec.market
