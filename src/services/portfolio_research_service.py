@@ -189,6 +189,32 @@ class PortfolioResearchService:
         tz, run_at = MARKETS[context["market"]]
         return {"task": task, "schedule": schedule, "timezone": tz, "runAt": run_at}
 
+    @staticmethod
+    def validate_backend(backend):
+        from src.services.workspace_service import WorkspaceError
+        if backend not in {'llm', 'jev'}:
+            raise WorkspaceError('portfolio_backend_invalid', 'Unsupported analysis model.', 422)
+        if backend == 'jev':
+            from src.services.jev_decision_service import JevDecisionService
+            try:
+                JevDecisionService().validate_settings()
+            except ValueError as exc:
+                raise WorkspaceError('jev_configuration_required', str(exc), 422) from exc
+        return backend
+
+    def set_backend(self, account_id, symbol, backend):
+        """Update the analysis preference without enabling/disabling an existing schedule."""
+        with _PLAN_LOCK:
+            backend = self.validate_backend(backend)
+            plan = self.plan(account_id, symbol)
+            task = plan['task']
+            update = {'config': {**task['config'], 'decisionBackend': backend}}
+            if task.get('id'):
+                self.workspace.update_task(task['id'], update)
+            else:
+                self.workspace.create_task({**task, **update})
+            return self.plan(account_id, symbol)
+
     def configure(self, account_id, symbol, payload):
         from src.services.workspace_service import WorkspaceError
         from src.services.strategy_definition_service import StrategyDefinitionService, StrategyDefinitionError
@@ -213,6 +239,8 @@ class PortfolioResearchService:
             if set(rules) != set(DEFAULT_RULES) or any(_number(v) is None or not 0.1 <= v <= 100 for v in rules.values()):
                 raise WorkspaceError("holding_rules_invalid", "提醒阈值必须在 0.1% 至 100% 之间。", 422)
             config = {**task["config"], "strategyVersionId": version_id, "portfolioRules": rules}
+            if "decisionBackend" in payload:
+                config["decisionBackend"] = self.validate_backend(payload["decisionBackend"])
             if "dailyNotify" in payload:
                 config["portfolioDailyNotify"] = bool(payload["dailyNotify"])
             update = {"config": config, "capabilities": bindings}
@@ -243,12 +271,16 @@ class PortfolioResearchService:
         tz, run_at = MARKETS[market]
         return {"task": task, "schedule": schedule, "timezone": tz, "runAt": run_at}
 
-    def create_watch(self, symbol, market):
+    def create_watch(self, symbol, market, decision_backend=None):
         from src.services.workspace_defaults import default_task_plan
         with _PLAN_LOCK:
+            if decision_backend is not None:
+                self.validate_backend(decision_backend)
             target, market = self._watch_market(symbol, market)
             saved = self._watch_task(target)
             if saved:
+                if decision_backend is not None:
+                    self.workspace.update_task(saved["id"], {"config": {**saved["config"], "decisionBackend": decision_backend}})
                 return self.watch_plan(target)
             task = default_task_plan(self.workspace, "research", market.upper(), target)["task"]
             task["capabilities"]["expertIds"] = []
@@ -258,6 +290,7 @@ class PortfolioResearchService:
                                  "该标的未提供实际持仓；不得读取、推断或引用账户、成本、数量或盈亏，"
                                  "也不得输出买入、卖出、加仓、减仓、止损或持仓建议。不要引用历史研究结论。")
             task["config"]["portfolioWatch"] = {"symbol": target}
+            task["config"]["decisionBackend"] = decision_backend or "llm"
             task["config"]["portfolioDailyNotify"] = False
             task = self.workspace.create_task(task)
             tz, run_at = MARKETS[market]
@@ -287,6 +320,8 @@ class PortfolioResearchService:
             interval_days = self.workspace._validate_interval_days(payload.get("intervalDays") if payload.get("intervalDays") is not None else (plan["schedule"] or {}).get("intervalDays", 1))
             self.workspace._next_run("daily", run_at, None, plan["timezone"], datetime.now(timezone.utc).replace(tzinfo=None))
             config = {**task["config"], "strategyVersionId": version_id}
+            if "decisionBackend" in payload:
+                config["decisionBackend"] = self.validate_backend(payload["decisionBackend"])
             if "dailyNotify" in payload:
                 config["portfolioDailyNotify"] = bool(payload["dailyNotify"])
             task = self.workspace.update_task(task["id"], {"config": config, "capabilities": bindings})
@@ -339,13 +374,14 @@ class PortfolioResearchService:
             with self.workspace.db.get_session() as session:
                 rows = session.execute(select(WorkspaceRunRecord).where(WorkspaceRunRecord.task_id == task["id"])
                                        .order_by(WorkspaceRunRecord.created_at.desc()).limit(30)).scalars().all()
-                effective = str(get_effective_trading_date(task["market"].lower()))
+                effective = self._research_session(task["market"], task["config"].get("decisionBackend", "llm"))
                 import json
                 for row in rows:
                     if row.status in {"queued", "running"}:
                         return context if binding else None, row.id
                     if (trigger_type == "schedule" and row.status == "completed"
-                            and json.loads(row.task_snapshot_json).get("portfolioSession") == effective):
+                            and json.loads(row.task_snapshot_json).get("portfolioSession") == effective
+                            and json.loads(row.task_snapshot_json).get("config", {}).get("decisionBackend", "llm") == task["config"].get("decisionBackend", "llm")):
                         return context if binding else None, row.id
                 task["portfolioSession"] = effective
         return (None if watch else context), None
@@ -379,6 +415,16 @@ class PortfolioResearchService:
         run = self.workspace.get_run(run_id)
         if run.get("triggerType") != "schedule":
             return False
+        if task.get('config', {}).get('decisionBackend') == 'jev':
+            decision = self._decision(run)
+            if not decision:
+                return False
+            from src.notification import NotificationService
+            from src.services.portfolio_jev_service import decision_notification
+            return bool(NotificationService().send_with_results(
+                decision_notification(decision, task.get('config', {}).get('reportLanguage', 'en')),
+                email_stock_codes=[decision['symbol']], route_type='report', severity='info',
+                dedup_key=f'portfolio-brief:{run_id}').success)
         artifact = next((item for item in run.get("artifacts", []) if item.get("type") == "ResearchReport" and isinstance(item.get("content"), dict)), None)
         result = artifact.get("content", {}).get("result", {}) if artifact else {}
         report = result.get("report", {}) if isinstance(result, dict) else {}
@@ -447,6 +493,24 @@ class PortfolioResearchService:
         return [{key: value for key, value in entry.items() if key != "_priority"}
                 for entry in list(by_session.values())[-30:]]
 
+    @staticmethod
+    def _research_session(market, backend):
+        if backend == 'jev':
+            from src.services.simulation_portfolio_service import SimulationPortfolioService
+            return str(SimulationPortfolioService._last_closed(market.upper()))
+        return str(get_effective_trading_date(market.lower()))
+
+    def _current_session(self, run, market, backend):
+        return bool(run and run['taskSnapshot'].get('config', {}).get('decisionBackend', 'llm') == backend
+                    and run['taskSnapshot'].get('portfolioSession') == self._research_session(market, backend))
+
+    @staticmethod
+    def _decision(run):
+        if not run or run.get('status') != 'completed':
+            return None
+        return next((a['content'] for a in run.get('artifacts', [])
+                     if a['type'] == 'PortfolioDecision' and isinstance(a.get('content'), dict)), None)
+
     def dashboard(self, refresh=False):
         snapshot = self.portfolio.get_portfolio_snapshot(include_realtime=refresh)
         tasks = self.workspace.list_tasks("research")
@@ -492,9 +556,13 @@ class PortfolioResearchService:
                 rules = task["config"].get("portfolioRules", DEFAULT_RULES) if task else DEFAULT_RULES
                 recommendation_history = self._recommendation_history(task["id"]) if task else []
                 # Daily movement belongs to the research quote, not today's cached price.
-                report_current = bool(latest and latest["taskSnapshot"].get("portfolioSession") == str(get_effective_trading_date(position["market"])))
+                report_current = self._current_session(latest, position["market"], task["config"].get("decisionBackend", "llm") if task else "llm")
                 alerts = portfolio_alerts(position, rules, meta.get("change_pct") if report_current else None)
-                result.append({"accountId": account["account_id"], "accountName": account["account_name"],
+                backend = task['config'].get('decisionBackend', 'llm') if task else 'llm'
+                decision = self._decision(latest) if backend == 'jev' else None
+                if backend == 'jev':
+                    report = None
+                result.append({"decisionBackend": backend, "decision": decision, "accountId": account["account_id"], "accountName": account["account_name"],
                                "stockName": stock_name,
                                "position": position, "taskId": task["id"] if task else None,
                                "schedule": next((s for s in schedules if task and s["taskId"] == task["id"]), None),
@@ -534,11 +602,15 @@ class PortfolioResearchService:
             meta = report.get("meta", {}) if isinstance(report, dict) and isinstance(report.get("meta"), dict) else {}
             history = self._watch_history(task["id"])
             market = task["market"].lower()
-            watches.append({"symbol": binding["symbol"], "market": market, "stockName": get_index_stock_name(binding["symbol"]) or meta.get("stock_name"),
+            backend = task['config'].get('decisionBackend', 'llm')
+            decision = self._decision(latest) if backend == 'jev' else None
+            if backend == 'jev':
+                report = None
+            watches.append({"decisionBackend": backend, "decision": decision, "symbol": binding["symbol"], "market": market, "stockName": get_index_stock_name(binding["symbol"]) or meta.get("stock_name"),
                             "taskId": task["id"], "supported": market in MARKETS,
                             "schedule": next((s for s in schedules if s["taskId"] == task["id"]), None),
                             "run": ({"id": latest["id"], "status": latest["status"], "createdAt": latest["createdAt"], "error": latest.get("errorMessage"),
-                                     "currentSession": bool(latest["taskSnapshot"].get("portfolioSession") == str(get_effective_trading_date(market)))} if latest else None),
+                                     "currentSession": self._current_session(latest, market, backend)} if latest else None),
                             "brief": ({"name": meta.get("stock_name"), "summary": interpretation or _brief_text(summary.get("analysis_summary")),
                                        "score": normalize_score(summary.get("sentiment_score")), "trend": _brief_text(summary.get("trend_prediction")),
                                        "strategy": report.get("strategy"), "scoreHistory": history,

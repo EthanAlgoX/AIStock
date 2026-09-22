@@ -12,6 +12,7 @@ rather than silently screening the US pool.
 """
 
 import logging
+import math
 import os
 from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
 from concurrent.futures import as_completed
@@ -94,7 +95,7 @@ def fetch_us_snapshot(
     logger.info("Fetching US snapshot for %d tickers", len(tickers))
 
     hist_end = pd.Timestamp.now().normalize()
-    hist_start = hist_end - pd.Timedelta(days=30)
+    hist_start = hist_end - pd.Timedelta(days=60)
     data = yf.download(
         tickers,
         start=hist_start.strftime("%Y-%m-%d"),
@@ -131,6 +132,15 @@ def fetch_us_snapshot(
             volume = float(latest["Volume"])
             change_pct = ((price - prev_close) / prev_close * 100) if prev_close > 0 else 0.0
 
+            window = hist.tail(20)
+            volumes = pd.to_numeric(window["Volume"], errors="coerce")
+            complete_volume = len(window) == 20 and all(
+                math.isfinite(value) and value >= 0 for value in volumes
+            )
+            closes = pd.to_numeric(hist["Close"].tail(21), errors="coerce")
+            complete_prices = len(closes) == 21 and all(
+                math.isfinite(value) and value > 0 for value in closes
+            )
             vol_20d = float(hist["Volume"].tail(20).mean())
             volume_ratio = (volume / vol_20d) if vol_20d > 0 else 1.0
 
@@ -146,7 +156,12 @@ def fetch_us_snapshot(
             from src.services.screening.daily import _volatility_20d_pct
 
             return {
-                "volatility_20d_pct": _volatility_20d_pct(hist["Close"].tail(21)),
+                "volatility_20d_pct": _volatility_20d_pct(closes) if complete_prices else None,
+                "average_volume_20d": float(volumes.mean()) if complete_volume else None,
+                "total_volume_20d": float(volumes.sum()) if complete_volume else None,
+                "history_sessions": len(window),
+                "history_start_date": window.index[0].date().isoformat(),
+                "history_end_date": window.index[-1].date().isoformat(),
                 "code": ticker,
                 "name": ticker,
                 "price": price,

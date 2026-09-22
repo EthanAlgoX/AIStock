@@ -49,3 +49,15 @@ describe('HoldingPlanEditor', () => {
     await waitFor(() => expect(api.configure).toHaveBeenLastCalledWith(7, '600519', expect.objectContaining({ dailyEnabled: false })));
   });
 });
+
+it('persists JEV as the backend used by the tracking plan', async () => {
+  localStorage.setItem('dsa.uiLanguage', 'en');
+  api.plan.mockResolvedValue(disabledPlan);
+  api.configure.mockResolvedValue(disabledPlan);
+  workspace.getCapabilities.mockResolvedValue({ skills: [], experts: [] });
+  strategies.listStrategies.mockResolvedValue([]);
+  render(<UiLanguageProvider><HoldingPlanEditor item={{ accountId: 7, position: { symbol: '600519', market: 'CN' } } as never} onSaved={vi.fn()} /></UiLanguageProvider>);
+  fireEvent.change(await screen.findByLabelText('Analysis model'), { target: { value: 'jev' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save & enable tracking' }));
+  await waitFor(() => expect(api.configure).toHaveBeenLastCalledWith(7, '600519', expect.objectContaining({ decisionBackend: 'jev', dailyEnabled: true })));
+});

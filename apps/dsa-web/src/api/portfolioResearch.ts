@@ -2,12 +2,15 @@ import apiClient from './index';
 import type { WorkspaceTask, WorkspaceRun, WorkspaceSchedule } from './workspace';
 import type { AgentCapabilityBindings } from '../types/capabilities';
 
+export type ResearchBackend = 'llm' | 'jev';
+export type PortfolioDecision = { backend: 'jev'; symbol: string; category: 'buy' | 'sell' | 'hold' | 'bullish' | 'bearish' | 'neutral'; confidence: number; probabilities: Record<string, number>; model: string; asOf: string; source: string; scope: 'holding' | 'watch' };
 export type HoldingRules = { lossPct: number; profitPct: number; dailyMovePct: number };
 export type HoldingRecommendation = { category: 'increase' | 'hold_positive' | 'hold_watch' | 'reduce' | 'exit'; label: string; score: number; basis: string; source: string };
 export type HoldingRecommendationPoint = { session: string; createdAt: string; category: HoldingRecommendation['category']; label: string; score: number };
 export type ResearchScorePoint = { session: string; createdAt: string; category: string; label: string; score: number };
 export type HoldingPlan = { task: WorkspaceTask; schedule: WorkspaceSchedule | null; timezone: string; runAt: string };
 export type HoldingItem = {
+  decisionBackend?: ResearchBackend; decision?: PortfolioDecision | null;
   accountId: number; accountName: string; stockName?: string | null; taskId: string | null; supported: boolean;
   position: { symbol: string; market: string; currency: string; quantity: number; avg_cost: number;
     last_price: number; unrealized_pnl_pct: number | null; price_available: boolean; price_stale: boolean;
@@ -20,6 +23,7 @@ export type HoldingItem = {
     recommendationTrend?: { direction: 'rising' | 'falling' | 'stable' | 'insufficient'; change: number | null; sessions: number } } | null;
 };
 export type WatchItem = {
+  decisionBackend?: ResearchBackend; decision?: PortfolioDecision | null;
   symbol: string; market: string; stockName?: string | null; taskId: string; supported: boolean; schedule: WorkspaceSchedule | null;
   run: { id: string; status: string; createdAt: string; error: string | null; currentSession: boolean } | null;
   brief: { name: string | null; summary: string; score: number | null; trend: string | null; strategy: Record<string, unknown> | null;
@@ -29,15 +33,16 @@ export type HoldingsDashboard = { asOf: string; items: HoldingItem[]; watches: W
 const root = '/api/v1/workspace/portfolio-research';
 const positionUrl = (accountId: number, symbol: string) => `${root}/${accountId}/${encodeURIComponent(symbol)}`;
 export const portfolioResearchApi = {
+  async setBackend(account: number, symbol: string, decisionBackend: ResearchBackend) { return (await apiClient.put<HoldingPlan>(`${positionUrl(account, symbol)}/backend`, { decisionBackend })).data; },
   async dashboard(refresh = false) { return (refresh ? await apiClient.post<HoldingsDashboard>(`${root}/refresh`) : await apiClient.get<HoldingsDashboard>(root)).data; },
   async plan(account: number, symbol: string) { return (await apiClient.get<HoldingPlan>(`${positionUrl(account, symbol)}/plan`)).data; },
-  async configure(account: number, symbol: string, payload: { strategyVersionId: number; capabilities: AgentCapabilityBindings; rules: HoldingRules; dailyEnabled: boolean; dailyNotify: boolean; intervalDays: number; runAt: string }) {
+  async configure(account: number, symbol: string, payload: { decisionBackend?: ResearchBackend; strategyVersionId: number; capabilities: AgentCapabilityBindings; rules: HoldingRules; dailyEnabled: boolean; dailyNotify: boolean; intervalDays: number; runAt: string }) {
     return (await apiClient.put<HoldingPlan>(`${positionUrl(account, symbol)}/plan`, payload)).data;
   },
   async run(account: number, symbol: string) { return (await apiClient.post<WorkspaceRun>(`${positionUrl(account, symbol)}/run`)).data; },
-  async createWatch(payload: { symbol: string; market: 'cn' | 'hk' | 'us' }) { return (await apiClient.post<HoldingPlan>(`${root}/watch`, payload)).data; },
+  async createWatch(payload: { symbol: string; market: 'cn' | 'hk' | 'us'; decisionBackend?: ResearchBackend }) { return (await apiClient.post<HoldingPlan>(`${root}/watch`, payload)).data; },
   async watchPlan(symbol: string) { return (await apiClient.get<HoldingPlan>(`${root}/watch/${encodeURIComponent(symbol)}/plan`)).data; },
-  async configureWatch(symbol: string, payload: { strategyVersionId: number; capabilities: AgentCapabilityBindings; dailyEnabled: boolean; dailyNotify: boolean; intervalDays: number; runAt: string }) { return (await apiClient.put<HoldingPlan>(`${root}/watch/${encodeURIComponent(symbol)}/plan`, payload)).data; },
+  async configureWatch(symbol: string, payload: { decisionBackend?: ResearchBackend; strategyVersionId: number; capabilities: AgentCapabilityBindings; dailyEnabled: boolean; dailyNotify: boolean; intervalDays: number; runAt: string }) { return (await apiClient.put<HoldingPlan>(`${root}/watch/${encodeURIComponent(symbol)}/plan`, payload)).data; },
   async runWatch(symbol: string) { return (await apiClient.post<WorkspaceRun>(`${root}/watch/${encodeURIComponent(symbol)}/run`)).data; },
   async removeWatch(symbol: string) { return (await apiClient.delete(`${root}/watch/${encodeURIComponent(symbol)}`)).data; },
 };

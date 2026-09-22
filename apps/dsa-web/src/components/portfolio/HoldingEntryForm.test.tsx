@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import HoldingEntryForm from './HoldingEntryForm';
 import { UiLanguageProvider } from '../../contexts/UiLanguageContext';
 
-const mocks = vi.hoisted(() => ({ getAccounts: vi.fn(), createTrade: vi.fn(), createAccount: vi.fn(), index: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getAccounts: vi.fn(), createTrade: vi.fn(), createAccount: vi.fn(), index: vi.fn(), setBackend: vi.fn() }));
+vi.mock('../../api/portfolioResearch', () => ({ portfolioResearchApi: mocks }));
 vi.mock('../../api/portfolio', () => ({ portfolioApi: mocks }));
 vi.mock('../../hooks/useStockIndex', () => ({ useStockIndex: () => ({ index: mocks.index() }) }));
 const index = [
@@ -28,6 +29,7 @@ describe('holding stock code contract', () => {
     mocks.index.mockReturnValue(index);
     mocks.getAccounts.mockResolvedValue({ accounts: [{ id: 1, name: 'Test', baseCurrency: 'CNY' }] });
     mocks.createTrade.mockResolvedValue({ id: 1 });
+    mocks.setBackend.mockResolvedValue({});
   });
   it.each([
     ['cn', '600519.SH', '600519'], ['cn', '600519', '600519'], ['cn', '贵州茅台', '600519'],
@@ -48,4 +50,14 @@ describe('holding stock code contract', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Enter a stock code matching the market');
     expect(mocks.createTrade).not.toHaveBeenCalled(); expect(mocks.createAccount).not.toHaveBeenCalled();
   });
+  it('retries the model preference without recording the holding twice', async () => {
+    mocks.setBackend.mockRejectedValueOnce(new Error('configuration unavailable')).mockResolvedValueOnce({});
+    await enter('cn', '600519');
+    await screen.findByText(/The transaction is saved/);
+    fireEvent.change(screen.getByLabelText('Analysis model'), { target: { value: 'jev' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save record' }));
+    await waitFor(() => expect(mocks.setBackend).toHaveBeenLastCalledWith(1, '600519', 'jev'));
+    expect(mocks.createTrade).toHaveBeenCalledTimes(1);
+  });
+
 });

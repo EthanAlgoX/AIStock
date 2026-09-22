@@ -1546,7 +1546,10 @@ class WorkspaceService:
                 self._finish_run(run_id, "cancelled")
             elif result["success"]:
                 self._finish_run(run_id, "completed", summary=result["summary"])
-                self._mark_snapshot_quality(run_id, "unverified", ["执行结束不等于数据质量已验证；实际覆盖与缺失见报告。", *(result.get("warnings") or [])])
+                quality_note = ("JEV classification uses closed daily bars; it does not include news or fundamentals."
+                                if result.get('summary', {}).get('backend') == 'jev'
+                                else "执行结束不等于数据质量已验证；实际覆盖与缺失见报告。")
+                self._mark_snapshot_quality(run_id, "unverified", [quality_note, *(result.get("warnings") or [])])
                 if task.get("config", {}).get("portfolioHolding") or task.get("config", {}).get("portfolioWatch"):
                     try:
                         from src.services.portfolio_research_service import PortfolioResearchService
@@ -1567,6 +1570,10 @@ class WorkspaceService:
 
     def _execute_agent_task(self, run_id: str, task: dict[str, Any], cancel_event: threading.Event) -> dict[str, Any]:
         kind = task["kind"]
+        config = task.get('config') or {}
+        if kind == 'research' and config.get('decisionBackend') == 'jev' and (config.get('portfolioHolding') or config.get('portfolioWatch')):
+            from src.services.portfolio_jev_service import execute_portfolio_decision
+            return execute_portfolio_decision(self, run_id, task, cancel_event)
         bindings = normalize_bindings(task.get("capabilities"))
         version_id = (task.get("config") or {}).get("strategyVersionId")
         if kind in {"research", "screening"} and version_id is not None:
@@ -1806,6 +1813,10 @@ class WorkspaceService:
     def _validate_task_contract(kind: str, subject: dict[str, Any], config: dict[str, Any], bindings: dict[str, list[Any]]) -> None:
         holding = config.get("portfolioHolding")
         watch = config.get("portfolioWatch")
+        if (holding or watch) and config.get('decisionBackend', 'llm') not in {'llm', 'jev'}:
+            raise WorkspaceError('portfolio_backend_invalid', 'Unsupported analysis model.', 422)
+        if kind == 'research' and config.get('decisionBackend') == 'jev' and not (holding or watch):
+            raise WorkspaceError('portfolio_backend_invalid', 'JEV research must bind a holding or watch stock.', 422)
         if holding is not None and watch is not None:
             raise WorkspaceError("portfolio_binding_conflict", "同一研究任务不能同时绑定持仓和关注股票。", 422)
         if holding is not None:

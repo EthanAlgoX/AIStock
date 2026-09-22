@@ -294,3 +294,22 @@ def test_run_history_preserves_legacy_array_and_validates_pagination(workspace_c
     assert workspace_client.get('/workspace/run-history?offset=-1').status_code == 422
     assert workspace_client.get('/workspace/run-history?limit=101').status_code == 422
     assert workspace_client.get('/workspace/run-history?start=invalid').status_code == 422
+
+
+def test_portfolio_backend_api_saves_choice_without_running_or_scheduling(workspace_client, workspace_service):
+    from types import SimpleNamespace
+    from src.services.portfolio_research_service import PortfolioResearchService
+    from tests.test_portfolio_research import holding
+    account_id = holding(PortfolioResearchService(workspace_service))
+    config = SimpleNamespace(typesafe_api_key='test', typesafe_base_url='https://api.typesafe.ai', typesafe_model='jev-test')
+    with patch('src.services.jev_decision_service.get_config', return_value=config), patch('requests.post') as post:
+        saved = workspace_client.put(f'/workspace/portfolio-research/{account_id}/600519/backend', json={'decisionBackend': 'jev'})
+        assert saved.status_code == 200, saved.text
+        assert saved.json()['task']['config']['decisionBackend'] == 'jev'
+        watch = workspace_client.post('/workspace/portfolio-research/watch', json={'symbol': 'AAPL', 'market': 'us', 'decisionBackend': 'jev'})
+        assert watch.status_code == 201, watch.text
+        assert watch.json()['task']['config']['decisionBackend'] == 'jev'
+    post.assert_not_called()
+    assert workspace_service.list_runs() == []
+    assert workspace_service.list_schedules() == []
+    assert workspace_client.put(f'/workspace/portfolio-research/{account_id}/600519/backend', json={'decisionBackend': 'invalid'}).status_code == 422

@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from api.v1.schemas.workspace import (
     CapabilityPreferenceRequest,
     PortfolioResearchRequest,
+    PortfolioResearchBackendRequest,
     PortfolioWatchCreateRequest,
     DataSourceCreateRequest,
     ExpertCreateRequest,
@@ -179,7 +180,7 @@ def refresh_holdings_dashboard() -> dict[str, Any]:
 
 @router.post("/portfolio-research/watch", status_code=201)
 def create_portfolio_watch(request: PortfolioWatchCreateRequest) -> dict[str, Any]:
-    return _call(lambda: _holding_service().create_watch(request.symbol, request.market))
+    return _call(lambda: _holding_service().create_watch(request.symbol, request.market, request.decisionBackend))
 
 
 @router.get("/portfolio-research/watch/{symbol}/plan")
@@ -200,6 +201,11 @@ def run_watch_research(symbol: str) -> dict[str, Any]:
 @router.delete("/portfolio-research/watch/{symbol}")
 def delete_portfolio_watch(symbol: str) -> dict[str, Any]:
     return _call(lambda: _holding_service().remove_watch(symbol))
+
+
+@router.put("/portfolio-research/{account_id}/{symbol}/backend")
+def configure_holding_backend(account_id: int, symbol: str, request: PortfolioResearchBackendRequest) -> dict[str, Any]:
+    return _call(lambda: _holding_service().set_backend(account_id, symbol, request.decisionBackend))
 
 
 @router.get("/portfolio-research/{account_id}/{symbol}/plan")

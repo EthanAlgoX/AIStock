@@ -270,3 +270,58 @@ def test_range_source_failure_is_actionable_and_preserves_model_usage(workspace)
     with workspace.db.get_session() as session:
         assert session.scalar(select(SimulationTradingCallRecord)) is None
         assert session.scalar(select(func.count()).select_from(SimulationUniverseSnapshotRecord)) == 0
+
+
+@pytest.mark.parametrize('sessions,bad_volume', [(21, False), (8, False), (21, True)])
+def test_us_monthly_volume_evidence_reaches_preview_model(workspace, sessions, bad_volume):
+    """Exercise provider -> industry filter -> actual LLM request -> frozen snapshot."""
+    import pandas as pd
+    import yfinance as yf
+    from src.services.screening.daily import _volatility_20d_pct
+
+    bars = pd.DataFrame({'Close': [100 + i for i in range(sessions)],
+                         'Volume': [1000 + i for i in range(sessions)]},
+                        index=pd.bdate_range('2026-08-01', periods=sessions))
+    if bad_volume:
+        bars.iloc[5, bars.columns.get_loc('Volume')] = float('nan')
+    ticker = SimpleNamespace(fast_info=SimpleNamespace(market_cap=1000000, shares=10000),
+                             info=dict(industry='Semiconductors', shortName='Fixture', trailingPE=20, priceToBook=3))
+    captured = []
+
+    def respond(messages, **kwargs):
+        payload = json.loads(messages[-1]['content'])
+        captured.append(payload)
+        evidence = payload['candidates'][0]
+        complete = evidence['averageVolume20d'] is not None and evidence['volatility20dPct'] is not None
+        return SimpleNamespace(content=json.dumps(dict(
+            candidates=[dict(code='NVDA', reason='候选内比较')] if complete else [],
+            summary='候选内比较' if complete else '缺少完整20日证据')),
+            usage={'total_tokens': 100}, model='fixture', provider='fixture')
+
+    agent = TradingAgentService(workspace.db, SimpleNamespace(call_text=respond))
+    scope = dict(mode='custom', query='选择过去一个月交易量高，同时波动性大的股票',
+                 industries=['信息技术', '半导体'], symbols=['NVDA'], maxCandidates=1)
+    with patch.object(yf, 'download', return_value=bars) as download, patch.object(yf, 'Ticker', return_value=ticker):
+        if sessions == 21 and not bad_volume:
+            preview = agent.preview('US', scope)
+            assert preview['scope']['selection']['candidates'] == ['NVDA']
+        else:
+            with pytest.raises(ValueError, match='模型未能'):
+                agent.preview('US', scope)
+            with workspace.db.get_session() as session:
+                assert session.scalar(select(func.count()).select_from(SimulationUniverseSnapshotRecord)) == 0
+    evidence = captured[0]['candidates'][0]
+    assert evidence['historySessions'] == min(sessions, 20)
+    assert evidence['historyEndDate'] == bars.index[-1].date().isoformat()
+    assert captured[0]['observedAt']
+    if sessions == 21 and not bad_volume:
+        assert evidence['averageVolume20d'] == pytest.approx(bars.Volume.tail(20).mean())
+        assert evidence['totalVolume20d'] == pytest.approx(bars.Volume.tail(20).sum())
+        assert evidence['volatility20dPct'] == pytest.approx(_volatility_20d_pct(bars.Close))
+    else:
+        assert evidence['averageVolume20d'] is None
+        assert evidence['totalVolume20d'] is None
+    if sessions < 21:
+        assert evidence['volatility20dPct'] is None
+    request = download.call_args.kwargs
+    assert (pd.Timestamp(request['end']) - pd.Timestamp(request['start'])).days == 60

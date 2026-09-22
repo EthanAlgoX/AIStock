@@ -120,3 +120,13 @@ describe('holdings research desk', () => {
     expect(screen.getByText('Review the trend before reducing exposure.')).toBeVisible();
   });
 });
+
+it('shows JEV confidence without the old report or full-research link', async () => {
+  localStorage.setItem('dsa.uiLanguage', 'en');
+  api.dashboard.mockResolvedValue({ ...data, items: [{ ...data.items[0], decisionBackend: 'jev',
+    decision: { backend: 'jev', symbol: 'AAPL', scope: 'holding', category: 'hold', confidence: 0.73, model: 'jev-test', asOf: '2026-09-21' } }] });
+  mount();
+  expect(await screen.findByText('73.0%')).toBeVisible();
+  expect(screen.queryByText('Review the trend before reducing exposure.')).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Full research & progress' })).not.toBeInTheDocument();
+});

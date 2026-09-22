@@ -38,3 +38,7 @@ Web 端新增 `/simulation` 页面。它是默认显示在左侧导航中的独�
 范围回答要求简短理由，输出预算上限为 16384 tokens（包含模型推理消耗），避免推理用尽预算后截断 JSON；请求仍受总预算校验，解析失败不保存部分名单。
 
 Custom scope preview discovers real market/industry constituents before sampling, then asks the LLM to apply natural-language criteria. At most 40 industry/size-stratified candidates enter the model, with coverage counts disclosed. Confirmed symbols remain frozen; duplicate, out-of-pool and excess outputs are rejected. US coverage follows its configured/default universe; HK requires explicit symbols.
+
+美股范围预览将最近 20 个交易日视作未指定日期的“过去一个月”，向模型提供日均成交股数、累计成交股数、统计起止日期、样本天数和行情日期。波动率为 20 个日收益率的年化标准差（百分比），并非月涨跌幅。行情拉取窗口为 60 个自然日；不足 20 天有效成交量或 21 个有效收盘价时，相应月度指标为空，不以短样本代替。成交量与波动未指定阈值时，模型可比较当前候选内的相对水平，必须说明口径；不代表全美股排名，也不保证一定有股票入选。预览总 Token 预算为 60000，以容纳新增行情证据和原有回答预算。
+
+For US scope previews, an unspecified “past month” means the latest 20 trading sessions. The model receives average/total share volume, observation dates, sample size and quote date. Volatility is the annualized standard deviation of 20 daily returns (%), not monthly price change. A 60-calendar-day download supplies the window; fewer than 20 valid volume observations or 21 valid closes leave the corresponding metric unavailable. Without explicit thresholds, the model may compare candidates within this bounded sample and must state that basis, never claim a market-wide ranking or guarantee a selection. The preview token budget is 60000 to accommodate this evidence and the existing response allowance.

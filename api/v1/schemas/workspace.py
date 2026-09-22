@@ -32,7 +32,12 @@ class PortfolioResearchRules(WorkspaceModel):
     dailyMovePct: float = Field(5, ge=0.1, le=100, allow_inf_nan=False)
 
 
+class PortfolioResearchBackendRequest(WorkspaceModel):
+    decisionBackend: Literal["llm", "jev"]
+
+
 class PortfolioResearchRequest(WorkspaceModel):
+    decisionBackend: Optional[Literal["llm", "jev"]] = None
     strategyVersionId: Optional[int] = Field(None, gt=0)
     capabilities: Optional[CapabilityBindings] = None
     rules: Optional[PortfolioResearchRules] = None
@@ -43,6 +48,7 @@ class PortfolioResearchRequest(WorkspaceModel):
 
 
 class PortfolioWatchCreateRequest(WorkspaceModel):
+    decisionBackend: Optional[Literal["llm", "jev"]] = None
     symbol: str = Field(..., min_length=1, max_length=32)
     market: Literal["cn", "hk", "us"]
 

@@ -278,20 +278,27 @@ class TradingAgentService:
                 evidence.append(dict(code=candidate['code'], name=candidate.get('name') or '',
                     industry=candidate.get('industry') or '', concepts=raw.get('concepts') or '',
                     totalMarketValue=raw.get('total_mv') or raw.get('market_cap') or raw.get('market_value'),
-                    circulatingMarketValue=raw.get('circ_mv'), volatility20dPct=candidate.get('volatility')))
+                    circulatingMarketValue=raw.get('circ_mv'), volatility20dPct=candidate.get('volatility'),
+                    averageVolume20d=raw.get('average_volume_20d'), totalVolume20d=raw.get('total_volume_20d'),
+                    historySessions=raw.get('history_sessions'), historyStartDate=raw.get('history_start_date'),
+                    historyEndDate=raw.get('history_end_date'), quoteDate=raw.get('quote_date')))
             result, usage = self.call(
                 '你是股票范围选择器。仅从候选列表选择符合用户范围的股票，绝不可编造或返回范围外代码。'
                 '市场和所选行业已先按数据源分类筛选；行业分类可能较粗，需核实与用户意图的匹配。'
                 '市值、波动、成长等自然语言要求由你根据证据判断，不按固定关键词规则筛选。'
                 '市值单位为对应市场本币；没有明确阈值时说明采用的判断口径，不能把样本相对大小当全市场分位。'
+                'averageVolume20d/totalVolume20d是最近20个交易日的日均/累计成交股数；'
+                'volatility20dPct是20个日收益率的年化标准差百分比，不是月涨跌幅。'
+                '过去一个月未指定日期时按最近20个交易日理解，核对数据日期与样本完整性。'
+                '成交量高、波动大未给绝对阈值时可按当前候选内相对水平比较，并明确样本口径，不能宣称全市场排名。'
                 '缺失指标不得推断为满足。若证据不足可返回空列表并在summary说明。'
                 '仅基于给定证据简短筛选，不展开逐股长篇讨论。'
                 '只返回严格JSON：candidates（最多12项，每项code和reason，reason不超过60字）和summary（不超过150字）。'
                 + self.language_directive(scope),
                 dict(market=market, requestedIndustries=selected_industries,
                     allIndustries=bool(scope.get('allIndustries')), query=query,
-                    maxCandidates=scope.get('maxCandidates', 12), candidates=evidence),
-                30000, 'trading_range', max_output_tokens=16384)
+                    maxCandidates=scope.get('maxCandidates', 12), observedAt=discovered['observedAt'], candidates=evidence),
+                60000, 'trading_range', max_output_tokens=16384)
             selection = RangeSelection.model_validate(result)
             by_code = {item['code']: item for item in discovered['candidates']}
             chosen = []

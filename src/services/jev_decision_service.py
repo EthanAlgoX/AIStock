@@ -101,6 +101,13 @@ class JevDecisionService:
                         'action': question['criteria'][category], 'conditions': description,
                     }
         request = dict(model=model, state=payload, questions=questions)
+        answers, usage = self.classify(db, request, budget, resource, portfolio_id, usage_scope='trading')
+        return {code: answers[key] for key, code in zip(questions, payload['bars'])}, usage
+
+    def classify(self, db, request, budget, resource, portfolio_id=None, *, usage_scope='research'):
+        """Shared audited System One transport; callers define state and choice categories."""
+        self.validate_settings()
+        questions = request['questions']
         encoded = json.dumps(request, ensure_ascii=False, allow_nan=False)
         if len(encoded.encode()) + 4096 > budget:
             raise ValueError("JEV input exceeds the remaining token budget; reduce the universe or increase the budget.")
@@ -136,26 +143,27 @@ class JevDecisionService:
                 raise ValueError("JEV did not return verifiable token usage.")
             tokens = raw_usage['input_tokens'] + raw_usage['output_tokens']
             usage = dict(prompt_tokens=raw_usage['input_tokens'], completion_tokens=raw_usage['output_tokens'], total_tokens=tokens)
-            persist_llm_usage(usage, actual_model, call_type=resource, usage_scope='trading')
+            persist_llm_usage(usage, actual_model, call_type=resource, usage_scope=usage_scope)
             if not 0 < tokens <= budget:
                 raise ValueError("JEV token usage is zero or exceeds the remaining budget.")
             answers = body.get('answers')
             if not isinstance(answers, dict) or set(answers) != set(questions):
                 raise ValueError("JEV did not return exactly one decision per stock.")
             decisions = {}
-            for question_id, code in zip(questions, payload['bars']):
+            for question_id, question in questions.items():
+                categories = set(question['criteria'])
                 answer = answers[question_id]
-                if not isinstance(answer, dict) or answer.get('type') != 'choice' or answer.get('choice') not in {'buy', 'sell', 'hold'}:
+                if not isinstance(answer, dict) or answer.get('type') != 'choice' or answer.get('choice') not in categories:
                     raise ValueError("JEV returned an invalid trading category.")
                 probs, confidence = answer.get('probabilities'), answer.get('confidence')
-                if not isinstance(probs, dict) or set(probs) != {'buy', 'sell', 'hold'}:
+                if not isinstance(probs, dict) or set(probs) != categories:
                     raise ValueError("JEV returned incomplete category probabilities.")
                 values = [*probs.values(), confidence]
                 if any(type(v) not in {int, float} or not math.isfinite(v) or not 0 <= v <= 1 for v in values):
                     raise ValueError("JEV returned invalid probabilities or confidence.")
                 if abs(sum(probs.values()) - 1) > 0.001 or probs[answer['choice']] < max(probs.values()) - 1e-8:
                     raise ValueError("JEV category and probability distribution are inconsistent.")
-                decisions[code] = answer
+                decisions[question_id] = answer
             status = 'received'
             return decisions, dict(model=actual_model, tokens=tokens, callId=call_id)
         except ValueError as exc:

@@ -83,3 +83,25 @@ Cost-loss (10%), cost-gain (20%) and daily-move (5%) thresholds are configurable
 Daily tracking is explicitly enabled per holding and is off initially to avoid surprise model costs. Default market-local times are 16:30 Asia/Shanghai, 17:30 Asia/Hong_Kong, and 17:00 America/New_York (DST-aware). The server must remain running. Existing in-flight runs are reused; scheduled reviews reuse completed research for the same effective trading session. Calendar failure follows the platform's natural-date fallback. Closed holdings pause their schedule at the next trigger. Failures remain visible and can be retried. Browser navigation does not stop work; server restarts interrupt in-process runs. This is a single-service scheduler, not a distributed exactly-once system.
 
 New endpoints live under `/api/v1/workspace/portfolio-research`: cached dashboard GET, explicit quote-refresh POST, per-account/symbol plan GET/PUT and research-run POST. Existing research runs, ledger APIs and schedules remain compatible. No new environment variables or database columns are required. Build Web and restart the server to deploy. Before rolling back code, disable holding schedules; keep the ledger and history intact.
+
+## LLM / JEV 模型选择 / Model selection
+
+录入买入或初始持仓、添加关注时可选择分析模型，默认 LLM。已有标的可在“跟踪周期与策略”中修改；单次运行和定时跟踪共用已保存的选择。保存不会立即推理，也不会自动下单。卖出流水仅记账，不修改研究模型。
+
+- **LLM**：沿用研究报告、短简报和专家流程。
+- **JEV 持仓**：调用 JEV `/v1/systemone`，返回 `buy/sell/hold`（买入/卖出/不动）与置信度。
+- **JEV 关注**：返回 `bullish/bearish/neutral`（看涨/看跌/中性）与置信度，不读取账户、成本或数量。
+
+JEV 使用现有 `TYPESAFE_API_KEY`、`TYPESAFE_BASE_URL`、`TYPESAFE_MODEL` 配置，复用 `AGENT_DEEP_RESEARCH_BUDGET` 预算；以最近已收盘日线（最多 21 条）为证据，不调用报告生成模型或补充专家。缺失、过期、重复或非法行情，以及接口超时或分类校验失败均显示失败，不悄悄转用 LLM、不伪造中性结果。界面仅展示分类和 API 置信度；置信度不等于收益概率，不转换为仓位或研究评分。JEV 不生成报告、摘要、解释或评分曲线；定时通知也仅格式化分类和置信度。
+
+新增字段 `decisionBackend: llm | jev` 保存在研究任务配置；旧任务默认 LLM。关注创建和研究计划更新接受该可选字段。`PUT /api/v1/workspace/portfolio-research/{account_id}/{symbol}/backend` 仅保存模型偏好，不改变定时计划。持仓流水保存与模型选择是两个请求；流水成功而偏好失败时，表单保留已记账标记，当前表单重试仅保存偏好。离开页面后应在现有持仓的研究设置中修改模型，不要重新录入流水。
+
+仪表盘追加 `decisionBackend` 和独立的 `decision`，JEV 模式不把历史 LLM 报告作为当前结果。运行产生 `PortfolioDecision`，不产生 `ResearchReport`。原始 API 调用、模型版本与用量沿用审计记录。旧客户端不识别新字段时仍能读取原有持仓信息。无数据库迁移；回滚代码前，将 JEV 跟踪改回 LLM 或暂停，避免旧版本将其当作 LLM 任务执行。
+
+When recording a buy/opening position or adding a watch, choose LLM (default) or JEV. Existing entries can change the model in tracking settings. Manual and scheduled runs share the saved choice. Saving does not call a model or place orders; sell ledger entries do not change the model.
+
+LLM retains reports and experts. JEV calls `/v1/systemone` directly: holdings use **Buy / Sell / Hold**, watches use **Bullish / Bearish / Neutral** without account, cost or quantity data. The UI displays the returned classification and confidence, not a generated report, explanation, research score or allocation. Scheduled notifications format these same fields without invoking an LLM.
+
+JEV reuses `TYPESAFE_*` settings and `AGENT_DEEP_RESEARCH_BUDGET`, using up to 21 closed daily bars. Missing/stale/duplicate/invalid evidence or API/validation failures fail explicitly; there is no LLM fallback or fabricated neutral result. Saved LLM strategies and experts do not participate in this classification.
+
+The optional `decisionBackend` field defaults to `llm`. The holding `/backend` endpoint changes only that preference, preserving schedules. Ledger saving and preference saving are separate requests; if the second fails, retrying in the same form does not duplicate the ledger entry. After leaving the form, change the model through the existing holding settings rather than recording the transaction again. Dashboard `decision` and `PortfolioDecision` artifacts are separate from reports. No database migration is needed. Before rolling back, switch JEV plans to LLM or pause them so an older runtime cannot silently run them as LLM tasks.
