@@ -88,7 +88,7 @@ it.each(["custom", "fixed", "holdings"] as const)(
     const inputs = {
       mode, symbols: ["688233"], accountId: 7,
       query: "半导体，成交活跃", industries: ["半导体"],
-      allIndustries: false, maxCandidates: 1,
+      allIndustries: false, maxCandidates: 1, candidateRanking: "volume_volatility" as const,
     };
     const savedScope = {
       ...inputs,
@@ -104,7 +104,7 @@ it.each(["custom", "fixed", "holdings"] as const)(
     expect(client.post).toHaveBeenLastCalledWith(
       "/api/v1/simulation/portfolios/universe-preview",
       { market: "CN", scope: inputs, reportLanguage: "zh" },
-      { timeout: 180000 },
+      { timeout: 360000 },
     );
     expect(savedScope).toEqual(snapshot);
 

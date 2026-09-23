@@ -79,6 +79,8 @@ def fetch_us_snapshot(
     *,
     universe_source: str = "auto",
     max_workers: int = 8,
+    include_metadata: bool = True,
+    as_of: str | None = None,
 ) -> pd.DataFrame:
     """Fetch a US equity snapshot in the screening schema.
 
@@ -94,7 +96,7 @@ def fetch_us_snapshot(
 
     logger.info("Fetching US snapshot for %d tickers", len(tickers))
 
-    hist_end = pd.Timestamp.now().normalize()
+    hist_end = pd.Timestamp(as_of).normalize() + pd.Timedelta(days=1) if as_of else pd.Timestamp.now().normalize()
     hist_start = hist_end - pd.Timedelta(days=60)
     data = yf.download(
         tickers,
@@ -103,7 +105,8 @@ def fetch_us_snapshot(
         group_by="ticker",
         auto_adjust=True,
         progress=False,
-        threads=True,
+        threads=max_workers,
+        timeout=15,
     )
 
     rows = []
@@ -144,7 +147,7 @@ def fetch_us_snapshot(
             vol_20d = float(hist["Volume"].tail(20).mean())
             volume_ratio = (volume / vol_20d) if vol_20d > 0 else 1.0
 
-            info = yf.Ticker(ticker).fast_info
+            info = yf.Ticker(ticker).fast_info if include_metadata else None
             market_cap = getattr(info, "market_cap", None)
             shares = getattr(info, "shares", None) or 0
             turnover_rate = (volume / shares * 100) if shares > 0 else None
@@ -205,7 +208,8 @@ def fetch_us_snapshot(
     df = df.dropna(subset=["price"])
     df = df[df["price"] > 0]
 
-    _enrich_info_fields(df)
+    if include_metadata:
+        _enrich_info_fields(df)
 
     df.attrs["snapshot_source"] = "yfinance"
     logger.info("US snapshot: %d rows from yfinance", len(df))

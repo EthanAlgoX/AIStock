@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import os
+import requests
 from datetime import datetime, timezone
 from contextlib import nullcontext
 
@@ -66,6 +67,19 @@ def _industry_terms(selected_industries):
     return list(dict.fromkeys(terms))
 
 
+def _cn_constituent_count(label):
+    """The board overview count is capped at 100; use the membership endpoint."""
+    import requests
+    response = requests.get(
+        'https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeStockCount',
+        params={'node': label}, timeout=(5, 10))
+    response.raise_for_status()
+    count = int(response.json())
+    if count < 0:
+        raise RuntimeError('Invalid industry constituent count')
+    return count
+
+
 def _cn_industry_candidates(terms):
     """Discover industry constituents before any candidate-size bound."""
     import akshare as ak
@@ -74,16 +88,21 @@ def _cn_industry_candidates(terms):
     catalog = call_with_timeout(lambda: ak.stock_sector_spot(indicator='行业'),
                                 timeout_sec=15, label='trading industry catalog')
     boards = [row for row in catalog.to_dict('records')
-              if any(term.casefold() in str(row.get('板块', '')).casefold() for term in terms)]
+              if not terms or any(term.casefold() in str(row.get('板块', '')).casefold() for term in terms)]
     if not boards:
         raise ValueError('行业目录未匹配所选行业，请调整行业或指定股票。')
 
     def fetch(board):
+        expected = call_with_timeout(lambda: _cn_constituent_count(board['label']),
+                                     timeout_sec=15, label='industry constituent count')
         frame = call_with_timeout(lambda: ak.stock_sector_detail(sector=board['label']),
                                   timeout_sec=25, label='trading industry constituents')
         rows = json.loads(frame.to_json(orient='records'))
         if not rows:
             raise ValueError(f"行业 {board['板块']} 未返回成分股，请稍后重试。")
+        unique_codes = {str(row.get('code') or '') for row in rows}
+        if len(unique_codes) != len(rows) or len(rows) != expected:
+            raise RuntimeError('行业成分股数量与目录不一致，请稍后重试。')
         for row in rows:
             row['industry'] = board['板块']
             for source, target in (('mktcap', 'total_mv'), ('nmc', 'circ_mv')):
@@ -259,8 +278,6 @@ class TradingAgentService:
             scope.get('query', '').strip() or selected_industries or scope.get('allIndustries')
         ):
             raise ValueError('请选择行业、选择全行业，或输入行业/波动率范围描述。')
-        if scope['mode'] == 'custom' and market == 'HK' and not scope.get('symbols'):
-            raise ValueError('港股暂缺行业候选目录，请先指定股票，再按行业或弹性条件筛选。')
         if scope['mode'] == 'custom' and market in {'JP', 'KR'} and not scope.get('symbols'):
             raise ValueError('此市场请先指定股票，再按行业或波动率条件筛选。')
         if scope['mode'] == 'custom':
@@ -270,8 +287,8 @@ class TradingAgentService:
                           minVolatility=None, description='市场与行业候选发现'))
             try:
                 discovered = self.resolve(market, discovery_scope)
-            except (RuntimeError, TimeoutError) as exc:
-                raise ValueError('范围数据源暂时不可用，未编造候选；请稍后重试，或改用指定股票/持仓范围。') from exc
+            except (RuntimeError, TimeoutError, requests.RequestException) as exc:
+                raise ValueError(self._scope_error(scope, 'source')) from exc
             evidence = []
             for candidate in discovered['candidates']:
                 raw = candidate.get('raw') or {}
@@ -281,7 +298,9 @@ class TradingAgentService:
                     circulatingMarketValue=raw.get('circ_mv'), volatility20dPct=candidate.get('volatility'),
                     averageVolume20d=raw.get('average_volume_20d'), totalVolume20d=raw.get('total_volume_20d'),
                     historySessions=raw.get('history_sessions'), historyStartDate=raw.get('history_start_date'),
-                    historyEndDate=raw.get('history_end_date'), quoteDate=raw.get('quote_date')))
+                    historyEndDate=raw.get('history_end_date'), quoteDate=raw.get('quote_date'),
+                    volumePercentile=raw.get('volumePercentile'), volatilityPercentile=raw.get('volatilityPercentile'),
+                    screeningScore=raw.get('screeningScore')))
             result, usage = self.call(
                 '你是股票范围选择器。仅从候选列表选择符合用户范围的股票，绝不可编造或返回范围外代码。'
                 '市场和所选行业已先按数据源分类筛选；行业分类可能较粗，需核实与用户意图的匹配。'
@@ -290,14 +309,17 @@ class TradingAgentService:
                 'averageVolume20d/totalVolume20d是最近20个交易日的日均/累计成交股数；'
                 'volatility20dPct是20个日收益率的年化标准差百分比，不是月涨跌幅。'
                 '过去一个月未指定日期时按最近20个交易日理解，核对数据日期与样本完整性。'
+                '当前目录和行情不能验证历史时点范围；若用户指定历史日期，返回空列表并说明需历史数据支持。'
                 '成交量高、波动大未给绝对阈值时可按当前候选内相对水平比较，并明确样本口径，不能宣称全市场排名。'
+                '若提供volumePercentile和volatilityPercentile，则是完整有效数据子集中的分位；screeningScore为两项等权均值，不是买入信号。'
                 '缺失指标不得推断为满足。若证据不足可返回空列表并在summary说明。'
                 '仅基于给定证据简短筛选，不展开逐股长篇讨论。'
                 '只返回严格JSON：candidates（最多12项，每项code和reason，reason不超过60字）和summary（不超过150字）。'
                 + self.language_directive(scope),
                 dict(market=market, requestedIndustries=selected_industries,
                     allIndustries=bool(scope.get('allIndustries')), query=query,
-                    maxCandidates=scope.get('maxCandidates', 12), observedAt=discovered['observedAt'], candidates=evidence),
+                    maxCandidates=scope.get('maxCandidates', 12), observedAt=discovered['observedAt'],
+                    coverageStats=discovered.get('coverageStats'), candidates=evidence),
                 60000, 'trading_range', max_output_tokens=16384)
             selection = RangeSelection.model_validate(result)
             by_code = {item['code']: item for item in discovered['candidates']}
@@ -310,12 +332,12 @@ class TradingAgentService:
                     raise ValueError('模型返回股票数量超过配置上限，请重试。')
                 chosen.append(dict(by_code[code], reason=item.reason))
             if not chosen:
-                raise ValueError('模型未能从当前候选集中确认符合范围的股票；请放宽描述、选择全行业或指定股票。')
+                raise ValueError(self._scope_error(scope, 'model') + (' ' + selection.summary[:500] if selection.summary else ''))
             scope['selection'] = dict(summary=selection.summary, candidates=[item.code for item in selection.candidates])
             scope['rule'] = dict(industryTerms=discovery_scope['rule']['industryTerms'], minVolatility=None,
                                  description=selection.summary or '模型根据冻结候选范围选择')
             snapshot = dict(candidates=chosen, source=discovered['source'], observedAt=discovered['observedAt'],
-                coverage=discovered['coverage'] + ' LLM 按自然语言筛选，程序校验代码与数量。')
+                coverage=discovered['coverage'], coverageStats=discovered.get('coverageStats'))
         else:
             usage = None
             snapshot = self.resolve(market, scope)
@@ -323,6 +345,27 @@ class TradingAgentService:
         snapshot['market'] = market
         snapshot['usage'] = usage
         return self.store(market, scope, snapshot, kind='preview')
+
+    @staticmethod
+    def _scope_error(scope, kind):
+        messages = {
+            'zh': {'source': '范围数据源暂时不可用，未编造候选；请稍后重试，或改用指定股票/持仓范围。',
+                   'empty': '数据源未找到符合范围且证据完整的同市场股票；请检查行情日期、调整条件或指定股票。',
+                   'model': '模型未能从当前候选集中确认符合范围的股票；请放宽描述、选择全行业或指定股票。'},
+            'zh-TW': {'source': '範圍資料源暫時無法使用，未編造候選；請稍後重試，或改用指定股票／持倉範圍。',
+                      'empty': '未找到符合範圍且資料完整的同市場股票；請檢查行情日期、調整條件或指定股票。',
+                      'model': '模型未能確認符合範圍的候選；請放寬描述、選擇全行業或指定股票。'},
+            'en': {'source': 'Scope data is temporarily unavailable. No candidates were invented. Retry later or use specified stocks or holdings.',
+                   'empty': 'No stocks in scope have sufficient current evidence. Check quote dates, adjust criteria or specify stocks.',
+                   'model': 'The model could not confirm matching candidates. Broaden the criteria, select all industries or specify stocks.'},
+            'ja': {'source': '対象データを取得できませんでした。候補は補完していません。再試行するか、銘柄・保有株を指定してください。',
+                   'empty': '条件を満たす最新データ付きの銘柄がありません。日付・条件を確認するか銘柄を指定してください。',
+                   'model': 'モデルが条件に合う候補を確認できませんでした。条件を緩めるか、全業種または銘柄を指定してください。'},
+            'ko': {'source': '범위 데이터를 일시적으로 가져올 수 없습니다. 후보를 임의로 만들지 않았습니다. 나중에 재시도하거나 종목·보유 종목을 지정하세요.',
+                   'empty': '범위 내에 충분한 최신 자료가 있는 종목이 없습니다. 시세 날짜·조건을 확인하거나 종목을 지정하세요.',
+                   'model': '모델이 조건에 맞는 후보를 확인하지 못했습니다. 조건을 완화하거나 전체 업종 또는 종목을 지정하세요.'},
+        }
+        return messages.get(scope.get('reportLanguage', 'zh'), messages['en'])[kind]
 
     @staticmethod
     def language_directive(scope):
@@ -333,6 +376,13 @@ class TradingAgentService:
         from src.agent.tools.execution import _normalize_tool_stock_code
         from src.market_context import detect_market
         candidates, source = [], 'specified'
+        directory_filtered = False
+        directory_count = 0
+        enrich_sample = False
+        snapshot_options = {}
+        if scope['mode'] == 'custom' and scope.get('candidateRanking') == 'volume_volatility' and not scope.get('selection'):
+            from src.services.simulation_portfolio_service import SimulationPortfolioService
+            snapshot_options['as_of'] = SimulationPortfolioService._last_closed(market).isoformat()
         if scope['mode'] == 'fixed':
             candidates = [{'code': s, 'reason': '用户指定股票'} for s in scope['symbols']]
         elif scope['mode'] == 'holdings':
@@ -346,12 +396,21 @@ class TradingAgentService:
         else:
             if self.screener:
                 data = self.screener(market)
+            elif market in {'US', 'HK'} and not scope.get('symbols'):
+                from src.services.industry_universe_service import equity_directory
+                from src.services.screening.source_guard import call_with_timeout
+                rows = call_with_timeout(
+                    lambda: equity_directory(market, () if scope.get('allIndustries') else scope.get('industries', [])),
+                    timeout_sec=90, label='market industry directory')
+                data = dict(candidates=rows, snapshot_source='yahoo:paginated_equity_directory')
+                directory_filtered = True
+                enrich_sample = True
             elif market == 'TW':
                 from data_provider.international_fetcher import taiwan_listings
                 import time
                 from src.services.screening.snapshot_us import fetch_us_snapshot
                 tickers = scope.get('symbols') or [s['canonicalCode'] for s in taiwan_listings(int(time.time() // 3600))][:50]
-                frame = fetch_us_snapshot(tickers=tickers)
+                frame = fetch_us_snapshot(tickers=tickers, **snapshot_options)
                 data = dict(candidates=json.loads(frame.to_json(orient='records')), snapshot_source='taiwan_directory:yfinance_snapshot')
             elif market in {'US', 'HK', 'JP', 'KR'}:
                 import os
@@ -359,22 +418,20 @@ class TradingAgentService:
                 from src.services.screening.source_guard import call_with_timeout
                 tickers = scope.get('symbols') or fetch_us_universe('env' if os.getenv('SCREENING_US_TICKERS') else 'default')
                 tickers = [str(int(s[2:])).zfill(4) + '.HK' if s.upper().startswith('HK') else s for s in tickers]
-                frame = call_with_timeout(lambda: fetch_us_snapshot(tickers=tickers), timeout_sec=90, label='trading scope snapshot')
+                frame = call_with_timeout(lambda: fetch_us_snapshot(tickers=tickers, **snapshot_options), timeout_sec=90, label='trading scope snapshot')
                 data = dict(candidates=json.loads(frame.to_json(orient='records')), snapshot_source='yfinance:bounded_universe')
             else:
-                if scope['rule']['industryTerms']:
-                    data = _cn_industry_candidates(scope['rule']['industryTerms'])
-                else:
-                    rows = _broader_cn_candidates(None)
-                    if not rows:
-                        raise ValueError('市场候选快照不可用，请先刷新选股行情或指定股票。')
-                    data = dict(candidates=rows, snapshot_source='market_snapshot')
+                from src.services.screening.source_guard import call_with_timeout
+                data = call_with_timeout(lambda: _cn_industry_candidates(scope['rule']['industryTerms']),
+                                         timeout_sec=90, label='A-share industry directory')
+                enrich_sample = True
             source = data.get('snapshot_source') or data.get('run_id') or 'screening'
+            directory_count = len({row.get('code') or row.get('symbol') for row in data.get('candidates', [])})
             rule = scope['rule']
             for candidate in data.get('candidates', []):
                 row = dict(candidate.get('raw') or {}, **candidate)
                 industry = str(row.get('industry') or '').strip()
-                if rule['industryTerms'] and not any(t.casefold() in industry.casefold() for t in rule['industryTerms']):
+                if not directory_filtered and rule['industryTerms'] and not any(t.casefold() in industry.casefold() for t in rule['industryTerms']):
                     continue
                 vol = row.get('volatility_20d_pct')
                 if rule['minVolatility'] is not None and (not isinstance(vol, (int, float)) or not math.isfinite(vol) or vol < rule['minVolatility']):
@@ -384,6 +441,10 @@ class TradingAgentService:
         normalized = {}
         for item in candidates:
             code = _normalize_tool_stock_code(str(item.get('code') or ''))
+            if market == 'CN' and scope['mode'] == 'custom' and not (
+                len(code) == 6 and code.isdigit() and code.startswith(('00', '30', '60', '68', '4', '8', '92'))
+            ):
+                continue
             if code and detect_market(code).upper() == market:
                 normalized[code] = dict(item, code=code)
         if scope['mode'] == 'custom' and scope.get('symbols'):
@@ -393,12 +454,106 @@ class TradingAgentService:
             approved = set(scope['selection']['candidates'])
             normalized = {key: value for key, value in normalized.items() if key in approved}
         ordered = [normalized[k] for k in sorted(normalized)] if scope['mode'] == 'custom' else list(normalized.values())
-        selected = _bounded_industry_sample(ordered) if scope['mode'] == 'custom' else ordered[:scope.get('maxCandidates', 12)]
+        ranked_mode = scope['mode'] == 'custom' and scope.get('candidateRanking') == 'volume_volatility' and not scope.get('selection')
+        if ranked_mode:
+            from src.services.simulation_portfolio_service import SimulationPortfolioService
+            as_of = SimulationPortfolioService._last_closed(market).isoformat()
+            evaluated = self._enrich_scope_sample(market, ordered, history_only=True, as_of=as_of) if enrich_sample and ordered else ordered
+            selected, valid_count = self._rank_volume_volatility(evaluated, as_of)
+        else:
+            selected = _bounded_industry_sample(ordered) if scope['mode'] == 'custom' else ordered[:scope.get('maxCandidates', 12)]
+            if enrich_sample and selected:
+                selected = self._enrich_scope_sample(market, selected)
+            evaluated, valid_count = selected, None
         if not selected and not allow_empty:
-            raise ValueError('数据源未找到符合范围的同市场股票，未扩大范围或编造候选；请调整条件或指定股票。')
+            raise ValueError(self._scope_error(scope, 'empty'))
+        stats = dict(directoryCount=directory_count or len(ordered), eligibleCount=len(ordered),
+                     modelCount=len(selected), sampled=len(selected) < len(ordered),
+                     monthlyEvidenceCount=sum(
+                         (item.get('raw') or {}).get('average_volume_20d') is not None
+                         and item.get('volatility') is not None for item in selected))
+        if ranked_mode:
+            stats.update(ranking='volume_volatility', evaluatedCount=len(evaluated),
+                         validCount=valid_count, missingCount=len(evaluated)-valid_count, asOf=as_of)
         return dict(candidates=selected, source=source, observedAt=datetime.now(timezone.utc).isoformat(),
-                    coverage=(f'数据源按市场及行业得到 {len(ordered)} 只候选；送入模型 {len(selected)} 只，'
-                              '按行业及市值规模分层取样，不代表全市场穷尽筛选。') if scope['mode'] == 'custom' else '指定范围')
+                    coverageStats=stats, coverage=self._coverage(scope, stats))
+
+    @staticmethod
+    def _coverage(scope, stats):
+        language = scope.get('reportLanguage', 'en')
+        if scope['mode'] != 'custom':
+            return {'zh': '指定范围', 'zh-TW': '指定範圍', 'en': 'Specified universe',
+                    'ja': '指定銘柄', 'ko': '지정 종목'}.get(language, 'Specified universe')
+        if stats.get('ranking') == 'volume_volatility':
+            ranked = {
+                'zh': '范围内 {eligibleCount} 只，已检查 {evaluatedCount} 只，有效 {validCount} 只，缺失或过期 {missingCount} 只；截至 {asOf}，按20日成交量与波动率分位等权排序，前 {modelCount} 只进入模型复核。不代表数据源外股票或历史时点排名。',
+                'zh-TW': '範圍內 {eligibleCount} 檔，已檢查 {evaluatedCount} 檔，有效 {validCount} 檔，缺失或過期 {missingCount} 檔；截至 {asOf}，按20日成交量與波動率分位等權排序，前 {modelCount} 檔進入模型覆核。不代表資料源外股票或歷史時點排名。',
+                'en': 'Eligible {eligibleCount}; evaluated {evaluatedCount}; valid {validCount}; missing/stale {missingCount}. As of {asOf}, equal-weight 20-session volume/volatility percentiles rank the valid pool; top {modelCount} enter model review. Not a ranking of securities missing from the data source or historical constituents.',
+                'ja': '対象 {eligibleCount}、確認済み {evaluatedCount}、有効 {validCount}、欠損・古いデータ {missingCount}。{asOf}時点の20日出来高・変動率の分位を等配分で評価し、上位 {modelCount}銘柄をモデルが確認します。データ元の対象外銘柄や過去の構成銘柄の順位ではありません。',
+                'ko': '대상 {eligibleCount}개, 확인 {evaluatedCount}개, 유효 {validCount}개, 누락·오래된 자료 {missingCount}개. {asOf} 기준 20일 거래량·변동성 백분위에 동일 가중치를 적용하여 상위 {modelCount}개를 모델이 검토합니다. 제공처 미포함 종목이나 과거 구성 종목의 순위가 아닙니다.',
+            }
+            return ranked.get(language, ranked['en']).format(**stats)
+        templates = {
+            'zh': '来源目录 {directoryCount} 只，范围内 {eligibleCount} 只，模型候选 {modelCount} 只，月度量价证据完整 {monthlyEvidenceCount} 只。最多按行业与市值抽样 40 只，不代表全市场排名。仅覆盖普通股票；目录为当前分类，不支持历史时点选股。',
+            'zh-TW': '來源目錄 {directoryCount} 檔，範圍內 {eligibleCount} 檔，模型候選 {modelCount} 檔，月度量價證據完整 {monthlyEvidenceCount} 檔。最多按行業與市值抽樣 40 檔，不代表全市場排名。僅涵蓋普通股票；目錄為目前分類，不支援歷史時點選股。',
+            'en': 'Source directory: {directoryCount}; eligible: {eligibleCount}; model sample: {modelCount}; complete monthly evidence: {monthlyEvidenceCount}. Up to 40 stocks sampled by industry and market cap, not a market-wide ranking. Equities only; current classifications, no historical-date screening.',
+            'ja': 'データ元の銘柄数：{directoryCount}、対象：{eligibleCount}、モデル候補：{modelCount}、月間出来高・変動率データ完備：{monthlyEvidenceCount}。業種・時価総額別に最大40銘柄を抽出し、市場全体の順位ではありません。普通株のみ。現在の業種分類を使用し、過去時点のスクリーニングには非対応です。',
+            'ko': '데이터 제공처 목록 {directoryCount}개, 범위 내 {eligibleCount}개, 모델 후보 {modelCount}개, 월간 거래량·변동성 자료 완비 {monthlyEvidenceCount}개. 업종·시가총액별 최대 40개 표본이며 전체 시장 순위가 아닙니다. 일반 주식만 포함하며 현재 업종 분류를 사용합니다. 과거 시점 검색은 지원하지 않습니다.',
+        }
+        return templates.get(language, templates['en']).format(**stats)
+
+    @staticmethod
+    def _enrich_scope_sample(market, candidates, history_only=False, as_of=None):
+        from src.services.screening.snapshot_us import fetch_us_snapshot
+        from src.services.screening.source_guard import call_with_timeout
+        def ticker(code):
+            if market == 'CN':
+                suffix = 'SS' if code.startswith('6') else ('BJ' if code.startswith(('4', '8', '9')) else 'SZ')
+                return code + '.' + suffix
+            if market == 'HK':
+                return str(int(code[2:])).zfill(4) + '.HK'
+            return code
+        requested = {ticker(item['code']): item for item in candidates}
+        def load():
+            evidence = {}
+            symbols = list(requested)
+            for start in range(0, len(symbols), 200):
+                kwargs = dict(include_metadata=False, as_of=as_of) if history_only else {}
+                frame = fetch_us_snapshot(tickers=symbols[start:start+200], **kwargs)
+                evidence.update({row['code']: row for row in json.loads(frame.to_json(orient='records'))})
+            return evidence
+        evidence = call_with_timeout(load, timeout_sec=180 if history_only else 90, label='scope monthly evidence')
+        # Keep missing observations visible rather than silently dropping securities.
+        fields = ('average_volume_20d', 'total_volume_20d', 'history_sessions',
+                  'history_start_date', 'history_end_date', 'quote_date', 'volatility_20d_pct')
+        result = []
+        for symbol, item in requested.items():
+            observed = evidence.get(symbol) or {}
+            raw = dict(item.get('raw') or {}, **{key: observed.get(key) for key in fields})
+            result.append(dict(item, raw=raw, volatility=observed.get('volatility_20d_pct'),
+                               industry=item.get('industry') or observed.get('industry') or ''))
+        return result
+
+    @staticmethod
+    def _rank_volume_volatility(candidates, as_of, limit=40):
+        import pandas as pd
+        valid = []
+        for item in candidates:
+            raw = item.get('raw') or {}
+            volume, volatility = raw.get('average_volume_20d'), item.get('volatility')
+            if raw.get('quote_date') != as_of or raw.get('history_sessions') != 20:
+                continue
+            if any(not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0
+                   for value in (volume, volatility)):
+                continue
+            valid.append(item)
+        volumes = pd.Series([(item.get('raw') or {})['average_volume_20d'] for item in valid], dtype=float).rank(pct=True)
+        volatility = pd.Series([item['volatility'] for item in valid], dtype=float).rank(pct=True)
+        scored = [dict(item, raw=dict(item.get('raw') or {}, volumePercentile=float(volumes[i]),
+                      volatilityPercentile=float(volatility[i]), screeningScore=float((volumes[i]+volatility[i])/2)))
+                  for i, item in enumerate(valid)]
+        scored.sort(key=lambda item: (-item['raw']['screeningScore'], item['code']))
+        return scored[:limit], len(valid)
 
     def store(self, market, scope, payload, kind='daily', session=None):
         with (nullcontext(session) if session is not None else self.db.session_scope()) as session:

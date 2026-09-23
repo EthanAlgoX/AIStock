@@ -42,6 +42,7 @@ export function TradingAgentConfig({
       symbols: [],
       query: initialQuery || "",
       maxCandidates: 12,
+      candidateRanking: "volume_volatility",
     },
   );
   const [holdings, setHoldings] = useState<
@@ -212,6 +213,14 @@ export function TradingAgentConfig({
                 <UiLiteral text={"可选择一个或多个行业；全选表示不限行业。所选行业按并集筛选。"} /></p>
             </div>
             <label className="block">
+              <UiLiteral text="候选排序方式" />
+              <select className={input} value={scope.candidateRanking || 'balanced'}
+                onChange={(e) => setScope({ ...scope, candidateRanking: e.target.value as UniverseScope['candidateRanking'] })}>
+                <option value="volume_volatility"><UiLiteral text="高交易量＋高波动（全池量价排序）" /></option>
+                <option value="balanced"><UiLiteral text="行业与市值分层抽样" /></option>
+              </select>
+            </label>
+            <label className="block">
               <UiLiteral text={"补充范围描述（可选）"} /><textarea
                 className={input}
                 maxLength={500}
@@ -221,8 +230,8 @@ export function TradingAgentConfig({
               />
             </label>
             <p className="text-sm text-secondary-text">
-              <UiLiteral text={"先按市场和行业取得候选，再由模型判断你描述的市值、波动、流动性等条件。上方股票可不填；填写则只在这些股票中筛选。预览会显示数据覆盖范围；港股需先指定股票。"} /></p>
-              <p className="text-xs text-muted-text"><UiLiteral text="港股、日股、韩股的条件筛选需要先指定股票。" /></p>
+              <UiLiteral text={"A 股、美股、港股可自动读取行业股票目录。上方股票可不填；填写则只筛选指定股票。预览显示目录数量、模型复核数量及月度数据完整数量。"} /></p>
+              <p className="text-xs text-muted-text"><UiLiteral text="量价排序会检查范围内全部股票的近期日线，排除数据缺失或过期者，再将排名前 40 只交给模型复核；分层抽样则最多检查 40 只。暂不支持杠杆产品和历史日期筛选。日股、韩股仍需指定股票。" /></p>
           </>
         )}
         <div className="grid gap-4 sm:grid-cols-2">
@@ -315,7 +324,20 @@ export function TradingAgentConfig({
             {uiLiteral(preview.scope.rule?.description || "已找到符合范围的股票")}
           </p>
           <p className="mt-2 text-xs text-secondary-text">
-            {uiLiteral(preview.coverage)} · {preview.source} · {preview.observedAt}
+            {preview.coverageStats && preview.scope.mode === 'custom'
+              ? preview.coverageStats.ranking === 'volume_volatility'
+                ? uiLiteral("截至 {date} · 已检查 {evaluated} 只 · 有效 {valid} 只 · 缺失或过期 {missing} 只 · 模型复核前 {sample} 只")
+                  .replace('{date}', String(preview.coverageStats.asOf))
+                  .replace('{evaluated}', String(preview.coverageStats.evaluatedCount))
+                  .replace('{valid}', String(preview.coverageStats.validCount))
+                  .replace('{missing}', String(preview.coverageStats.missingCount))
+                  .replace('{sample}', String(preview.coverageStats.modelCount))
+                : uiLiteral("来源目录 {directory} 只 · 范围内 {eligible} 只 · 模型抽样 {sample} 只 · 月度数据完整 {complete} 只")
+                .replace('{directory}', String(preview.coverageStats.directoryCount))
+                .replace('{eligible}', String(preview.coverageStats.eligibleCount))
+                .replace('{sample}', String(preview.coverageStats.modelCount))
+                .replace('{complete}', String(preview.coverageStats.monthlyEvidenceCount))
+              : uiLiteral(preview.coverage)} · {preview.source} · {preview.observedAt}
           </p>
           <ul className="mt-3 space-y-2">
             {preview.candidates.map((c) => (

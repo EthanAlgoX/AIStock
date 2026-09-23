@@ -5927,5 +5927,14 @@
   "尚无 JEV 分类结果": "No JEV classification yet",
   "仅显示 API 返回的分类与置信度，没有生成式报告；置信度不是收益概率或建议仓位。": "Only the API classification and confidence are shown, with no generated report. Confidence is not a return probability or suggested allocation.",
   "交易记录已保存，模型选择尚未保存。重试只保存模型选择，不会重复记账。": "The transaction is saved, but the model selection is not. Retrying saves only the model selection; it will not duplicate the transaction.",
-  "关注股票独立分析，不读取持仓数据；LLM 显示报告，JEV 显示分类与置信度。": "Watch analysis does not read holdings. LLM provides reports; JEV provides classification and confidence."
+  "关注股票独立分析，不读取持仓数据；LLM 显示报告，JEV 显示分类与置信度。": "Watch analysis does not read holdings. LLM provides reports; JEV provides classification and confidence.",
+  "A 股、美股、港股可自动读取行业股票目录。上方股票可不填；填写则只筛选指定股票。预览显示目录数量、模型抽样数量及月度数据完整数量。": "A-share, US and Hong Kong industry stock directories are discovered automatically. Leave symbols blank to discover stocks, or enter symbols to restrict the search. Preview shows directory, model sample and complete monthly-data counts.",
+  "最多向模型提供 40 只行业与市值分层样本，不是全市场排名。暂不包含杠杆产品或历史日期筛选；日股、韩股仍需指定股票。": "The model receives up to 40 stocks sampled by industry and market cap, not a market-wide ranking. Leveraged products and historical-date screening are not supported. Japan and Korea still require explicit symbols.",
+  "来源目录 {directory} 只 · 范围内 {eligible} 只 · 模型抽样 {sample} 只 · 月度数据完整 {complete} 只": "Directory {directory} · Eligible {eligible} · Model sample {sample} · Complete monthly data {complete}",
+  "候选排序方式": "Candidate ranking",
+  "高交易量＋高波动（全池量价排序）": "High volume + volatility (rank the full pool)",
+  "行业与市值分层抽样": "Industry and market-cap sampling",
+  "量价排序会检查范围内全部股票的近期日线，排除数据缺失或过期者，再将排名前 40 只交给模型复核；分层抽样则最多检查 40 只。暂不支持杠杆产品和历史日期筛选。日股、韩股仍需指定股票。": "Volume/volatility ranking checks recent daily bars for every stock in scope, excludes missing or stale data, then sends the top 40 to the model. Stratified sampling checks at most 40. Leveraged products and historical-date screening are not supported. Japan and Korea still require explicit symbols.",
+  "截至 {date} · 已检查 {evaluated} 只 · 有效 {valid} 只 · 缺失或过期 {missing} 只 · 模型复核前 {sample} 只": "As of {date} · Evaluated {evaluated} · Valid {valid} · Missing/stale {missing} · Top {sample} for model review",
+  "A 股、美股、港股可自动读取行业股票目录。上方股票可不填；填写则只筛选指定股票。预览显示目录数量、模型复核数量及月度数据完整数量。": "A-share, US and Hong Kong industry stock directories are discovered automatically. Leave symbols blank to discover stocks, or enter symbols to restrict the search. Preview shows directory, model review and complete monthly-data counts."
 }

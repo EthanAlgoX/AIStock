@@ -8,6 +8,7 @@ export type UniverseScope = {
   industries?: string[];
   allIndustries?: boolean;
   maxCandidates: number;
+  candidateRanking?: "balanced" | "volume_volatility";
 };
 export type UniversePreview = {
   market: "CN" | "HK" | "US" | "TW" | "JP" | "KR";
@@ -21,6 +22,7 @@ export type UniversePreview = {
   source: string;
   observedAt: string;
   coverage: string;
+  coverageStats?: { directoryCount: number; eligibleCount: number; modelCount: number; monthlyEvidenceCount: number; sampled: boolean; ranking?: "volume_volatility"; evaluatedCount?: number; validCount?: number; missingCount?: number; asOf?: string };
   scope: UniverseScope & { rule?: { description: string } };
 };
 export type AgentOptions = {
@@ -185,10 +187,11 @@ export const portfoliosApi = {
             industries: scope.industries,
             allIndustries: scope.allIndustries,
             maxCandidates: scope.maxCandidates,
+            ...(scope.candidateRanking ? { candidateRanking: scope.candidateRanking } : {}),
           },
           reportLanguage: getRuntimeInitialLanguage(),
         },
-        { timeout: 180000 },
+        { timeout: 360000 },
       )
     ).data,
   stopDefinition: async (id: number) =>

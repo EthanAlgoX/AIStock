@@ -235,7 +235,7 @@ it("saves a scope-only strategy with an empty optional pool while the name catal
   fireEvent.change(screen.getByLabelText("策略名称"), {target:{value:"行业策略"}});
   fireEvent.click(screen.getByRole("button", {name:"预览股票范围"}));
   await screen.findByLabelText("范围预览");
-  expect(api.previewUniverse).toHaveBeenCalledWith("CN", expect.objectContaining({mode:"custom",symbols:[],query:"",industries:["半导体"]}));
+  expect(api.previewUniverse).toHaveBeenCalledWith("CN", expect.objectContaining({mode:"custom",symbols:[],query:"",industries:["半导体"],candidateRanking:"volume_volatility"}));
   fireEvent.click(screen.getByRole("button", {name:"保存策略"}));
   await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({engine:"agent",universePreviewId:10,symbols:["688981"]})));
   expect(api.createValidation).not.toHaveBeenCalled();

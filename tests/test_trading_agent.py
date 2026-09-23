@@ -49,7 +49,7 @@ def test_sample_covers_industries_and_size_scales():
 def test_cn_source_reads_matching_industry_constituents_and_normalizes_units():
     import pandas as pd
     from src.services.trading_agent_service import _cn_industry_candidates
-    with patch('akshare.stock_sector_spot', return_value=pd.DataFrame([
+    with patch('src.services.trading_agent_service._cn_constituent_count', return_value=1), patch('akshare.stock_sector_spot', return_value=pd.DataFrame([
         {'label': 'tech', '板块': '计算机、通信和其他电子设备制造业'},
         {'label': 'bank', '板块': '货币金融服务'},
     ])), patch('akshare.stock_sector_detail', return_value=pd.DataFrame([
@@ -240,8 +240,8 @@ def test_us_scope_uses_us_snapshot_instead_of_cn_only_strategy(workspace):
         result = agent.resolve('US', scope)
     assert result['candidates'][0]['code'] == 'NVDA'
     fetch.assert_called_once_with(tickers=['NVDA'])
-    with pytest.raises(ValueError, match='港股'):
-        agent.preview('HK', dict(mode='custom', query='科技行业', symbols=[]))
+    with pytest.raises(ValueError, match='此市场'):
+        agent.preview('JP', dict(mode='custom', query='科技行业', symbols=[]))
 
 
 def test_us_scope_volatility_and_industry_come_from_provider_data():

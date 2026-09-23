@@ -69,6 +69,7 @@ class Scope(BaseModel):
     industries: list[str] = Field(default_factory=list, max_length=24)
     allIndustries: bool = False
     maxCandidates: int = Field(default=12, ge=1, le=12)
+    candidateRanking: Literal['balanced', 'volume_volatility'] = 'balanced'
 
 
 class UniversePreview(BaseModel):
