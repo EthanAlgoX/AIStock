@@ -21,6 +21,15 @@ DIRECTION_INSTRUCTIONS = (
 )
 
 
+class JevInputBudgetExceeded(ValueError):
+    """The request was not sent because its conservative input reserve cannot fit."""
+
+    def __init__(self, required_budget, available_budget):
+        self.required_budget = required_budget
+        self.available_budget = available_budget
+        super().__init__("JEV input exceeds the remaining token budget; reduce the universe or increase the budget.")
+
+
 def decision_state(payload):
     """Compute arithmetic evidence, not trading signals, from the frozen input."""
     equity = payload.get('equity')
@@ -109,8 +118,9 @@ class JevDecisionService:
         self.validate_settings()
         questions = request['questions']
         encoded = json.dumps(request, ensure_ascii=False, allow_nan=False)
-        if len(encoded.encode()) + 4096 > budget:
-            raise ValueError("JEV input exceeds the remaining token budget; reduce the universe or increase the budget.")
+        required_budget = len(encoded.encode()) + 4096
+        if required_budget > budget:
+            raise JevInputBudgetExceeded(required_budget, budget)
         with db.session_scope() as session:
             record = SimulationTradingCallRecord(portfolio_id=portfolio_id, resource=resource, input_json=encoded)
             session.add(record)

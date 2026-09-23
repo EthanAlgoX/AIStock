@@ -1,5 +1,6 @@
 """Exercise the HTTP boundary, saved config and real next-open simulation ledger."""
 import json
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -217,6 +218,59 @@ def test_saved_strategy_and_real_ledger_daily_run(workspace, jev_config):
     assert not result['days'][0]['trades']
     assert any(d['trades'] for d in result['days'][1:])
     assert result['days'][-1]['usage']['model'] == 'jev-test-version'
+
+
+def test_jev_replay_pauses_at_batch_budget_and_resumes_without_duplicate_days(workspace, jev_config):
+    agent = TradingAgentService(workspace.db)
+    service = SimulationPortfolioService(workspace.db, fetcher(), agent)
+    symbols = ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOG', 'META']
+    preview = agent.preview('US', dict(mode='fixed', symbols=symbols, query='', maxCandidates=12))
+    payload = config(engine='agent', decisionBackend='jev', universePreviewId=preview['id'],
+                     skillId='high_volume_volatility_grid', runTokenBudget=100000)
+    body = dict(model='jev-test-version', answers={f'stock_{i}': response('hold')['answers']['stock_0']
+                                                   for i in range(len(symbols))},
+                usage=dict(input_tokens=23800, output_tokens=100))
+    with patch('src.services.jev_decision_service.get_config', return_value=jev_config), \
+            patch('src.config.get_config', return_value=jev_config), \
+            patch.object(service, '_last_closed', return_value=date(2025, 2, 14)), \
+            patch('requests.post', return_value=http_result(body)) as post:
+        saved = service.save_definition(payload)
+        portfolio = service.create_validation(saved['id'], dict(mode='backtest', startDate='2025-02-10',
+                                               endDate='2025-02-14', historyMode='ai_replay'))
+        run_sync(service, portfolio['id'])
+        partial = service.detail(portfolio['id'])
+        assert partial['status'] == 'ready' and partial['error'] is None
+        assert 0 < len(partial['days']) < 5
+        assert post.call_count == len(partial['days'])
+        run_sync(service, portfolio['id'])
+    completed = service.detail(portfolio['id'])
+    assert completed['status'] == 'completed' and completed['error'] is None
+    assert [day['date'] for day in completed['days']] == [
+        '2025-02-10', '2025-02-11', '2025-02-12', '2025-02-13', '2025-02-14'
+    ]
+    assert post.call_count == 5
+
+
+def test_jev_replay_reports_request_that_exceeds_fresh_budget(workspace, jev_config):
+    agent = TradingAgentService(workspace.db)
+    service = SimulationPortfolioService(workspace.db, fetcher(), agent)
+    symbols = ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOG', 'META']
+    preview = agent.preview('US', dict(mode='fixed', symbols=symbols, query='', maxCandidates=12))
+    payload = config(engine='agent', decisionBackend='jev', universePreviewId=preview['id'],
+                     skillId='high_volume_volatility_grid', runTokenBudget=10000)
+    with patch('src.services.jev_decision_service.get_config', return_value=jev_config), \
+            patch('src.config.get_config', return_value=jev_config), \
+            patch.object(service, '_last_closed', return_value=date(2025, 2, 14)), \
+            patch('requests.post') as post:
+        saved = service.save_definition(payload)
+        portfolio = service.create_validation(saved['id'], dict(mode='backtest', startDate='2025-02-10',
+                                               endDate='2025-02-14', historyMode='ai_replay'))
+        run_sync(service, portfolio['id'])
+    result = service.detail(portfolio['id'])
+    assert result['status'] == 'ready'
+    assert 'JEV input exceeds' in result['error']
+    assert result['days'] == []
+    post.assert_not_called()
 
 
 def test_grid_evidence_uses_only_the_frozen_window_and_preserves_source():

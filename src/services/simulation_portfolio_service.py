@@ -23,6 +23,7 @@ from src.storage import (
     utc_naive_now,
 )
 from src.services.simulation_portfolio_engine import TEMPLATES, BENCHMARKS, metrics, step
+from src.services.jev_decision_service import JevInputBudgetExceeded
 from src.workspace_scope import ThreadPoolExecutor
 
 _POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="paper-portfolio")
@@ -669,7 +670,15 @@ class SimulationPortfolioService:
                     active = session.get(SimulationPortfolioRunRecord, portfolio_id)
                     if active is None or active.lease_token != token:
                         raise PortfolioCancelled()
-                opinions, usage = agent.decide(dict(config, portfolioId=portfolio_id), state, day, histories, candidates, remaining, audit_id)
+                try:
+                    opinions, usage = agent.decide(dict(config, portfolioId=portfolio_id), state, day, histories, candidates, remaining, audit_id)
+                except JevInputBudgetExceeded as exc:
+                    if (config['mode'] == 'backtest' and processed
+                            and exc.required_budget <= config['runTokenBudget']):
+                        # No request or ledger write occurred for this day. A new invocation
+                        # starts with a fresh budget and resumes from the last committed day.
+                        break
+                    raise
                 remaining -= usage['tokens']
                 state['pending'] = dict(date=day, selected=[o['code'] for o in opinions if o['targetWeight'] > 0],
                                         weights={o['code']: o['targetWeight'] for o in opinions},
