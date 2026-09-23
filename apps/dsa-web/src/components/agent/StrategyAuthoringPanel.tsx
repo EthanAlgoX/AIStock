@@ -90,6 +90,8 @@ export default function StrategyAuthoringPanel({ sessionId, messageCount, loadin
           <button type="button" className="btn-secondary" disabled={disabled || !state.revision || !!state.error} onClick={() => void act('validate')}>{l('检查策略完整性', 'Check completeness')}</button>
           <button type="button" className="btn-primary" disabled={disabled || !state.validated || !!state.skillId} onClick={() => void act('save')}>{l('保存为 Skill', 'Save as Skill')}</button>
           {state.skillId && state.kind === 'trading' && !loading && <Link className="btn-secondary" to={state.publishedStrategyId ? `/trading?strategy=${state.publishedStrategyId}` : `/trading?sourceSession=${encodeURIComponent(sessionId)}`}>{state.publishedStrategyId ? l('查看交易推演', 'View simulation') : l('配置交易推演', 'Configure simulation')}</Link>}
+          {state.skillId && state.kind === 'research' && !loading && <Link className="btn-secondary" to={`/stock-research?sourceSession=${encodeURIComponent(sessionId)}`}>{l('配置个股研究工作流', 'Configure research workflow')}</Link>}
+          {state.skillId && state.kind === 'screening' && !loading && <Link className="btn-secondary" to={`/screening?sourceSession=${encodeURIComponent(sessionId)}`}>{l('配置选股工作流', 'Configure screening workflow')}</Link>}
           {state.skillId && <Link className="btn-secondary" to="/capabilities/skills">{l('查看技能库', 'View skills')}</Link>}
         </div>
       </details>

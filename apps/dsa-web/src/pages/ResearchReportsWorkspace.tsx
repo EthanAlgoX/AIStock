@@ -44,7 +44,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
   const newAction = tx(trading ? "新建交易推演" : mode === "research" ? "新建个股研究" : "新建策略选股");
   const statusLabel = (run: WorkspaceRun) => tx(workspaceRunLabel(run));
   const [params, setParams] = useSearchParams();
-  const [configOpen, setConfigOpen] = useState(mode === "trading" && Boolean(params.get("sourceRun")));
+  const [configOpen, setConfigOpen] = useState(Boolean(params.get("sourceSession")) || (mode === "trading" && Boolean(params.get("sourceRun"))));
   const [reviewOpen, setReviewOpen] = useState(false);
   const [configVisited, setConfigVisited] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);

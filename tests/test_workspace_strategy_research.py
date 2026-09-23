@@ -9,6 +9,18 @@ from src.services.workspace_service import WorkspaceService, WorkspaceError
 from src.services.workspace_outcomes import business_outcome
 
 
+def test_formal_research_passes_frozen_method_into_report_generation():
+    from src.strategy_kernels.single_stock_research import run
+
+    with patch("src.services.analysis_service.AnalysisService") as service_type:
+        service_type.return_value.analyze_stock.return_value = {"query_id": "report-1", "report": {"summary": {}}}
+        result = run({"inputs": {"symbol": "600519", "methodInstructions": "核对财报时点"},
+                      "parameters": {"analysisMode": "standard"}, "runId": "run-1"})
+    assert result["status"] == "success"
+    assert service_type.return_value.analyze_stock.call_args.kwargs["analysis_instructions"] == "核对财报时点"
+    assert service_type.return_value.analyze_stock.call_args.kwargs["agent_mode"] is False
+
+
 @pytest.mark.parametrize("completed", [False, True])
 @pytest.mark.parametrize("kind", ["research", "screening", "trading"])
 def test_task_prompts_keep_scenario_contracts_separate(kind, completed):
@@ -61,6 +73,23 @@ def test_formal_research_receives_frozen_context_and_watch_overrides_it(watch):
     inputs = execute.call_args.args[2]
     assert inputs["portfolioContext"] == ({} if watch else task["portfolioContext"])
     assert inputs["watchResearch" if watch else "holdingResearch"] is True
+
+
+def test_frozen_screening_method_does_not_enter_candidate_research():
+    service = WorkspaceService.__new__(WorkspaceService)
+    service._set_run_stage = Mock()
+    service._store_artifact = Mock()
+    service._research_screening_candidates = Mock(side_effect=RuntimeError("captured"))
+    task = {"kind": "screening", "name": "筛选", "market": "CN", "objective": "寻找高量高波动",
+            "subject": {}, "capabilities": {"toolIds": ["run_stock_screening"], "skillIds": ["screen-method"]},
+            "config": {"strategyVersionId": 2, "deepResearchCount": 1, "deepResearchVersionId": 3,
+                       "methodSnapshot": {"skills": [{"id": "screen-method", "name": "选股方法",
+                                                     "instructions": "只解读候选", "builtIn": False}]}}}
+    with patch("src.agent.tools.workflow_tools.execute_research_workflow",
+               return_value={"status": "success", "contract": "CandidateList", "result": {"candidates": []}}):
+        with pytest.raises(RuntimeError, match="captured"):
+            service._execute_agent_task("run", task, Event())
+    assert service._research_screening_candidates.call_args.args[3] == []
 
 
 def test_only_valid_high_confidence_directional_conflicts_trigger_review():

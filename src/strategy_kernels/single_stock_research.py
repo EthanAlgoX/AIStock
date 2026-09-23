@@ -78,6 +78,7 @@ def run(context: dict[str, Any]) -> dict[str, Any]:
         query_source="strategy_kernel",
         agent_mode=analysis_mode == "agent",
         skills=skills,
+        analysis_instructions=str(inputs.get("methodInstructions") or ""),
         portfolio_context=portfolio_context,
         report_language=inputs.get("reportLanguage"),
     )

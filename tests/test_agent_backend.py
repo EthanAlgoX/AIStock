@@ -191,6 +191,32 @@ def test_external_runtime_chat_factory_does_not_construct_litellm_context_adapte
     assert executor.backend.backend_id == "external_runtime"
 
 
+def test_formal_interpretation_uses_only_frozen_skill_text() -> None:
+    config = SimpleNamespace(
+        agent_backend="codex_app_server", agent_arch="single",
+        agent_max_steps=10, agent_orchestrator_timeout_s=600,
+    )
+    with patch("src.agent.factory.resolve_skill_prompt_state", side_effect=AssertionError("live Skill lookup")), \
+         patch("src.agent.factory.get_tool_registry", return_value=ToolRegistry()):
+        from src.agent.factory import build_agent_chat_executor
+
+        executor = build_agent_chat_executor(
+            config, tool_ids=[], external_tools=[], frozen_skill_instructions="frozen research method",
+        )
+    assert executor.skill_instructions == "frozen research method"
+    assert executor.default_skill_policy == ""
+
+
+def test_external_runtime_formal_prompt_respects_empty_tool_grant() -> None:
+    from src.agent.external_agent_backend import _handoff_prompt
+
+    prompt = _handoff_prompt(_request(capability_manifest={
+        "runtimePolicy": {"gatewayToolIds": [], "runtimeToolIds": []},
+    }))
+    assert "本轮没有授权工具" in prompt
+    assert "请使用运行时实际提供的 ReAct" not in prompt
+
+
 def test_generation_codex_cli_and_agent_codex_app_server_routes_remain_independent() -> None:
     config = SimpleNamespace(
         generation_backend="codex_cli",

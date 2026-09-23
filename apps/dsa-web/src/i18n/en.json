@@ -5936,5 +5936,17 @@
   "行业与市值分层抽样": "Industry and market-cap sampling",
   "量价排序会检查范围内全部股票的近期日线，排除数据缺失或过期者，再将排名前 40 只交给模型复核；分层抽样则最多检查 40 只。暂不支持杠杆产品和历史日期筛选。日股、韩股仍需指定股票。": "Volume/volatility ranking checks recent daily bars for every stock in scope, excludes missing or stale data, then sends the top 40 to the model. Stratified sampling checks at most 40. Leveraged products and historical-date screening are not supported. Japan and Korea still require explicit symbols.",
   "截至 {date} · 已检查 {evaluated} 只 · 有效 {valid} 只 · 缺失或过期 {missing} 只 · 模型复核前 {sample} 只": "As of {date} · Evaluated {evaluated} · Valid {valid} · Missing/stale {missing} · Top {sample} for model review",
-  "A 股、美股、港股可自动读取行业股票目录。上方股票可不填；填写则只筛选指定股票。预览显示目录数量、模型复核数量及月度数据完整数量。": "A-share, US and Hong Kong industry stock directories are discovered automatically. Leave symbols blank to discover stocks, or enter symbols to restrict the search. Preview shows directory, model review and complete monthly-data counts."
+  "A 股、美股、港股可自动读取行业股票目录。上方股票可不填；填写则只筛选指定股票。预览显示目录数量、模型复核数量及月度数据完整数量。": "A-share, US and Hong Kong industry stock directories are discovered automatically. Leave symbols blank to discover stocks, or enter symbols to restrict the search. Preview shows directory, model review and complete monthly-data counts.",
+  "配置个股研究工作流": "Configure research workflow",
+  "配置选股工作流": "Configure screening workflow",
+  "请先在投研助理保存对应类型的策略 Skill。": "Save a Skill of the matching type in the research assistant first.",
+  "无法读取投研助理中的策略，请返回后重试。": "Could not load the strategy from the research assistant. Go back and retry.",
+  "策略 Skill 已不可用，请返回投研助理重新保存。": "This strategy Skill is unavailable. Return to the research assistant and save it again.",
+  "已载入投研助理保存的方法。请核对并选择已发布工作流；个股研究方法参与报告生成，选股 Skill 只用于结果解读，不会改变正式筛选规则。": "The method saved in the research assistant is loaded. Review and select a published workflow. Research methods shape the report; screening Skills only interpret results and do not change the published screening rules.",
+  "所选方法会随任务冻结并参与正式单股报告；行情来源与风险校验仍由工作流控制。": "Selected methods are frozen with the task and shape the formal stock report. The workflow still controls market data and risk checks.",
+  "正式工作流使用已发布策略取数与计算；这里可选专家对既有结果独立评审。": "The published workflow gathers data and calculates results. Select experts here to review the existing evidence independently.",
+  "已发布工作流负责取数、计算和正式成果；模型只解读本次证据，所选专家可独立评审。需要探索新证据时，请回投研助理讨论。": "The published workflow handles data, calculations and the formal result. The model interprets this run’s evidence, and selected experts may review it independently. Return to the research assistant to explore new evidence.",
+  "所选 Skill 已不可用，请重新选择后保存任务。": "The selected Skill is unavailable. Choose another and save the task again.",
+  "所选方法合计过长，请精简到 30000 字以内。": "The selected methods are too long. Shorten them to 30,000 characters in total.",
+  "任务方法快照与 Skill 绑定不一致，请重新保存任务。": "The saved method no longer matches this task's Skill selection. Save the task again."
 }

@@ -87,9 +87,14 @@ def _session_key(session_id: str) -> str:
 def _handoff_prompt(request: AgentRunRequest) -> str:
     scope = request.stock_scope.as_log_payload() if request.stock_scope else None
     scope_text = json.dumps(scope, ensure_ascii=False) if scope else "未冻结股票范围"
+    runtime = request.capability_manifest.get("runtimePolicy", {}) if isinstance(request.capability_manifest, dict) else {}
+    has_tools = bool(runtime.get("runtimeToolIds") or runtime.get("gatewayToolIds")) if isinstance(runtime, dict) else False
+    capability_instruction = (
+        "请使用运行时实际提供的 ReAct 模型—工具循环、已启用 Skill、内置 Tool、MCP、会话与记忆完成任务。"
+        if has_tools else "本轮没有授权工具；请只根据网站提供的证据完成解读，不调用搜索、MCP 或其他工具。"
+    )
     return (
-        "你是AI Stock 网站当前使用的主 Agent。请使用运行时实际提供的 "
-        "ReAct 模型—工具循环、已启用 Skill、内置 Tool、MCP、会话与记忆完成任务。\n"
+        f"你是AI Stock 网站当前使用的主 Agent。{capability_instruction}\n"
         "网站仍负责投资任务边界和结果展示；不得声称已经完成实际交易、审批或未真正执行的工具调用。\n"
         "下面的网站分析约束用于补充投资方法，只能调用本轮真实可用的能力。\n\n"
         f"[网站冻结的股票范围]\n{scope_text}\n\n"

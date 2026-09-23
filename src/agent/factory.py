@@ -431,6 +431,7 @@ def build_agent_chat_executor(
     tool_ids: Optional[List[str]] = None,
     extra_skill_instructions: str = "",
     external_tools: Optional[List[Any]] = None,
+    frozen_skill_instructions: Optional[str] = None,
 ):
     """Build the backend-neutral executor used only by Agent Chat endpoints."""
     if config is None:
@@ -452,7 +453,7 @@ def build_agent_chat_executor(
             "unsupported_agent_arch",
             f"{backend_id} currently supports single-agent Chat only",
         )
-    if backend_id == "litellm" and arch == "multi":
+    if backend_id == "litellm" and arch == "multi" and frozen_skill_instructions is None:
         return build_agent_executor(config, skills=skills)
 
     registry = _filtered_tool_registry(tool_ids)
@@ -466,12 +467,19 @@ def build_agent_chat_executor(
             registry = isolated
         for tool_def in external_tools:
             registry.register(tool_def)
-    prompt_state = resolve_skill_prompt_state(config, skills=skills)
-    skill_instructions = prompt_state.skill_instructions
-    if extra_skill_instructions.strip():
-        skill_instructions = "\n\n".join(
-            part for part in (skill_instructions.strip(), extra_skill_instructions.strip()) if part
-        )
+    if frozen_skill_instructions is None:
+        prompt_state = resolve_skill_prompt_state(config, skills=skills)
+        skill_instructions = prompt_state.skill_instructions
+        if extra_skill_instructions.strip():
+            skill_instructions = "\n\n".join(
+                part for part in (skill_instructions.strip(), extra_skill_instructions.strip()) if part
+            )
+        default_skill_policy = prompt_state.default_skill_policy
+        use_legacy_default_prompt = prompt_state.use_legacy_default_prompt
+    else:
+        skill_instructions = frozen_skill_instructions
+        default_skill_policy = ""
+        use_legacy_default_prompt = False
     if backend_id == "litellm":
         from src.agent.llm_adapter import LLMToolAdapter
 
@@ -494,8 +502,8 @@ def build_agent_chat_executor(
         config=config,
         context_llm_adapter=context_llm_adapter,
         skill_instructions=skill_instructions,
-        default_skill_policy=prompt_state.default_skill_policy,
-        use_legacy_default_prompt=prompt_state.use_legacy_default_prompt,
+        default_skill_policy=default_skill_policy,
+        use_legacy_default_prompt=use_legacy_default_prompt,
         max_steps=_coerce_config_int(
             getattr(config, "agent_max_steps", AGENT_MAX_STEPS_DEFAULT),
             AGENT_MAX_STEPS_DEFAULT,

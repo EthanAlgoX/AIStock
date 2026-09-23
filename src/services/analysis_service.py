@@ -62,6 +62,7 @@ class AnalysisService:
         portfolio_context: Optional[Dict[str, Any]] = None,
         report_language: Optional[str] = None,
         agent_mode: Optional[bool] = None,
+        analysis_instructions: str = "",
     ) -> Optional[Dict[str, Any]]:
         """
         执行股票分析
@@ -125,6 +126,8 @@ class AnalysisService:
                 query_source=query_source or "api",
                 progress_callback=progress_callback,
                 analysis_skills=skills,
+                analysis_instructions=analysis_instructions,
+                agent_mode_override=agent_mode,
                 analysis_phase=analysis_phase,
                 portfolio_context=portfolio_context,
             )

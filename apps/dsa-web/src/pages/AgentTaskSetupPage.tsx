@@ -14,11 +14,12 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { workspaceApi, type WorkspaceRun, type WorkspaceSkill } from "../api/workspace";
 import { useWorkspaceRun } from "../hooks/useWorkspaceRun";
 import { strategyWorkspaceApi } from "../api/strategyWorkspace";
+import { strategyDraftsApi } from "../api/strategyDrafts";
 import WorkflowArtifact from "../components/agent/WorkflowArtifact";
 import { visibleWorkspaceArtifacts, workspaceRunLabel } from "../utils/workspaceOutcome";
 import AgentCapabilityPanel from "../components/agent/AgentCapabilityPanel";
@@ -119,6 +120,10 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
   const { translate: tx, language } = useUiLanguage();
   const copy = COPY[mode];
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sourceSession = searchParams.get("sourceSession");
+  const [sourceSkillId, setSourceSkillId] = useState("");
+  const [sourceError, setSourceError] = useState("");
   const initialWorkspace = useMemo(() => readTaskWorkspace(mode), [mode]);
   const [market, setMarket] = useState<MarketId>(initialWorkspace.market);
   const [query, setQuery] = useState(initialWorkspace.query);
@@ -137,13 +142,35 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
   const showRunPreview = Boolean(activeRun || submitting || runError);
   const [workflows, setWorkflows] = useState<ResearchStrategyOption[]>([]);
   const [preferredVersionId, setStrategyVersionId] = useState(initialWorkspace.strategyVersionId || "");
+  const [versionSelectedByUser, setVersionSelectedByUser] = useState(false);
   const [workflowsLoading, setWorkflowsLoading] = useState(true);
   const compatibleWorkflows = workflows.filter((item) => item.market.toUpperCase() === market && item.currentStrategyPurpose === (mode === "research" ? "research_report" : "candidate_screening"));
   const researchWorkflows = workflows.filter((item) => item.market.toUpperCase() === market && item.currentStrategyPurpose === "research_report");
   const researchVersionId = String((researchWorkflows.find((item) => String(item.currentPublishedVersionId) === deepResearchVersionId) || researchWorkflows.find((item) => item.name === "单股研究 · A股配置") || researchWorkflows[0])?.currentPublishedVersionId || "");
-  const strategyVersionId = String((compatibleWorkflows.find((item) => String(item.currentPublishedVersionId) === preferredVersionId)
+  const importedResearchVersionId = mode === "research" && sourceSkillId && !versionSelectedByUser
+    ? compatibleWorkflows.find((item) => !item.fixedSkillIds.length)?.currentPublishedVersionId : undefined;
+  const effectivePreferredVersionId = importedResearchVersionId ? String(importedResearchVersionId) : preferredVersionId;
+  const strategyVersionId = String((compatibleWorkflows.find((item) => String(item.currentPublishedVersionId) === effectivePreferredVersionId)
     || compatibleWorkflows.find((item) => item.name === (mode === "research" ? "单股研究 · A股配置" : "多因子选股 · A股配置")) || compatibleWorkflows[0])?.currentPublishedVersionId || "");
   const [workflowError, setWorkflowError] = useState("");
+  useEffect(() => {
+    if (!sourceSession) return;
+    let active = true;
+    strategyDraftsApi.sync(sourceSession).then((source) => {
+      if (!active) return;
+      if (!source?.skillId || source.kind !== mode) {
+        setSourceError("请先在投研助理保存对应类型的策略 Skill。");
+        return;
+      }
+      setSourceError("");
+      setSourceSkillId(source.skillId);
+      setCapabilities((current) => ({ ...current, skillIds: [source.skillId!] }));
+      setObjective(source.draft.objective || "");
+      if (mode === "research") setCustomRequested(true);
+    }).catch(() => { if (active) setSourceError("无法读取投研助理中的策略，请返回后重试。"); });
+    return () => { active = false; };
+  }, [sourceSession, mode]);
+
   const stockIndex = useStockIndex(mode === "research", market);
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -255,9 +282,17 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
   const skillVersionId = mode === "research" ? strategyVersionId : Number(deepResearchCount) > 0 ? researchVersionId : "";
   const fixedSkillIds = workflows.find((item) => String(item.currentPublishedVersionId) === skillVersionId)?.fixedSkillIds || [];
   const customResearch = Boolean(skillVersionId) && customRequested && fixedSkillIds.length === 0;
-  const effectiveCapabilities = { ...capabilities, skillIds: customResearch ? capabilities.skillIds : [] };
+  const sourceUnavailable = Boolean(sourceSkillId) && !skillsLoading && !skills.some((item) => item.id === sourceSkillId);
+  const effectiveCapabilities = {
+    ...capabilities,
+    skillIds: customResearch || (mode === "screening" && !!sourceSkillId) ? capabilities.skillIds : [],
+    toolIds: [mode === "research" ? "run_stock_research" : "run_stock_screening", ...(mode === "screening" && Number(deepResearchCount) ? ["run_stock_research"] : [])],
+    mcpIds: [],
+    dataSourceIds: [],
+  };
   const capabilityCount = countAgentCapabilities({ ...effectiveCapabilities, skillIds: fixedSkillIds.length ? fixedSkillIds : effectiveCapabilities.skillIds });
   const canRun = Boolean(strategyVersionId) && !workflowsLoading && !workflowError
+    && (!sourceSession || (!!sourceSkillId && !sourceError && !sourceUnavailable && (mode !== "research" || customResearch)))
     && (mode !== "screening" || deepResearchCount === "0" || Boolean(researchVersionId))
     && (!customResearch || (!skillsLoading && !skillsError && capabilities.skillIds.length > 0 && capabilities.skillIds.length <= 3))
     && (mode === "research" ? Boolean(selectedStock) : Boolean(objective.trim()));
@@ -265,6 +300,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
 
   const changeMarket = (next: MarketId) => {
     setMarket(next);
+    setVersionSelectedByUser(false);
     setSelectedStock(null);
     setQuery("");
   };
@@ -306,7 +342,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
         strategyVersionId: strategyVersionId ? Number(strategyVersionId) : undefined,
         deepResearchCount: mode === "screening" ? Number(deepResearchCount) : 0,
         deepResearchVersionId: mode === "screening" && Number(deepResearchCount) ? Number(researchVersionId) : undefined,
-        capabilities: { ...effectiveCapabilities, toolIds: [...new Set([...capabilities.toolIds, mode === "research" ? "run_stock_research" : "run_stock_screening", ...(mode === "screening" && Number(deepResearchCount) ? ["run_stock_research"] : [])])] },
+        capabilities: effectiveCapabilities,
       },
     };
     navigate(`/schedules?type=${mode}`, { state });
@@ -332,7 +368,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
           ...(strategyVersionId ? { strategyVersionId: Number(strategyVersionId) } : {}),
           ...(mode === "screening" && Number(deepResearchCount) ? { deepResearchCount: Number(deepResearchCount), deepResearchVersionId: Number(researchVersionId) } : {}),
         },
-        capabilities: { ...effectiveCapabilities, toolIds: [...new Set([...capabilities.toolIds, mode === "research" ? "run_stock_research" : "run_stock_screening", ...(mode === "screening" && Number(deepResearchCount) ? ["run_stock_research"] : [])])] },
+        capabilities: effectiveCapabilities,
       });
       const run = await workspaceApi.runTask(task.id);
       setRestoredRunId(run.id);
@@ -343,7 +379,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
 
   const renderResearchStrategy = (label: string, options: ResearchStrategyOption[], versionId: string, setVersion: (id: string) => void) => (
     <ResearchStrategySelector label={label} options={options} versionId={versionId} custom={customResearch}
-      onChange={(id, custom) => { setVersion(id); setCustomRequested(custom); }}
+      onChange={(id, custom) => { setVersionSelectedByUser(true); setVersion(id); setCustomRequested(custom); }}
       skills={skills} selectedSkillIds={capabilities.skillIds}
       onToggleSkill={(id) => setCapabilities((current) => ({ ...current, skillIds: toggleValue(current.skillIds, id) }))}
       loading={workflowsLoading} skillsLoading={skillsLoading} skillsError={tx(skillsError)} />
@@ -354,6 +390,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
       scopeLabel="任务"
       presentation="inline"
       showSkills={false}
+      formalWorkflow
       skills={skills}
       selectedSkillIds={capabilities.skillIds}
       onToggleSkill={(id) => setCapabilities((current) => ({ ...current, skillIds: toggleValue(current.skillIds, id) }))}
@@ -464,7 +501,10 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
                 <p className="text-sm leading-6 text-secondary-text">{tx("候选深研负责逐股生成研究报告，与前面的筛选规则分工不同。额外调用数据和模型，最多 3 只；不改写原排名。")}</p>
               </>}
               {customResearch && !capabilities.skillIds.length && <p role="status" className="text-sm text-warning">{tx("请至少选择一个 Skill，或切回预设研究策略。")}</p>}
-              <p className="text-sm leading-6 text-secondary-text">{tx("系统负责取数、计算与报告保存，Agent 按策略研究并组织解读和专家评审。所选 MCP 用于补充证据，不替换内核数据路由。")}</p>
+              {sourceSession && <p role="status" className="text-sm leading-6 text-secondary-text">{tx("已载入投研助理保存的方法。请核对并选择已发布工作流；个股研究方法参与报告生成，选股 Skill 只用于结果解读，不会改变正式筛选规则。")}</p>}
+              {sourceError && <p role="alert" className="text-sm text-warning">{tx(sourceError)}</p>}
+              {sourceUnavailable && <p role="alert" className="text-sm text-warning">{tx("策略 Skill 已不可用，请返回投研助理重新保存。")}</p>}
+              <p className="text-sm leading-6 text-secondary-text">{tx("已发布工作流负责取数、计算和正式成果；模型只解读本次证据，所选专家可独立评审。需要探索新证据时，请回投研助理讨论。")}</p>
               {workflowError && <p role="alert" className="text-sm text-warning">{tx(workflowError)}</p>}
               {!workflowsLoading && !strategyVersionId && !workflowError && <p role="alert" className="text-sm text-warning">{tx("当前市场尚无已发布的")}{mode === "research" ? tx("单股研究") : tx("选股")}{tx("流程，无法生成正式报告。请切换市场；开放式讨论可前往主 Agent。")}</p>}
             </div>
@@ -502,7 +542,7 @@ export default function AgentTaskSetupPage({ mode, embedded = false, onRunStarte
                 <div className="bg-card px-4 py-3"><span className="text-[11px] text-muted-text">{tx("数据上下文")}</span><p className="mt-1 text-xs font-medium text-foreground">{activeRun?.dataSnapshotId ? `Snapshot · ${activeRun.dataSnapshotId.slice(0, 8)}` : tx("正在创建")}</p></div>
                 <div className="bg-card px-4 py-3"><span className="text-[11px] text-muted-text">{tx("预期成果")}</span><p className="mt-1 text-xs font-medium text-foreground">{mode === "research" ? "ResearchReport" : "ScreenSpec · CandidateList"}</p></div>
               </div>
-              {runError || activeRun?.errorMessage ? <p role="alert" className="mt-3 text-xs text-danger">{runError || activeRun?.errorMessage}</p> : null}
+              {runError || activeRun?.errorMessage ? <p role="alert" className="mt-3 text-xs text-danger">{tx(runError || activeRun?.errorMessage || "")}</p> : null}
               {activeRun?.artifacts?.length ? <div className="mt-4 space-y-3">{visibleWorkspaceArtifacts(activeRun.artifacts).map((artifact) => <WorkflowArtifact key={artifact.id} artifact={artifact} />)}</div> : null}
               <Link to="/runs" className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">{tx("查看任务与运行")}{" "}<ArrowRight className="h-3.5 w-3.5" /></Link>
             </section>

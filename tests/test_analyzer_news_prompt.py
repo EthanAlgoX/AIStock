@@ -22,6 +22,17 @@ from src.analyzer import (
 
 
 class AnalyzerNewsPromptTestCase(unittest.TestCase):
+    def test_formal_report_prompt_includes_frozen_method(self) -> None:
+        with patch.object(GeminiAnalyzer, "_init_litellm", return_value=None):
+            analyzer = GeminiAnalyzer()
+        prompt = analyzer._format_prompt(
+            {"code": "600519", "stock_name": "贵州茅台", "date": "2026-09-23",
+             "today": {"close": 100}, "analysis_instructions": "核对财报时点和缺失数据"},
+            "贵州茅台", report_language="en",
+        )
+        self.assertIn("核对财报时点和缺失数据", prompt)
+        self.assertLess(prompt.index("本次已冻结的研究方法"), prompt.index("Output language requirements"))
+
     def test_contains_trend_hint_treats_non_adjacent_negation_as_negated(self) -> None:
         self.assertFalse(_contains_trend_hint("尚未形成上升趋势，继续观察。", _BULLISH_TREND_HINTS))
         self.assertFalse(_contains_trend_hint("未形成上升趋势，继续观察。", _BULLISH_TREND_HINTS))

@@ -47,6 +47,7 @@ type CapabilityPanelProps = {
   presentation?: "sidebar" | "inline";
   showSkills?: boolean;
   showExperts?: boolean;
+  formalWorkflow?: boolean;
 };
 
 type SectionKey = "skills" | "tools" | "mcp" | "data" | "experts";
@@ -133,6 +134,7 @@ export default function AgentCapabilityPanel({
   presentation = "sidebar",
   showSkills = true,
   showExperts = true,
+  formalWorkflow = false,
 }: CapabilityPanelProps) {
   const { translate: tx } = useUiLanguage();
   const inline = presentation === "inline";
@@ -237,10 +239,10 @@ export default function AgentCapabilityPanel({
         </div>
       </div>
       </>}
-      {inline && <p className="mb-3 text-sm leading-6 text-secondary-text">{showSkills ? tx("Skill 决定研究方法，专家提供独立观点。最多选择 3 个 Skill。") : tx("研究方法由上方策略统一确定；这里选择独立评审的专家，以及补充证据所需的工具。")}</p>}
+      {inline && <p className="mb-3 text-sm leading-6 text-secondary-text">{formalWorkflow ? tx("正式工作流使用已发布策略取数与计算；这里可选专家对既有结果独立评审。") : showSkills ? tx("Skill 决定研究方法，专家提供独立观点。最多选择 3 个 Skill。") : tx("研究方法由上方策略统一确定；这里选择独立评审的专家，以及补充证据所需的工具。")}</p>}
       {inline && loading && <p role="status" className="mb-3 text-sm text-muted-text">{tx("正在读取 Agent 能力目录…")}</p>}
       <div className={inline ? "grid min-w-0 items-start gap-x-4 sm:grid-cols-2" : "min-h-0 flex-1 overflow-y-auto px-2 py-2"}>
-        {(inline ? ["skills", "experts", "tools", "mcp", "data"] as SectionKey[] : Object.keys(sectionMeta) as SectionKey[]).filter((key) => (showSkills || key !== "skills") && (showExperts || key !== "experts")).map((key) => {
+        {(formalWorkflow ? ["experts"] as SectionKey[] : inline ? ["skills", "experts", "tools", "mcp", "data"] as SectionKey[] : Object.keys(sectionMeta) as SectionKey[]).filter((key) => (showSkills || key !== "skills") && (showExperts || key !== "experts")).map((key) => {
           const { title, icon: Icon } = sectionMeta[key];
           const open = openSections.has(key);
           const count = key === "skills" ? skills.length : key === "tools" ? tools.length : key === "mcp" ? mcpConnections.length : key === "data" ? readyDataSources.length : key === "experts" ? experts.length : 0;

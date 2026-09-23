@@ -1330,6 +1330,33 @@ class WorkspaceService:
         extra = "\n\n".join(f"### {row.name}\n{row.instructions}" for row in rows)
         return builtin_ids, extra
 
+    def _method_snapshot(self, ids: Iterable[str]) -> dict[str, Any]:
+        """Keep formal task methods stable if a workspace Skill is edited later."""
+        from src.agent.factory import get_skill_manager
+
+        selected = list(dict.fromkeys(str(item) for item in ids))
+        builtin = {skill.name: skill for skill in get_skill_manager(get_config()).list_skills()}
+        with self.db.get_session() as session:
+            custom = {row.id: row for row in session.execute(select(WorkspaceSkillRecord).where(
+                WorkspaceSkillRecord.id.in_(selected), WorkspaceSkillRecord.enabled.is_(True),
+                WorkspaceSkillRecord.archived_at.is_(None),
+            )).scalars().all()} if selected else {}
+            items = []
+            for skill_id in selected:
+                if skill_id in builtin:
+                    skill = builtin[skill_id]
+                    items.append({"id": skill_id, "version": 1, "name": skill.display_name,
+                                  "instructions": skill.instructions or skill.description, "builtIn": True})
+                elif skill_id in custom:
+                    skill = custom[skill_id]
+                    items.append({"id": skill_id, "version": skill.version, "name": skill.name,
+                                  "instructions": skill.instructions, "builtIn": False})
+        if len(items) != len(selected):
+            raise WorkspaceError("capability_binding_invalid", "所选 Skill 已不可用，请重新选择后保存任务。", 422)
+        if sum(len(item["instructions"]) for item in items) > 30000:
+            raise WorkspaceError("method_too_long", "所选方法合计过长，请精简到 30000 字以内。", 422)
+        return {"skills": items}
+
     # Task definitions and runs ----------------------------------------------------
     def create_task(self, payload: dict[str, Any]) -> dict[str, Any]:
         kind = str(payload.get("kind") or "").strip().lower()
@@ -1347,6 +1374,9 @@ class WorkspaceService:
         bindings = self.validate_bindings(raw_bindings)
         self._validate_task_contract(kind, subject, config, bindings)
         self._validate_discussion_contract(kind, config, bindings)
+        config = {key: value for key, value in config.items() if key != "methodSnapshot"}
+        if kind in {"research", "screening"} and config.get("strategyVersionId"):
+            config["methodSnapshot"] = self._method_snapshot(bindings["skillIds"])
         task_id = uuid.uuid4().hex
         with self.db.session_scope() as session:
             row = WorkspaceTaskRecord(
@@ -1384,6 +1414,14 @@ class WorkspaceService:
             )
             self._validate_discussion_contract(row.task_kind, _load(row.config_json, {}),
                                                normalize_bindings(_load(row.capability_bindings_json, {})))
+            if row.task_kind in {"research", "screening"} and ("config" in payload or "capabilities" in payload):
+                updated_config = _load(row.config_json, {})
+                updated_config.pop("methodSnapshot", None)
+                if updated_config.get("strategyVersionId"):
+                    updated_config["methodSnapshot"] = self._method_snapshot(
+                        normalize_bindings(_load(row.capability_bindings_json, {}))["skillIds"]
+                    )
+                row.config_json = _dump(updated_config)
             row.version += 1
             row.updated_at = utc_naive_now()
             session.flush()
@@ -1437,7 +1475,19 @@ class WorkspaceService:
         task = self.get_task(task_id)
         if not task["enabled"]:
             raise WorkspaceError("task_disabled", "任务已停用，不能运行。", 409)
-        self.validate_bindings(task["capabilities"])
+        method_snapshot = (task.get("config") or {}).get("methodSnapshot")
+        if task["kind"] in {"research", "screening"} and isinstance(method_snapshot, dict):
+            frozen = method_snapshot.get("skills")
+            selected = task["capabilities"]["skillIds"]
+            if (not isinstance(frozen, list) or len(frozen) != len(selected)
+                    or any(not isinstance(item, dict) or item.get("id") != selected[index]
+                           or not isinstance(item.get("name"), str)
+                           or not isinstance(item.get("instructions"), str)
+                           for index, item in enumerate(frozen))):
+                raise WorkspaceError("method_snapshot_invalid", "任务方法快照与 Skill 绑定不一致，请重新保存任务。", 422)
+            self.validate_bindings({**task["capabilities"], "skillIds": []})
+        else:
+            self.validate_bindings(task["capabilities"])
         self._validate_task_contract(task["kind"], task["subject"], task["config"], task["capabilities"])
         self._validate_discussion_contract(task["kind"], task["config"], task["capabilities"])
         if task["config"].get("deepResearchCount"):
@@ -1580,7 +1630,15 @@ class WorkspaceService:
             required_tool = "run_stock_research" if kind == "research" else "run_stock_screening"
             if required_tool not in bindings["toolIds"]:
                 return {"success": False, "errorCode": "workflow_tool_required", "error": f"请在任务能力中启用 {required_tool}。"}
-        builtin_skills, custom_skill_instructions = self.resolve_skill_selection(bindings["skillIds"])
+        method_snapshot = config.get("methodSnapshot") if version_id is not None else None
+        if isinstance(method_snapshot, dict) and isinstance(method_snapshot.get("skills"), list):
+            selected_methods = method_snapshot["skills"]
+            builtin_skills = [item["id"] for item in selected_methods if item.get("builtIn")]
+            custom_skill_instructions = "\n\n".join(
+                f"### {item['name']}\n{item['instructions']}" for item in selected_methods
+            )
+        else:
+            builtin_skills, custom_skill_instructions = self.resolve_skill_selection(bindings["skillIds"])
         if kind in {"research", "screening"} and version_id is not None:
             from src.agent.tools.workflow_tools import execute_research_workflow
 
@@ -1588,8 +1646,11 @@ class WorkspaceService:
                 return {"success": False, "errorCode": "cancelled", "error": "任务已取消。"}
             self._set_run_stage(run_id, "workflow", "正式研究流程", "running")
             subject = task.get("subject") or {}
-            workflow_inputs = {"symbol": subject.get("stock") or subject.get("stockCode"),
-                               **({"skills": builtin_skills} if builtin_skills else {})}
+            workflow_inputs = {"symbol": subject.get("stock") or subject.get("stockCode")}
+            if isinstance(method_snapshot, dict):
+                workflow_inputs["methodInstructions"] = custom_skill_instructions
+            elif builtin_skills:
+                workflow_inputs["skills"] = builtin_skills
             if task.get("config", {}).get("portfolioWatch"):
                 workflow_inputs.update({"portfolioContext": {}, "watchResearch": True})
             elif task.get("config", {}).get("portfolioHolding") or task.get("portfolioContext"):
@@ -1622,7 +1683,10 @@ class WorkspaceService:
                 })
             task = {**task, "workflowResult": workflow}
             if kind == "screening" and (task.get("config") or {}).get("deepResearchCount"):
-                task = self._research_screening_candidates(run_id, task, cancel_event, builtin_skills)
+                # Screening methods interpret the finished candidate list;
+                # deep research follows its own published research version.
+                research_skills = [] if isinstance(method_snapshot, dict) else builtin_skills
+                task = self._research_screening_candidates(run_id, task, cancel_event, research_skills)
                 applied = [skill for entry in task["candidateResearch"]
                            for skill in entry["report"].get("researchSkills", [])]
                 if applied:
@@ -1678,13 +1742,24 @@ class WorkspaceService:
         from src.agent.factory import build_agent_chat_executor
 
         bindings = normalize_bindings(task.get("capabilities"))
-        if task.get("workflowResult") or task.get("discussionDeadline") is not None:
+        formal_result = bool(task.get("workflowResult"))
+        if formal_result:
+            # The published workflow has already fetched evidence and produced
+            # its immutable result. Interpretation cannot launch new searches
+            # or silently change the candidate universe on a later model step.
+            bindings["toolIds"] = []
+            bindings["mcpIds"] = []
+            bindings["dataSourceIds"] = []
+            bindings["skillIds"] = []
+            builtin_skills = []
+        elif task.get("discussionDeadline") is not None:
             bindings["toolIds"] = [name for name in bindings["toolIds"] if name not in {"run_stock_research", "run_stock_screening", "screen_stock_universe"}]
         executor = build_agent_chat_executor(
             get_config(), skills=builtin_skills or None,
             tool_ids=bindings["toolIds"],
-            extra_skill_instructions=custom_skill_instructions,
+            extra_skill_instructions="" if formal_result else custom_skill_instructions,
             external_tools=self.resolve_mcp_tool_definitions(bindings["mcpIds"]),
+            frozen_skill_instructions=custom_skill_instructions if formal_result else None,
         )
         if task.get("discussionDeadline") is not None:
             remaining = max(0.1, task["discussionDeadline"] - time.monotonic())
@@ -1699,6 +1774,8 @@ class WorkspaceService:
             "capability_manifest": self._capability_manifest(bindings),
             "data_snapshot_as_of": (task.get("runContext") or {}).get("asOf") or _iso(utc_naive_now()),
         }
+        if formal_result:
+            prompt = "只解释已保存的正式工作流结果及其证据，不补充检索、重跑筛选或改变原始候选和分数。\n" + prompt
         return executor.chat(prompt, f"workspace-{session_suffix}", context=context, cancel_event=cancel_event, selected_skill_ids=builtin_skills)
 
     def _execute_expert_task(self, run_id: str, task: dict[str, Any], cancel_event: threading.Event, expert_ids: list[int], builtin_skills: list[str], custom_skill_instructions: str) -> dict[str, Any]:
@@ -1956,7 +2033,7 @@ class WorkspaceService:
 {_dump(task['workflowResult'])}
 {background}
 请基于这些事实解读结论、风险、失效条件及数据缺失；明确区分计算结果与模型观点。
-不得重新调用研究或选股工作流。可用已授权 MCP/工具补充证据，需说明新增来源和时点。
+不得重新调用研究或选股工作流，也不得补充检索；如需新证据，请列入待核实条件并返回投研助理继续探索。
 输出有效 JSON，包含 conclusion、risks、disagreements、unverifiedConditions 和 nextSteps。"""
         screening_rule = (
             "选股任务必须先调用 screen_stock_universe；CandidateList 只能引用工具实际返回的候选，不得编造未扫描股票。"

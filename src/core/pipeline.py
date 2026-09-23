@@ -221,6 +221,8 @@ class StockAnalysisPipeline:
         save_context_snapshot: Optional[bool] = None,
         progress_callback: Optional[Callable[[int, str], None]] = None,
         analysis_skills: Optional[List[str]] = None,
+        analysis_instructions: str = "",
+        agent_mode_override: Optional[bool] = None,
         analysis_phase: str = "auto",
         portfolio_context: Optional[Dict[str, Any]] = None,
         daily_market_context_enabled: Optional[bool] = None,
@@ -247,6 +249,8 @@ class StockAnalysisPipeline:
         )
         self.progress_callback = progress_callback
         self.analysis_skills = list(analysis_skills) if analysis_skills is not None else None
+        self.analysis_instructions = analysis_instructions
+        self.agent_mode_override = agent_mode_override
         self.analysis_phase = analysis_phase or "auto"
         self.portfolio_context = dict(portfolio_context) if isinstance(portfolio_context, dict) else None
         self.daily_market_context_enabled = (
@@ -509,12 +513,14 @@ class StockAnalysisPipeline:
             # config.is_agent_available() so that users who only configured an
             # API Key for the traditional analysis path are not silently
             # switched to Agent mode (which is slower and more expensive).
-            use_agent = getattr(self.config, 'agent_mode', False)
-            if not use_agent:
+            agent_mode_override = getattr(self, 'agent_mode_override', None)
+            use_agent = (agent_mode_override if agent_mode_override is not None
+                         else getattr(self.config, 'agent_mode', False))
+            if not use_agent and agent_mode_override is None:
                 if self.analysis_skills:
                     use_agent = True
                     logger.info(f"{stock_name}({code}) Auto-enabled agent mode due to request skills: {self.analysis_skills}")
-            if not use_agent:
+            if not use_agent and agent_mode_override is None:
                 # Auto-enable agent mode when specific skills are configured (e.g., scheduled task with strategy)
                 configured_skills = getattr(self.config, 'agent_skills', [])
                 if configured_skills and configured_skills != ['all']:
@@ -701,6 +707,9 @@ class StockAnalysisPipeline:
                 portfolio_context=portfolio_context,
             )
             enhanced_context["market_phase_context"] = market_phase_context_dict
+            analysis_instructions = getattr(self, "analysis_instructions", "")
+            if analysis_instructions:
+                enhanced_context["analysis_instructions"] = analysis_instructions
             self._attach_daily_market_context(
                 enhanced_context,
                 daily_market_context,
@@ -1445,6 +1454,11 @@ class StockAnalysisPipeline:
                 message = f"Analyze stock {code} ({stock_name}) and return the full decision dashboard JSON."
             else:
                 message = f"请分析股票 {code} ({stock_name})，并生成决策仪表盘报告。"
+            analysis_instructions = getattr(self, "analysis_instructions", "")
+            if analysis_instructions:
+                message += ("\n\n[本次已冻结的研究方法]\n"
+                            "将以下方法用于分析，同时遵守数据证据、风险边界与输出格式要求：\n"
+                            + analysis_instructions)
             llm_started_at = time.monotonic()
             try:
                 record_llm_run_started(

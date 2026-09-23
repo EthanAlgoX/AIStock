@@ -47,6 +47,13 @@ describe('Strategy authoring', () => {
     render(view());
     expect(await screen.findByRole('link', { name: '查看交易推演' })).toHaveAttribute('href', '/trading?strategy=7');
   });
+  it.each([['research', '/stock-research', '配置个股研究工作流'], ['screening', '/screening', '配置选股工作流']] as const)(
+    'links a saved %s Skill to formal task configuration', async (kind, path, label) => {
+      vi.mocked(strategyDraftsApi.sync).mockResolvedValue({ ...state, kind, skillId: 'saved' });
+      render(view());
+      expect(await screen.findByRole('link', { name: label })).toHaveAttribute('href', `${path}?sourceSession=one`);
+    },
+  );
 });
 
 it('does not let a late save response change another conversation', async () => {

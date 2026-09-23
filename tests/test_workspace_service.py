@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from threading import Event
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -41,6 +42,44 @@ def _empty_bindings(**overrides):
     }
     value.update(overrides)
     return value
+
+
+def test_formal_method_is_frozen_when_task_is_saved(workspace):
+    skill = workspace.create_skill({"id": "method-frozen", "name": "冻结方法", "instructions": "先核对财报日期"})
+    bindings = _empty_bindings(skillIds=[skill["id"]], toolIds=["run_stock_research"])
+    task = workspace.create_task({
+        "kind": "research", "name": "单股研究", "market": "CN", "objective": "研究股票",
+        "subject": {"stock": "600519"}, "config": {"strategyVersionId": 1}, "capabilities": bindings,
+    })
+    frozen = task["config"]["methodSnapshot"]["skills"]
+    assert frozen[0]["instructions"] == "先核对财报日期"
+    workspace.update_skill(skill["id"], {"instructions": "改为仅看价格"})
+    assert workspace.get_task(task["id"])["config"]["methodSnapshot"]["skills"] == frozen
+    revised = workspace.update_task(task["id"], {"objective": "重新研究"})
+    assert revised["config"]["methodSnapshot"]["skills"][0]["instructions"] == "先核对财报日期"
+    refreshed = workspace.update_task(task["id"], {"capabilities": bindings})
+    assert refreshed["config"]["methodSnapshot"]["skills"][0]["instructions"] == "改为仅看价格"
+    workspace.update_skill(skill["id"], {"enabled": False})
+    with patch("src.services.workspace_service._WORKERS") as workers:
+        workers.submit.return_value = object()
+        run = workspace.create_run(task["id"])
+    assert run["taskSnapshot"]["config"]["methodSnapshot"]["skills"][0]["instructions"] == "改为仅看价格"
+
+
+def test_formal_result_interpretation_has_no_search_or_mcp_tools(workspace):
+    task = {
+        "market": "CN", "subject": {"stock": "600519"}, "config": {"strategyVersionId": 1},
+        "capabilities": _empty_bindings(toolIds=["run_stock_research", "search_stock_news"], mcpIds=["private-search"]),
+        "workflowResult": {"status": "success", "result": {"summary": "冻结证据"}},
+    }
+    executor = SimpleNamespace(chat=Mock(return_value="解读"))
+    with patch("src.agent.factory.build_agent_chat_executor", return_value=executor) as build:
+        workspace._call_agent("formal", "解释报告", task, Event(), ["dragon_head"], "冻结方法")
+    assert build.call_args.kwargs["tool_ids"] == []
+    assert build.call_args.kwargs["external_tools"] == []
+    assert build.call_args.kwargs["skills"] is None
+    assert build.call_args.kwargs["extra_skill_instructions"] == ""
+    assert build.call_args.kwargs["frozen_skill_instructions"] == "冻结方法"
 
 
 def test_expanded_experts_have_distinct_lenses_and_stable_defaults(workspace):

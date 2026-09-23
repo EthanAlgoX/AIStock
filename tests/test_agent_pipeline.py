@@ -1689,6 +1689,17 @@ class TestPipelineRouting(unittest.TestCase):
             pipeline._analyze_with_agent.assert_called_once()
             self.assertEqual(pipeline.analysis_skills, ["growth_quality"])
 
+            # Published research workflows explicitly choose the standard
+            # pipeline; selecting a Skill must not silently switch engines.
+            formal = StockAnalysisPipeline(
+                config=mock_cfg,
+                analysis_skills=["growth_quality"],
+                agent_mode_override=False,
+            )
+            formal._analyze_with_agent = MagicMock(return_value=None)
+            formal.analyze_stock("600519", ReportType.SIMPLE, "q2")
+            formal._analyze_with_agent.assert_not_called()
+
 
 class TestAnalyzeWithAgentStockName(unittest.TestCase):
     """Test stock-name handling in _analyze_with_agent."""
@@ -1730,7 +1741,7 @@ class TestAnalyzeWithAgentStockName(unittest.TestCase):
                 build_decision_signal_payload_from_report,
             )
 
-            pipeline = StockAnalysisPipeline(config=mock_cfg)
+            pipeline = StockAnalysisPipeline(config=mock_cfg, analysis_instructions="核对财报时点")
             pipeline.search_service.is_available = False
             pipeline.db.save_analysis_history.return_value = 2044
             pipeline._extract_decision_signal_after_history_save = MagicMock()
@@ -1769,6 +1780,8 @@ class TestAnalyzeWithAgentStockName(unittest.TestCase):
                 realtime_quote=None,
                 chip_data=None,
             )
+
+            self.assertIn("核对财报时点", mock_executor.run.call_args.args[0])
 
             self.assertIsNotNone(result)
             self.assertEqual(result.decision_type, "hold")

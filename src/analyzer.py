@@ -4166,6 +4166,12 @@ class GeminiAnalyzer:
  
 请输出完整的 JSON 格式决策仪表盘。"""
 
+        method_instructions = context.get("analysis_instructions")
+        if isinstance(method_instructions, str) and method_instructions.strip():
+            prompt += ("\n\n### 本次已冻结的研究方法\n"
+                       "将下面的方法用于分析；数据证据、风险边界与输出格式要求仍须遵守。\n"
+                       + method_instructions.strip() + "\n")
+
         if report_language == "en":
             prompt += """
 

@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
   listRuns: vi.fn(),
   listStrategies: vi.fn(),
   getVersion: vi.fn(),
+  syncDraft: vi.fn(),
 }));
 
 vi.mock("../../components/agent/DefaultTaskLauncher", () => ({ default: () => null }));
@@ -27,6 +28,7 @@ vi.mock("../../api/workspace", () => ({
   workspaceApi: api,
 }));
 vi.mock("../../api/strategyWorkspace", () => ({ strategyWorkspaceApi: { listStrategies: api.listStrategies, getVersion: api.getVersion } }));
+vi.mock("../../api/strategyDrafts", () => ({ strategyDraftsApi: { sync: api.syncDraft } }));
 
 vi.mock("../../hooks/useStockIndex", () => ({
   useStockIndex: () => ({
@@ -75,6 +77,7 @@ describe("AgentTaskSetupPage", () => {
       { id: 2, name: "选股 · A股配置", productRole: "configured", currentPublishedVersionId: 13, currentPublishedVersionNumber: 1, kernelExecutionStatus: "ready", currentStrategyPurpose: "candidate_screening" },
     ]);
     api.getVersion.mockResolvedValue({ screeningPolicy: { market: "cn" } });
+    api.syncDraft.mockResolvedValue(null);
     api.getCapabilities.mockResolvedValue({
       ...workspaceCatalogFixture,
       skills: [{ ...workspaceCatalogFixture.skills[0], name: "质量分析" }],
@@ -121,6 +124,30 @@ describe("AgentTaskSetupPage", () => {
     await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
       config: { strategyVersionId: 12, reportLanguage: "zh" },
       capabilities: expect.objectContaining({ toolIds: expect.arrayContaining(["run_stock_research"]) }),
+    })));
+  });
+
+  it("loads an assistant research method into a published workflow task", async () => {
+    api.syncDraft.mockResolvedValue({ kind: "research", skillId: "quality", draft: { objective: "核对盈利质量" } });
+    render(<MemoryRouter initialEntries={["/stock-research?sourceSession=one"]}><AgentTaskSetupPage mode="research" /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "关注问题（可选）" })).toHaveValue("核对盈利质量"));
+    expect(screen.getByRole("button", { name: "研究策略" })).toHaveValue("custom");
+    fireEvent.click(screen.getByRole("button", { name: "运行单股分析" }));
+    await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.objectContaining({ strategyVersionId: 12 }),
+      capabilities: expect.objectContaining({ skillIds: ["quality"] }),
+    })));
+  });
+
+  it("keeps an imported screening Skill separate from frozen screening rules", async () => {
+    api.syncDraft.mockResolvedValue({ kind: "screening", skillId: "quality", draft: { objective: "解释质量因子" } });
+    render(<MemoryRouter initialEntries={["/screening?sourceSession=one"]}><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "分析关注点（不会自动变为筛选规则）" })).toHaveValue("解释质量因子"));
+    fireEvent.click(screen.getByRole("button", { name: "运行选股任务" }));
+    await waitFor(() => expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.objectContaining({ strategyVersionId: 13 }),
+      capabilities: expect.objectContaining({ skillIds: ["quality"] }),
     })));
   });
 
