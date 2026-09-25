@@ -32,6 +32,7 @@ import {
   strategyMarketLabel,
 } from "../utils/strategyMarkets";
 import { CapabilityCenterNav } from "../components/capability/CapabilityCenterNav";
+import { cryptoApi } from '../api/crypto';
 import { DataSourceAccessConfigPanel } from "../components/capability/DataSourceAccessConfigPanel";
 
 const DataSourcesPage: React.FC = () => {
@@ -45,6 +46,7 @@ const DataSourcesPage: React.FC = () => {
     other: localize("其他研究数据", "Other research data"),
   };
   const [sources, setSources] = useState<WorkspaceDataSource[]>([]);
+  const [spotPairs, setSpotPairs] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [probingSourceIds, setProbingSourceIds] = useState<string[]>([]);
@@ -80,6 +82,11 @@ const DataSourcesPage: React.FC = () => {
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    let active = true;
+    void cryptoApi.market().then((result) => { if (active) setSpotPairs(result.assets.length); }).catch(() => { if (active) setSpotPairs(0); });
+    return () => { active = false; };
+  }, []);
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!name.trim() || !connectionKey.trim() || !setupUrl.trim() || markets.length === 0) return;
@@ -375,8 +382,8 @@ const DataSourcesPage: React.FC = () => {
       />
       <CapabilityCenterNav />
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm">
-        <p>{localize('加密货币现货行情使用 Binance Spot 公开 API，无需密钥；用于独立的币种研究、选币与回测。', 'Crypto spot prices use the public Binance Spot API without an API key, for the separate asset research, screening, and backtesting workspace.')}</p>
-        <Link className="font-medium text-primary hover:underline" to="/crypto">{localize('打开加密货币工作区', 'Open crypto workspace')} →</Link>
+        <p>{localize('Binance Spot 公开 API · 无需密钥。用于市场雷达、币种研究、选币和交易推演。', 'Binance Spot public API · no key required. Used by market radar, asset research, screening, and trading simulation.')} <span className="ml-2 font-medium">{spotPairs === null ? localize('检测中', 'Checking') : spotPairs ? `${spotPairs} ${localize('个交易对展示', 'pairs shown')}` : localize('当前不可用', 'Currently unavailable')}</span></p>
+        <Link className="font-medium text-primary hover:underline" to="/market-intelligence?asset=crypto">{localize('查看现货行情', 'View spot market')} →</Link>
       </div>
       <div className="flex items-start gap-3 rounded-xl border border-border/70 bg-muted/35 px-4 py-3 text-sm leading-6 text-secondary-text">
         <Database className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />

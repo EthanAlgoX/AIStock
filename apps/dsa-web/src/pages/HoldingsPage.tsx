@@ -1,5 +1,7 @@
 import JevResearchResult from '../components/portfolio/JevResearchResult';
-import CryptoWorkspaceLink from '../components/crypto/CryptoWorkspaceLink';
+import AssetClassTabs from '../components/crypto/AssetClassTabs';
+import { useCryptoAssetClass } from '../components/crypto/useCryptoAssetClass';
+import CryptoWorkspacePage from './CryptoWorkspacePage';
 import { useUiLiteral } from '../hooks/useUiLiteral';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -51,6 +53,11 @@ function ResearchStatus({ item }: { item: HoldingItem | WatchItem }) {
  * FORM: user-specified concise ledger; settings expand inline, no new visual identity.
  */
 export default function HoldingsPage() {
+  const crypto = useCryptoAssetClass();
+  return crypto ? <CryptoWorkspacePage section="holdings" /> : <StockHoldingsPage />;
+}
+
+function StockHoldingsPage() {
   const uiLiteral = useUiLiteral();
   const { localize: l } = useUiLanguage();
   const [data, setData] = useState<HoldingsDashboard>();
@@ -108,7 +115,7 @@ export default function HoldingsPage() {
   const watches = (data?.watches || []).filter(w => (watchFilter === 'all' || w.market === watchFilter) && `${w.symbol} ${w.stockName || ''} ${w.brief?.name || ''}`.toLowerCase().includes(watchQuery.trim().toLowerCase()));
 
   return <AppPage data-design-contract="operate: holdings brief ledger; neutral/cobalt; evidence before configuration">
-    <div className="mb-4"><CryptoWorkspaceLink /></div>
+    <AssetClassTabs />
     <PageHeader title={l('持仓管理', 'Portfolio')} description={l('把研究放回你的持仓中。先看风险与今日简报，需要时再展开完整研究。', 'Research in the context of what you own. Scan risks and daily briefs, then open the full evidence when needed.')}
       actions={<><button className="btn-secondary" onClick={() => setEntryOpen(!entryOpen)} aria-expanded={entryOpen}><Plus size={16} aria-hidden />{l('录入持仓', 'Add holding')}</button><button className="btn-secondary" onClick={() => setWatchEntryOpen(!watchEntryOpen)} aria-expanded={watchEntryOpen}><Star size={16} aria-hidden />{l('添加关注股票', 'Add watch stock')}</button><button className="btn-primary" disabled={!!busy || !data?.items.some(i => i.supported && !active(i))} onClick={() => void act('all', runAll)}>{busy === 'all' ? l('正在提交…', 'Submitting…') : l('研究全部持仓', 'Research all holdings')}</button></>} />
     <div className="my-4 flex flex-wrap items-center justify-between gap-3 text-xs text-secondary-text">

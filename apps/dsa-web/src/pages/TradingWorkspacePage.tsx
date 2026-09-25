@@ -1,5 +1,7 @@
 import { PortfolioRunExplanation } from "../components/agent/PortfolioRunExplanation";
-import CryptoWorkspaceLink from '../components/crypto/CryptoWorkspaceLink';
+import AssetClassTabs from '../components/crypto/AssetClassTabs';
+import { useCryptoAssetClass } from '../components/crypto/useCryptoAssetClass';
+import CryptoWorkspacePage from './CryptoWorkspacePage';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import { localizedStockName } from '../utils/markets';
 import { useUiLiteral } from '../hooks/useUiLiteral';
@@ -83,6 +85,11 @@ const metricLabels = [
 ] as const;
 
 export default function TradingWorkspacePage() {
+  const crypto = useCryptoAssetClass();
+  return crypto ? <CryptoWorkspacePage section="trading" /> : <StockTradingWorkspacePage />;
+}
+
+function StockTradingWorkspacePage() {
   const uiLiteral = useUiLiteral();
   const { language } = useUiLanguage();
   const fmt = (v: number | null | undefined, percent = false) => formatNumber(v, percent, language);
@@ -310,7 +317,7 @@ export default function TradingWorkspacePage() {
     "mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
   return (
     <AppPage>
-      <div className="mb-4"><CryptoWorkspaceLink /></div>
+      <AssetClassTabs />
       <header className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
         <div>
           <h1 className="text-2xl font-semibold"><UiLiteral text={"策略验证与运行"} /></h1>

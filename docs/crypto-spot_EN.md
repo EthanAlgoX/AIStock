@@ -1,8 +1,8 @@
 # Crypto spot research and backtesting
 
-The `/crypto` workspace provides a USDT spot market radar, hourly asset research, turnover/volatility screening, and deterministic strategy replay with simulated positions and fills. Links appear on the market radar, stock research, screening, trading, and portfolio pages. This is a separate spot simulation workspace: stock Agents, the stock holdings ledger, and daily stock simulation do not apply to a 24/7 market. No order is sent to an exchange.
+Market radar, stock research, screening, trading simulation, and portfolio management each offer a **Stocks / Crypto** switch. The crypto views provide USDT spot prices, hourly asset research, turnover/volatility screening, deterministic backtests, and simulated positions and fills. Stock Agents, the stock holdings ledger, and daily stock simulation do not apply to a 24/7 market; the spot path uses its own data and rules and sends no order to an exchange. Old `/crypto` links redirect to the crypto market radar.
 
-To get started, open **Crypto** in the site header, choose a pair to inspect the seven-day chart, select up to five pairs for screening, then choose a strategy and UTC date range and run a backtest. Review the equity curve, costs, ending simulated positions, and individual fills.
+To get started, switch Market radar to **Crypto** and select **Research** on a pair for its seven-day chart. In Screening, choose up to five pairs and run the screen. In Trading, choose pairs, a strategy, and UTC dates, then run a backtest. Review the equity curve, costs, and fills there; the Portfolio crypto view also shows ending simulated positions. Results live only in the current in-memory session and disappear on refresh.
 
 ## Data and scope
 
@@ -33,6 +33,6 @@ A fresh Binance Spot download covering 2026-08-26 to 2026-09-25 UTC produced: ro
 
 `GET /api/v1/crypto/market`, `GET /api/v1/crypto/assets/{symbol}`, `POST /api/v1/crypto/screen`, and `POST /api/v1/crypto/backtest`. Requests accept USDT spot pair symbols; invalid or unlisted pairs return a source error. Omitted dates default to the last 30 completed UTC days. Timeout, empty data, or missing candles produce an error rather than silently substituting another market. If Binance is unreachable from your server, check network access to the data domain. Spot data never falls back to perpetual futures.
 
-Exchange account connections, live orders, perpetuals, funding rates, and scheduled daily execution are not supported. Results live in the current page session; refresh to rerun.
+Exchange account connections, live orders, perpetuals, funding rates, and scheduled daily execution are not supported. Results are shared between Trading and Portfolio in the current in-memory session; refresh to rerun.
 
 Reference: [Binance Spot API](https://developers.binance.com/en/docs/products/spot/rest-api).
