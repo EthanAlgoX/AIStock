@@ -14,6 +14,7 @@
 """
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from enum import Enum
@@ -49,7 +50,7 @@ MARKET_TIMEZONE = {
     "kr": "Asia/Seoul",
     "tw": "Asia/Taipei",
     "gb": "Europe/London", "ca": "America/Toronto", "au": "Australia/Sydney",
-    "in": "Asia/Kolkata", "de": "Europe/Berlin", "fr": "Europe/Paris",
+    "in": "Asia/Kolkata", "de": "Europe/Berlin", "fr": "Europe/Paris", "crypto": "UTC",
 }
 
 # P0 market phase baseline (Issue #1386). This is an intentionally small
@@ -137,6 +138,8 @@ def get_market_for_stock(code: str) -> Optional[str]:
 
     from data_provider import is_us_stock_code, is_us_index_code, is_hk_stock_code
 
+    if re.fullmatch(r"[A-Z0-9]{2,16}USDT", code):
+        return "crypto"
     if is_us_stock_code(code) or is_us_index_code(code):
         return "us"
     if is_hk_stock_code(code):
@@ -221,6 +224,8 @@ def get_effective_trading_date(
     """
     market_now = get_market_now(market, current_time=current_time)
     fallback_date = market_now.date()
+    if market == "crypto":
+        return fallback_date - timedelta(days=1)
 
     if not _XCALS_AVAILABLE:
         return fallback_date
@@ -359,6 +364,8 @@ def infer_market_phase(
     ``closing_auction`` uses a small per-market near-close heuristic window and
     does not model full exchange auction microstructure.
     """
+    if market == "crypto":
+        return MarketPhase.INTRADAY
     if market not in MARKET_EXCHANGE or market not in MARKET_TIMEZONE:
         return MarketPhase.UNKNOWN
     if not _XCALS_AVAILABLE:
@@ -540,7 +547,9 @@ def build_market_phase_context(
     market_now = get_market_now(market, current_time=current_time)
     warnings: List[str] = []
 
-    if market not in MARKET_EXCHANGE or market not in MARKET_TIMEZONE:
+    if market == "crypto":
+        phase = MarketPhase.INTRADAY
+    elif market not in MARKET_EXCHANGE or market not in MARKET_TIMEZONE:
         phase = MarketPhase.UNKNOWN
         _add_warning_code(warnings, "unknown_market")
     else:

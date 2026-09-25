@@ -17,7 +17,7 @@ export default function HoldingEntryForm({ onSaved }: { onSaved: () => void }) {
   const [accounts, setAccounts] = useState<PortfolioAccountItem[]>([]);
   const [accountId, setAccountId] = useState('new');
   const [accountName, setAccountName] = useState('');
-  const [market, setMarket] = useState<'cn' | 'hk' | 'us'>('cn');
+  const [market, setMarket] = useState<'cn' | 'hk' | 'us' | 'crypto'>('cn');
   const [symbol, setSymbol] = useState('');
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
   const [quantity, setQuantity] = useState('');
@@ -28,7 +28,7 @@ export default function HoldingEntryForm({ onSaved }: { onSaved: () => void }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
   const { index } = useStockIndex();
-  const currency = { cn: 'CNY', hk: 'HKD', us: 'USD' }[market];
+  const currency = { cn: 'CNY', hk: 'HKD', us: 'USD', crypto: 'USDT' }[market];
   const load = () => portfolioApi.getAccounts().then(result => { setAccounts(result.accounts); if (result.accounts.length) setAccountId(String(result.accounts[0].id)); setLoaded(true); setError(''); }).catch(err => setError(getParsedApiError(err).message));
   useEffect(() => { void load(); }, []);
   const submit = async (event: React.FormEvent) => {
@@ -45,7 +45,7 @@ export default function HoldingEntryForm({ onSaved }: { onSaved: () => void }) {
       let code = normalizeStockCode(matched?.canonicalCode || entered).toUpperCase();
       if (market === 'us') code = code.replace(/\.US$/, '');
       if (market === 'hk' && /^(HK)?\d{1,5}$/.test(code)) code = `HK${code.replace(/^HK/, '').padStart(5, '0')}`;
-      if (!(market === 'cn' ? /^\d{6}$/.test(code) : market === 'hk' ? /^HK\d{5}$/.test(code) : /^[A-Z][A-Z0-9.-]{0,14}$/.test(code) && !/^HK\d+$/.test(code))) throw new Error(l('请输入匹配市场的股票代码，或从股票列表中选择。', 'Enter a stock code matching the market, or choose a stock from the list.'));
+      if (!(market === 'crypto' ? /^[A-Z0-9]{2,16}USDT$/.test(code) : market === 'cn' ? /^\d{6}$/.test(code) : market === 'hk' ? /^HK\d{5}$/.test(code) : /^[A-Z][A-Z0-9.-]{0,14}$/.test(code) && !/^HK\d+$/.test(code))) throw new Error(l('请输入匹配市场的股票代码，或从股票列表中选择。', 'Enter a stock code matching the market, or choose a stock from the list.'));
       let id = Number(accountId);
       if (accountId === 'new') {
         const created = await portfolioApi.createAccount({ name: accountName.trim(), market, baseCurrency: currency });
@@ -68,8 +68,8 @@ export default function HoldingEntryForm({ onSaved }: { onSaved: () => void }) {
     <fieldset disabled={busy || !loaded || !!savedTrade} className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <label className="text-sm">{l('账户', 'Account')}<select className={input} value={accountId} onChange={e => setAccountId(e.target.value)}>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} · {a.baseCurrency}</option>)}<option value="new">{l('新建账户', 'New account')}</option></select></label>
       {accountId === 'new' && <label className="text-sm">{l('账户名称', 'Account name')}<input required maxLength={80} value={accountName} onChange={e => setAccountName(e.target.value)} className={input} /></label>}
-      <label className="text-sm">{l('股票市场', 'Stock market')}<select value={market} onChange={e => { setMarket(e.target.value as typeof market); setSymbol(''); }} className={input}><option value="cn">{l('A 股 · CNY', 'China A · CNY')}</option><option value="hk">{l('港股 · HKD', 'Hong Kong · HKD')}</option><option value="us">{l('美股 · USD', 'US · USD')}</option></select></label>
-      <label className="text-sm">{l('股票代码或名称', 'Stock code or name')}<input required list="holding-symbols" value={symbol} onChange={e => setSymbol(e.target.value)} placeholder={{ cn: '600519', hk: 'HK00700', us: 'AAPL' }[market]} className={input} /><datalist id="holding-symbols">{index.filter(s => s.market.toLowerCase() === market && `${s.canonicalCode} ${s.nameZh}`.toLowerCase().includes(symbol.toLowerCase())).slice(0, 20).map(s => <option key={s.canonicalCode} value={s.canonicalCode}>{s.nameZh}</option>)}</datalist></label>
+      <label className="text-sm">{l('股票市场', 'Stock market')}<select value={market} onChange={e => { setMarket(e.target.value as typeof market); setSymbol(''); }} className={input}><option value="cn">{l('A 股 · CNY', 'China A · CNY')}</option><option value="hk">{l('港股 · HKD', 'Hong Kong · HKD')}</option><option value="us">{l('美股 · USD', 'US · USD')}</option><option value="crypto">{l("加密货币", "Crypto")} · USDT</option></select></label>
+      <label className="text-sm">{l('股票代码或名称', 'Stock code or name')}<input required list="holding-symbols" value={symbol} onChange={e => setSymbol(e.target.value)} placeholder={{ cn: '600519', hk: 'HK00700', us: 'AAPL', crypto: 'BTCUSDT' }[market]} className={input} /><datalist id="holding-symbols">{index.filter(s => s.market.toLowerCase() === market && `${s.canonicalCode} ${s.nameZh}`.toLowerCase().includes(symbol.toLowerCase())).slice(0, 20).map(s => <option key={s.canonicalCode} value={s.canonicalCode}>{s.nameZh}</option>)}</datalist></label>
       <label className="text-sm">{l('记录类型', 'Record type')}<select value={side} onChange={e => setSide(e.target.value as typeof side)} className={input}><option value="buy">{l('买入 / 初始持仓', 'Buy / opening holding')}</option><option value="sell">{l('卖出 / 减少持仓', 'Sell / reduce holding')}</option></select></label>
       <label className="text-sm">{l('股数', 'Shares')}<input type="number" required min="0.00000001" step="any" value={quantity} onChange={e => setQuantity(e.target.value)} className={input} /></label>
       <label className="text-sm">{l('每股价格 / 初始成本', 'Price / opening cost per share')} · {currency}<input type="number" required min="0.00000001" step="any" value={price} onChange={e => setPrice(e.target.value)} className={input} /></label>

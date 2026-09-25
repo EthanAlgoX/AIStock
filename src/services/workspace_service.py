@@ -1363,7 +1363,7 @@ class WorkspaceService:
         name = str(payload.get("name") or "").strip()
         market = str(payload.get("market") or "CN").strip().upper()
         objective = str(payload.get("objective") or "").strip()
-        if kind not in TASK_KINDS or not name or not objective or market not in {"CN", "HK", "US", "TW", "JP", "KR", "GB", "CA", "AU", "IN", "DE", "FR", "GLOBAL"}:
+        if kind not in TASK_KINDS or not name or not objective or market not in {"CN", "HK", "US", "TW", "JP", "KR", "GB", "CA", "AU", "IN", "DE", "FR", "CRYPTO", "GLOBAL"}:
             raise WorkspaceError("task_invalid", "任务类型、名称、市场或目标无效。")
         subject = payload.get("subject") if isinstance(payload.get("subject"), dict) else {}
         config = payload.get("config") if isinstance(payload.get("config"), dict) else {}
@@ -1404,7 +1404,7 @@ class WorkspaceService:
                 row.config_json = _dump(payload["config"] if isinstance(payload["config"], dict) else {})
             if "enabled" in payload:
                 row.enabled = bool(payload["enabled"])
-            if not row.name or not row.objective or row.market not in {"CN", "HK", "US", "TW", "JP", "KR", "GB", "CA", "AU", "IN", "DE", "FR", "GLOBAL"}:
+            if not row.name or not row.objective or row.market not in {"CN", "HK", "US", "TW", "JP", "KR", "GB", "CA", "AU", "IN", "DE", "FR", "CRYPTO", "GLOBAL"}:
                 raise WorkspaceError("task_invalid", "任务名称、市场或目标无效。")
             self._validate_task_contract(
                 row.task_kind,
@@ -2450,7 +2450,7 @@ class WorkspaceService:
     @staticmethod
     def _normalize_dashboard_market(value: Any) -> str:
         market = str(value or "").strip().upper()
-        if market not in {"GLOBAL", "CN", "HK", "US", "TW", "JP", "KR", "GB", "CA", "AU", "IN", "DE", "FR"}:
+        if market not in {"GLOBAL", "CN", "HK", "US", "TW", "JP", "KR", "GB", "CA", "AU", "IN", "DE", "FR", "CRYPTO"}:
             raise WorkspaceError("market_dashboard_market_invalid", "市场看板范围无效。", 422)
         return market
 

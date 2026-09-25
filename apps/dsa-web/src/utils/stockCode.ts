@@ -1,5 +1,6 @@
 export function suffixMarket(code: string): string | null {
   const upper = code.trim().toUpperCase();
+  if (/^[A-Z0-9]{2,16}USDT$/.test(upper)) return 'CRYPTO';
   if (/^\d{4,5}\.T$/.test(upper)) return 'JP';
   if (/^\d{6}\.(KS|KQ)$/.test(upper)) return 'KR';
   if (/^\d{4,6}\.(TW|TWO)$/.test(upper)) return 'TW';

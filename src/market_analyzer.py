@@ -151,7 +151,7 @@ class MarketAnalyzer:
         self.data_manager = DataFetcherManager()
         self.region = region
         self.profile: MarketProfile = get_profile(self.region)
-        self.strategy = get_market_strategy_blueprint(self.region)
+        self.strategy = get_market_strategy_blueprint(self.region) if self.region != "crypto" else None
 
     def _log_context(self) -> str:
         return f"component=market_review region={self.region}"
@@ -173,7 +173,7 @@ class MarketAnalyzer:
 
     def _get_market_scope_name(self, review_language: str | None = None) -> str:
         review_language = review_language or self._get_review_language()
-        if review_language not in {"en", "zh"} or self.region in INTERNATIONAL_MARKET_DETAILS:
+        if review_language not in {"en", "zh"} or self.region in INTERNATIONAL_MARKET_DETAILS or self.region == "crypto":
             return market_name(self.region, review_language)
         if self.region == "us":
             return "US market" if review_language == "en" else "美股市场"
@@ -189,6 +189,8 @@ class MarketAnalyzer:
 
     def _get_turnover_unit_label(self) -> str:
         """Return the turnover unit label for the current market/language."""
+        if self.region == "crypto":
+            return "USDT bn"
         if self.region in INTERNATIONAL_MARKET_DETAILS:
             return f"{INTERNATIONAL_MARKET_DETAILS[self.region][2]} bn"
         if self.region == "us":
@@ -223,6 +225,8 @@ class MarketAnalyzer:
         return f"## {date} {review_heading(self.region, self._get_output_language())}"
 
     def _get_index_hint(self) -> str:
+        if self.region == "crypto":
+            return self.profile.prompt_index_hint
         if self.region in INTERNATIONAL_MARKET_DETAILS:
             return self.profile.prompt_index_hint
         if self._get_review_language() == "en":
@@ -262,6 +266,8 @@ class MarketAnalyzer:
         return f"## Agent 宏观分析 Skill\n{instructions}"
 
     def _get_strategy_prompt_block(self) -> str:
+        if self.region == "crypto":
+            return self.profile.prompt_index_hint
         if self.region == "hk" and self._get_review_language() == "en":
             return """## Strategy Blueprint: Hong Kong Market Regime Strategy
 Focus on HSI trend, southbound flow dynamics, and sector rotation to define next-session risk posture.
@@ -391,6 +397,9 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
 - Defensive: indices weaken and laggards broaden; prioritize risk control and de-risking."""
 
     def _get_strategy_markdown_block(self, review_language: str | None = None) -> str:
+        if self.region == "crypto":
+            from src.core.market_review_locale import CRYPTO_REVIEW_COPY
+            return CRYPTO_REVIEW_COPY[self._get_output_language()][1]
         review_language = review_language or self._get_review_language()
         if self.region == "hk" and review_language == "en":
             return """### 6. Strategy Framework
@@ -1738,7 +1747,10 @@ Output the report content directly, no extra commentary.
     def _generate_localized_data_review(self, overview: MarketOverview) -> str:
         """Data-only fallback: localized fixed copy, no invented model conclusions."""
         language = self._get_output_language()
-        copy = REVIEW_COPY[language]
+        copy = dict(REVIEW_COPY[language])
+        if self.region == "crypto":
+            from src.core.market_review_locale import CRYPTO_REVIEW_COPY
+            copy["indices"], copy["limits"] = CRYPTO_REVIEW_COPY[language]
         lines = [self._get_review_title(overview.date), "", copy["fallback"], "",
                  f"### {copy['indices']}"]
         # Exchange index codes and macro keys are stable identifiers, not prose.
@@ -1758,7 +1770,7 @@ Output the report content directly, no extra commentary.
 
     def _generate_template_review(self, overview: MarketOverview, news: List) -> str:
         """使用模板生成复盘报告（无大模型时的备选方案）"""
-        if self._get_output_language() not in {"zh", "en"} or self.region in INTERNATIONAL_MARKET_DETAILS:
+        if self._get_output_language() not in {"zh", "en"} or self.region in INTERNATIONAL_MARKET_DETAILS or self.region == "crypto":
             return self._generate_localized_data_review(overview)
         template_language = self._get_template_review_language()
         mood_code = self.profile.mood_index_code

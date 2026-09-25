@@ -1,4 +1,5 @@
 import client from '../api';
+import { cryptoApi } from '../api/crypto';
 /**
  * useStockIndex Hook
  *
@@ -48,6 +49,15 @@ export function useStockIndex(enabled = true, market?: string): UseStockIndexRes
       setError(null);
 
       const result: IndexLoadResult = { ...await loadStockIndex() };
+      if (market === 'CRYPTO') {
+        try {
+          const response = await cryptoApi.market();
+          result.data = response.assets.map(row => ({ canonicalCode: row.symbol, displayCode: row.symbol, nameZh: row.symbol, nameEn: row.symbol, market: 'CRYPTO' as const, assetType: 'crypto' as const, active: true }));
+        } catch (error) {
+          result.data = [];
+          if (mounted) setError(error instanceof Error ? error : new Error('Spot directory unavailable'));
+        }
+      }
       if (market === 'TW') {
         try {
           const response = await client.get<{items:StockIndexItem[]}>('/api/v1/stocks/international-listings');

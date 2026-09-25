@@ -277,7 +277,7 @@ it("configures JEV separately from report generation and shows allocation sizing
   render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("button", { name: "配置策略" }));
   const select = await screen.findByLabelText("交易决策模型");
-  expect(select).toHaveValue("llm");
+  expect(select).toHaveValue("rules");
   fireEvent.change(select, { target: { value: "jev" } });
   expect(screen.getByLabelText("每次调仓比例（账户权益 %）")).toHaveValue(5);
   fireEvent.change(screen.getByLabelText("每次调仓比例（账户权益 %）"), { target: { value: "10" } });
@@ -532,4 +532,33 @@ it('labels an interrupted historical validation separately from a ready run', as
   expect(await screen.findByText(/不代表完整回测/)).toBeVisible();
   expect(screen.getAllByText(/历史验证中断/).length).toBeGreaterThan(0);
   expect(screen.getByRole('button', { name: '运行回测' })).toBeEnabled();
+});
+
+it('saves crypto through the same strategy form, preview and definition API', async () => {
+  api.agentOptions.mockResolvedValue({skills:[{id:'crypto_rotation',name:'高量高波动轮换'},{id:'crypto_equal_weight',name:'等权再平衡'},{id:'crypto_btc_hold',name:'半仓比特币'}],accounts:[]});
+  api.previewUniverse.mockResolvedValue({id:81,market:'CRYPTO',candidates:[{code:'BTCUSDT',reason:'Binance Spot'}],scope:{mode:'fixed',symbols:['BTCUSDT']},source:'Binance Spot',observedAt:'2026-09-25'});
+  api.saveDefinition.mockResolvedValue({id:82,name:'Crypto rotation',config:{...config,market:'CRYPTO',symbols:['BTCUSDT']}});
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', {name:'配置策略'}));
+  fireEvent.change(screen.getByLabelText('市场'), {target:{value:'CRYPTO'}});
+  await screen.findByRole('option', {name:'高量高波动轮换'});
+  expect(screen.getByLabelText('交易决策模型')).toBeDisabled();
+  expect(screen.getByLabelText('最小模拟数量')).toHaveValue(0.00000001);
+  fireEvent.change(screen.getByLabelText('策略名称'), {target:{value:'Crypto rotation'}});
+  fireEvent.change(screen.getByLabelText('标的池（交易对，最多 12 个）'), {target:{value:'BTCUSDT'}});
+  fireEvent.change(screen.getByLabelText('调仓间隔（日）'), {target:{value:'3'}});
+  fireEvent.click(screen.getByRole('button', {name:'预览交易对'}));
+  await screen.findByLabelText('范围预览');
+  fireEvent.click(screen.getByRole('button', {name:'保存策略'}));
+  await waitFor(() => expect(api.saveDefinition).toHaveBeenCalledWith(expect.objectContaining({market:'CRYPTO',engine:'agent',decisionBackend:'rules',skillId:'crypto_rotation',lotSize:1e-8,cryptoRebalanceDays:3,universePreviewId:81,symbols:['BTCUSDT']})));
+  expect(api.createValidation).not.toHaveBeenCalled();
+});
+
+it('requires an explicit crypto market change before previewing typed pairs', async () => {
+  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', {name:'配置策略'}));
+  fireEvent.change(screen.getByLabelText('股票池（可选，名称或代码，最多 12 只）'), {target:{value:'BTCUSDT'}});
+  fireEvent.click(screen.getByRole('button', {name:'预览股票范围'}));
+  expect(await screen.findByRole('alert')).toHaveTextContent('请先将市场切换');
+  expect(api.previewUniverse).not.toHaveBeenCalled();
 });

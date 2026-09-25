@@ -23,6 +23,7 @@ TEMPLATES = [
     },
 ]
 BENCHMARKS = {
+    "CRYPTO": ("BTCUSDT", "BTC / USDT", "USDT"),
     "CN": ("510300", "沪深300 ETF（价格代理）", "CNY"),
     "TW": ("0050.TW", "Taiwan 50 ETF", "TWD"),
     "JP": ("1306.T", "TOPIX ETF", "JPY"),
@@ -48,7 +49,7 @@ _REJECTED_ORDER_TEXT = {
 }
 
 
-def metrics(days, initial, risk_free=0.0):
+def metrics(days, initial, risk_free=0.0, periods=252):
     if not days:
         return {
             k: None
@@ -71,18 +72,18 @@ def metrics(days, initial, risk_free=0.0):
         drawdown = max(drawdown, 1 - value / peak)
     total = values[-1] / initial - 1
     # Short samples are shown as cumulative/daily observations, not annualized claims.
-    exponent = math.log(values[-1] / initial) * 252 / len(days) if len(days) >= 20 and values[-1] > 0 else None
+    exponent = math.log(values[-1] / initial) * periods / len(days) if len(days) >= 20 and values[-1] > 0 else None
     annual = math.expm1(exponent) if exponent is not None and exponent < 700 else None
     sigma = statistics.stdev(returns) if len(returns) >= 20 else None
-    excess = statistics.fmean(returns) - ((1 + risk_free) ** (1 / 252) - 1)
+    excess = statistics.fmean(returns) - ((1 + risk_free) ** (1 / periods) - 1)
     result = dict(
         cumulativeReturn=total,
         dailyReturn=returns[-1],
         annualizedReturn=annual,
         maxDrawdown=drawdown,
-        annualizedVolatility=sigma * math.sqrt(252) if sigma is not None else None,
+        annualizedVolatility=sigma * math.sqrt(periods) if sigma is not None else None,
         turnover=sum(d["tradedValue"] for d in days) / 2 / statistics.fmean(values[1:]),
-        sharpe=excess / sigma * math.sqrt(252) if sigma else None,
+        sharpe=excess / sigma * math.sqrt(periods) if sigma else None,
         calmar=annual / drawdown if annual is not None and drawdown > 0 else None,
     )
     return {k: v if v is None or math.isfinite(v) else None for k, v in result.items()}

@@ -5,7 +5,7 @@ import {
 } from "./capabilities";
 
 export type ScheduledTaskKind = "research" | "screening" | "trading";
-export type ScheduledTaskMarket = "CN" | "HK" | "US" | "TW" | "JP" | "KR" | "GB" | "CA" | "AU" | "IN" | "DE" | "FR";
+export type ScheduledTaskMarket = "CN" | "HK" | "US" | "TW" | "JP" | "KR" | "GB" | "CA" | "AU" | "IN" | "DE" | "FR" | "CRYPTO";
 
 export type ScheduledCapabilityBindings = AgentCapabilityBindings;
 

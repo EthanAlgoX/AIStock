@@ -56,7 +56,7 @@ def _evaluation_record(config, runs, days, status):
         protocolId="portfolio_daily_v1", sampleHash=sample_hash, cohortKey=cohort,
         firstDate=terms["firstDate"], lastDate=terms["lastDate"], samples=len(days),
         complete=status == "completed" if config.get("mode") == "backtest" else None,
-        capitalMode="shared_cash_long_only_integer_lots", markPrice="daily_close",
+        capitalMode="shared_cash_long_only_fractional" if config["market"] == "CRYPTO" else "shared_cash_long_only_integer_lots", markPrice="utc_daily_close" if config["market"] == "CRYPTO" else "daily_close",
         filledOrders=len(filled), rejectedOrders=len(trades) - len(filled),
         feesPaid=sum(trade.get("fee", 0) for trade in filled),
         slippagePaid=sum(trade.get("slippage", 0) for trade in filled),
@@ -82,7 +82,20 @@ class SimulationPortfolioService:
         backend = payload.get("decisionBackend", "llm")
         if backend not in {"llm", "jev", "rules"}:
             raise ValueError("Unsupported trading decision backend")
-        if backend == "rules":
+        if payload['market'] == 'CRYPTO':
+            from src.services.crypto_portfolio_rules import RULES
+            skill = payload.get('skillSnapshot', {}).get('id')
+            if backend != 'rules' or skill not in RULES:
+                raise ValueError('Choose a supported fixed crypto spot strategy')
+            version = RULES[skill][1]
+            if payload.get('ruleVersion', version) != version or payload.get('systemPrompt', '').strip():
+                raise ValueError('Crypto rule version or model instructions are invalid')
+            if payload.get('sellTaxRate', 0) != 0:
+                raise ValueError('Spot crypto does not use stock sales tax')
+            if payload.get('scopeRefresh', 'snapshot') != 'snapshot':
+                raise ValueError('Crypto strategies use a frozen candidate universe')
+            payload = dict(payload, ruleVersion=version)
+        elif backend == "rules":
             if payload.get('skillSnapshot', {}).get('id') != 'high_volume_volatility_grid':
                 raise ValueError('规则决策仅支持内置高量高波动网格策略。')
             if payload.get('systemPrompt', '').strip():
@@ -115,11 +128,15 @@ class SimulationPortfolioService:
         from src.services.market_symbol_utils import get_suffix_market
         symbols = list(dict.fromkeys(_normalize_tool_stock_code(s.strip()) for s in payload["symbols"]))
         if not 1 <= len(symbols) <= 12 or any(
-            not (get_suffix_market(s) or re.fullmatch(r"(?:[0-9]{6}|HK[0-9]{5}|[A-Z]{1,5}(?:[.-][A-Z]{1,2})?)", s))
+            not (get_suffix_market(s) or (market == "CRYPTO" and re.fullmatch(r"[A-Z0-9]{2,16}USDT", s)) or re.fullmatch(r"(?:[0-9]{6}|HK[0-9]{5}|[A-Z]{1,5}(?:[.-][A-Z]{1,2})?)", s))
             or detect_market(s).upper() != market
             for s in symbols
         ):
             raise ValueError("请配置 1–12 个同市场股票代码；名称请先在个股研究中确认代码。")
+        if market == 'CRYPTO' and payload['skillSnapshot']['id'] == 'crypto_btc_hold' and 'BTCUSDT' not in symbols:
+            raise ValueError('BTC strategy requires BTCUSDT in the confirmed universe')
+        if market != 'CRYPTO' and (payload['lotSize'] < 1 or int(payload['lotSize']) != payload['lotSize']):
+            raise ValueError('Equity markets require integer lot sizes')
         config = dict(
             payload,
             symbols=symbols,
@@ -131,7 +148,7 @@ class SimulationPortfolioService:
             from zoneinfo import ZoneInfo
             from src.core.trading_calendar import MARKET_TIMEZONE
 
-            config["startDate"] = datetime.now(ZoneInfo(MARKET_TIMEZONE[market.lower()])).date().isoformat()
+            config["startDate"] = datetime.now(ZoneInfo("UTC" if market == "CRYPTO" else MARKET_TIMEZONE[market.lower()])).date().isoformat()
             config["endDate"] = None
         elif (
             not config.get("startDate")
@@ -381,7 +398,7 @@ class SimulationPortfolioService:
             result['agentCalls'] = [dict(id=c.id, status=c.status, model=c.model, error=c.error_message,
                 input=json.loads(c.input_json), answer=c.output_text, usage=json.loads(c.usage_json or '{}'),
                 createdAt=c.created_at.isoformat()) for c in calls]
-            result["metrics"] = metrics(days, result["config"]["initialCash"], result["config"]["riskFreeRate"])
+            result["metrics"] = metrics(days, result["config"]["initialCash"], result["config"]["riskFreeRate"], 365 if result["market"] == "CRYPTO" else 252)
             result["currency"] = BENCHMARKS[result["market"]][2]
             signature_keys = (
                 "template",
@@ -429,7 +446,7 @@ class SimulationPortfolioService:
                         startDate=other_days[0]["date"] if other_days else None,
                         endDate=other.last_date,
                         samples=len(other_days),
-                        metrics=metrics(other_days, other_config["initialCash"], other_config["riskFreeRate"]),
+                        metrics=metrics(other_days, other_config["initialCash"], other_config["riskFreeRate"], 365 if other_config["market"] == "CRYPTO" else 252),
                         comparable=bool(result["config"].get("decisionBackend") == "rules" and days and other_days and
                                         result["evaluation"]["cohortKey"] == other_evaluation["cohortKey"] and
                                         result["evaluation"]["complete"] is not False and
@@ -544,12 +561,22 @@ class SimulationPortfolioService:
         import pandas as pd
         from src.core.trading_calendar import MARKET_EXCHANGE
 
+        if market == 'CRYPTO':
+            return datetime.now(timezone.utc).date() - timedelta(days=1)
         calendar = xcals.get_calendar(MARKET_EXCHANGE[market.lower()])
         now = pd.Timestamp.now(tz="UTC") - pd.Timedelta(minutes=20)
         session = calendar.date_to_session(now.date(), direction="previous")
         if calendar.session_close(session) > now:
             session = calendar.previous_session(session)
         return session.date()
+
+    @staticmethod
+    def _sessions(market, first, end):
+        if market == 'CRYPTO':
+            return [(first + timedelta(days=i)).isoformat() for i in range(max(0, (end - first).days + 1))]
+        import exchange_calendars as xcals
+        from src.core.trading_calendar import MARKET_EXCHANGE
+        return [d.date().isoformat() for d in xcals.get_calendar(MARKET_EXCHANGE[market.lower()]).sessions_in_range(first, end)]
 
     def _load(self, config, last, through=None):
         from data_provider import DataFetcherManager
@@ -558,7 +585,7 @@ class SimulationPortfolioService:
         fetcher = self.fetcher or DataFetcherManager()
         start = date.fromisoformat(last or config["startDate"]) - timedelta(days=150)
         end = min(self._last_closed(config["market"]), date.fromisoformat(through)) if through else self._last_closed(config["market"])
-        if config["endDate"]:
+        if config["endDate"] and config["market"] != "CRYPTO":
             import exchange_calendars as xcals
             from src.core.trading_calendar import MARKET_EXCHANGE
 
@@ -592,17 +619,11 @@ class SimulationPortfolioService:
             if not rows or rows[-1]["date"] != end.isoformat() or len({r["date"] for r in rows}) != len(rows):
                 raise ValueError(f"{code} 行情未更新至 {end} 或包含重复日期，请稍后重试")
             data[code], sources[code] = rows, source
-        import exchange_calendars as xcals
-        from src.core.trading_calendar import MARKET_EXCHANGE
-
         first = max(
             date.fromisoformat(config["startDate"]),
             date.fromisoformat(last) + timedelta(days=1) if last else date.fromisoformat(config["startDate"]),
         )
-        expected = {
-            d.date().isoformat()
-            for d in xcals.get_calendar(MARKET_EXCHANGE[config["market"].lower()]).sessions_in_range(first, end)
-        }
+        expected = set(self._sessions(config['market'], first, end))
         if expected - {r["date"] for r in data[config["benchmark"]]}:
             raise ValueError("基准交易日行情不完整，未继续记账")
         return data, sources, end
@@ -672,8 +693,6 @@ class SimulationPortfolioService:
         row.state_json, row.last_date = json.dumps(state), day
 
     def _execute_agent(self, portfolio_id, token, config, last, audit_id, automatic):
-        import exchange_calendars as xcals
-        from src.core.trading_calendar import MARKET_EXCHANGE
         from src.services.trading_agent_service import TradingAgentService
         from src.services.member_service import recheck_member
 
@@ -684,8 +703,8 @@ class SimulationPortfolioService:
         first = max(date.fromisoformat(config['startDate']), date.fromisoformat(last) + timedelta(days=1) if last else date.fromisoformat(config['startDate']))
         if first > end:
             return 0
-        calendar = xcals.get_calendar(MARKET_EXCHANGE[config['market'].lower()])
-        dates = [d.date().isoformat() for d in calendar.sessions_in_range(first, end)]
+        dates = self._sessions(config['market'], first, end)
+        crypto_data = self._load(config, last, through=end.isoformat()) if config['market'] == 'CRYPTO' else None
         remaining, processed = config.get('runTokenBudget', 100000), 0
         for day in dates[:20]:
             recheck_member()
@@ -717,8 +736,13 @@ class SimulationPortfolioService:
             pending_codes = (previous.get('pending') or {}).get('selected', [])
             symbols = list(dict.fromkeys(candidates + list(previous.get('positions', {})) + pending_codes))
             daily_config = dict(config, symbols=symbols)
-            data, sources, _ = self._load(daily_config, previous_date, through=day)
-            histories = {code: data[code][-21:] for code in symbols}
+            if crypto_data is not None:
+                all_data, sources, _ = crypto_data
+                data = {code: [r for r in rows if r['date'] <= day] for code, rows in all_data.items()}
+            else:
+                data, sources, _ = self._load(daily_config, previous_date, through=day)
+            history_size = max(21, config.get('cryptoLookbackDays', 30)) if config['market'] == 'CRYPTO' else 21
+            histories = {code: data[code][-history_size:] for code in symbols}
             baseline = data[config['benchmark']][-1]['close']
             state, output = step(daily_config, previous, day, histories, baseline)
             usage = None
@@ -746,6 +770,8 @@ class SimulationPortfolioService:
                                     'sell' if o['targetWeight'] < o['currentWeight'] - 1e-8 else 'hold')
                         for o in opinions
                     }
+                if config['market'] == 'CRYPTO':
+                    state['pending']['directions'] = {o['code']: 'hold' for o in opinions if o.get('decision') == 'hold'}
                 state['agentModel'] = usage['model']
                 output['opinions'] = opinions
             state['universe'], state['universeDate'] = snapshot, day

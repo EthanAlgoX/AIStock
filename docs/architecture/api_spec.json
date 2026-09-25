@@ -3917,7 +3917,8 @@
               "us",
               "jp",
               "kr",
-              "tw"
+              "tw",
+              "crypto"
             ],
             "title": "Market"
           },
@@ -4253,7 +4254,9 @@
                 "enum": [
                   "zh",
                   "en",
-                  "ko"
+                  "ko",
+                  "ja",
+                  "zh-TW"
                 ]
               },
               {
@@ -5821,7 +5824,8 @@
                   "us",
                   "jp",
                   "kr",
-                  "tw"
+                  "tw",
+                  "crypto"
                 ]
               },
               {

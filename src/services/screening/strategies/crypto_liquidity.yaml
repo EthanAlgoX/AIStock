@@ -1,0 +1,27 @@
+# Derived from AlphaSift revision 9f522747caafd3c0b1ddb7e14d5cf44c8580b6cf.
+# Licensed under Apache-2.0 and modified for daily_stock_analysis.
+name: crypto_liquidity
+display_name: 加密货币量价观察
+description: 在 Binance Spot USDT 的滚动24小时成交额前20名及核心交易对样本中比较量价，不代表全市场或历史排名。
+version: "1.0"
+category: framework
+analysis_skills: [bull_trend]
+screening:
+  enabled: true
+  market_scope: [crypto]
+  hard_filters:
+    exclude_st: false
+  tech_weight: 0.0
+  factor_weights:
+    value: 0.0
+    liquidity: 0.5
+    momentum: 0.5
+    activity: 0.0
+    stability: 0.0
+    reversal: 0.0
+    theme_heat: 0.0
+    size: 0.0
+  ranking_hints: |
+    Only compare this current Binance Spot USDT sample. Rolling 24-hour values are not UTC daily bars.
+    Do not invent PE, PB, earnings, equity industries, float turnover, or whole-market coverage.
+  max_output: 5

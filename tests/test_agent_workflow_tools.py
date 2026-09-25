@@ -80,7 +80,7 @@ def test_formal_research_method_also_controls_host_interpretation(definitions):
 
 def test_all_screening_presets_reach_kernel_with_their_frozen_rule(definitions):
     workflows = [item for item in list_research_workflows()["items"] if item["contract"] == "CandidateList"]
-    assert len(workflows) == 21
+    assert len(workflows) == 22
     with patch("src.services.screening_service.ScreeningService.screen", return_value={"candidates": [], "warnings": []}) as screen:
         for workflow in workflows:
             policy = workflow["screeningPolicy"]
@@ -89,7 +89,7 @@ def test_all_screening_presets_reach_kernel_with_their_frozen_rule(definitions):
             assert screen.call_args.kwargs["strategy"] == policy["strategy"]
             assert screen.call_args.kwargs["max_results"] == policy["maxCandidates"]
             assert screen.call_args.kwargs["market"] == policy["market"]
-        assert screen.call_count == 21
+        assert screen.call_count == 22
 
 
 def test_real_kernel_boundary_preserves_report_and_rejects_wrong_purpose(definitions):

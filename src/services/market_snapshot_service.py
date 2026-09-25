@@ -16,7 +16,7 @@ from src.utils.market_review_region import MARKET_SNAPSHOT_REGIONS
 _SUPPORTED_REGIONS = MARKET_SNAPSHOT_REGIONS
 _REGION_LABELS = {"cn": "A 股", "hk": "港股", "us": "美股", "tw": "台股", "jp": "日股", "kr": "韩股",
                   "gb": "英国股票", "ca": "加拿大股票", "au": "澳大利亚股票",
-                  "in": "印度股票", "de": "德国股票", "fr": "法国股票"}
+                  "in": "印度股票", "de": "德国股票", "fr": "法国股票", "crypto": "加密货币"}
 _CACHE_TTL_SECONDS = 120.0
 _cache_lock = threading.Lock()
 _snapshot_cache: dict[str, tuple[float, Dict[str, Any]]] = {}

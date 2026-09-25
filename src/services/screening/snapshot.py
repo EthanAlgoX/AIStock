@@ -72,6 +72,17 @@ def fetch_snapshot_with_fallback(
     market: str = "cn",
 ) -> pd.DataFrame:
     """Try live sources, optionally falling back to the last-good snapshot."""
+    if market == "crypto":
+        from src.services.crypto_market_service import market_overview
+        overview = market_overview()
+        df = pd.DataFrame([dict(code=r["symbol"], name=r["symbol"], price=r["lastPrice"],
+             change_pct=r["changePercent24h"], amount=r["quoteVolume24h"],
+             amplitude=(r["high24h"]-r["low24h"])/r["lastPrice"]*100)
+             for r in overview["assets"] if r["lastPrice"] > 0])
+        df.attrs.update(snapshot_source=overview["source"], snapshot_observed_at=overview["asOf"],
+                        snapshot_scope="Top 20 spot USDT pairs by rolling 24h turnover plus core pairs; not the full market",
+                        quote_currency="USDT")
+        return df
     if market == "us":
         return _fetch_us_snapshot_with_fallback(required_columns)
     if market in {"hk", "tw", "jp", "kr", "gb", "ca", "au", "in", "de", "fr"}:

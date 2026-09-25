@@ -5,14 +5,15 @@ import { normalizeStockCode, suffixMarket } from "./stockCode";
 export type PoolStock = {
   code: string;
   name: string;
-  market: "CN" | "HK" | "US" | "TW" | "JP" | "KR";
+  market: "CN" | "HK" | "US" | "TW" | "JP" | "KR" | "CRYPTO";
 };
 export function poolCode(code: string): PoolStock | null {
   const normalized = normalizeStockCode(code)
     .toUpperCase()
     .replace(/\.US$/, "");
+  if (/^[A-Z0-9]{2,16}USDT$/.test(normalized)) return { code: normalized, name: normalized, market: 'CRYPTO' };
   const offshore = suffixMarket(normalized);
-  if (offshore) return ["TW", "JP", "KR"].includes(offshore) ? {code:normalized,name:normalized,market:offshore as PoolStock["market"]} : null;
+  if (offshore) return ["TW", "JP", "KR", "CRYPTO"].includes(offshore) ? {code:normalized,name:normalized,market:offshore as PoolStock["market"]} : null;
   const market = /^\d{6}$/.test(normalized)
     ? "CN"
     : /^HK\d{5}$/.test(normalized)

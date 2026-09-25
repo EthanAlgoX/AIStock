@@ -77,7 +77,7 @@ export function TradingAgentConfig({
   return (
     <div className="space-y-5 border-y border-border py-5">
       <fieldset disabled={busy} className="space-y-4">
-        <legend className="mb-3 font-semibold"><UiLiteral text={"股票范围"} /></legend>
+        <legend className="mb-3 font-semibold"><UiLiteral text={config.market === "CRYPTO" ? "交易对范围" : "股票范围"} /></legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <label>
             <UiLiteral text={"范围来源"} /><select
@@ -91,21 +91,23 @@ export function TradingAgentConfig({
                 })
               }
             >
-              <option value="fixed"><UiLiteral text={"指定股票"} /></option>
-              <option value="holdings"><UiLiteral text={"我的持仓"} /></option>
-              <option value="custom"><UiLiteral text={"按行业与条件筛选"} /></option>
+              <option value="fixed"><UiLiteral text={config.market === "CRYPTO" ? "指定交易对" : "指定股票"} /></option>
+              <option value="holdings" disabled={config.market === "CRYPTO"}><UiLiteral text={"我的持仓"} /></option>
+              <option value="custom" disabled={config.market === "CRYPTO"}><UiLiteral text={"按行业与条件筛选"} /></option>
             </select>
           </label>
           <label>
             <UiLiteral text={"市场"} /><select
               className={input}
-              value={scope.mode === "fixed" ? inferredMarket || config.market : config.market}
-              onChange={(e) =>
+              value={config.market}
+              onChange={(e) => {
+                if (e.target.value === "CRYPTO") setScope({ mode: "fixed", symbols: [], query: "", maxCandidates: 12 });
                 onConfig({
+                  ...(e.target.value === "CRYPTO" ? { decisionBackend: "rules", skillId: "crypto_rotation", ruleVersion: undefined, systemPrompt: "", maxWeight: 0.5, scopeRefresh: "snapshot", sellTaxRate: 0, commissionRate: 0.001, slippageRate: 0.0005 } : { skillId: "high_volume_volatility_grid", ruleVersion: undefined }),
                   market: e.target.value as RuleConfig["market"],
-                  lotSize: e.target.value === "TW" ? 1000 : ["US", "KR"].includes(e.target.value) ? 1 : 100,
-                })
-              }
+                  lotSize: e.target.value === "CRYPTO" ? 0.00000001 : e.target.value === "TW" ? 1000 : ["US", "KR"].includes(e.target.value) ? 1 : 100,
+                });
+              }}
             >
               <option value="CN"><UiLiteral text={"A 股"} /></option>
               <option value="US"><UiLiteral text={"美股"} /></option>
@@ -113,12 +115,13 @@ export function TradingAgentConfig({
               <option value="TW"><UiLiteral text="台股" /></option>
               <option value="JP"><UiLiteral text="日股" /></option>
               <option value="KR"><UiLiteral text="韩股" /></option>
+              <option value="CRYPTO"><UiLiteral text="加密货币" /></option>
             </select>
           </label>
         </div>
         {scope.mode === "fixed" && (
           <p className="text-sm text-secondary-text">
-            <UiLiteral text={"在上方股票输入框填写名称或代码，市场随代码识别。预览成功后，保存策略会固定这份股票名单。"} /></p>
+            <UiLiteral text={config.market === "CRYPTO" ? "填写 USDT 现货交易对，例如 BTCUSDT、ETHUSDT；预览后保存名单。" : "在上方股票输入框填写名称或代码，市场随代码识别。预览成功后，保存策略会固定这份股票名单。"} /></p>
         )}
         {scope.mode === "holdings" && (
           <>
@@ -250,7 +253,7 @@ export function TradingAgentConfig({
           <label>
             <UiLiteral text={"范围更新"} /><select
               className={input}
-              value={config.scopeRefresh || "snapshot"}
+              value={config.scopeRefresh || "snapshot"} disabled={config.market === "CRYPTO"}
               onChange={(e) =>
                 onConfig({
                   scopeRefresh: e.target.value as RuleConfig["scopeRefresh"],
@@ -263,7 +266,7 @@ export function TradingAgentConfig({
             </select>
           </label>
         </div>
-        <p className="text-xs text-secondary-text"><UiLiteral text="自定义筛选的定期更新仅刷新首次预览确认的股票，不会重新选出名单外的股票。要更换候选，请暂停策略、修改配置并重新预览。" /></p>
+        {config.market !== "CRYPTO" && <p className="text-xs text-secondary-text"><UiLiteral text="自定义筛选的定期更新仅刷新首次预览确认的股票，不会重新选出名单外的股票。要更换候选，请暂停策略、修改配置并重新预览。" /></p>}
         <button
           type="button"
           className="btn-secondary"
@@ -274,6 +277,10 @@ export function TradingAgentConfig({
             onPreview(null);
             if (inputText.trim() && !codes) {
               setError("请先确认上方股票识别结果。");
+              return;
+            }
+            if (inferredMarket && (inferredMarket === "CRYPTO") !== (config.market === "CRYPTO")) {
+              setError("请先将市场切换为与代码一致的市场，再预览交易对。");
               return;
             }
             let selectedCodes = scope.mode === "holdings" ? scope.symbols : codes || [];
@@ -307,10 +314,10 @@ export function TradingAgentConfig({
             }
           }}
         >
-          {busy ? uiLiteral("正在获取候选并按条件筛选…") : uiLiteral("预览股票范围")}
+          {busy ? uiLiteral("正在获取候选并按条件筛选…") : uiLiteral(config.market === "CRYPTO" ? "预览交易对" : "预览股票范围")}
         </button>
         <p className="text-xs text-secondary-text">
-          <UiLiteral text={"修改市场、行业或条件后需重新预览。自定义范围会调用模型；核对下方名单后，保存策略即确认本次范围。"} /></p>
+          <UiLiteral text={config.market === "CRYPTO" ? "修改交易对后需重新预览；保存策略即固定这份名单，预览和规则交易不调用模型。" : "修改市场、行业或条件后需重新预览。自定义范围会调用模型；核对下方名单后，保存策略即确认本次范围。"} /></p>
       </fieldset>
       {error && (
         <p role="alert" className="text-danger">
@@ -351,18 +358,18 @@ export function TradingAgentConfig({
       <h3 className="pt-4 text-lg font-semibold"><UiLiteral text={"2. 策略配置"} /></h3>
       <label className="block">
         <UiLiteral text="交易决策模型" />
-        <select className={input} value={config.decisionBackend || "llm"}
+        <select className={input} value={config.decisionBackend || "llm"} disabled={config.market === "CRYPTO"}
           onChange={(e) => {
             const backend = e.target.value as "llm" | "jev" | "rules";
             onConfig({ decisionBackend: backend, ...(backend === "rules"
-              ? { skillId: "high_volume_volatility_grid", systemPrompt: "" } : {}) });
+              ? { skillId: config.market === "CRYPTO" ? "crypto_rotation" : "high_volume_volatility_grid", systemPrompt: "" } : {}) });
           }}>
           <option value="llm">{uiLiteral("LLM · 目标仓位与理由")}</option>
           <option value="jev">{uiLiteral("JEV · 仅决策结果")}</option>
-          <option value="rules">{uiLiteral("固定规则 · 高量高波动网格")}</option>
+          <option value="rules">{uiLiteral(config.market === "CRYPTO" ? "固定规则 · 加密货币现货" : "固定规则 · 高量高波动网格")}</option>
         </select>
       </label>
-      {config.decisionBackend === "rules" && <p className="text-sm text-secondary-text">
+      {config.decisionBackend === "rules" && config.market !== "CRYPTO" && <p className="text-sm text-secondary-text">
         <UiLiteral text="规则模式只使用已收盘日线和网格参数生成目标仓位，回测与每日模拟均不调用决策模型；自定义范围预览仍可能调用 LLM。仅支持内置高量高波动网格。" />
       </p>}
       {config.decisionBackend === "jev" && (
@@ -425,11 +432,11 @@ export function TradingAgentConfig({
           required
           className={input}
           value={config.skillId || ""}
-          onChange={(e) => onConfig({ skillId: e.target.value })}
+          onChange={(e) => onConfig({ skillId: e.target.value, ruleVersion: undefined })}
         >
           <option value=""><UiLiteral text={"选择策略方法"} /></option>
-          {options?.skills.map((s) => (
-            <option key={s.id} value={s.id} disabled={config.decisionBackend === "rules" && s.id !== "high_volume_volatility_grid"}>
+          {options?.skills.filter((s) => s.id.startsWith("crypto_") === (config.market === "CRYPTO")).map((s) => (
+            <option key={s.id} value={s.id} disabled={config.decisionBackend === "rules" && s.id !== "high_volume_volatility_grid" && !s.id.startsWith("crypto_")}>
               {uiLiteral(s.name)}
             </option>
           ))}
@@ -439,6 +446,20 @@ export function TradingAgentConfig({
         {config.decisionBackend === "rules" ? uiLiteral("规则版本随策略保存；Skill 文字和自定义模型指令不参与规则计算。") : uiLiteral(options?.skills.find((s) => s.id === config.skillId)?.description ||
           "Skill 决定分析方法；交易输出规范和程序风控共同约束买卖计划。保存后固定 Skill 内容。")}
       </p>
+      {config.market === "CRYPTO" && <fieldset className="space-y-4">
+        <p className="text-sm text-secondary-text"><UiLiteral text="UTC 已收盘日线生成信号，次日开盘模拟成交；每天运行，包含周末。策略和回测保存在同一账本，不调用 LLM。" /></p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {([
+            ["cryptoLookbackDays", "观察周期（日）", 3, 90, 1, 30],
+            ["cryptoRebalanceDays", "调仓间隔（日）", 1, 90, 1, 7],
+            ["cryptoAllocation", "资金投入比例", 0.01, 1, 0.01, 0.5],
+            ["cryptoTopN", "成交额排名候选数", 1, 12, 1, 3],
+          ] as const).map(([key, label, min, max, step, fallback]) => <label key={key} className="block text-sm">
+            {uiLiteral(label)}<input className={input} type="number" min={min} max={max} step={step} disabled={(key === "cryptoLookbackDays" || key === "cryptoTopN") ? config.skillId !== "crypto_rotation" : key === "cryptoRebalanceDays" && config.skillId === "crypto_btc_hold"} value={config[key] ?? fallback}
+              onChange={(e) => onConfig({ [key]: Number(e.target.value) })} />
+          </label>)}
+        </div>
+      </fieldset>}
       {config.skillId === "high_volume_volatility_grid" && (
         <div className="rounded-lg border border-border p-4">
           <h4 className="font-medium"><UiLiteral text={"高量高波动网格参数"} /></h4>

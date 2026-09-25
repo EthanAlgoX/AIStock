@@ -23,7 +23,7 @@ from src.storage import WorkspaceArtifactRecord, WorkspaceRunRecord
 _PLAN_LOCK = threading.RLock()
 ACTIVE_HOLDING_CONTEXT = ContextVar("active_holding_context", default=None)
 MARKETS = {"cn": ("Asia/Shanghai", "16:30"), "hk": ("Asia/Hong_Kong", "17:30"),
-           "us": ("America/New_York", "17:00")}
+           "us": ("America/New_York", "17:00"), "crypto": ("UTC", "00:10")}
 DEFAULT_RULES = {"lossPct": 10.0, "profitPct": 20.0, "dailyMovePct": 5.0}
 HOLDING_RECOMMENDATIONS = {
     "increase": {"label": "考虑增持", "minimum": 80},

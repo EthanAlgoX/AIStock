@@ -41,7 +41,7 @@ from src.services.screening.snapshot import fetch_snapshot_with_fallback
 from src.services.screening.strategy import load_all_strategies
 
 logger = logging.getLogger(__name__)
-SUPPORTED_MARKETS = ("cn", "hk", "us", "tw", "jp", "kr", "gb", "ca", "au", "in", "de", "fr")
+SUPPORTED_MARKETS = ("cn", "hk", "us", "tw", "jp", "kr", "gb", "ca", "au", "in", "de", "fr", "crypto")
 
 
 def screen(
@@ -173,6 +173,8 @@ def screen(
             provider_cache_ttl_hours=config.industry_provider_cache_ttl_hours,
         )
         degradation.extend(f"Industry/concepts enrichment: {item}" for item in industry_notes)
+    if market == "crypto":
+        degradation.append("Binance Spot USDT: current top 20 by rolling 24h turnover plus core pairs; not full-market or historical screening. No equity fundamentals.")
     snapshot_count = len(snapshot_df)
     snapshot_source = str(snapshot_df.attrs.get("snapshot_source", ""))
     source_errors = [str(item) for item in snapshot_df.attrs.get("source_errors", [])]

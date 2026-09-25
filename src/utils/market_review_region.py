@@ -4,11 +4,11 @@
 from typing import Optional, Literal, get_args
 
 
-MarketSnapshotRegion = Literal["cn", "hk", "us", "tw", "jp", "kr", "gb", "ca", "au", "in", "de", "fr"]
+MarketSnapshotRegion = Literal["cn", "hk", "us", "tw", "jp", "kr", "gb", "ca", "au", "in", "de", "fr", "crypto"]
 MARKET_SNAPSHOT_REGIONS = frozenset(get_args(MarketSnapshotRegion))
 
 LEGACY_BOTH_REGIONS = ("cn", "hk", "us", "jp", "kr")
-MARKET_REVIEW_REGION_ORDER = (*LEGACY_BOTH_REGIONS, "tw", "gb", "ca", "au", "in", "de", "fr")
+MARKET_REVIEW_REGION_ORDER = (*LEGACY_BOTH_REGIONS, "tw", "gb", "ca", "au", "in", "de", "fr", "crypto")
 MARKET_REVIEW_REGION_SET = frozenset(MARKET_REVIEW_REGION_ORDER)
 # Keep existing scheduled `both` jobs at five markets; new markets are opt-in.
 MARKET_REVIEW_REGION_ALL = ",".join(LEGACY_BOTH_REGIONS)

@@ -106,6 +106,7 @@ const MARKETS: Array<{ id: MarketId; label: string; timezone: string; timezoneLa
   { id: "IN", label: "印度股票", timezone: "Asia/Kolkata", timezoneLabel: "Asia/Kolkata" },
   { id: "DE", label: "德国股票", timezone: "Europe/Berlin", timezoneLabel: "Europe/Berlin" },
   { id: "FR", label: "法国股票", timezone: "Europe/Paris", timezoneLabel: "Europe/Paris" },
+  { id: "CRYPTO", label: "加密货币", timezone: "UTC", timezoneLabel: "UTC" },
 
 ];
 

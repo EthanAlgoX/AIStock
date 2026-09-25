@@ -28,7 +28,7 @@ from src.services.run_diagnostics import sanitize_diagnostic_text
 logger = logging.getLogger(__name__)
 _ALLOWED_SOURCE_TYPES = {"rss", "atom", "newsnow"}
 _ALLOWED_SCOPE_TYPES = {"symbol", "market", "sector"}
-_ALLOWED_MARKETS = {"cn", "hk", "us", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr", "global"}
+_ALLOWED_MARKETS = {"cn", "hk", "us", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr", "crypto", "global"}
 _PRIVATE_HOSTNAMES = {"localhost", "localhost.localdomain"}
 _MAX_FEED_BYTES = 2 * 1024 * 1024
 _MAX_FEED_REDIRECTS = 5

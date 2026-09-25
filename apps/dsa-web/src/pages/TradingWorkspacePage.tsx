@@ -1,7 +1,4 @@
 import { PortfolioRunExplanation } from "../components/agent/PortfolioRunExplanation";
-import AssetClassTabs from '../components/crypto/AssetClassTabs';
-import { useCryptoAssetClass } from '../components/crypto/useCryptoAssetClass';
-import CryptoWorkspacePage from './CryptoWorkspacePage';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import { localizedStockName } from '../utils/markets';
 import { useUiLiteral } from '../hooks/useUiLiteral';
@@ -85,11 +82,6 @@ const metricLabels = [
 ] as const;
 
 export default function TradingWorkspacePage() {
-  const crypto = useCryptoAssetClass();
-  return crypto ? <CryptoWorkspacePage section="trading" /> : <StockTradingWorkspacePage />;
-}
-
-function StockTradingWorkspacePage() {
   const uiLiteral = useUiLiteral();
   const { language } = useUiLanguage();
   const fmt = (v: number | null | undefined, percent = false) => formatNumber(v, percent, language);
@@ -100,6 +92,7 @@ function StockTradingWorkspacePage() {
     params.has("run");
   const id = Number(params.get("portfolio")) || null;
   const definitionId = Number(params.get("strategy")) || null;
+  const [marketFilter, setMarketFilter] = useState("ALL");
   const [definitions, setDefinitions] = useState<StrategyDefinition[]>([]);
   const definition = definitions.find((d) => d.id === definitionId);
   const [launch, setLaunch] = useState<"run" | "start" | "backtest" | null>(
@@ -142,9 +135,9 @@ function StockTradingWorkspacePage() {
   const poolMarket = poolMarkets.length === 1 ? poolMarkets[0] : null;
   const poolLot =
     poolMarket && poolMarket !== draft.market
-      ? poolMarket === "TW" ? 1000 : ["US", "KR"].includes(poolMarket) ? 1 : 100
+      ? poolMarket === "CRYPTO" ? 0.00000001 : poolMarket === "TW" ? 1000 : ["US", "KR"].includes(poolMarket) ? 1 : 100
       : draft.lotSize;
-  const marketLabels = { CN: `${uiLiteral("A 股")} · CNY`, HK: `${uiLiteral("港股")} · HKD`, US: `${uiLiteral("美股")} · USD`, TW: `${uiLiteral("台股")} · TWD`, JP: `${uiLiteral("日股")} · JPY`, KR: `${uiLiteral("韩股")} · KRW` };
+  const marketLabels = { CRYPTO: `${uiLiteral("加密货币")} · USDT`, CN: `${uiLiteral("A 股")} · CNY`, HK: `${uiLiteral("港股")} · HKD`, US: `${uiLiteral("美股")} · USD`, TW: `${uiLiteral("台股")} · TWD`, JP: `${uiLiteral("日股")} · JPY`, KR: `${uiLiteral("韩股")} · KRW` };
 
   useEffect(() => {
     if (legacy) return;
@@ -258,7 +251,7 @@ function StockTradingWorkspacePage() {
           universePreview.market,
         lotSize:
           universePreview.market !== draft.market
-            ? universePreview!.market === "TW" ? 1000 : ["US", "KR"].includes(universePreview!.market) ? 1 : 100
+            ? universePreview!.market === "CRYPTO" ? 0.00000001 : universePreview!.market === "TW" ? 1000 : ["US", "KR"].includes(universePreview!.market) ? 1 : 100
             : poolLot,
         universePreviewId: universePreview?.id,
       };
@@ -317,7 +310,6 @@ function StockTradingWorkspacePage() {
     "mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
   return (
     <AppPage>
-      <AssetClassTabs />
       <header className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
         <div>
           <h1 className="text-2xl font-semibold"><UiLiteral text={"策略验证与运行"} /></h1>
@@ -379,14 +371,14 @@ function StockTradingWorkspacePage() {
               <h3 className="sm:col-span-2 text-lg font-semibold mt-3"><UiLiteral text={"1. 选股配置"} /></h3>
               <div className="sm:col-span-2">
                 <label className="block">
-                  <UiLiteral text={"股票池（可选，名称或代码，最多 12 只）"} /><input
+                  <UiLiteral text={draft.market === "CRYPTO" ? "标的池（交易对，最多 12 个）" : "股票池（可选，名称或代码，最多 12 只）"} /><input
                     className={inputClass}
                     value={symbols}
                     onChange={(e) => setSymbols(e.target.value)}
-                    placeholder={uiLiteral("例如 贵州茅台、平安银行，或 英伟达、苹果")}
+                    placeholder={draft.market === "CRYPTO" ? "BTCUSDT, ETHUSDT, SOLUSDT" : uiLiteral("例如 贵州茅台、平安银行，或 英伟达、苹果")}
                   />
                 </label>
-                <p className="mt-2 text-sm text-secondary-text"><UiLiteral text={"可留空，直接按下方股票范围寻找候选；填写后会进一步限定范围，不会自动补入范围外的股票。"} /></p>
+                <p className="mt-2 text-sm text-secondary-text"><UiLiteral text={draft.market === "CRYPTO" ? "填写 USDT 现货交易对，例如 BTCUSDT、ETHUSDT；预览后保存名单。" : "可留空，直接按下方股票范围寻找候选；填写后会进一步限定范围，不会自动补入范围外的股票。"} /></p>
                 <p className="mt-2 text-sm text-secondary-text">
                   {stockIndex.loading
                     ? uiLiteral("正在加载与个股研究共用的股票目录…")
@@ -465,7 +457,7 @@ function StockTradingWorkspacePage() {
                     : pool.flatMap((p) => (p.stock ? [p.stock.code] : []))
                 }
                 inferredMarket={poolMarket}
-                onConfig={(patch) => setDraft((d) => ({ ...d, ...patch }))}
+                onConfig={(patch) => { if (patch.market && patch.market !== draft.market) setSymbols(patch.market === "CRYPTO" ? "BTCUSDT, ETHUSDT, SOLUSDT" : ""); setDraft((d) => ({ ...d, ...patch })); }}
                 onPreview={setUniversePreview}
               /></div>
               <h3 className="sm:col-span-2 text-lg font-semibold mt-3"><UiLiteral text={"3. 运行与风控配置"} /></h3>
@@ -504,7 +496,7 @@ function StockTradingWorkspacePage() {
                 {(
                   [
                     ["maxWeight", "单股最高建仓比例", 0.01, 1, 0.01],
-                    ["lotSize", "每手股数（港股需自行核对）", 1, 10000, 1],
+                    ["lotSize", draft.market === "CRYPTO" ? "最小模拟数量" : "每手股数（港股需自行核对）", draft.market === "CRYPTO" ? 0.00000001 : 1, 10000, draft.market === "CRYPTO" ? 0.00000001 : 1],
                     ["commissionRate", "佣金比例", 0, 0.05, 0.0001],
                     ["sellTaxRate", "卖出税费比例", 0, 0.05, 0.0001],
                     ["slippageRate", "模拟滑点比例", 0, 0.05, 0.0001],
@@ -535,7 +527,7 @@ function StockTradingWorkspacePage() {
               </div>
             </details>
             <p className="text-sm leading-6 text-secondary-text">
-              <UiLiteral text={"按已收盘日线产生观点，下一交易日开盘价加减滑点模拟成交。暂停或停止后可修改全部配置；保存修改后重新开始模拟，旧记录保留。保存后再选择回测或模拟。基准使用同市场指数 ETF 的价格表现，不含分红。请核对税费和每手股数。"} /></p>
+              <UiLiteral text={draft.market === "CRYPTO" ? "加密货币按 UTC 已收盘日线运行，包含周末；保存后使用原有回测、模拟和暂停修改流程。基准为 BTC/USDT 价格收益，资金以 USDT 计价，费用和小数数量可配置。" : "按已收盘日线产生观点，下一交易日开盘价加减滑点模拟成交。暂停或停止后可修改全部配置；保存修改后重新开始模拟，旧记录保留。保存后再选择回测或模拟。基准使用同市场指数 ETF 的价格表现，不含分红。请核对税费和每手股数。"} /></p>
             <button disabled={sending} className="btn-primary">
               {sending ? uiLiteral("保存中…") : uiLiteral(editing ? "保存修改" : "保存策略")}
             </button>
@@ -545,7 +537,13 @@ function StockTradingWorkspacePage() {
         <div className="grid gap-7 lg:grid-cols-[250px_minmax(0,1fr)]">
           <aside>
             <h2 className="mb-3 font-semibold"><UiLiteral text={"我的策略"} /></h2>
-            {definitions.map((d) => (
+            <label className="mb-4 block text-sm">{uiLiteral("市场")}
+              <select className="mt-2 w-full rounded-lg border border-border bg-background p-2" value={marketFilter} onChange={e => setMarketFilter(e.target.value)}>
+                <option value="ALL">{uiLiteral("全部市场")}</option>
+                {Object.entries(marketLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              </select>
+            </label>
+            {definitions.filter(d => marketFilter === "ALL" || d.config.market === marketFilter).map((d) => (
               <button
                 key={d.id}
                 className={`mb-2 w-full rounded-lg border p-3 text-left ${definitionId === d.id ? "border-primary bg-primary/5" : "border-border"}`}
@@ -556,7 +554,7 @@ function StockTradingWorkspacePage() {
               >
                 <strong className="block">{d.name}</strong>
                 <span className="mt-2 block text-xs text-secondary-text">
-                  {d.config.market} · {d.config.symbols.length} <UiLiteral text={" 只股票 ·"} />{" "}
+                  {marketLabels[d.config.market]} · {d.config.symbols.length} {uiLiteral("标的")} ·{" "}
                   {items.filter((p) => p.definitionId === d.id).length} <UiLiteral text={" 次验证"} /></span>
               </button>
             ))}
@@ -566,7 +564,7 @@ function StockTradingWorkspacePage() {
             )}
             {loading && <p role="status"><UiLiteral text={"加载中…"} /></p>}
             {items
-              .filter((p) => !p.definitionId)
+              .filter((p) => !p.definitionId && (marketFilter === "ALL" || p.market === marketFilter))
               .map((p) => (
                 <button
                   key={p.id}
@@ -1289,11 +1287,11 @@ function StockTradingWorkspacePage() {
                       {fmt(detail.config.slippageRate, true)}。
                     </p>
                     <p>
-                      <UiLiteral text={"区间换手率 = 买卖成交额总和 ÷ 2 ÷ 平均净资产。年化收益按 252 个交易日复利折算；夏普使用日超额收益与样本标准差；卡玛 = 年化收益 ÷ 最大回撤，无风险利率"} />{" "}
+                      {uiLiteral("区间换手率 = 买卖成交额总和 ÷ 2 ÷ 平均净资产。年化收益按 {days} 个交易日复利折算；夏普使用日超额收益与样本标准差；卡玛 = 年化收益 ÷ 最大回撤，无风险利率").replace("{days}", detail.market === "CRYPTO" ? "365" : "252")}{" "}
                       {fmt(detail.config.riskFreeRate, true)}。
                     </p>
                     <p>
-                      <UiLiteral text={"使用日线价格进行简化撮合，不模拟盘口、部分成交、涨跌停排队及分红配股。基准 ETF 存在跟踪误差。历史回测与实时模拟分别记账，不拼接收益曲线。行情缺失会中止当日记账。"} /></p>
+                      <UiLiteral text={detail.market === "CRYPTO" ? "现货日线模拟不包含盘口和部分成交；不验证交易所最小下单量。历史回测与实时模拟分别记账，行情缺失会中止当日记账。" : "使用日线价格进行简化撮合，不模拟盘口、部分成交、涨跌停排队及分红配股。基准 ETF 存在跟踪误差。历史回测与实时模拟分别记账，不拼接收益曲线。行情缺失会中止当日记账。"} /></p>
                   </div>
                 </details>
               </>

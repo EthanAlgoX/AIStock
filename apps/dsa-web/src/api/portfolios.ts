@@ -11,7 +11,7 @@ export type UniverseScope = {
   candidateRanking?: "balanced" | "volume_volatility";
 };
 export type UniversePreview = {
-  market: "CN" | "HK" | "US" | "TW" | "JP" | "KR";
+  market: "CN" | "HK" | "US" | "TW" | "JP" | "KR" | "CRYPTO";
   id: number;
   candidates: {
     code: string;
@@ -55,7 +55,7 @@ export type RuleConfig = {
   skillSnapshot?: { name: string; digest: string };
   name: string;
   template: "agent";
-  market: "CN" | "US" | "HK" | "TW" | "JP" | "KR";
+  market: "CN" | "US" | "HK" | "TW" | "JP" | "KR" | "CRYPTO";
   symbols: string[];
   mode: "paper" | "backtest";
   initialCash: number;
@@ -66,6 +66,10 @@ export type RuleConfig = {
   sellTaxRate: number;
   slippageRate: number;
   riskFreeRate: number;
+  cryptoLookbackDays?: number;
+  cryptoRebalanceDays?: number;
+  cryptoAllocation?: number;
+  cryptoTopN?: number;
   gridLookbackDays?: number;
   gridMinVolumeRatio?: number;
   gridMinRange?: number;
@@ -226,6 +230,7 @@ export const portfoliosApi = {
       sellTaxRate,
       slippageRate,
       riskFreeRate,
+      cryptoLookbackDays, cryptoRebalanceDays, cryptoAllocation, cryptoTopN,
       gridLookbackDays,
       gridMinVolumeRatio,
       gridMinRange,
@@ -254,6 +259,7 @@ export const portfoliosApi = {
       sellTaxRate,
       slippageRate,
       riskFreeRate,
+      cryptoLookbackDays, cryptoRebalanceDays, cryptoAllocation, cryptoTopN,
       gridLookbackDays,
       gridMinVolumeRatio,
       gridMinRange,
@@ -289,6 +295,7 @@ export const portfoliosApi = {
       sellTaxRate,
       slippageRate,
       riskFreeRate,
+      cryptoLookbackDays, cryptoRebalanceDays, cryptoAllocation, cryptoTopN,
       gridLookbackDays,
       gridMinVolumeRatio,
       gridMinRange,
@@ -316,6 +323,7 @@ export const portfoliosApi = {
         sellTaxRate,
         slippageRate,
         riskFreeRate,
+        cryptoLookbackDays, cryptoRebalanceDays, cryptoAllocation, cryptoTopN,
         gridLookbackDays,
         gridMinVolumeRatio,
         gridMinRange,

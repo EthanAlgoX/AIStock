@@ -4,8 +4,8 @@
  * Stock data index for autocomplete functionality
  */
 
-export type Market = 'CN' | 'HK' | 'US' | 'JP' | 'KR' | 'TW' | 'GB' | 'CA' | 'AU' | 'IN' | 'DE' | 'FR' | 'INDEX' | 'ETF' | 'BSE';
-export type AssetType = 'stock' | 'index' | 'etf';
+export type Market = 'CN' | 'HK' | 'US' | 'JP' | 'KR' | 'TW' | 'GB' | 'CA' | 'AU' | 'IN' | 'DE' | 'FR' | 'CRYPTO' | 'INDEX' | 'ETF' | 'BSE';
+export type AssetType = 'stock' | 'index' | 'etf' | 'crypto';
 
 /**
  * Stock index item (full format)

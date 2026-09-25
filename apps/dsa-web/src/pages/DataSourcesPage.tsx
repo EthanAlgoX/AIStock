@@ -383,7 +383,7 @@ const DataSourcesPage: React.FC = () => {
       <CapabilityCenterNav />
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm">
         <p>{localize('Binance Spot 公开 API · 无需密钥。用于市场雷达、币种研究、选币和交易推演。', 'Binance Spot public API · no key required. Used by market radar, asset research, screening, and trading simulation.')} <span className="ml-2 font-medium">{spotPairs === null ? localize('检测中', 'Checking') : spotPairs ? `${spotPairs} ${localize('个交易对展示', 'pairs shown')}` : localize('当前不可用', 'Currently unavailable')}</span></p>
-        <Link className="font-medium text-primary hover:underline" to="/market-intelligence?asset=crypto">{localize('查看现货行情', 'View spot market')} →</Link>
+        <Link className="font-medium text-primary hover:underline" to="/market-intelligence?market=crypto">{localize('查看现货行情', 'View spot market')} →</Link>
       </div>
       <div className="flex items-start gap-3 rounded-xl border border-border/70 bg-muted/35 px-4 py-3 text-sm leading-6 text-secondary-text">
         <Database className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />

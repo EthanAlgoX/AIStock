@@ -15,7 +15,7 @@ class StrategyConfig(BaseModel):
     reportLanguage: Literal["zh", "en", "ko", "ja", "zh-TW"] = "en"
     name: str = Field(min_length=1, max_length=80)
     template: Literal["agent"] = "agent"
-    market: Literal["CN", "US", "HK", "TW", "JP", "KR"]
+    market: Literal["CN", "US", "HK", "TW", "JP", "KR", "CRYPTO"]
     symbols: list[str] = Field(default_factory=list, max_length=12)
     engine: Literal['agent'] = 'agent'
     decisionBackend: Literal['llm', 'jev', 'rules'] = 'llm'
@@ -29,7 +29,7 @@ class StrategyConfig(BaseModel):
     initialCash: float = Field(default=100000, ge=1000, le=100000000)
     maxPositions: int = Field(default=3, ge=1, le=12)
     maxWeight: float = Field(default=0.25, ge=0.01, le=1)
-    lotSize: int = Field(default=100, ge=1, le=10000)
+    lotSize: float = Field(default=100, ge=0.00000001, le=10000)
     commissionRate: float = Field(default=0.0003, ge=0, le=0.05)
     sellTaxRate: float = Field(default=0, ge=0, le=0.05)
     slippageRate: float = Field(default=0.001, ge=0, le=0.05)
@@ -38,6 +38,10 @@ class StrategyConfig(BaseModel):
     gridMinVolumeRatio: float = Field(default=1.3, ge=1, le=10)
     gridMinRange: float = Field(default=0.05, ge=0.005, le=0.5)
     gridLevels: int = Field(default=5, ge=2, le=10)
+    cryptoLookbackDays: int = Field(default=30, ge=3, le=90)
+    cryptoRebalanceDays: int = Field(default=7, ge=1, le=90)
+    cryptoAllocation: float = Field(default=.5, ge=.01, le=1)
+    cryptoTopN: int = Field(default=3, ge=1, le=12)
 
 
 class StrategyUpdate(StrategyConfig):
@@ -74,7 +78,7 @@ class Scope(BaseModel):
 
 class UniversePreview(BaseModel):
     reportLanguage: Literal["zh", "en", "ko", "ja", "zh-TW"] = "en"
-    market: Literal['CN', 'US', 'HK', 'TW', 'JP', 'KR']
+    market: Literal['CN', 'US', 'HK', 'TW', 'JP', 'KR', 'CRYPTO']
     scope: Scope
 
 
@@ -108,11 +112,12 @@ def agent_options():
     from src.services.trading_agent_service import TRADING_PROMPT
     from src.config import get_config
     config = get_config()
+    from src.services.crypto_portfolio_rules import RULES
     return dict(decisionModels=[
         dict(id="llm", available=True),
         dict(id="jev", available=bool(config.typesafe_api_key.strip()), model=config.typesafe_model),
         dict(id="rules", available=True, model=GRID_RULE_VERSION),
-    ], skills=[s for s in WorkspaceService().list_skills() if s['enabled']],
+    ], skills=[s for s in WorkspaceService().list_skills() if s['enabled']] + [dict(id=k, name=v[0], description=v[0]) for k, v in RULES.items()],
                 accounts=PortfolioService().list_accounts(), defaultPrompt=TRADING_PROMPT)
 
 

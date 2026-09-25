@@ -116,7 +116,10 @@ INTERNATIONAL_PROFILES = {
 
 def get_profile(region: str) -> MarketProfile:
     """Return an explicit profile; never substitute an unrelated market."""
-    profiles = {"cn": CN_PROFILE, "hk": HK_PROFILE, "us": US_PROFILE, "jp": JP_PROFILE, "kr": KR_PROFILE, **INTERNATIONAL_PROFILES}
+    crypto = MarketProfile("crypto", "BTCUSDT", ["Bitcoin Ethereum spot market liquidity regulation"],
+                           "Analyze USDT spot pairs and rolling 24-hour changes; not equity indices. "
+                           "Do not infer earnings, valuation multiples, sectors or exchange trading sessions.", False, False)
+    profiles = {"crypto": crypto, "cn": CN_PROFILE, "hk": HK_PROFILE, "us": US_PROFILE, "jp": JP_PROFILE, "kr": KR_PROFILE, **INTERNATIONAL_PROFILES}
     try:
         return profiles[region]
     except KeyError:

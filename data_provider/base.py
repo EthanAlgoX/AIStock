@@ -15,6 +15,7 @@
 """
 
 import logging
+import re
 import random
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -243,7 +244,9 @@ def _is_meaningful_chip_distribution(chip: Any) -> bool:
 
 
 def _market_tag(code: str) -> str:
-    """返回市场标签: cn/us/hk/jp/kr/tw."""
+    """返回市场标签: cn/us/hk/jp/kr/tw/crypto."""
+    if re.fullmatch(r"[A-Z0-9]{2,16}USDT", code.upper()):
+        return "crypto"
     from src.services.market_symbol_utils import get_suffix_market
     suffix_market = get_suffix_market(code)
     if suffix_market:
@@ -573,7 +576,8 @@ class BaseFetcher(ABC):
         
         return df
     
-    def _calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+    @staticmethod
+    def _calculate_indicators(df: pd.DataFrame, *, price_decimals: Optional[int] = 2) -> pd.DataFrame:
         """
         计算技术指标
         
@@ -596,10 +600,11 @@ class BaseFetcher(ABC):
         df['volume_ratio'] = df['volume'] / avg_volume_5.shift(1)
         df['volume_ratio'] = df['volume_ratio'].fillna(1.0)
         
-        # 保留2位小数
+        # Stocks keep legacy rounding; spot assets can retain sub-cent precision.
         for col in ['ma5', 'ma10', 'ma20', 'volume_ratio']:
-            if col in df.columns:
-                df[col] = df[col].round(2)
+            decimals = 2 if col == 'volume_ratio' else price_decimals
+            if col in df.columns and decimals is not None:
+                df[col] = df[col].round(decimals)
         
         return df
     
@@ -1335,6 +1340,13 @@ class DataFetcherManager:
 
         # Normalize code (strip SH/SZ prefix etc.)
         stock_code = normalize_stock_code(stock_code)
+        from src.market_context import detect_market
+        if detect_market(stock_code) == "crypto":
+            if preferred_fetcher and preferred_fetcher != "Binance Spot":
+                raise DataFetchError("Crypto daily data requires Binance Spot")
+            from data_provider.crypto_fetcher import daily_data
+            return daily_data(stock_code, start_date, end_date, days), "Binance Spot"
+
 
         fetchers = self._get_fetchers_snapshot()
         if preferred_fetcher:
@@ -1817,6 +1829,11 @@ class DataFetcherManager:
         if not config.enable_realtime_quote:
             logger.debug(f"[实时行情] 功能已禁用，跳过 {stock_code}")
             return None
+
+        from src.market_context import detect_market
+        if detect_market(stock_code) == "crypto":
+            from data_provider.crypto_fetcher import realtime_quote
+            return realtime_quote(stock_code)
 
         # ----------------------------------------------------------
         # 美股 (指数 + 个股) / 港股 — 专用双源路由
@@ -2326,6 +2343,10 @@ class DataFetcherManager:
         raw_stock_code = (stock_code or "").strip()
         # Normalize code (strip SH/SZ prefix etc.)
         stock_code = normalize_stock_code(stock_code)
+        from src.market_context import detect_market
+        if detect_market(stock_code) == "crypto":
+            return stock_code.upper()
+
         static_name = STOCK_NAME_MAP.get(stock_code)
 
         # 1. 先检查缓存
@@ -2534,6 +2555,18 @@ class DataFetcherManager:
 
     def get_main_indices(self, region: str = "cn") -> List[Dict[str, Any]]:
         """获取主要指数实时行情（自动切换数据源）"""
+        if region == "crypto":
+            from src.services.crypto_market_service import market_overview
+            result = []
+            for row in market_overview()["assets"]:
+                price = row["lastPrice"]
+                previous = row["open24h"]
+                result.append(dict(code=row["symbol"], name=row["symbol"], current=price,
+                    change=price-previous, change_pct=row["changePercent24h"], open=previous,
+                    high=row["high24h"], low=row["low24h"], prev_close=previous,
+                    volume=row["volume24h"], amount=row["quoteVolume24h"],
+                    amplitude=(row["high24h"]-row["low24h"])/previous*100))
+            return result
         if region == "cn":
             tickflow_fetcher = self._get_tickflow_fetcher()
             if tickflow_fetcher is not None:
@@ -3262,6 +3295,8 @@ class DataFetcherManager:
         stock_code = normalize_stock_code(stock_code)
         market = _market_tag(stock_code)
         is_etf = _is_etf_code(stock_code)
+        if market == "crypto":
+            return self._build_market_not_supported(market=market, reason="Equity fundamentals do not apply to spot pairs")
         if market in {"us", "hk", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr"}:
             return self._build_offshore_fundamental_context(
                 stock_code,

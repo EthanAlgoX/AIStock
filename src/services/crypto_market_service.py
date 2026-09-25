@@ -76,6 +76,8 @@ def market_overview() -> dict:
             continue
         assets.append({
             "symbol": code, "lastPrice": float(row["lastPrice"]),
+            "open24h": float(row.get("openPrice", row["lastPrice"])),
+            "volume24h": float(row.get("volume", 0)),
             "changePercent24h": float(row["priceChangePercent"]),
             "quoteVolume24h": float(row["quoteVolume"]),
             "high24h": float(row["highPrice"]), "low24h": float(row["lowPrice"]),

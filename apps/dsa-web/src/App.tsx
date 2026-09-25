@@ -16,7 +16,6 @@ import {
   StandaloneRouteBoundary,
 } from "./components/layout/RouteBoundary";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import { CryptoSimulationProvider } from './components/crypto/CryptoSimulationContext';
 import {
   UiLanguageProvider,
   useUiLanguage,
@@ -119,7 +118,6 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <CryptoSimulationProvider>
       <Routes>
       <Route
         element={
@@ -138,7 +136,7 @@ const AppContent: React.FC = () => {
         <Route path="/decision-signals" element={<Navigate to="/trading" replace />} />
         <Route path="/screening" element={<ScreeningWorkspacePage />} />
         <Route path="/trading" element={<TradingWorkspacePage />} />
-        <Route path="/crypto" element={<Navigate to="/market-intelligence?asset=crypto" replace />} />
+        <Route path="/crypto" element={<Navigate to="/market-intelligence?market=crypto" replace />} />
         <Route path="/schedules" element={<ScheduledTasksPage />} />
         <Route path="/expert-review" element={<ExpertReviewPage />} />
         <Route path="/backtest" element={<Navigate to="/overview" replace />} />
@@ -169,7 +167,6 @@ const AppContent: React.FC = () => {
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       </Routes>
-    </CryptoSimulationProvider>
   );
 };
 

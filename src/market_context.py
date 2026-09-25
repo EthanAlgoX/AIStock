@@ -25,6 +25,8 @@ def detect_market(stock_code: Optional[str]) -> str:
         return "cn"
 
     code = stock_code.strip().upper()
+    if re.fullmatch(r"[A-Z0-9]{2,16}USDT", code):
+        return "crypto"
 
     # HK stocks: HK00700, 00700.HK, or 5-digit pure numbers
     if code.startswith("HK") or code.endswith(".HK"):
@@ -180,6 +182,8 @@ def get_market_role(stock_code: Optional[str], lang: str = "zh", *, market: Opti
     lang_key = "en" if lang in ("en", "ko") else "zh"
     if market == "global":
         return "跨市场投资分析（A 股、港股、美股等）" if lang_key == "zh" else "cross-market investment analysis (China A-shares, Hong Kong and US stocks)"
+    if market == "crypto":
+        return "加密货币现货研究" if lang_key == "zh" else "crypto spot research"
     return _MARKET_ROLES.get(market, _MARKET_ROLES["cn"])[lang_key]
 
 
@@ -200,4 +204,7 @@ def get_market_guidelines(stock_code: Optional[str], lang: str = "zh", *, market
         return ("根据用户消息和已有资料确认标的、上市市场、币种和时间范围；名称有歧义时在正常对话中澄清。支持跨市场研究，不得自称只能分析 A 股。按实际市场选择获授权工具；某数据源不可用时说明具体缺口，不将其解释为整个市场不受支持。不要将 A 股交易规则套用到美股或港股。"
                 if lang_key == "zh" else
                 "Resolve symbols, listing markets, currencies and time ranges from the conversation; clarify ambiguous names in chat. Support cross-market research, not A-shares only. Use authorized tools appropriate to each market. Report specific unavailable data without claiming the whole market is unsupported. Do not apply A-share trading rules to US or Hong Kong stocks.")
+    if market == "crypto":
+        return ("标的是 Binance Spot USDT 现货交易对。全年全天交易，以 UTC 已收盘日线分析；滚动24小时行情不等于日线。不得套用股票市盈率、财报、涨跌停、手数或交易日历；缺失链上或项目资料须明示。仅现货，不推断杠杆、衍生品或实际下单。"
+                if lang_key == "zh" else "Analyze Binance Spot USDT pairs, traded 24/7, using completed UTC daily candles. Rolling 24-hour tickers are not daily candles. Equity earnings, PE/PB, daily price limits, lot sizes and calendars do not apply. Explicitly identify missing on-chain or project evidence. Spot only; no assumed leverage, derivatives or live orders.")
     return _MARKET_GUIDELINES.get(market, _MARKET_GUIDELINES["cn"])[lang_key]

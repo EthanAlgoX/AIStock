@@ -244,6 +244,9 @@ class TradingAgentService:
                     record.status = 'received'
 
     def skill_snapshot(self, skill_id):
+        from src.services.crypto_portfolio_rules import RULES, skill_snapshot
+        if skill_id in RULES:
+            return skill_snapshot(skill_id)
         from src.services.workspace_service import WorkspaceService
         from src.agent.factory import get_skill_manager
         workspace = WorkspaceService(self.db)
@@ -268,6 +271,9 @@ class TradingAgentService:
 
     def preview(self, market, scope):
         scope = dict(scope)
+        if market == 'CRYPTO':
+            snapshot = self.resolve(market, scope)
+            return self.store(market, scope, dict(snapshot, scope=scope, market=market, usage=None), kind='preview')
         if scope['mode'] == 'holdings' and not scope.get('accountId'):
             raise ValueError('请选择持仓账户。')
         selected_industries = list(dict.fromkeys(
@@ -375,6 +381,19 @@ class TradingAgentService:
     def resolve(self, market, scope, allow_empty=False):
         from src.agent.tools.execution import _normalize_tool_stock_code
         from src.market_context import detect_market
+        if market == 'CRYPTO':
+            from src.services.crypto_market_service import validate_symbol
+            if scope['mode'] != 'fixed':
+                raise ValueError('Crypto strategies require a fixed spot universe')
+            symbols = list(dict.fromkeys(validate_symbol(s) for s in scope.get('symbols', [])))
+            if not 1 <= len(symbols) <= 12:
+                raise ValueError('Choose 1–12 USDT spot pairs')
+            from data_provider.crypto_fetcher import realtime_quote
+            for code in symbols:
+                realtime_quote(code)
+            return dict(candidates=[dict(code=c, name=c, reason='Binance Spot') for c in symbols],
+                        source='Binance Spot', observedAt=datetime.now(timezone.utc).isoformat(),
+                        coverage='fixed', market=market, scope=scope)
         candidates, source = [], 'specified'
         directory_filtered = False
         directory_count = 0
@@ -586,6 +605,12 @@ class TradingAgentService:
         raise ValueError(f'{day} 缺少当时记录的范围快照，不能用今日名单补造历史范围。')
 
     def decide(self, config, state, day, histories, candidates, budget, run_id):
+        if config.get('decisionBackend') == 'rules' and config['market'] == 'CRYPTO':
+            from src.services.crypto_portfolio_rules import RULES, opinions
+            version = RULES[config['skillSnapshot']['id']][1]
+            if config.get('ruleVersion') != version or state.get('agentModel', version) != version:
+                raise ValueError('Crypto rule version mismatch')
+            return opinions(config, state, day, histories, candidates), dict(model=version, tokens=0)
         if config.get('decisionBackend') == 'rules':
             from src.services.simulation_portfolio_engine import GRID_RULE_VERSION, grid_rule_opinions
             if (config['skillSnapshot']['id'] != 'high_volume_volatility_grid'

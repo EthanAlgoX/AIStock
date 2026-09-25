@@ -1,38 +1,40 @@
-# Crypto spot research and backtesting
+# Crypto as an integrated market
 
-Market radar, stock research, screening, trading simulation, and portfolio management each offer a **Stocks / Crypto** switch. The crypto views provide USDT spot prices, hourly asset research, turnover/volatility screening, deterministic backtests, and simulated positions and fills. Stock Agents, the stock holdings ledger, and daily stock simulation do not apply to a 24/7 market; the spot path uses its own data and rules and sends no order to an exchange. Old `/crypto` links redirect to the crypto market radar.
+Crypto is a market option inside the existing modules. There is no separate crypto workspace or Stocks/Crypto page split. Supported assets are Binance Spot USDT pairs such as `BTCUSDT` and `ETHUSDT`. No exchange orders are sent.
 
-To get started, switch Market radar to **Crypto** and select **Research** on a pair for its seven-day chart. In Screening, choose up to five pairs and run the screen. In Trading, choose pairs, a strategy, and UTC dates, then run a backtest. Review the equity curve, costs, and fills there; the Portfolio crypto view also shows ending simulated positions. Results live only in the current in-memory session and disappear on refresh.
+## Existing module entry points
 
-## Data and scope
+- **Market radar:** select Crypto in the existing market selector. Spot pairs show rolling 24-hour changes and turnover, not equity indices or completed daily bars. Unavailable macro, breadth or sector data remains explicitly missing.
+- **Research and investment assistant:** select Crypto and enter a complete pair symbol. Use the existing research tasks, published workflows, reports and run history. Report generation may still call an LLM. Equity earnings, valuation multiples and trading rules do not apply.
+- **Screening:** select Crypto and its volume/price configuration. Results use the existing candidate list and research flow. The universe is the current top 20 USDT pairs by rolling 24-hour Binance turnover plus core pairs, not the entire market or a historical point-in-time universe.
+- **Trading simulation:** select Configure strategy, choose Crypto, edit pairs, preview, select a rule and save. Use the same historical backtest, paper account, daily scheduler, pause, edit and delete controls as stocks. Filter the strategy list by market.
+- **Holdings and watchlist:** select Crypto in the original forms, enter a pair, fractional quantity and USDT cost. Records use the persistent ledger and research plans. User holdings remain separate from each strategy's simulated holdings, which are shown in its run details; simulations never silently create user positions.
 
-- Public Binance Spot market data comes from `https://data-api.binance.vision/api/v3` without an API key. The radar uses `/ticker/24hr`; hourly candles use paginated `/klines`. Only **completed** UTC candles are used. Kline field 7 is USDT quote turnover, distinct from base-asset volume.
-- The default universe is `BTCUSDT`, `ETHUSDT`, `BNBUSDT`, `SOLUSDT`, and `XRPUSDT` for reproduction against the reference project. The radar also lists the top 20 pairs by current rolling 24-hour USDT turnover; users can combine up to five. Today's ranking is not a historically complete tradable universe. Choosing today's popular assets for an earlier backtest introduces selection bias.
-- Screening uses 720 completed hourly candles. It ranks the fixed universe by USDT turnover, takes the top three, then selects the highest sample standard deviation of hourly simple returns. A decision never reads a future candle. Users can narrow the fixed universe.
-- Dates are UTC; the end date is exclusive. Evaluation spans at most 90 days, with 720 warm-up hours. The returned SHA-256 fingerprint identifies the actual market sample, which may change if the provider revises history.
+Legacy `/crypto` links redirect to Crypto in Market radar.
 
-## Backtest protocol
+## Shared ledger and daily protocol
 
-Defaults: 10,000 USDT initial cash, one shared long-only cash ledger, 0.1% fee and 0.05% slippage on each side, no stock sales tax. A completed candle produces the signal; an order fills at the next hourly open with slippage. Fractional spot quantities are allowed. The final position is marked at the last close without forced liquidation. Fees and slippage are already reflected in net equity.
+All three built-in rules use the existing strategy versions, accounts, orders, fills, positions, equity snapshots, run history and scheduler. Their trading decisions call neither LLM nor JEV:
 
-Three fixed strategies are available:
+| Rule | Behavior |
+| --- | --- |
+| High-volume, high-volatility rotation | Rank a fixed universe by USDT turnover over the last N completed UTC days, shortlist K pairs, then select the highest daily-return standard deviation. On rebalance dates, retain the position if the selected pair is unchanged. |
+| Equal-weight rebalance | Sort candidates by symbol, take up to the position limit, divide the configured allocation equally and rebalance at the configured interval. |
+| Half-allocation Bitcoin | Signal BTCUSDT on the first day, simulate a buy at the next daily open, then hold. Default allocation is 50%, subject to the per-asset weight cap. |
 
-1. **High-turnover/high-volatility rotation:** screen every 168 hours. When selection changes, sell the old asset, then invest 50% of post-sale equity in the new one. Otherwise hold.
-2. **Equal-weight rebalance:** every 168 hours, target a combined 50% allocation spread evenly across selected pairs; sell before buying.
-3. **Half-capital Bitcoin:** invest 50% in BTC at the first execution hour, then hold.
+Defaults are a 30-day lookback, 7-day rebalance interval, 50% allocation and turnover shortlist of 3. Lookback and shortlist apply to rotation; the interval applies to rotation and equal weight. Parameters, universe and rule version are frozen when saved. A fixed universe has up to 12 pairs; backtests do not use today's market-wide ranking to rebuild historical universes. User-selected universes can still have survivorship bias.
 
-Results include return, maximum drawdown, BTC period price return, fills, costs, and ending positions. The BTC comparison excludes hypothetical benchmark trading costs. Compare strategy returns only when dates, universe, costs, and sample fingerprint match. A fixed present-day universe introduces selection bias, and positive historical results do not imply future returns. These strategies call neither LLM nor JEV; the unverified QuantEvo grid/JEV rules are not reproduced.
+- Days include weekends and start at 00:00 UTC. Only completed daily candles are used. The first day creates a signal; fills can start at the next open. Final-day signals do not invent fills outside the requested interval.
+- Shared cash, long-only, no leverage, fractional quantities. The minimum simulated quantity is ledger rounding precision, not exchange-specific minimum quantity or notional validation.
+- Configured fees and slippage apply; stock sales tax does not. The benchmark is BTC/USDT price return for the same interval. Annualization uses 365 days, requiring at least 20 recorded days; stocks retain 252.
+- Strategies and backtests persist in the database across refreshes. Each invocation advances up to 20 days and can resume from the last completed date without duplicating fills. Pause before editing; prior backtests retain their original configuration.
+- Missing, duplicate, incomplete or unreachable data fails explicitly. No equity, perpetual-futures or fabricated data substitutes for spot candles. Newly listed pairs may lack sufficient warm-up history.
+- USDT remains a distinct currency. No assumed USD/CNY peg is used; missing FX observations remain valuation gaps in cross-currency totals.
 
-### Executed backtest check (2026-09-25)
+## API compatibility and deployment
 
-Using the default five pairs, 10,000 USDT, 0.1% fee, 0.05% slippage, 720 warm-up hours and 168-hour rebalance interval, the reference frozen sample for 2026-08-24 to 2026-09-23 UTC produced: rotation **6.9974% / 3 fills / 22.2456 USDT costs**; equal weight **6.2243% / 25 fills / 8.4855 USDT**; half-capital BTC **5.3679% / 1 fill / 7.4913 USDT**. These match the reference implementation. The reference files are verification inputs, not a runtime dependency.
+Pages use the existing `/api/v1/simulation/portfolios` definition, preview and execution interfaces with market `CRYPTO`. Research workspaces use `CRYPTO`; holdings and radar use `crypto`. Rule parameters are `cryptoLookbackDays`, `cryptoRebalanceDays`, `cryptoAllocation` and `cryptoTopN`. No new environment variables are required.
 
-A fresh Binance Spot download covering 2026-08-26 to 2026-09-25 UTC produced: rotation **10.4889%**, maximum drawdown **-6.2580%**; equal weight **5.9527%**, maximum drawdown **-3.7780%**; half-capital BTC **3.6572%**, maximum drawdown **-3.9283%**. All three share market-input fingerprint `706633f4afc1344aa87046ee5f827a98e101de3c8eabd625494af0e24cf65e4d`. A provider revision can change a rerun; these results are not forecasts.
+The existing `/api/v1/crypto/market` and asset data endpoints remain available. Legacy hourly `/api/v1/crypto/screen` and `/api/v1/crypto/backtest` remain for compatibility; the website no longer uses their simplified backtest or in-memory positions. Hourly results and the new daily ledger are different evaluation protocols.
 
-## API and troubleshooting
-
-`GET /api/v1/crypto/market`, `GET /api/v1/crypto/assets/{symbol}`, `POST /api/v1/crypto/screen`, and `POST /api/v1/crypto/backtest`. Requests accept USDT spot pair symbols; invalid or unlisted pairs return a source error. Omitted dates default to the last 30 completed UTC days. Timeout, empty data, or missing candles produce an error rather than silently substituting another market. If Binance is unreachable from your server, check network access to the data domain. Spot data never falls back to perpetual futures.
-
-Exchange account connections, live orders, perpetuals, funding rates, and scheduled daily execution are not supported. Results are shared between Trading and Portfolio in the current in-memory session; refresh to rerun.
-
-Reference: [Binance Spot API](https://developers.binance.com/en/docs/products/spot/rest-api).
+Existing SQLite quantity columns can retain fractional values; new tables declare Float. No ledger reset is required. Back up the database before deployment. Before rolling back to older code, pause new crypto simulations so the old scheduler does not encounter an unsupported market.

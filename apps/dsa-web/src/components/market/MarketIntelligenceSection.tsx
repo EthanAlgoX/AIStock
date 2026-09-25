@@ -79,7 +79,7 @@ const MARKET_TIMEZONES: Record<MarketSnapshotRegion, string> = {
   cn: 'Asia/Shanghai', hk: 'Asia/Hong_Kong', us: 'America/New_York',
   tw: 'Asia/Taipei', jp: 'Asia/Tokyo', kr: 'Asia/Seoul', gb: 'Europe/London',
   ca: 'America/Toronto', au: 'Australia/Sydney', in: 'Asia/Kolkata',
-  de: 'Europe/Berlin', fr: 'Europe/Paris',
+  de: 'Europe/Berlin', fr: 'Europe/Paris', crypto: 'UTC',
 };
 const WIDGET_OPTIONS: Array<{ id: WidgetId; label: string; description: string; sourceHint: string }> = [
   { id: 'overview', label: 'Agent 市场摘要', description: '展示最近一次完整复盘形成的核心判断。', sourceHint: '行情、资讯与 Agent' },
@@ -659,7 +659,7 @@ export const MarketIntelligenceSection = () => {
   const { translate: tx, language } = useUiLanguage();
   const formatDateTime = (value?: string | null, includeYear = false) => formatDateTimeForLanguage(language, value, includeYear);
   const initialLayout = useMemo(() => readDashboardLayout(), []);
-  const [market, setMarket] = useState<MarketSnapshotRegion>(() => readMarket());
+  const [market, setMarket] = useState<MarketSnapshotRegion>(() => new URLSearchParams(window.location.search).get("market") === "crypto" || new URLSearchParams(window.location.search).get("asset") === "crypto" ? "crypto" : readMarket());
   const [loadState, setLoadState] = useState<LoadState>('idle');
   const [snapshotState, setSnapshotState] = useState<LoadState>('idle');
   const [liveSnapshot, setLiveSnapshot] = useState<MarketSnapshot | null>(null);
@@ -1310,7 +1310,7 @@ export const MarketIntelligenceSection = () => {
                 <div className={cn('grid', visibleWidgets.has('indices') && visibleWidgets.has('breadth') && 'md:grid-cols-2')}>
                   {visibleWidgets.has('indices') ? (
                     <div className={cn('border-b border-border px-5 py-6 sm:px-7', visibleWidgets.has('breadth') && 'md:border-b-0 md:border-r')}>
-                      <div className="mb-5 flex items-center justify-between gap-4"><h2 className="text-sm font-semibold text-foreground">{tx("主要指数")}</h2><span className="text-xs text-muted-text">{tx("涨跌幅")}</span></div>
+                      <div className="mb-5 flex items-center justify-between gap-4"><h2 className="text-sm font-semibold text-foreground">{tx(market === "crypto" ? "现货交易对 · USDT · 滚动24小时" : "主要指数")}</h2><span className="text-xs text-muted-text">{tx("涨跌幅")}</span></div>
                       <IndexPerformance indices={indices} />
                     </div>
                   ) : null}

@@ -901,7 +901,7 @@ class ComputeEffectiveRegionTestCase(unittest.TestCase):
         with patch.object(trading_calendar, "_XCALS_AVAILABLE", False):
             self.assertEqual(
                 trading_calendar.get_open_markets_today(),
-                set(trading_calendar.MARKET_EXCHANGE),
+                set(trading_calendar.MARKET_EXCHANGE) | {"crypto"},
             )
 
     def test_both_all_open_returns_comma_joined_supported_markets(self):

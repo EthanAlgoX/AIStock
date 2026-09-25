@@ -67,8 +67,8 @@ class StrategyDefinitionService:
     STARTER_BACKTEST_PROFILE = "fixed_ohlcv_v1"
 
     BUILTIN_DATA_SOURCES = (
-        {"sourceId": "system_market_data", "name": "系统自动选择", "kind": "kline", "description": "按市场和可用性自动选择行情来源；失败时按系统顺序切换。", "connectionKey": "system_market_data", "required": True, "selectionMode": "automatic", "markets": ["cn", "hk", "us", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr"]},
-        {"sourceId": "local_stock_daily", "name": "本地日线库 stock_daily", "kind": "kline", "description": "只使用数据库中已经留存的日线数据，不主动请求外部行情。", "connectionKey": "local_stock_daily", "required": False, "selectionMode": "local", "markets": ["cn", "hk", "us", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr"]},
+        {"sourceId": "system_market_data", "name": "系统自动选择", "kind": "kline", "description": "按市场和可用性自动选择行情来源；失败时按系统顺序切换。", "connectionKey": "system_market_data", "required": True, "selectionMode": "automatic", "markets": ["cn", "hk", "us", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr", "crypto"]},
+        {"sourceId": "local_stock_daily", "name": "本地日线库 stock_daily", "kind": "kline", "description": "只使用数据库中已经留存的日线数据，不主动请求外部行情。", "connectionKey": "local_stock_daily", "required": False, "selectionMode": "local", "markets": ["cn", "hk", "us", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr", "crypto"]},
         {"sourceId": "system_news", "name": "系统自动选择", "kind": "news", "description": "保留已配置新闻渠道的优先级；未配置密钥时默认使用免密钥财经 RSS 聚合，并继续故障切换。每次运行记录真实来源。", "connectionKey": "system_news", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us"]},
         {"sourceId": "system_fundamentals", "name": "按市场自动选择", "kind": "fundamentals", "description": "A 股优先使用 AkShare，海外市场使用 YFinance，并按现有管线补充可用字段。", "connectionKey": "system_fundamentals", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us", "jp", "kr", "tw", "gb", "ca", "au", "in", "de", "fr"]},
         {"sourceId": "system_macro_data", "name": "系统宏观数据", "kind": "macro", "description": "按市场合并官方与公开宏观序列；缺失项保持缺失，不使用示例值。", "connectionKey": "system_macro_data", "required": False, "selectionMode": "automatic", "markets": ["cn", "hk", "us"]},
@@ -508,7 +508,7 @@ class StrategyDefinitionService:
             screening_preset = next(p for p in presets if p["purpose"] == "candidate_screening")
             configurations = list(presets)
             research_preset = next(p for p in presets if p["purpose"] == "research_report")
-            for market, label in (("hk", "港股"), ("us", "美股"), ("tw", "台股"), ("jp", "日股"), ("kr", "韩股"), ("gb", "英国股票"), ("ca", "加拿大股票"), ("au", "澳大利亚股票"), ("in", "印度股票"), ("de", "德国股票"), ("fr", "法国股票")):
+            for market, label in (("hk", "港股"), ("us", "美股"), ("tw", "台股"), ("jp", "日股"), ("kr", "韩股"), ("gb", "英国股票"), ("ca", "加拿大股票"), ("au", "澳大利亚股票"), ("in", "印度股票"), ("de", "德国股票"), ("fr", "法国股票"), ("crypto", "加密货币")):
                 configurations.append({
                     **research_preset,
                     "configurationName": f"单股研究 · {label}配置",
@@ -520,7 +520,7 @@ class StrategyDefinitionService:
                     **screening_preset,
                     "configurationName": f"海外量价观察 · {label}配置",
                     "configurationDescription": "在配置的同市场候选范围内比较量价与波动；非全市场筛选，缺失证据保留缺失。",
-                    "configurationPolicy": {"strategy": "international_momentum", "market": market, "maxCandidates": 5},
+                    "configurationPolicy": {"strategy": "crypto_liquidity" if market == "crypto" else "international_momentum", "market": market, "maxCandidates": 5},
                 })
             for label, skill_ids in (
                 ("成长质量研究", ["growth_quality"]),
@@ -671,6 +671,8 @@ class StrategyDefinitionService:
                 configured_data_sources = self._load(kernel_version.data_permission_snapshot_json)
                 if configured_screening_policy.get("market") not in {"cn", "hk", "us"}:
                     configured_data_sources["news"] = {"enabled": False, "connection": "system_news"}
+                if configured_screening_policy.get("market") == "crypto":
+                    configured_data_sources["fundamentals"] = {"enabled": False, "connection": "system_fundamentals"}
                 now = utc_naive_now()
                 configured_version = SimulationStrategyVersionRecord(
                     strategy_id=configured_strategy.id,
@@ -905,7 +907,7 @@ class StrategyDefinitionService:
             raise StrategyDefinitionError("DATA_SOURCE_KIND_INVALID", "请选择 K 线、新闻、基本面、宏观或其他数据类型。")
         raw_markets = payload.get("markets") if isinstance(payload.get("markets"), list) else []
         markets = list(dict.fromkeys(str(item).strip().lower() for item in raw_markets if str(item).strip()))
-        if not markets or any(item not in {"cn", "hk", "us", "tw", "jp", "kr", "gb", "ca", "au", "in", "de", "fr"} for item in markets):
+        if not markets or any(item not in {"cn", "hk", "us", "tw", "jp", "kr", "gb", "ca", "au", "in", "de", "fr", "crypto"} for item in markets):
             raise StrategyDefinitionError("DATA_SOURCE_MARKETS_INVALID", "请至少选择 A 股、港股或美股中的一个适用市场。")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{1,159}", connection_key):
             raise StrategyDefinitionError("DATA_SOURCE_CONNECTION_INVALID", "连接标识只能包含字母、数字、点、下划线、冒号和短横线；请勿在这里填写密钥或 URL。")

@@ -210,7 +210,7 @@ def builtin_package(
     run_interval: str,
 ) -> dict[str, Any]:
     item = builtin_kernel_catalog()[name]
-    markets = ['cn', 'hk', 'us', 'tw', 'jp', 'kr', 'gb', 'ca', 'au', 'in', 'de', 'fr'] if purpose != "trading_decision" else ["cn"]
+    markets = ['cn', 'hk', 'us', 'tw', 'jp', 'kr', 'gb', 'ca', 'au', 'in', 'de', 'fr', 'crypto'] if purpose != "trading_decision" else ["cn"]
     item["dataRequirements"] = [dict(r, markets=markets if r["kind"] in {"kline", "fundamentals"} else ["cn", "hk", "us"]) for r in item["dataRequirements"]]
     immutable_metadata = {
         "markets": markets,

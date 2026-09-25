@@ -6,6 +6,7 @@ export const RESEARCH_MARKETS = [
   {id:'GB',label:'英国股票',description:'London'}, {id:'CA',label:'加拿大股票',description:'Toronto'},
   {id:'AU',label:'澳大利亚股票',description:'ASX'}, {id:'IN',label:'印度股票',description:'NSE / BSE'},
   {id:'DE',label:'德国股票',description:'Xetra / Frankfurt'}, {id:'FR',label:'法国股票',description:'Euronext Paris'},
+  {id:'CRYPTO',label:'加密货币',description:'Binance Spot · USDT · 24/7'},
 ] as const;
 export type ResearchMarket = typeof RESEARCH_MARKETS[number]['id'];
 export function localizedStockName(stock: Pick<StockIndexItem,'canonicalCode'|'nameZh'|'nameEn'>, language: string): string {

@@ -3,11 +3,11 @@ from src.report_language import normalize_report_language
 
 from src.utils.market_review_region import MARKET_REVIEW_REGION_ORDER as REGION_ORDER
 _NAMES = {
-    "zh": ("A股", "港股", "美股", "日股", "韩股", "台股", "英国股市", "加拿大股市", "澳大利亚股市", "印度股市", "德国股市", "法国股市"),
-    "en": ("A-share", "HK", "US", "Japan", "Korea", "Taiwan", "UK", "Canada", "Australia", "India", "Germany", "France"),
-    "ja": ("中国A株", "香港", "米国", "日本", "韓国", "台湾", "英国", "カナダ", "オーストラリア", "インド", "ドイツ", "フランス"),
-    "ko": ("중국 A주", "홍콩", "미국", "일본", "한국", "대만", "영국", "캐나다", "호주", "인도", "독일", "프랑스"),
-    "zh-TW": ("A股", "港股", "美股", "日股", "韓股", "台股", "英國股市", "加拿大股市", "澳洲股市", "印度股市", "德國股市", "法國股市"),
+    "zh": ("A股", "港股", "美股", "日股", "韩股", "台股", "英国股市", "加拿大股市", "澳大利亚股市", "印度股市", "德国股市", "法国股市", "加密货币"),
+    "en": ("A-share", "HK", "US", "Japan", "Korea", "Taiwan", "UK", "Canada", "Australia", "India", "Germany", "France", "Crypto"),
+    "ja": ("中国A株", "香港", "米国", "日本", "韓国", "台湾", "英国", "カナダ", "オーストラリア", "インド", "ドイツ", "フランス", "暗号資産"),
+    "ko": ("중국 A주", "홍콩", "미국", "일본", "한국", "대만", "영국", "캐나다", "호주", "인도", "독일", "프랑스", "암호화폐"),
+    "zh-TW": ("A股", "港股", "美股", "日股", "韓股", "台股", "英國股市", "加拿大股市", "澳洲股市", "印度股市", "德國股市", "法國股市", "加密貨幣"),
 }
 MARKET_NAMES = {lang: dict(zip(REGION_ORDER, names)) for lang, names in _NAMES.items()}
 REVIEW_COPY = {
@@ -27,3 +27,12 @@ def review_heading(region: str, language: str) -> str:
     language = normalize_report_language(language)
     separator = "" if language in {"zh", "zh-TW", "ja"} else " "
     return market_name(region, language) + separator + REVIEW_COPY[language]["suffix"]
+
+
+CRYPTO_REVIEW_COPY = {
+    "zh": ("现货交易对 · USDT · 滚动24小时", "现货全年全天交易。区分滚动24小时行情与UTC已收盘日线，不套用股票财报、涨跌停或交易日历；未提供的链上与项目资料保持缺失。"),
+    "en": ("Spot pairs · USDT · Rolling 24 hours", "Spot trades 24/7. Distinguish rolling 24-hour quotes from completed UTC daily candles. Equity earnings, price limits and exchange calendars do not apply; missing on-chain or project evidence remains unavailable."),
+    "ko": ("현물 거래쌍 · USDT · 최근 24시간", "현물은 연중무휴 거래됩니다. 최근 24시간 시세와 마감 UTC 일봉을 구분하세요. 주식 재무제표·가격 제한·거래일 달력을 적용하지 않으며 미제공 온체인 및 프로젝트 자료는 누락으로 표시합니다."),
+    "ja": ("現物ペア · USDT · 過去24時間", "現物は24時間365日取引されます。過去24時間の相場と確定済みUTC日足を区別します。株式の財務諸表・値幅制限・取引日程を適用せず、未取得のオンチェーン・プロジェクト資料は欠損として扱います。"),
+    "zh-TW": ("現貨交易對 · USDT · 滾動24小時", "現貨全年全天交易。區分滾動24小時行情與UTC已收盤日線，不套用股票財報、漲跌停或交易日曆；未提供的鏈上與項目資料保持缺失。"),
+}

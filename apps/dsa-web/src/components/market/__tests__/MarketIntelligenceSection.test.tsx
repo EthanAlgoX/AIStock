@@ -319,7 +319,7 @@ describe('MarketIntelligenceSection', () => {
     await waitFor(() => expect(api.getMarketSnapshot).toHaveBeenCalledWith('jp', false));
     const { translateWorkspaceText } = await import('../../../i18n/translateWorkspaceText');
     const group = screen.getByRole('group', { name: translateWorkspaceText('选择市场', language as import('../../../i18n/uiText').UiLanguage) });
-    expect(within(group).getAllByRole('button')).toHaveLength(12);
+    expect(within(group).getAllByRole('button')).toHaveLength(13);
     fireEvent.click(screen.getByRole('button', { name: translateWorkspaceText('生成最新复盘', language as import('../../../i18n/uiText').UiLanguage) }));
     await waitFor(() => expect(api.triggerMarketReview).toHaveBeenCalledWith({
       sendNotification: false, regions: ['jp'], reportLanguage: language,
@@ -329,7 +329,7 @@ describe('MarketIntelligenceSection', () => {
   it.each([
     ['台股', 'tw'], ['日股', 'jp'], ['韩股', 'kr'], ['英国股票', 'gb'],
     ['加拿大股票', 'ca'], ['澳大利亚股票', 'au'], ['印度股票', 'in'],
-    ['德国股票', 'de'], ['法国股票', 'fr'],
+    ['德国股票', 'de'], ['法国股票', 'fr'], ['加密货币', 'crypto'],
   ])('loads the %s dashboard without falling back to China', async (label, region) => {
     renderPage();
     await screen.findByText('市场整体走强，成长板块领涨。');

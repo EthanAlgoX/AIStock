@@ -46,13 +46,13 @@ Click **Request an invitation code** to open your configured default email app w
 | Compare different investing perspectives | Expert roundtable | Independent AI contributions and a moderator's summary |
 | Find stocks that meet your conditions | Strategy screening | Candidates with rankings and selection reasons |
 | Check how a strategy behaves | Trade simulation | Daily decisions, simulated fills, and account performance |
-| Explore crypto spot markets | Market radar, research, screening, trading, and portfolio | USDT spot prices, asset screening, hourly rule backtests, and simulated positions |
+| Explore crypto spot markets | Market radar, research, screening, trading, and portfolio | USDT spot prices, asset screening, persistent daily rule backtests, and simulated positions |
 
 **Example question:** “Research AAPL's recent price trend and important news. Separate bullish and bearish evidence, include the dates of the data, and tell me what information is missing.”
 
 Built-in full-market screening rules mainly target A-shares. The “experts” are AI roles based on investment frameworks, not the actual people. Trading experiments use simulated funds and do not place live broker orders.
 
-Select **Crypto** within each module for a long-only Binance Spot simulation with 24/7 hourly data. It does not place exchange orders. See the [crypto spot guide](docs/crypto-spot_EN.md).
+Select the **Crypto market** in the existing modules; Binance Spot uses the same saved strategy and simulation workflows, with completed UTC daily bars. It does not place exchange orders. See the [crypto spot guide](docs/crypto-spot_EN.md).
 
 ## How it works
 

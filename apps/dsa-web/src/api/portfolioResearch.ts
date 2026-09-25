@@ -40,7 +40,7 @@ export const portfolioResearchApi = {
     return (await apiClient.put<HoldingPlan>(`${positionUrl(account, symbol)}/plan`, payload)).data;
   },
   async run(account: number, symbol: string) { return (await apiClient.post<WorkspaceRun>(`${positionUrl(account, symbol)}/run`)).data; },
-  async createWatch(payload: { symbol: string; market: 'cn' | 'hk' | 'us'; decisionBackend?: ResearchBackend }) { return (await apiClient.post<HoldingPlan>(`${root}/watch`, payload)).data; },
+  async createWatch(payload: { symbol: string; market: 'cn' | 'hk' | 'us' | 'crypto'; decisionBackend?: ResearchBackend }) { return (await apiClient.post<HoldingPlan>(`${root}/watch`, payload)).data; },
   async watchPlan(symbol: string) { return (await apiClient.get<HoldingPlan>(`${root}/watch/${encodeURIComponent(symbol)}/plan`)).data; },
   async configureWatch(symbol: string, payload: { decisionBackend?: ResearchBackend; strategyVersionId: number; capabilities: AgentCapabilityBindings; dailyEnabled: boolean; dailyNotify: boolean; intervalDays: number; runAt: string }) { return (await apiClient.put<HoldingPlan>(`${root}/watch/${encodeURIComponent(symbol)}/plan`, payload)).data; },
   async runWatch(symbol: string) { return (await apiClient.post<WorkspaceRun>(`${root}/watch/${encodeURIComponent(symbol)}/run`)).data; },
