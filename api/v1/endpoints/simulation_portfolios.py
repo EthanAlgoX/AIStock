@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 from src.schemas.jev_task import JevTaskConfig
 from src.services.simulation_portfolio_service import SimulationPortfolioService
-from src.services.simulation_portfolio_engine import BENCHMARKS
+from src.services.simulation_portfolio_engine import BENCHMARKS, GRID_RULE_VERSION
 
 router = APIRouter()
 
@@ -18,7 +18,7 @@ class StrategyConfig(BaseModel):
     market: Literal["CN", "US", "HK", "TW", "JP", "KR"]
     symbols: list[str] = Field(default_factory=list, max_length=12)
     engine: Literal['agent'] = 'agent'
-    decisionBackend: Literal['llm', 'jev'] = 'llm'
+    decisionBackend: Literal['llm', 'jev', 'rules'] = 'llm'
     jevTask: JevTaskConfig = Field(default_factory=JevTaskConfig)
     jevWeightStep: float = Field(default=0.05, ge=0.001, le=1)
     skillId: str | None = None
@@ -111,6 +111,7 @@ def agent_options():
     return dict(decisionModels=[
         dict(id="llm", available=True),
         dict(id="jev", available=bool(config.typesafe_api_key.strip()), model=config.typesafe_model),
+        dict(id="rules", available=True, model=GRID_RULE_VERSION),
     ], skills=[s for s in WorkspaceService().list_skills() if s['enabled']],
                 accounts=PortfolioService().list_accounts(), defaultPrompt=TRADING_PROMPT)
 

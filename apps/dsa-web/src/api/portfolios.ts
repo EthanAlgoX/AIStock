@@ -26,7 +26,7 @@ export type UniversePreview = {
   scope: UniverseScope & { rule?: { description: string } };
 };
 export type AgentOptions = {
-  decisionModels?: { id: "llm" | "jev"; available: boolean; model?: string }[];
+  decisionModels?: { id: "llm" | "jev" | "rules"; available: boolean; model?: string }[];
   skills: { id: string; name: string; description: string }[];
   accounts: { id: number; name: string; market: string }[];
   defaultPrompt: string;
@@ -41,7 +41,8 @@ export type RuleConfig = {
   reportLanguage?: string;
   definitionRevision?: number;
   jevTask?: JevTaskConfig;
-  decisionBackend?: "llm" | "jev";
+  decisionBackend?: "llm" | "jev" | "rules";
+  ruleVersion?: string;
   jevWeightStep?: number;
   jevModel?: string;
   engine?: "agent";
@@ -83,7 +84,7 @@ export type Holding = {
   unrealizedPnl: number;
 };
 export type Opinion = {
-  decisionBackend?: "jev";
+  decisionBackend?: "jev" | "rules";
   decision?: "buy" | "sell" | "hold";
   probabilities?: Record<"buy" | "sell" | "hold", number>;
   confidence?: number;

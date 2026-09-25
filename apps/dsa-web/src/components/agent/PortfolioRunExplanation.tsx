@@ -24,7 +24,9 @@ export function PortfolioRunExplanation({ portfolio }: { portfolio: Portfolio })
       {incomplete && <p className="font-medium">{t(portfolio.error && !portfolio.busy
         ? '历史验证已中断，以下仅为已完成日期的部分结果，不代表完整回测。'
         : '历史验证尚未完成，当前指标仅覆盖已记账日期。')}</p>}
-      {incomplete && portfolio.error && !portfolio.busy && <p>{t('排查错误详情后，可点击“运行回测”从未完成的日期继续；继续运行会调用模型。')}</p>}
+      {incomplete && portfolio.error && !portfolio.busy && <p>{t(portfolio.config.decisionBackend === 'rules'
+        ? '排查错误详情后，可点击“运行回测”从未完成的日期继续；规则回测不调用决策模型。'
+        : '排查错误详情后，可点击“运行回测”从未完成的日期继续；继续运行会调用模型。')}</p>}
       <p>{latest && <span className="mr-2 tabular-nums">{latest.date}</span>}{t(outcome)}</p>
       {!!opinions.length && !latest?.paused && (
         <ul className="space-y-3">

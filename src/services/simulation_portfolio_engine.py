@@ -30,6 +30,22 @@ BENCHMARKS = {
     "US": ("SPY", "标普500 ETF（价格代理）", "USD"),
     "HK": ("02800", "恒生指数 ETF（价格代理）", "HKD"),
 }
+GRID_RULE_VERSION = "high_volume_volatility_grid:v1"
+
+_GRID_TEXT = {
+    "zh": ("量比", "区间波动", "档位", "目标仓位", "未达量价门槛", "持仓或资金上限", "不在当日候选范围", "日线不足或无效，未生成规则决策"),
+    "zh-TW": ("量比", "區間波動", "檔位", "目標倉位", "未達量價門檻", "持倉或資金上限", "不在當日候選範圍", "日線不足或無效，未產生規則決策"),
+    "en": ("Volume ratio", "Range", "Grid level", "Target weight", "Below volume/range thresholds", "Position or cash cap", "Outside today's candidate universe", "Insufficient or invalid bars; no rule decision"),
+    "ja": ("出来高倍率", "値幅", "グリッド段階", "目標比率", "出来高・値幅の条件未達", "保有銘柄数または資金の上限", "当日の候補銘柄外", "日足データが不足または無効のため、ルール判定なし"),
+    "ko": ("거래량 배수", "가격 변동폭", "그리드 단계", "목표 비중", "거래량·변동폭 기준 미달", "보유 종목 수 또는 자금 한도", "당일 후보군 제외", "일봉 데이터가 부족하거나 유효하지 않아 규칙 판단 없음"),
+}
+_REJECTED_ORDER_TEXT = {
+    "zh": "资金或整手限制，未成交。",
+    "zh-TW": "資金或整手限制，未成交。",
+    "en": "Insufficient cash or lot-size limit; order not filled. ",
+    "ja": "資金不足または売買単位の制約により未約定。",
+    "ko": "자금 또는 거래 단위 제한으로 미체결. ",
+}
 
 
 def metrics(days, initial, risk_free=0.0):
@@ -72,11 +88,75 @@ def metrics(days, initial, risk_free=0.0):
     return {k: v if v is None or math.isfinite(v) else None for k, v in result.items()}
 
 
+def grid_rule_opinions(config, state, day, histories, candidates):
+    """Closed-bar grid signals; the shared ledger fills targets at the next open."""
+    labels = _GRID_TEXT.get(config.get("reportLanguage"), _GRID_TEXT["en"])
+    lookback = config.get("gridLookbackDays", 5)
+    min_volume = config.get("gridMinVolumeRatio", 1.3)
+    min_range = config.get("gridMinRange", 0.05)
+    levels = config.get("gridLevels", 5)
+    allowed = set(candidates)
+    evidence, ranked = {}, []
+    for code, rows in histories.items():
+        if code not in allowed:
+            evidence[code] = None
+            continue
+        if len(rows) < lookback or rows[-1]["date"] != day:
+            raise ValueError(f"{day} {code}: {labels[7]}")
+        recent = rows[-lookback:]
+        if any(any(type(bar.get(key)) not in {int, float} or not math.isfinite(bar[key])
+                   for key in ("low", "high", "close", "volume")) or
+               bar["low"] <= 0 or not bar["low"] <= bar["close"] <= bar["high"] or bar["volume"] < 0
+               for bar in recent):
+            raise ValueError(f"{day} {code}: {labels[7]}")
+        low, high = min(bar["low"] for bar in recent), max(bar["high"] for bar in recent)
+        previous_volume = sum(bar["volume"] for bar in recent[:-1]) / (lookback - 1)
+        volume_ratio = recent[-1]["volume"] / previous_volume if previous_volume > 0 else 0.0
+        range_ratio = (high - low) / low
+        qualified = previous_volume > 0 and volume_ratio >= min_volume and range_ratio >= min_range
+        distance = (high - recent[-1]["close"]) / (high - low) if qualified else 0.0
+        level = min(levels, max(0, math.floor(distance * levels + 0.5)))
+        raw_weight = config["maxWeight"] * level / levels
+        evidence[code] = (volume_ratio, range_ratio, level, raw_weight, qualified)
+        if raw_weight > 0:
+            ranked.append((code, level, volume_ratio * range_ratio))
+
+    # The same deterministic ordering resolves portfolio limits on every replay.
+    ranked.sort(key=lambda item: (-item[1], -item[2], item[0]))
+    weights, remaining = {}, 1.0
+    for code, _, _ in ranked[:config["maxPositions"]]:
+        weights[code] = min(evidence[code][3], remaining)
+        remaining -= weights[code]
+
+    opinions = []
+    for code in histories:
+        held = code in state["positions"]
+        target = weights.get(code, 0.0)
+        facts = evidence[code]
+        if facts is None:
+            reason = labels[6]
+        else:
+            volume_ratio, range_ratio, level, raw_weight, qualified = facts
+            reason = (f"{labels[0]} {volume_ratio:.2f}/{min_volume:.2f}; "
+                      f"{labels[1]} {range_ratio:.2%}/{min_range:.2%}; "
+                      f"{labels[2]} {level}/{levels}; {labels[3]} {target:.2%}")
+            if not qualified:
+                reason += f"; {labels[4]}"
+            elif target < raw_weight:
+                reason += f"; {labels[5]}"
+        opinions.append(dict(code=code, targetWeight=target, reason=reason,
+                             stance="bullish" if target > 0 else "bearish" if held else "neutral",
+                             held=held, decisionBackend="rules"))
+    return opinions
+
+
 def step(config, state, day, history, benchmark_close):
     """Execute yesterday's intent at today's open, then form today's close opinions."""
     cash = state["cash"]
     positions = {k: dict(v) for k, v in state.get("positions", {}).items()}
     trades, pending = [], state.get("pending")
+    rejected_prefix = (_REJECTED_ORDER_TEXT.get(config.get("reportLanguage"), _REJECTED_ORDER_TEXT["en"])
+                       if config.get("decisionBackend") == "rules" else "资金或整手限制，未成交。")
     prices = {}
     for code in config["symbols"]:
         rows = history[code]
@@ -145,7 +225,7 @@ def step(config, state, day, history, benchmark_close):
                 trade(code, 'buy', quantity, pending['reasons'][code])
             elif wanted > 0:
                 trades.append(dict(code=code, side='buy', quantity=0, price=None, rawPrice=prices[code]['open'], fee=0,
-                    gross=0, slippage=0, reason='资金或整手限制，未成交。' + pending['reasons'][code],
+                    gross=0, slippage=0, reason=rejected_prefix + pending['reasons'][code],
                     signalDate=pending['date'], status='rejected'))
     elif pending and pending["date"] < day:
         selected = pending["selected"]
@@ -172,7 +252,7 @@ def step(config, state, day, history, benchmark_close):
                         fee=0,
                         gross=0,
                         slippage=0,
-                        reason="资金或整手限制，未成交。" + pending["reasons"][code],
+                        reason=rejected_prefix + pending["reasons"][code],
                         signalDate=pending["date"],
                         status="rejected",
                     )

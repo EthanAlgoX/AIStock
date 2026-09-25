@@ -22,7 +22,7 @@ from src.storage import (
     SimulationEquitySnapshotRecord,
     utc_naive_now,
 )
-from src.services.simulation_portfolio_engine import TEMPLATES, BENCHMARKS, metrics, step
+from src.services.simulation_portfolio_engine import TEMPLATES, BENCHMARKS, GRID_RULE_VERSION, metrics, step
 from src.services.jev_decision_service import JevInputBudgetExceeded
 from src.workspace_scope import ThreadPoolExecutor
 
@@ -42,8 +42,16 @@ class SimulationPortfolioService:
 
     def _prepare_config(self, payload):
         backend = payload.get("decisionBackend", "llm")
-        if backend not in {"llm", "jev"}:
+        if backend not in {"llm", "jev", "rules"}:
             raise ValueError("Unsupported trading decision backend")
+        if backend == "rules":
+            if payload.get('skillSnapshot', {}).get('id') != 'high_volume_volatility_grid':
+                raise ValueError('规则决策仅支持内置高量高波动网格策略。')
+            if payload.get('systemPrompt', '').strip():
+                raise ValueError('规则决策不使用自定义模型指令，请清空后保存。')
+            if payload.get('ruleVersion', GRID_RULE_VERSION) != GRID_RULE_VERSION:
+                raise ValueError('不支持的规则版本，请复制策略重新配置。')
+            payload = dict(payload, ruleVersion=GRID_RULE_VERSION)
         if backend == "jev":
             from src.schemas.jev_task import JevTaskConfig
             task = JevTaskConfig.model_validate(payload.get('jevTask', {}))
@@ -236,8 +244,10 @@ class SimulationPortfolioService:
             config = json.loads(definition.config_json)
         if config.get('engine') != 'agent' or config.get('template') != 'agent':
             raise ValueError('固定规则策略已下线，历史记录仅供查看。请新建 Agent + 策略 Skill。')
-        if config.get('engine') == 'agent' and options['mode'] == 'backtest' and options.get('historyMode') != 'ai_replay':
-            raise ValueError('Agent 历史验证必须选择 AI 历史回放；模型可能含有未来知识，不能标为严格规则回测。')
+        if config.get('engine') == 'agent' and options['mode'] == 'backtest':
+            expected = 'rules' if config.get('decisionBackend') == 'rules' else 'ai_replay'
+            if options.get('historyMode') != expected:
+                raise ValueError('历史验证模式必须与保存的决策后端一致：规则策略使用规则回测，模型策略使用 AI 历史回放。')
         return self.create(dict(config, **options, definitionId=definition_id))
 
     def create(self, payload):
@@ -345,7 +355,9 @@ class SimulationPortfolioService:
                 "commissionRate",
                 "sellTaxRate",
                 "slippageRate",
-                "riskFreeRate", "engine", "skillSnapshot", "systemPrompt", "universe", "scopeRefresh",
+                "riskFreeRate", "engine", "decisionBackend", "ruleVersion", "skillSnapshot",
+                "systemPrompt", "jevTask", "jevWeightStep", "jevModel", "gridLookbackDays",
+                "gridMinVolumeRatio", "gridMinRange", "gridLevels", "universe", "scopeRefresh",
             )
             signature = [result["config"].get(k, "rule" if k == "engine" else None) for k in signature_keys]
             result["comparisons"] = []
@@ -629,7 +641,7 @@ class SimulationPortfolioService:
             return 0
         calendar = xcals.get_calendar(MARKET_EXCHANGE[config['market'].lower()])
         dates = [d.date().isoformat() for d in calendar.sessions_in_range(first, end)]
-        remaining, processed = config['runTokenBudget'], 0
+        remaining, processed = config.get('runTokenBudget', 100000), 0
         for day in dates[:20]:
             recheck_member()
             with self.db.get_session() as session:
@@ -665,7 +677,7 @@ class SimulationPortfolioService:
             baseline = data[config['benchmark']][-1]['close']
             state, output = step(daily_config, previous, day, histories, baseline)
             usage = None
-            if histories and not paused and (current or config['mode'] == 'backtest'):
+            if histories and not paused and (current or config['mode'] == 'backtest' or config.get('decisionBackend') == 'rules'):
                 with self.db.get_session() as session:
                     active = session.get(SimulationPortfolioRunRecord, portfolio_id)
                     if active is None or active.lease_token != token:
@@ -695,7 +707,9 @@ class SimulationPortfolioService:
             output.update(sources=sources, universe=snapshot, usage=usage, workspaceRunId=audit_id,
                           recordedAt=datetime.now(timezone.utc).isoformat(), paused=paused,
                           replayed=config['mode'] == 'backtest' or not current,
-                          validationLabel='AI 历史回放（非严格规则回测）' if config['mode'] == 'backtest' else 'Agent 每日模拟',
+                          validationLabel=('规则历史回测' if config['mode'] == 'backtest' else '规则每日模拟')
+                          if config.get('decisionBackend') == 'rules' else
+                          ('AI 历史回放（非严格规则回测）' if config['mode'] == 'backtest' else 'Agent 每日模拟'),
                           skillDigest=config['skillSnapshot']['digest'])
             with self.db.session_scope() as session:
                 self._claim_day(session, portfolio_id, token)

@@ -5948,5 +5948,22 @@
   "已发布工作流负责取数、计算和正式成果；模型只解读本次证据，所选专家可独立评审。需要探索新证据时，请回投研助理讨论。": "The published workflow handles data, calculations and the formal result. The model interprets this run’s evidence, and selected experts may review it independently. Return to the research assistant to explore new evidence.",
   "所选 Skill 已不可用，请重新选择后保存任务。": "The selected Skill is unavailable. Choose another and save the task again.",
   "所选方法合计过长，请精简到 30000 字以内。": "The selected methods are too long. Shorten them to 30,000 characters in total.",
-  "任务方法快照与 Skill 绑定不一致，请重新保存任务。": "The saved method no longer matches this task's Skill selection. Save the task again."
+  "任务方法快照与 Skill 绑定不一致，请重新保存任务。": "The saved method no longer matches this task's Skill selection. Save the task again.",
+  "固定规则 · 高量高波动网格": "Fixed rules · High-volume volatility grid",
+  "规则模式只使用已收盘日线和网格参数生成目标仓位，回测与每日模拟均不调用决策模型；自定义范围预览仍可能调用 LLM。仅支持内置高量高波动网格。": "Rule mode calculates target weights from completed daily bars and grid parameters. Backtests and daily simulation do not call a decision model. Custom universe previews may still call an LLM. Only the built-in grid is supported.",
+  "规则版本随策略保存；Skill 文字和自定义模型指令不参与规则计算。": "The rule version is saved with the strategy. Skill text and custom model instructions do not affect rule calculations.",
+  "规则只使用已收盘日线和这些参数计算目标仓位；下一交易日开盘由模拟账本成交。": "Rules use only completed daily bars and these parameters to calculate target weights; the simulator fills at the next session open.",
+  "固定规则": "Fixed rules",
+  "规则回测：逐日使用已收盘行情生成信号，次日开盘模拟成交，不调用决策模型。每次最多处理20个交易日；固定股票池仍有事后选股偏差。": "Rule backtest: signals use completed daily bars and fills occur at the next open, with no decision-model calls. Each run processes at most 20 sessions; a frozen universe still has look-ahead selection bias.",
+  "规则历史回测": "Rule backtest",
+  "规则每日模拟": "Daily rule simulation",
+  "观点由固定版本的网格规则计算；每个股票池成员每天都有记录。": "Opinions are calculated by a fixed grid-rule version; each universe member has a daily record.",
+  "规则引擎 · 无模型调用": "Rule engine · No model call",
+  "内置高量高波动网格：固定版本规则依据已收盘日线计算量比、区间波动和目标仓位；下一交易日开盘按费用与滑点模拟成交。": "Built-in high-volume volatility grid: versioned rules calculate volume ratio, price range and target weight from completed daily bars; fills are simulated at the next open with fees and slippage.",
+  "排查错误详情后，可点击“运行回测”从未完成的日期继续；规则回测不调用决策模型。": "After checking the error, select “Run backtest” to continue from the first unfinished day; rule backtests do not call a decision model.",
+  "AI 历史回放（非严格规则回测）": "AI historical replay (not a strict rule backtest)",
+  "Agent 每日模拟": "Daily Agent simulation",
+  "规则版本：": "Rule version:",
+  "用户指定股票": "User-specified stock",
+  "来自所选持仓账户": "From the selected holdings account"
 }

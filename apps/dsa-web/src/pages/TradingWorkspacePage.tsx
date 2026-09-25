@@ -50,6 +50,7 @@ const seed: RuleConfig = {
   name: "",
   template: "agent",
   engine: "agent",
+  decisionBackend: "rules",
   skillId: "high_volume_volatility_grid",
   market: "CN",
   symbols: [],
@@ -179,7 +180,7 @@ export default function TradingWorkspacePage() {
         setError('请返回投研助理，先检查并保存当前交易策略 Skill。');
         return;
       }
-      setDraft({ ...seed, name: source.draft.name || '', skillId: source.skillId });
+      setDraft({ ...seed, name: source.draft.name || '', skillId: source.skillId, decisionBackend: 'llm' });
       setSymbols('');
       setSourceQuery(source.draft.scope || '');
       setUniversePreview(null);
@@ -484,9 +485,9 @@ export default function TradingWorkspacePage() {
                 />
               </label>
             </div>
-            <label className="block"><UiLiteral text={"每次运行 Token 预算"} /><input className={inputClass} type="number" min={10000} max={500000} step={10000}
+            {draft.decisionBackend !== "rules" && <label className="block"><UiLiteral text={"每次运行 Token 预算"} /><input className={inputClass} type="number" min={10000} max={500000} step={10000}
                 value={draft.runTokenBudget || 100000} onChange={(e) => change("runTokenBudget", Number(e.target.value))} />
-            </label>
+            </label>}
             <details className="border-y border-border py-4">
               <summary className="cursor-pointer font-medium">
                 <UiLiteral text={"仓位、交易成本与指标假设"} /></summary>
@@ -604,7 +605,7 @@ export default function TradingWorkspacePage() {
                     ? uiLiteral(definition.config.skillSnapshot?.name || "Agent 策略 Skill")
                     : uiLiteral("已下线固定规则")}{" "}
                   · {definition.config.symbols.join("、")} ·{" "}
-                  {definition.config.market} · {definition.config.decisionBackend === "jev" ? `JEV · ${definition.config.jevModel || ""}` : "LLM"}
+                  {definition.config.market} · {definition.config.decisionBackend === "rules" ? uiLiteral("固定规则") : definition.config.decisionBackend === "jev" ? `JEV · ${definition.config.jevModel || ""}` : "LLM"}
                 </p>
                 <p className="mt-2 text-sm text-secondary-text">
                   <UiLiteral text={"同一版配置共用最近的模拟账户，回测独立记账。修改配置后，下次运行创建新账户，旧持仓和历史保留。"} /></p>
@@ -655,7 +656,9 @@ export default function TradingWorkspacePage() {
                   definition.config.engine === "agent" && (
                     <div className="mt-4 border-y border-border py-4">
                       <p className="text-sm text-warning">
-                        <UiLiteral text={"AI 历史回放：模型可能知道后来的事件，不能等同严格规则回测。每次最多处理20个交易日，预算不足时可继续运行。"} /></p>
+                        <UiLiteral text={definition.config.decisionBackend === "rules"
+                          ? "规则回测：逐日使用已收盘行情生成信号，次日开盘模拟成交，不调用决策模型。每次最多处理20个交易日；固定股票池仍有事后选股偏差。"
+                          : "AI 历史回放：模型可能知道后来的事件，不能等同严格规则回测。每次最多处理20个交易日，预算不足时可继续运行。"} /></p>
                       <label className="mt-3 block">
                         <UiLiteral text={"历史股票范围"} /><select
                           className={inputClass}
@@ -691,7 +694,7 @@ export default function TradingWorkspacePage() {
                             initialCash: validationCash,
                             ...(definition.config.engine === "agent"
                               ? {
-                                  historyMode: "ai_replay" as const,
+                                  historyMode: definition.config.decisionBackend === "rules" ? "rules" as const : "ai_replay" as const,
                                   universeHistory,
                                 }
                               : {}),
@@ -819,7 +822,9 @@ export default function TradingWorkspacePage() {
                     <p className="mt-2 text-sm text-secondary-text">
                       {detail.mode === "paper"
                         ? uiLiteral("每日持续模拟")
-                        : detail.config.engine === "agent"
+                        : detail.config.decisionBackend === "rules"
+                          ? uiLiteral("规则历史回测")
+                          : detail.config.engine === "agent"
                           ? uiLiteral("AI 历史回放")
                           : uiLiteral("历史回测")}{" "}
                       <UiLiteral text={"· 固定版本 "} />{detail.versionId} · {uiLiteral(status(detail))}
@@ -1136,7 +1141,9 @@ export default function TradingWorkspacePage() {
                           </article>
                         ))}
                         <p className="py-3 text-xs text-secondary-text">
-                          <UiLiteral text={"观点由保存时冻结的 Agent Skill 生成；每个股票池成员每天都有记录。"} /></p>
+                          <UiLiteral text={detail.config.decisionBackend === "rules"
+                            ? "观点由固定版本的网格规则计算；每个股票池成员每天都有记录。"
+                            : "观点由保存时冻结的 Agent Skill 生成；每个股票池成员每天都有记录。"} /></p>
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
@@ -1213,9 +1220,9 @@ export default function TradingWorkspacePage() {
                     <summary className="cursor-pointer">
                       <UiLiteral text={"当日范围、决策与 Token"} /></summary>
                     <p className="mt-3 text-sm">
-                      {selected.validationLabel} ·{" "}
+                      {uiLiteral(selected.validationLabel || "")} ·{" "}
                       {selected.usage
-                        ? `${selected.usage.model} · ${selected.usage.tokens} Token`
+                        ? detail.config.decisionBackend === "rules" ? uiLiteral("规则引擎 · 无模型调用") : `${selected.usage.model} · ${selected.usage.tokens} Token`
                         : uiLiteral("本日无模型决策")}
                     </p>
                     <p className="mt-2 text-xs text-secondary-text">
@@ -1236,10 +1243,15 @@ export default function TradingWorkspacePage() {
                     <UiLiteral text={"策略规则、指标口径与边界"} /></summary>
                   <div className="mt-4 space-y-3 text-sm leading-6 text-secondary-text">
                     <p>
-                      {detail.config.engine === "agent"
+                      {detail.config.decisionBackend === "rules"
+                        ? uiLiteral("内置高量高波动网格：固定版本规则依据已收盘日线计算量比、区间波动和目标仓位；下一交易日开盘按费用与滑点模拟成交。")
+                        : detail.config.engine === "agent"
                         ? uiLiteral(`${detail.config.skillSnapshot?.name || "Agent 策略 Skill"}：使用保存时冻结的 Skill、交易指令和范围生成每日目标仓位，并由程序风控与模拟账本执行。`)
                         : uiLiteral("固定规则策略已下线；此处仅保留历史账本与指标供查看。")}
                     </p>
+                    {detail.config.decisionBackend === "rules" && detail.config.ruleVersion && (
+                      <p><UiLiteral text="规则版本：" /> <code>{detail.config.ruleVersion}</code></p>
+                    )}
                     <p>
                       <UiLiteral text={"股票池："} />{detail.config.symbols.join("、")}<UiLiteral text={"。最大持仓"} />{" "}
                       {detail.config.maxPositions} <UiLiteral text={" 只；单股建仓上限"} />{" "}

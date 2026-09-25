@@ -352,11 +352,19 @@ export function TradingAgentConfig({
       <label className="block">
         <UiLiteral text="交易决策模型" />
         <select className={input} value={config.decisionBackend || "llm"}
-          onChange={(e) => onConfig({ decisionBackend: e.target.value as "llm" | "jev" })}>
+          onChange={(e) => {
+            const backend = e.target.value as "llm" | "jev" | "rules";
+            onConfig({ decisionBackend: backend, ...(backend === "rules"
+              ? { skillId: "high_volume_volatility_grid", systemPrompt: "" } : {}) });
+          }}>
           <option value="llm">{uiLiteral("LLM · 目标仓位与理由")}</option>
           <option value="jev">{uiLiteral("JEV · 仅决策结果")}</option>
+          <option value="rules">{uiLiteral("固定规则 · 高量高波动网格")}</option>
         </select>
       </label>
+      {config.decisionBackend === "rules" && <p className="text-sm text-secondary-text">
+        <UiLiteral text="规则模式只使用已收盘日线和网格参数生成目标仓位，回测与每日模拟均不调用决策模型；自定义范围预览仍可能调用 LLM。仅支持内置高量高波动网格。" />
+      </p>}
       {config.decisionBackend === "jev" && (
         <div className="space-y-3">
           <p className="text-sm text-secondary-text"><UiLiteral text="JEV 根据 Skill、行情和模拟持仓判断买入、卖出或不动，返回概率，不生成报告。股票范围预览仍使用 LLM。" /></p>
@@ -421,21 +429,23 @@ export function TradingAgentConfig({
         >
           <option value=""><UiLiteral text={"选择策略方法"} /></option>
           {options?.skills.map((s) => (
-            <option key={s.id} value={s.id}>
+            <option key={s.id} value={s.id} disabled={config.decisionBackend === "rules" && s.id !== "high_volume_volatility_grid"}>
               {uiLiteral(s.name)}
             </option>
           ))}
         </select>
       </label>
       <p className="text-sm text-secondary-text">
-        {uiLiteral(options?.skills.find((s) => s.id === config.skillId)?.description ||
+        {config.decisionBackend === "rules" ? uiLiteral("规则版本随策略保存；Skill 文字和自定义模型指令不参与规则计算。") : uiLiteral(options?.skills.find((s) => s.id === config.skillId)?.description ||
           "Skill 决定分析方法；交易输出规范和程序风控共同约束买卖计划。保存后固定 Skill 内容。")}
       </p>
       {config.skillId === "high_volume_volatility_grid" && (
         <div className="rounded-lg border border-border p-4">
           <h4 className="font-medium"><UiLiteral text={"高量高波动网格参数"} /></h4>
           <p className="mt-1 text-sm leading-6 text-secondary-text">
-            <UiLiteral text={"Agent 只使用冻结日线和这些参数形成目标仓位；成交仍在下一交易日开盘由模拟账本执行。"} /></p>
+            <UiLiteral text={config.decisionBackend === "rules"
+              ? "规则只使用已收盘日线和这些参数计算目标仓位；下一交易日开盘由模拟账本成交。"
+              : "Agent 只使用冻结日线和这些参数形成目标仓位；成交仍在下一交易日开盘由模拟账本执行。"} /></p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {([
               ["gridLookbackDays", "观察周期（交易日）", 3, 20, 1],
@@ -460,7 +470,7 @@ export function TradingAgentConfig({
           </div>
         </div>
       )}
-      <details>
+      {config.decisionBackend !== "rules" && <details>
         <summary className="cursor-pointer font-medium">
           <UiLiteral text={config.decisionBackend === "jev" ? "补充策略指令" : "交易 System Prompt"} /></summary>
         <label className="mt-3 block">
@@ -479,7 +489,7 @@ export function TradingAgentConfig({
             ? uiLiteral("选填。留空使用所选 Skill 和系统交易规则，无需自行编写提示词。")
             : options?.defaultPrompt}
         </p>
-      </details>
+      </details>}
     </div>
   );
 }

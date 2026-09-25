@@ -404,7 +404,13 @@ def test_paginated_run_history_and_usage_remain_private(members):
 def test_rule_definitions_and_validations_are_private(members):
     owner, alice, bob, _ = members
     base = '/api/v1/simulation/portfolios'
-    payload = dict(name='Private rule', template='volume_breakout', market='US', symbols=['AAPL'], lotSize=1)
+    preview = alice.post(base + '/universe-preview', json={
+        'market': 'US', 'scope': {'mode': 'fixed', 'symbols': ['AAPL']},
+    })
+    assert preview.status_code == 200, preview.text
+    payload = dict(name='Private rule', template='agent', market='US', symbols=['AAPL'], lotSize=1,
+                   decisionBackend='rules', skillId='high_volume_volatility_grid',
+                   universePreviewId=preview.json()['id'])
     saved = alice.post(base + '/definitions', json=payload)
     assert saved.status_code == 200, saved.text
     definition_id = saved.json()['id']
@@ -427,7 +433,7 @@ def test_agent_universe_previews_cannot_be_reused_by_other_users(members):
     assert preview.status_code == 200, preview.text
     options = alice.get(base + '/agent-options')
     assert options.status_code == 200 and options.json()['skills']
-    payload = dict(name='Private Agent',template='volume_breakout',market='US',symbols=[],lotSize=1,
+    payload = dict(name='Private Agent',template='agent',market='US',symbols=[],lotSize=1,
                    engine='agent',skillId=options.json()['skills'][0]['id'],universePreviewId=preview.json()['id'])
     for other in (owner, bob):
         response = other.post(base + '/definitions', json=payload)

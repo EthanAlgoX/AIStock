@@ -8,9 +8,11 @@ import pytest
 from sqlalchemy import select, func
 from src.services.trading_agent_service import TradingAgentService
 from src.services.simulation_portfolio_service import SimulationPortfolioService
-from src.storage import SimulationAccountRecord, SimulationFillRecord, SimulationUniverseSnapshotRecord
+from src.storage import SimulationAccountRecord, SimulationFillRecord, SimulationTradingCallRecord, SimulationUniverseSnapshotRecord
 from tests.test_workspace_service import workspace  # noqa: F401
+from tests.test_member_workspaces import members  # noqa: F401
 from tests.test_simulation_portfolios import config, fetcher, history, run_sync
+from src.services.simulation_portfolio_engine import GRID_RULE_VERSION, grid_rule_opinions
 
 
 def fixed():
@@ -121,6 +123,110 @@ def test_grid_skill_is_available_to_agent_and_receives_frozen_parameters(workspa
     )
     assert opinions[0]['targetWeight'] == 0.2
     assert captured[0]['grid'] == {'lookbackDays': 5, 'minVolumeRatio': 1.2, 'minRange': 0.05, 'levels': 5}
+
+
+def test_grid_rules_fail_on_incomplete_bars_and_respect_candidate_limits():
+    cfg = dict(gridLookbackDays=5, gridMinVolumeRatio=1.3, gridMinRange=0.05,
+               gridLevels=5, maxPositions=1, maxWeight=0.25, reportLanguage='en')
+    rows = history()
+    for bar in rows:
+        bar.update(low=80, high=120, close=90, volume=1000)
+    rows[-1]['volume'] = 2000
+    second = [dict(bar) for bar in rows]
+    result = grid_rule_opinions(cfg, {'positions': {}}, '2025-02-10',
+                                {'AAPL': rows, 'MSFT': second}, ['AAPL', 'MSFT'])
+    assert result[0]['targetWeight'] == pytest.approx(0.2)
+    assert result[1]['targetWeight'] == 0
+    assert result[0]['decisionBackend'] == 'rules'
+    assert grid_rule_opinions(cfg, {'positions': {'AAPL': {'quantity': 1}}}, '2025-02-10',
+                              {'AAPL': rows}, [])[0]['targetWeight'] == 0
+    with pytest.raises(ValueError, match='Insufficient or invalid bars'):
+        grid_rule_opinions(cfg, {'positions': {}}, '2025-02-10', {'AAPL': rows[:-1]}, ['AAPL'])
+    bad = [dict(bar) for bar in rows]
+    bad[-1]['close'] = 121
+    with pytest.raises(ValueError, match='Insufficient or invalid bars'):
+        grid_rule_opinions(cfg, {'positions': {}}, '2025-02-10', {'AAPL': bad}, ['AAPL'])
+
+
+def test_grid_rule_backtest_replays_without_model_calls_and_keeps_inputs(workspace):
+    def fail_model(*_args, **_kwargs):
+        raise AssertionError('A rule validation must not call a decision model')
+
+    agent = TradingAgentService(workspace.db, SimpleNamespace(call_text=fail_model))
+    preview = agent.preview('US', fixed())
+    raw_fetcher = fetcher()
+
+    def daily_data(*args, **kwargs):
+        frame, source = raw_fetcher.get_daily_data(*args, **kwargs)
+        if args[0] == 'AAPL':
+            frame['high'] = frame['close'] + 20
+            frame['low'] = frame['close'] - 20
+            frame.loc[frame['date'] >= date(2025, 2, 10), 'volume'] = 2000
+        return frame, source
+
+    service = SimulationPortfolioService(workspace.db, SimpleNamespace(get_daily_data=daily_data), agent)
+    saved = service.save_definition(config(engine='agent', decisionBackend='rules',
+        skillId='high_volume_volatility_grid', universePreviewId=preview['id'], systemPrompt=''))
+    assert saved['config']['ruleVersion'] == GRID_RULE_VERSION
+    with pytest.raises(ValueError, match='模式必须'):
+        service.create_validation(saved['id'], dict(mode='backtest', historyMode='ai_replay'))
+    options = dict(mode='backtest', historyMode='rules', universeHistory='frozen',
+                   initialCash=100000, startDate='2025-02-10', endDate='2025-02-14')
+    snapshots = []
+    with patch.object(service, '_last_closed', return_value=date(2025, 2, 14)):
+        for _ in range(2):
+            account = service.create_validation(saved['id'], options)
+            run_sync(service, account['id'])
+            detail = service.detail(account['id'])
+            assert not detail['error'], detail['error']
+            assert len(detail['days']) == 5
+            assert not detail['days'][0]['trades']
+            assert detail['days'][1]['trades'][0]['signalDate'] == '2025-02-10'
+            assert detail['days'][1]['trades'][0]['side'] == 'buy'
+            assert all(day['usage']['tokens'] == 0 for day in detail['days'])
+            snapshots.append([(day['equity'], day['opinions'], day['trades']) for day in detail['days']])
+    assert snapshots[0] == snapshots[1]
+    with patch('src.services.simulation_portfolio_service.datetime', wraps=datetime) as clock:
+        clock.now.return_value = datetime(2025, 2, 10)
+        paper = service.create_validation(saved['id'], dict(mode='paper', initialCash=100000))
+    for day in (10, 11):
+        with patch.object(service, '_last_closed', return_value=date(2025, 2, day)):
+            run_sync(service, paper['id'])
+    paper_detail = service.detail(paper['id'])
+    assert not paper_detail['error'], paper_detail['error']
+    assert len(paper_detail['days']) == 2
+    assert paper_detail['days'][1]['trades'][0]['side'] == 'buy'
+    assert all(day['usage']['tokens'] == 0 for day in paper_detail['days'])
+    assert len(paper_detail['comparisons']) == 2
+    with workspace.db.get_session() as session:
+        assert session.scalar(select(func.count()).select_from(SimulationTradingCallRecord)) == 0
+
+
+def test_grid_rule_rejects_custom_model_instructions(workspace):
+    agent = TradingAgentService(workspace.db)
+    preview = agent.preview('US', fixed())
+    service = SimulationPortfolioService(workspace.db, fetcher(), agent)
+    with pytest.raises(ValueError, match='不使用自定义模型指令'):
+        service.save_definition(config(engine='agent', decisionBackend='rules',
+            skillId='high_volume_volatility_grid', universePreviewId=preview['id'], systemPrompt='buy now'))
+
+
+def test_rule_backend_api_accepts_rule_history_mode(members):
+    _, alice, _, _ = members
+    preview = alice.post('/api/v1/simulation/portfolios/universe-preview', json={
+        'market': 'US', 'scope': fixed(),
+    })
+    assert preview.status_code == 200, preview.text
+    payload = dict(name='Rule API', market='US', decisionBackend='rules',
+                   skillId='high_volume_volatility_grid', universePreviewId=preview.json()['id'])
+    saved = alice.post('/api/v1/simulation/portfolios/definitions', json=payload)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()['config']['ruleVersion'] == GRID_RULE_VERSION
+    validation = alice.post(f"/api/v1/simulation/portfolios/definitions/{saved.json()['id']}/validations", json={
+        'mode': 'backtest', 'historyMode': 'rules', 'startDate': '2025-02-10', 'endDate': '2025-02-14',
+    })
+    assert validation.status_code == 200, validation.text
+    assert validation.json()['config']['decisionBackend'] == 'rules'
 
 
 def setup_agent(workspace, bad=False):

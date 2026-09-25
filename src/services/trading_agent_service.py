@@ -586,6 +586,14 @@ class TradingAgentService:
         raise ValueError(f'{day} 缺少当时记录的范围快照，不能用今日名单补造历史范围。')
 
     def decide(self, config, state, day, histories, candidates, budget, run_id):
+        if config.get('decisionBackend') == 'rules':
+            from src.services.simulation_portfolio_engine import GRID_RULE_VERSION, grid_rule_opinions
+            if (config['skillSnapshot']['id'] != 'high_volume_volatility_grid'
+                    or config.get('ruleVersion') != GRID_RULE_VERSION):
+                raise ValueError('规则决策仅支持已固定版本的高量高波动网格策略。')
+            if state.get('agentModel') and state['agentModel'] != GRID_RULE_VERSION:
+                raise ValueError('规则版本已改变，请复制策略建立新验证。')
+            return grid_rule_opinions(config, state, day, histories, candidates), dict(model=GRID_RULE_VERSION, tokens=0)
         payload = dict(date=day, market=config['market'], cash=state['cash'], equity=state['equity'],
                        holdings=state['positions'], candidates=candidates, bars=histories,
                        maxPositions=config['maxPositions'], maxWeight=config['maxWeight'])
