@@ -198,6 +198,9 @@ def test_grid_rule_backtest_replays_without_model_calls_and_keeps_inputs(workspa
     assert paper_detail['days'][1]['trades'][0]['side'] == 'buy'
     assert all(day['usage']['tokens'] == 0 for day in paper_detail['days'])
     assert len(paper_detail['comparisons']) == 2
+    assert all(not comparison['comparable'] for comparison in paper_detail['comparisons'])
+    assert paper_detail['evaluation']['filledOrders'] == 1
+    assert paper_detail['evaluation']['sampleHash']
     with workspace.db.get_session() as session:
         assert session.scalar(select(func.count()).select_from(SimulationTradingCallRecord)) == 0
 

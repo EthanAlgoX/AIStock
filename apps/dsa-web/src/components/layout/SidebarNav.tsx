@@ -10,6 +10,7 @@ import {
   Newspaper,
   Wallet,
   Bell,
+  Coins,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
@@ -50,6 +51,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: Newspaper,
     group: "automation",
   },
+  { key: "crypto", labelKey: "layout.nav.crypto", to: "/crypto", icon: Coins, group: "automation" },
   { key: "portfolio", labelKey: "layout.nav.portfolio", to: "/portfolio", icon: Wallet, group: "automation" },
   { key: "alerts", labelKey: "layout.nav.alerts", to: "/alerts", icon: Bell, group: "automation" },
   {

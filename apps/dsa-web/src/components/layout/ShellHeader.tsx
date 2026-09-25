@@ -5,6 +5,7 @@ import {
   Boxes,
   CalendarClock,
   CandlestickChart,
+  Coins,
   History,
   Menu,
   Newspaper,
@@ -44,6 +45,7 @@ const PRIMARY_NAV_ITEMS: HeaderNavItem[] = [
     to: "/market-intelligence",
     icon: Newspaper,
   },
+  { key: "crypto", labelKey: "layout.nav.crypto", to: "/crypto", icon: Coins },
   {
     key: "agent",
     labelKey: "layout.nav.home",
@@ -105,6 +107,7 @@ const ROUTE_TITLES: Array<{ prefix: string; labelKey: UiTextKey }> = [
   { prefix: "/portfolio", labelKey: "layout.nav.portfolio" },
   { prefix: "/alerts", labelKey: "layout.nav.alerts" },
   { prefix: "/market-intelligence", labelKey: "layout.nav.marketIntelligence" },
+  { prefix: "/crypto", labelKey: "layout.nav.crypto" },
   { prefix: "/stock-research", labelKey: "layout.nav.stockResearch" },
   { prefix: "/screening", labelKey: "layout.nav.screeningTool" },
   { prefix: "/trading", labelKey: "layout.nav.trading" },

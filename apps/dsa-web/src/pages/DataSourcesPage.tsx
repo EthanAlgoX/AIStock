@@ -374,6 +374,10 @@ const DataSourcesPage: React.FC = () => {
         }
       />
       <CapabilityCenterNav />
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm">
+        <p>{localize('加密货币现货行情使用 Binance Spot 公开 API，无需密钥；用于独立的币种研究、选币与回测。', 'Crypto spot prices use the public Binance Spot API without an API key, for the separate asset research, screening, and backtesting workspace.')}</p>
+        <Link className="font-medium text-primary hover:underline" to="/crypto">{localize('打开加密货币工作区', 'Open crypto workspace')} →</Link>
+      </div>
       <div className="flex items-start gap-3 rounded-xl border border-border/70 bg-muted/35 px-4 py-3 text-sm leading-6 text-secondary-text">
         <Database className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
         <p>

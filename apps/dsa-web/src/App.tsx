@@ -43,6 +43,7 @@ const AlertsPage = lazy(() => import("./pages/AlertsPage"));
 const HoldingsLedgerPage = lazy(() => import("./pages/HoldingsLedgerPage"));
 const ScreeningWorkspacePage = lazy(() => import("./pages/ScreeningWorkspacePage"));
 const TradingWorkspacePage = lazy(() => import("./pages/TradingWorkspacePage"));
+const CryptoWorkspacePage = lazy(() => import("./pages/CryptoWorkspacePage"));
 const ScheduledTasksPage = lazy(() => import("./pages/ScheduledTasksPage"));
 const ExpertReviewPage = lazy(() => import("./pages/ExpertReviewPage"));
 const TaskRunsPage = lazy(() => import("./pages/TaskRunsPage"));
@@ -67,7 +68,7 @@ const AppContent: React.FC = () => {
   }, [location.pathname]);
 
   useEffect(() => {
-    const pages = new Set(['/overview', '/stock-research', '/screening', '/trading', '/portfolio', '/portfolio/ledger', '/market-intelligence', '/expert-review', '/settings', '/usage', '/runs', '/alerts', '/schedules', '/runs/:runId', '/capabilities', '/capabilities/skills', '/capabilities/tools', '/capabilities/mcp', '/capabilities/data', '/capabilities/experts']);
+    const pages = new Set(['/overview', '/stock-research', '/screening', '/trading', '/crypto', '/portfolio', '/portfolio/ledger', '/market-intelligence', '/expert-review', '/settings', '/usage', '/runs', '/alerts', '/schedules', '/runs/:runId', '/capabilities', '/capabilities/skills', '/capabilities/tools', '/capabilities/mcp', '/capabilities/data', '/capabilities/experts']);
     const page = /^\/runs\/[^/]+$/.test(location.pathname) ? '/runs/:runId' : location.pathname;
     if (loggedIn && !isLoading && pages.has(page)) {
       // Delay cancels the StrictMode probe; never retry a page event automatically.
@@ -136,6 +137,7 @@ const AppContent: React.FC = () => {
         <Route path="/decision-signals" element={<Navigate to="/trading" replace />} />
         <Route path="/screening" element={<ScreeningWorkspacePage />} />
         <Route path="/trading" element={<TradingWorkspacePage />} />
+        <Route path="/crypto" element={<CryptoWorkspacePage />} />
         <Route path="/schedules" element={<ScheduledTasksPage />} />
         <Route path="/expert-review" element={<ExpertReviewPage />} />
         <Route path="/backtest" element={<Navigate to="/overview" replace />} />

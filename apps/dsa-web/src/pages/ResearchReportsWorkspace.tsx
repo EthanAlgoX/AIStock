@@ -15,6 +15,7 @@ import AgentTaskSetupPage from "./AgentTaskSetupPage";
 import TradingTaskSetupPage from "./TradingTaskSetupPage";
 import StockArchive from "../components/agent/StockArchive";
 import DefaultTaskLauncher from "../components/agent/DefaultTaskLauncher";
+import CryptoWorkspaceLink from '../components/crypto/CryptoWorkspaceLink';
 
 import { visibleWorkspaceArtifacts, workspaceRunLabel, workspaceRunTone } from "../utils/workspaceOutcome";
 const time = (value: string, language: string) => {
@@ -104,6 +105,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
           {selected.errorMessage && <p role="alert" className="mb-4 text-sm text-danger">{selected.errorMessage}</p>}
           </RunContext>) : null;
   return <AppPage className="space-y-5 pb-20">
+    <CryptoWorkspaceLink />
     <PageHeader title={trading ? tx("交易推演") : mode === "research" ? tx("个股研究") : tx("策略选股")}
       description={mode === "research" && entries.length > 0 ? undefined : trading ? tx("回看模拟交易提案、风险检查与执行记录；策略配置按需展开。") : mode === "research" ? tx("阅读研究结论、关键价位与风险，回看每一次个股研究。") : tx("回看筛选结果、候选依据与风险，比较每一次策略选股报告。")}
       actions={<button className="btn-primary inline-flex items-center gap-2" type="button" aria-expanded={configOpen} aria-controls="new-analysis-config" onClick={() => { setConfigVisited(true); setConfigOpen(!configOpen); }}>{configOpen ? <ChevronDown className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{configOpen ? trading ? tx("收起策略配置") : tx("收起分析配置") : newAction}</button>} />

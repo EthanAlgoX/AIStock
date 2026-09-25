@@ -1,4 +1,5 @@
 import { PortfolioRunExplanation } from "../components/agent/PortfolioRunExplanation";
+import CryptoWorkspaceLink from '../components/crypto/CryptoWorkspaceLink';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import { localizedStockName } from '../utils/markets';
 import { useUiLiteral } from '../hooks/useUiLiteral';
@@ -309,6 +310,7 @@ export default function TradingWorkspacePage() {
     "mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
   return (
     <AppPage>
+      <div className="mb-4"><CryptoWorkspaceLink /></div>
       <header className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
         <div>
           <h1 className="text-2xl font-semibold"><UiLiteral text={"策略验证与运行"} /></h1>
@@ -899,8 +901,24 @@ export default function TradingWorkspacePage() {
                 </dl>
                 <p className="mt-3 text-xs leading-5 text-secondary-text">
                   <UiLiteral text={"年化指标至少需要 20 个记账交易日；夏普在零波动、卡玛在零回撤时不定义。当日收益对应最近估值日。收益已扣配置费用与滑点。"} /></p>
+                {detail.evaluation && <section className="mt-6 border-b border-border pb-5">
+                  <h3 className="font-semibold"><UiLiteral text="资金与样本核对" /></h3>
+                  <dl className="mt-3 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
+                    <div><dt className="text-secondary-text"><UiLiteral text="评测口径" /></dt><dd className="mt-1 font-mono text-xs">{detail.evaluation.protocolId}</dd></div>
+                    <div><dt className="text-secondary-text"><UiLiteral text="行情样本指纹" /></dt><dd className="mt-1 font-mono text-xs" title={detail.evaluation.sampleHash || undefined}>{detail.evaluation.sampleHash?.slice(0, 12) || "—"}</dd></div>
+                    <div><dt className="text-secondary-text"><UiLiteral text="实际成交 / 拒单" /></dt><dd className="mt-1 tabular-nums">{detail.evaluation.filledOrders} / {detail.evaluation.rejectedOrders}</dd></div>
+                    <div><dt className="text-secondary-text"><UiLiteral text="平均资金使用率" /></dt><dd className="mt-1 tabular-nums">{fmt(detail.evaluation.averageExposure, true)}</dd></div>
+                    <div><dt className="text-secondary-text"><UiLiteral text="手续费与交易税" /></dt><dd className="mt-1 tabular-nums">{formatNumber(detail.evaluation.feesPaid, false, language)} {detail.currency}</dd></div>
+                    <div><dt className="text-secondary-text"><UiLiteral text="滑点成本" /></dt><dd className="mt-1 tabular-nums">{formatNumber(detail.evaluation.slippagePaid, false, language)} {detail.currency}</dd></div>
+                    <div><dt className="text-secondary-text"><UiLiteral text="相对基准价格收益差" /></dt><dd className="mt-1 tabular-nums">{fmt(detail.evaluation.excessVsBenchmark, true)}</dd></div>
+                    <div><dt className="text-secondary-text"><UiLiteral text="评测交易日" /></dt><dd className="mt-1 tabular-nums">{detail.evaluation.samples}</dd></div>
+                  </dl>
+                  {detail.evaluation.filledOrders === 0 && <p className="mt-3 text-sm text-secondary-text"><UiLiteral text="尚无成交；收益为零不能证明策略有效。" /></p>}
+                  {detail.evaluation.complete === false && <p className="mt-3 text-sm text-secondary-text"><UiLiteral text="回测尚未完成，当前指标仅覆盖已记账日期。" /></p>}
+                </section>}
                 <section className="mt-6 border-b border-border pb-5">
                   <h3 className="font-semibold"><UiLiteral text={"同配置的历史与模拟验证"} /></h3>
+                  <p className="mt-1 text-xs text-secondary-text"><UiLiteral text="仅固定规则且行情指纹、资金和成本相同的完整结果可直接比较；其他记录只供观察。" /></p>
                   {detail.comparisons?.length ? (
                     <div className="mt-3 overflow-x-auto">
                       <table className="w-full text-left text-sm">
@@ -912,6 +930,7 @@ export default function TradingWorkspacePage() {
                               "交易日",
                               "累计收益",
                               "最大回撤",
+                              "可比性",
                             ].map((x) => (
                               <th key={x} className="p-2">
                                 {uiLiteral(x)}
@@ -943,6 +962,7 @@ export default function TradingWorkspacePage() {
                               <td className="p-2">
                                 {fmt(c.metrics.maxDrawdown, true)}
                               </td>
+                              <td className="p-2"><UiLiteral text={c.comparable ? "同口径" : "样本或资金口径不同"} /></td>
                             </tr>
                           ))}
                         </tbody>

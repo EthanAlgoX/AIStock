@@ -137,6 +137,13 @@ export type Portfolio = {
   nextCheck: string;
   currency?: string;
   agentCalls?: {id:number;status:string;model:string;answer:string;input:unknown;error?:string;usage:Record<string,number>;createdAt:string}[];
+  evaluation?: {
+    protocolId: string; sampleHash: string | null; cohortKey: string;
+    firstDate: string | null; lastDate: string | null; samples: number; complete: boolean | null;
+    capitalMode: string; markPrice: string; filledOrders: number; rejectedOrders: number;
+    feesPaid: number; slippagePaid: number; averageExposure: number | null;
+    benchmarkPriceReturn: number | null; excessVsBenchmark: number | null;
+  };
   comparisons?: {
     id: number;
     name: string;
@@ -145,6 +152,7 @@ export type Portfolio = {
     endDate: string | null;
     samples: number;
     metrics: Record<string, number | null>;
+    comparable?: boolean;
   }[];
   metrics?: Record<string, number | null>;
   days?: PortfolioDay[];

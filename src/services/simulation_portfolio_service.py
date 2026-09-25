@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import json
+import hashlib
 import logging
 import math
 import re
@@ -28,6 +29,43 @@ from src.workspace_scope import ThreadPoolExecutor
 
 _POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="paper-portfolio")
 _LOG = logging.getLogger(__name__)
+
+
+def _evaluation_record(config, runs, days, status):
+    """Describe the exact observed sample and cash ledger; never infer missing days."""
+    sample = hashlib.sha256()
+    for run in runs:
+        raw = json.loads(run.input_snapshot_json)
+        observed = {key: raw[key] for key in ("date", "bars", "benchmarkClose")}
+        sample.update(json.dumps(observed, sort_keys=True, separators=(",", ":")).encode())
+        sample.update(b"\n")
+    sample_hash = sample.hexdigest() if runs else None
+    terms = {key: config.get(key) for key in (
+        "market", "symbols", "initialCash", "commissionRate", "sellTaxRate",
+        "slippageRate", "lotSize", "maxPositions", "maxWeight", "riskFreeRate",
+    )}
+    terms.update(protocolId="portfolio_daily_v1", timeframe="1d", sampleHash=sample_hash,
+                 firstDate=days[0]["date"] if days else None,
+                 lastDate=days[-1]["date"] if days else None)
+    cohort = hashlib.sha256(json.dumps(terms, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    trades = [trade for day in days for trade in day.get("trades", [])]
+    filled = [trade for trade in trades if trade.get("status") == "filled"]
+    strategy_return = days[-1]["equity"] / config["initialCash"] - 1 if days else None
+    benchmark_return = days[-1].get("benchmarkReturn") if days else None
+    return dict(
+        protocolId="portfolio_daily_v1", sampleHash=sample_hash, cohortKey=cohort,
+        firstDate=terms["firstDate"], lastDate=terms["lastDate"], samples=len(days),
+        complete=status == "completed" if config.get("mode") == "backtest" else None,
+        capitalMode="shared_cash_long_only_integer_lots", markPrice="daily_close",
+        filledOrders=len(filled), rejectedOrders=len(trades) - len(filled),
+        feesPaid=sum(trade.get("fee", 0) for trade in filled),
+        slippagePaid=sum(trade.get("slippage", 0) for trade in filled),
+        averageExposure=(sum(day["marketValue"] / day["equity"] for day in days) / len(days)
+                         if days else None),
+        benchmarkPriceReturn=benchmark_return,
+        excessVsBenchmark=(strategy_return - benchmark_return if strategy_return is not None
+                           and benchmark_return is not None else None),
+    )
 
 
 class PortfolioCancelled(Exception):
@@ -334,6 +372,8 @@ class SimulationPortfolioService:
             ).all()
             days = [json.loads(r.result_snapshot_json) for r in runs if r.status == "completed"]
             result["days"] = days
+            completed_runs = [r for r in runs if r.status == "completed"]
+            result["evaluation"] = _evaluation_record(result["config"], completed_runs, days, row.status)
             from src.storage import SimulationTradingCallRecord
             calls = session.scalars(select(SimulationTradingCallRecord).where(
                 SimulationTradingCallRecord.portfolio_id == portfolio_id
@@ -370,8 +410,8 @@ class SimulationPortfolioService:
                 other_config = json.loads(other.config_json)
                 if [other_config.get(k, "rule" if k == "engine" else None) for k in signature_keys] != signature:
                     continue
-                snapshots = session.scalars(
-                    select(SimulationRunRecord.result_snapshot_json)
+                other_runs = session.scalars(
+                    select(SimulationRunRecord)
                     .where(
                         SimulationRunRecord.strategy_version_id == other.strategy_version_id,
                         SimulationRunRecord.execution_mode == "portfolio_day",
@@ -379,7 +419,8 @@ class SimulationPortfolioService:
                     )
                     .order_by(SimulationRunRecord.id)
                 ).all()
-                other_days = [json.loads(value) for value in snapshots]
+                other_days = [json.loads(run.result_snapshot_json) for run in other_runs]
+                other_evaluation = _evaluation_record(other_config, other_runs, other_days, other.status)
                 result["comparisons"].append(
                     dict(
                         id=other.id,
@@ -389,6 +430,10 @@ class SimulationPortfolioService:
                         endDate=other.last_date,
                         samples=len(other_days),
                         metrics=metrics(other_days, other_config["initialCash"], other_config["riskFreeRate"]),
+                        comparable=bool(result["config"].get("decisionBackend") == "rules" and days and other_days and
+                                        result["evaluation"]["cohortKey"] == other_evaluation["cohortKey"] and
+                                        result["evaluation"]["complete"] is not False and
+                                        other_evaluation["complete"] is not False),
                     )
                 )
                 if len(result["comparisons"]) >= 10:

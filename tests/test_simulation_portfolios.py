@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 from sqlalchemy import select, func
 from src.services.simulation_portfolio_engine import metrics, step
-from src.services.simulation_portfolio_service import SimulationPortfolioService
+from src.services.simulation_portfolio_service import SimulationPortfolioService, _evaluation_record
 from src.storage import SimulationFillRecord, SimulationPortfolioRunRecord, SimulationRunRecord, SimulationAccountRecord
 from tests.test_workspace_service import workspace  # noqa: F401
 
@@ -87,6 +87,30 @@ def test_metrics_sample_limits_zero_and_formulas():
     assert m["turnover"] == pytest.approx(100 / 2 / 99.5)
     assert m["calmar"] == pytest.approx(m["annualizedReturn"] / 0.1)
     assert metrics(days[:2], 100)["annualizedReturn"] is None
+
+
+def test_evaluation_contract_tracks_exact_bars_cash_and_costs():
+    cfg = config()
+    bar = {"date": "2025-02-10", "open": 100, "high": 102, "low": 99, "close": 101, "volume": 1000}
+    source = {"date": bar["date"], "bars": {"AAPL": [bar]}, "benchmarkClose": 100,
+              "sources": {"AAPL": "vendor-one"}}
+    run = SimpleNamespace(input_snapshot_json=json.dumps(source))
+    day = {"date": bar["date"], "equity": 99900, "marketValue": 25000,
+           "benchmarkReturn": 0.02, "trades": [
+               {"status": "filled", "fee": 7, "slippage": 3},
+               {"status": "rejected", "fee": 0, "slippage": 0},
+           ]}
+    item = _evaluation_record(cfg, [run], [day], "completed")
+    assert item["complete"] is True
+    assert item["filledOrders"] == item["rejectedOrders"] == 1
+    assert item["feesPaid"] == 7 and item["slippagePaid"] == 3
+    assert item["averageExposure"] == pytest.approx(25000 / 99900)
+    assert item["excessVsBenchmark"] == pytest.approx(-0.021)
+    same_bars = SimpleNamespace(input_snapshot_json=json.dumps({**source, "sources": {"AAPL": "vendor-two"}}))
+    assert _evaluation_record(cfg, [same_bars], [day], "completed")["cohortKey"] == item["cohortKey"]
+    revised = SimpleNamespace(input_snapshot_json=json.dumps({**source, "bars": {"AAPL": [{**bar, "close": 100}]}}))
+    assert _evaluation_record(cfg, [revised], [day], "completed")["cohortKey"] != item["cohortKey"]
+    assert _evaluation_record(cfg, [run], [day], "ready")["complete"] is False
 
 
 def fetcher():

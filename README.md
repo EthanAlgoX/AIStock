@@ -46,10 +46,13 @@ Click **Request an invitation code** to open your configured default email app w
 | Compare different investing perspectives | Expert roundtable | Independent AI contributions and a moderator's summary |
 | Find stocks that meet your conditions | Strategy screening | Candidates with rankings and selection reasons |
 | Check how a strategy behaves | Trade simulation | Daily decisions, simulated fills, and account performance |
+| Explore crypto spot markets | Crypto workspace | USDT spot prices, asset screening, and hourly rule backtests |
 
 **Example question:** “Research AAPL's recent price trend and important news. Separate bullish and bearish evidence, include the dates of the data, and tell me what information is missing.”
 
 Built-in full-market screening rules mainly target A-shares. The “experts” are AI roles based on investment frameworks, not the actual people. Trading experiments use simulated funds and do not place live broker orders.
+
+Crypto uses a separate, long-only Binance Spot simulation with 24/7 hourly data; it does not place exchange orders. See the [crypto spot guide](docs/crypto-spot_EN.md).
 
 ## How it works
 

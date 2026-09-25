@@ -16,6 +16,7 @@ from api.v1.endpoints import (
     agent,
     alerts,
     screening,
+    crypto,
     simulation,
     simulation_portfolios,
     analysis,
@@ -107,6 +108,8 @@ router.include_router(
     prefix="/screening",
     tags=["Screening"]
 )
+
+router.include_router(crypto.router, prefix="/crypto", tags=["Crypto Spot"])
 
 router.include_router(
     simulation.router,
