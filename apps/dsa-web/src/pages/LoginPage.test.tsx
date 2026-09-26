@@ -21,13 +21,13 @@ describe('instance account entry', () => {
   it('offers invited registration without asking for the owner setup token', async () => {
     state.accountState = 'ready'; state.passwordSet = true; state.registrationMode = 'invite';
     show();
-    fireEvent.click(screen.getByRole('button', { name: 'Have an invitation? Create your workspace' }));
+    fireEvent.click(screen.getByRole('button', { name: 'New here? Create an account' }));
     expect(screen.getByRole('heading', { name: 'Create your private workspace' })).toBeTruthy();
     expect(screen.queryByLabelText('Setup token')).toBeNull();
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'member@example.com' } });
     fireEvent.change(screen.getByLabelText('Password', { exact: true }), { target: { value: 'long-password' } });
     fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'long-password' } });
-    fireEvent.change(screen.getByLabelText('Invitation code'), { target: { value: 'test-invitation' } });
+    fireEvent.change(screen.getByLabelText('Invitation code (optional)'), { target: { value: 'test-invitation' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create account & continue' }));
     await waitFor(() => expect(authApi.register).toHaveBeenCalledWith(expect.objectContaining({
       memberRegistration: true, inviteCode: 'test-invitation', setupToken: '',
@@ -76,4 +76,15 @@ describe('instance account entry', () => {
     expect(screen.getByRole('heading', { name: '创建管理员账户' })).toBeTruthy();
     expect(screen.getByLabelText('初始化凭证')).toBeTruthy();
   });
+});
+
+it('allows open registration without an invitation and guides personal setup', async () => {
+  state.accountState = 'ready'; state.passwordSet = true; state.registrationMode = 'open';
+  show(); fireEvent.click(screen.getByRole('button', { name: 'New here? Create an account' }));
+  expect(screen.getByLabelText('Invitation code (optional)')).not.toBeRequired();
+  fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'personal@example.com' } });
+  fireEvent.change(screen.getByLabelText('Password', { exact: true }), { target: { value: 'long-password' } });
+  fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'long-password' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create account & continue' }));
+  await waitFor(() => expect(authApi.register).toHaveBeenCalledWith(expect.objectContaining({ memberRegistration: true, inviteCode: '' })));
 });

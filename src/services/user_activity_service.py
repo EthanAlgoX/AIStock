@@ -6,7 +6,7 @@ from datetime import date, datetime, time, timedelta
 import logging
 import uuid
 
-from sqlalchemy import select, func, case, String
+from sqlalchemy import select, func, case, String, or_, and_
 
 from src.storage import (UserActivityRecord, UserCallDetailRecord, TrialCallRecord,
                          TrialUserRecord, LLMUsage, OwnerCallAttributionRecord, DatabaseManager)
@@ -83,6 +83,11 @@ def date_bounds(start, end):
     return datetime.combine(start, time.min), datetime.combine(end + timedelta(days=1), time.min)
 
 
+def _call_date_range(call, start, end):
+    return or_(*(and_(call.day_budget >= prefix + start.isoformat(),
+                     call.day_budget <= prefix + end.isoformat()) for prefix in ('global:', 'personal:')))
+
+
 def analytics(db, start: date, end: date, user_id=None, feature=None):
     """Group in SQL so totals do not depend on a paginated detail list."""
     lo, hi = date_bounds(start, end)
@@ -95,15 +100,14 @@ def analytics(db, start: date, end: date, user_id=None, feature=None):
                        func.sum(case((c.estimated.is_(True), c.charged), else_=0)),
                        func.sum(func.coalesce(d.prompt_tokens, 0)),
                        func.sum(func.coalesce(d.completion_tokens, 0))).outerjoin(d, d.call_id == c.id).where(
-                           c.day_budget >= 'global:' + start.isoformat(),
-                           c.day_budget <= 'global:' + end.isoformat())
+                           _call_date_range(c, start, end))
         if user_id:
             query = query.where(c.user_id == user_id)
         if feature:
             query = query.where(feature_col == feature)
         rows = session.execute(query.group_by(c.user_id, c.day_budget, feature_col)).all()
         emails = dict(session.execute(select(TrialUserRecord.id, TrialUserRecord.email)).all())
-        usage = [dict(userId=r[0], email=emails.get(r[0], r[0]), date=r[1].removeprefix('global:'),
+        usage = [dict(userId=r[0], email=emails.get(r[0], r[0]), date=r[1].split(':', 1)[-1], fundingSource='personal' if r[1].startswith('personal:') else 'platform',
                       feature=r[2], calls=r[3], charged=r[4], confirmed=r[5], estimated=r[6],
                       promptTokens=r[7], completionTokens=r[8]) for r in rows]
         from src import auth
@@ -178,7 +182,7 @@ def call_details(db, start, end, user_id=None, feature=None, request_id=None, of
                     d.prompt_tokens.label('promptTokens'), d.completion_tokens.label('completionTokens'),
                     d.duration_ms.label('durationMs'), d.error_code.label('error'),
                     d.created_at.label('createdAt')).outerjoin(d, c.id == d.call_id).where(
-                        c.day_budget >= 'global:' + start.isoformat(), c.day_budget <= 'global:' + end.isoformat())
+                        _call_date_range(c, start, end))
     l, o = LLMUsage, OwnerCallAttributionRecord
     stamp = func.coalesce(o.created_at, l.called_at)
     owner = select(func.cast(l.id, String).label('id'), literal('owner'),
@@ -198,7 +202,8 @@ def call_details(db, start, end, user_id=None, feature=None, request_id=None, of
         items = []
         for row in rows:
             item = dict(row)
-            item['date'] = item['date'].removeprefix('global:')
+            item['fundingSource'] = 'personal' if item['date'].startswith('personal:') else 'platform' if item['userId'] != 'owner' else 'owner'
+            item['date'] = item['date'].split(':', 1)[-1]
             item['createdAt'] = item['createdAt'].isoformat() + 'Z' if item['createdAt'] else None
             items.append(item)
         return {'total': total, 'items': items}

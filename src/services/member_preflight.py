@@ -26,18 +26,19 @@ def check():
         errors.append('The database directory must exist and be writable and persistent.')
     elif os.name == 'posix' and directory.stat().st_mode & 0o077:
         warnings.append('Restrict the database directory to the deployment OS user.')
-    try:
-        trial_model_params()
-    except Exception:
-        errors.append('Configure an available official HTTPS DeepSeek route for shared metered calls.')
-    if not trial_enabled():
-        warnings.append('TRIAL_ENABLED is false: invited accounts cannot make paid model calls.')
+    if trial_enabled():
+        try:
+            trial_model_params()
+        except Exception:
+            errors.append('Configure an available official HTTPS DeepSeek route for shared metered calls.')
+    else:
+        warnings.append('TRIAL_ENABLED is false: platform-funded calls are disabled; personal API calls remain available.')
     if os.getenv('CORS_ALLOW_ALL', 'false').lower() == 'true':
         errors.append('Disable wildcard CORS for a public deployment.')
     warnings.extend([
         'Verify HTTPS, trusted proxy headers and a non-public backend port on the server.',
         'Apply reverse-proxy request/body limits and verify independent backups and restore.',
-        'Registration is invitation-only; no automatic email verification or self-service recovery.',
+        'Registration without an invitation requires personal API credentials; no automatic email verification or self-service recovery.',
     ])
     return {'readyForDeploymentChecks': not errors, 'errors': errors, 'warnings': warnings}
 

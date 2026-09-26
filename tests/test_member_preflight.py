@@ -7,7 +7,9 @@ def test_preflight_is_read_only_and_reports_deployment_boundaries(tmp_path, monk
     monkeypatch.setattr(preflight.auth, 'access_mode', lambda: 'server')
     monkeypatch.setattr(preflight.auth, 'account_email', lambda: 'owner@example.com')
     monkeypatch.setattr(preflight, 'get_config', lambda: SimpleNamespace(database_path=str(tmp_path / 'database.db')))
-    monkeypatch.setattr(preflight, 'trial_model_params', lambda: {'model': 'deepseek/test'})
+    def no_platform_route():
+        raise AssertionError('Personal-API-only deployments need no platform model')
+    monkeypatch.setattr(preflight, 'trial_model_params', no_platform_route)
     monkeypatch.setattr(preflight, 'trial_enabled', lambda: False)
     monkeypatch.setenv('WEB_CONCURRENCY', '1')
     monkeypatch.setenv('CORS_ALLOW_ALL', 'false')

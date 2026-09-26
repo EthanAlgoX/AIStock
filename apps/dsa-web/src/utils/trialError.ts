@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const messages: Record<string, [string, string]> = {
+  personal_key_required: ['请在我的账户中配置个人 LLM API 后重试。', 'Configure your personal LLM API in My account, then retry.'],
   quota_exhausted: ['剩余额度不足以安全启动下一次模型调用。仍可浏览报告和演示。', 'Not enough tokens to safely start the next model call. Reports and demos remain available.'],
   global_quota_exhausted: ['今日全站试用额度已用完，请明天再试。个人额度也在 UTC 00:00 重置。', 'The shared daily trial limit has been reached. Try tomorrow; personal limits also reset at 00:00 UTC.'],
   trial_disabled: ['真实试用暂未开放或此身份已停用，可以继续体验演示。', 'Live trials are disabled or this identity was suspended. You can still explore the demo.'],

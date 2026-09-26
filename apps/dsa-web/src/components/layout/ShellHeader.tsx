@@ -191,7 +191,7 @@ export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
 
         <div className="min-w-0 flex-1 lg:hidden">
           <p className="truncate text-sm font-semibold text-foreground">
-            {currentTitle ? t(currentTitle.labelKey) : "AI Stock"}
+            {pageTitle}
           </p>
           <p className="truncate text-[11px] text-muted-text">
             {localize("Agent 驱动的投资决策工作台", "Agent-driven investment workspace")}

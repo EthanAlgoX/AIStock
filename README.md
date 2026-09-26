@@ -24,7 +24,7 @@ AI Stock brings market data, news, calculations, and AI analysis into one websit
 
 ## Try it online (recommended)
 
-The easiest way to try AI Stock is the hosted website. **Sign up with an invitation code, then log in to start—no local deployment needed.**
+The easiest way to try AI Stock is the hosted website. **Register with an invitation code for a daily platform allowance, or register without one and configure your own LLM API in My account. No local deployment needed.**
 
 **[Open AI Stock](https://myaistock.top/)** · **[Request an invitation code](mailto:im.hanyx@gmail.com?subject=AI%20Stock%20invitation%20code%20request)**
 

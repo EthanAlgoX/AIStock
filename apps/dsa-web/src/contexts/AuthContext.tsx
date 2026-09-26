@@ -13,7 +13,7 @@ type AuthContextValue = {
   deploymentMode?: AuthStatusResponse['deploymentMode'];
   role: 'admin' | 'member' | null;
   multiUserEnabled: boolean;
-  registrationMode: 'invite' | 'closed';
+  registrationMode: 'open' | 'invite' | 'closed';
   quota: AuthStatusResponse['quota'];
   accountMode: boolean;
   accountState: 'register' | 'migrate' | 'ready';
@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [deploymentMode, setDeploymentMode] = useState<AuthStatusResponse['deploymentMode']>();
   const [role, setRole] = useState<'admin' | 'member' | null>(null);
   const [multiUserEnabled, setMultiUserEnabled] = useState(false);
-  const [registrationMode, setRegistrationMode] = useState<'invite' | 'closed'>('closed');
+  const [registrationMode, setRegistrationMode] = useState<'open' | 'invite' | 'closed'>('closed');
   const [quota, setQuota] = useState<AuthStatusResponse['quota']>(null);
   const [accountMode, setAccountMode] = useState(false);
   const [accountState, setAccountState] = useState<'register' | 'migrate' | 'ready'>('register');

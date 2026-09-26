@@ -107,16 +107,23 @@ async def auth_register(request: Request, body: RegisterRequest):
         from src.services.trial_service import TrialError
         if not multi_user_enabled() or not account_email():
             return _account_error('registration_closed', 403)
+        # Count successful signups too; public registration must not bypass
+        # the existing per-IP attempt limit by submitting valid credentials.
+        registration_key = 'member-registration:' + ip
+        if not check_rate_limit(registration_key):
+            return _account_error('rate_limited', 429)
+        record_login_failure(registration_key)
         if body.password != body.passwordConfirm:
             return _account_error('password_mismatch')
         if body.email.strip().lower() == account_email():
             return _account_error('credentials_invalid', 400)
         try:
-            token = MemberService().trials.enroll(body.email, body.password, body.inviteCode)
+            token = MemberService().trials.enroll(body.email, body.password, body.inviteCode.strip(), allow_personal=True)
         except (TrialError, ValueError) as exc:
             record_login_failure(ip)
             record_login_failure('account-setup')
             return _account_error(str(exc), getattr(exc, 'status', 400))
+        clear_rate_limit(ip)
         response = JSONResponse({'ok': True})
         _set_session_cookie(response, MEMBER_PREFIX + token, request)
         return response
@@ -308,7 +315,7 @@ def _get_auth_status_dict(request: Request | None = None) -> dict:
         "role": 'member' if member else 'admin' if logged_in else None,
         "userId": member['id'] if member else 'owner' if logged_in else None,
         "multiUserEnabled": enabled,
-        "registrationMode": 'invite' if enabled and account_email() else 'closed',
+        "registrationMode": 'open' if enabled and account_email() else 'closed',
         "quota": service.trials.status(member['id']) if member else None,
     }
 

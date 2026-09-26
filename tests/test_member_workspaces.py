@@ -37,6 +37,8 @@ def members(tmp_path, monkeypatch, capsys):
     app = FastAPI()
     app.include_router(router, prefix='/api/v1')
     add_auth_middleware(app)
+    from api.middlewares.error_handler import add_error_handlers
+    add_error_handlers(app)
     owner = TestClient(app, base_url='https://testserver')
     assert auth.setup_token_cli() == 0
     setup_token = capsys.readouterr().out.strip().splitlines()[-1]
@@ -441,3 +443,170 @@ def test_agent_universe_previews_cannot_be_reused_by_other_users(members):
     saved = alice.post(base + '/definitions', json=payload)
     assert saved.status_code == 200, saved.text
     assert saved.json()['config']['skillSnapshot']['digest']
+
+
+def test_public_registration_has_no_platform_allowance_and_invalid_invite_is_not_ignored(members, monkeypatch):
+    _, alice, _, service = members
+    # Use a new client/session; trial-only enrollment stays invitation protected.
+    guest = TestClient(alice.app, base_url='https://testserver')
+    body = dict(email='personal@example.com', password='member-password',
+                passwordConfirm='member-password', memberRegistration=True)
+    assert guest.post('/api/v1/auth/register', json={**body, 'inviteCode': 'invalid'}).status_code == 401
+    assert guest.post('/api/v1/auth/register', json=body).status_code == 200
+    assert guest.get('/api/v1/auth/status').json()['quota']['limit'] == 0
+    assert guest.get('/api/v1/auth/status').json()['registrationMode'] == 'open'
+    from src.services import member_completion as module
+    monkeypatch.setattr(module, 'trial_model_params', lambda: pytest.fail('Must not resolve platform keys'))
+    with service.scope(identity(service, guest)):
+        from src.config import get_config
+        assert not get_config().typesafe_api_key
+        with pytest.raises(TrialError, match='personal_key_required'):
+            module.member_completion([{'role': 'user', 'content': 'Hello'}])
+    import litellm
+    monkeypatch.setenv('TRIAL_ENABLED', 'false')
+    monkeypatch.setattr(litellm, 'completion', lambda **kwargs: SimpleNamespace(
+        model='openai/test-model', usage=SimpleNamespace(prompt_tokens=5, completion_tokens=1, total_tokens=6)))
+    assert guest.put('/api/v1/workspace/model-settings', json=dict(provider='openai', model='test-model', apiKey='own-key')).status_code == 200
+    with service.scope(identity(service, guest)):
+        assert module.member_completion([{'role': 'user', 'content': 'Hello'}]).usage.total_tokens == 6
+    assert guest.get('/api/v1/auth/status').json()['quota']['used'] == 0
+    assert guest.post('/api/v1/auth/register', json=body).status_code == 409
+    with pytest.raises(TrialError, match='invite_invalid'):
+        service.trials.enroll('trial@example.com', 'member-password', '')
+
+
+def test_personal_credentials_are_private_persistent_and_do_not_charge_platform(members, monkeypatch):
+    _, alice, bob, service = members
+    import litellm
+    from src.services import member_completion as module
+    from src.services.member_model_settings import load
+    from src.storage import TrialCallRecord
+    from sqlalchemy import select
+    payload = dict(provider='openai', model='my-model', apiKey='alice-private-key')
+    response = alice.put('/api/v1/workspace/model-settings', json=payload)
+    assert response.status_code == 200, response.text
+    assert 'alice-private-key' not in response.text
+    assert response.json()['configured']
+    assert not bob.get('/api/v1/workspace/model-settings').json()['configured']
+    assert alice.put('/api/v1/workspace/model-settings', json={**payload, 'apiKey': '', 'model': 'another-model'}).status_code == 200
+    assert alice.put('/api/v1/workspace/model-settings', json={**payload, 'apiKey': '', 'provider': 'deepseek'}).status_code == 400
+    assert alice.put('/api/v1/workspace/model-settings', json={**payload, 'provider': 'arbitrary-host'}).status_code == 400
+    assert alice.put('/api/v1/workspace/model-settings', json={**payload, 'model': 'os.environ/SECRET'}).status_code == 400
+    calls = []
+    def complete(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(model='openai/another-model', usage=SimpleNamespace(prompt_tokens=20, completion_tokens=10, total_tokens=30))
+    monkeypatch.setattr(litellm, 'completion', complete)
+    monkeypatch.setattr(module, 'trial_model_params', lambda: pytest.fail('No platform fallback'))
+    monkeypatch.setenv('TRIAL_ENABLED', 'false')
+    user = identity(service, alice)
+    with service.scope(user):
+        from src.config import get_config
+        assert get_config().litellm_model == 'openai/another-model'
+        assert load(DatabaseManager.get_instance())['apiKey'] == 'alice-private-key'
+        module.member_completion([{'role': 'user', 'content': 'Hello'}])
+    assert calls[0]['api_key'] == 'alice-private-key'
+    assert calls[0]['api_base'] == 'https://api.openai.com/v1'
+    assert service.trials.status(user['id'])['used'] == 0
+    assert service.trials.status(user['id'])['lifetimeUsed'] == 0
+    with service.db.get_session() as session:
+        call = session.scalar(select(TrialCallRecord).where(TrialCallRecord.user_id == user['id']))
+        assert call.day_budget.startswith('personal:') and call.charged == 30 and call.settled
+    from datetime import datetime, timezone
+    from src.services.user_activity_service import analytics, call_details
+    today = datetime.now(timezone.utc).date()
+    report = analytics(service.db, today, today, user_id=user['id'])
+    assert report['usage'][0]['fundingSource'] == 'personal'
+    assert report['usage'][0]['date'] == today.isoformat()
+    assert call_details(service.db, today, today, user_id=user['id'])['items'][0]['fundingSource'] == 'personal'
+    from pathlib import Path
+    file = Path(service.database(user['id'])._engine.url.database).parent / '.model-credentials.json'
+    assert file.stat().st_mode & 0o777 == 0o600
+    assert alice.delete('/api/v1/workspace/model-settings').status_code == 200
+    assert not alice.get('/api/v1/workspace/model-settings').json()['configured']
+
+
+def test_personal_failure_never_uses_platform_key_and_keeps_allowance(members, monkeypatch):
+    _, alice, _, service = members
+    import litellm
+    from src.services import member_completion as module
+    alice.put('/api/v1/workspace/model-settings', json=dict(provider='deepseek', model='my-model', apiKey='private-key'))
+    def fail(**kwargs):
+        raise RuntimeError('provider error containing private-key')
+    monkeypatch.setattr(litellm, 'completion', fail)
+    monkeypatch.setattr(module, 'trial_model_params', lambda: pytest.fail('No platform fallback'))
+    user = identity(service, alice)
+    with service.scope(user):
+        with pytest.raises(TrialError, match='^model_call_failed$'):
+            module.member_completion([{'role': 'user', 'content': 'Hello'}])
+        with pytest.raises(TrialError, match='model_run_stopped'):
+            module.member_completion([{'role': 'user', 'content': 'Again'}])
+    assert service.trials.status(user['id'])['used'] == 0
+    assert service.trials.status(user['id'])['lifetimeUsed'] == 0
+
+
+def test_invalid_personal_settings_never_echo_credentials(members):
+    _, alice, _, _ = members
+    secret = 'DO-NOT-ECHO-THIS-KEY' * 300
+    response = alice.put('/api/v1/workspace/model-settings', json=dict(provider='openai', model='m', apiKey=secret))
+    assert response.status_code == 422
+    assert 'DO-NOT-ECHO-THIS-KEY' not in response.text
+    response = alice.put('/api/v1/workspace/model-settings', json=dict(provider='openai', model='m', apiKey='os.environ/OPENAI_API_KEY'))
+    assert response.status_code == 400
+
+
+def test_member_screening_uses_central_model_accounting(members, monkeypatch):
+    _, alice, _, service = members
+    from src.services.screening.ranker import _call_llm
+    from src.services import member_completion as module
+    calls = []
+    def complete(messages, **kwargs):
+        calls.append(messages)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='[]'))])
+    monkeypatch.setattr(module, 'member_completion', complete)
+    with service.scope(identity(service, alice)):
+        assert _call_llm('Screen candidates', 'must-not-use', 'must-not-use', 'https://invalid.example') == '[]'
+    assert calls == [[{'role': 'user', 'content': 'Screen candidates'}]]
+
+
+@pytest.mark.parametrize('provider,model,host', [
+    ('openai', 'gpt-4o-mini', 'api.openai.com'),
+    ('deepseek', 'deepseek-chat', 'api.deepseek.com'),
+    ('anthropic', 'claude-sonnet-4-20250514', 'api.anthropic.com'),
+    ('gemini', 'gemini-2.5-flash', 'generativelanguage.googleapis.com'),
+])
+def test_personal_key_reaches_real_provider_adapter_without_platform_fallback(members, monkeypatch, provider, model, host):
+    _, alice, _, service = members
+    import httpx
+    from src.services.member_completion import member_completion
+    # Substitute HTTP transport only: run the actual LiteLLM provider adapter.
+    requests = []
+    def send(client, request, **kwargs):
+        requests.append(request)
+        assert request.url.host == host
+        if provider == 'anthropic':
+            assert request.headers['x-api-key'] == 'personal-transport-key'
+            return httpx.Response(200, request=request, json={
+                'id': 'msg_test', 'type': 'message', 'role': 'assistant', 'model': model,
+                'content': [{'type': 'text', 'text': 'OK'}], 'stop_reason': 'end_turn',
+                'usage': {'input_tokens': 5, 'output_tokens': 1},
+            })
+        if provider == 'gemini':
+            assert (request.headers.get('x-goog-api-key') or request.url.params.get('key')) == 'personal-transport-key'
+            return httpx.Response(200, request=request, json={
+                'candidates': [{'content': {'role': 'model', 'parts': [{'text': 'OK'}]}, 'finishReason': 'STOP', 'index': 0}],
+                'usageMetadata': {'promptTokenCount': 5, 'candidatesTokenCount': 1, 'totalTokenCount': 6},
+                'modelVersion': model,
+            })
+        assert request.headers['authorization'] == 'Bearer personal-transport-key'
+        return httpx.Response(200, request=request, json={
+            'id': 'chatcmpl-test', 'object': 'chat.completion', 'created': 1, 'model': model,
+            'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': 'OK'}, 'finish_reason': 'stop'}],
+            'usage': {'prompt_tokens': 5, 'completion_tokens': 1, 'total_tokens': 6},
+        })
+    assert alice.put('/api/v1/workspace/model-settings', json=dict(provider=provider, model=model, apiKey='personal-transport-key')).status_code == 200
+    monkeypatch.setattr(httpx.Client, 'send', send)
+    with service.scope(identity(service, alice)):
+        response = member_completion([{'role': 'user', 'content': 'Hi'}])
+        assert response.choices[0].message.content == 'OK'
+    assert len(requests) == 1

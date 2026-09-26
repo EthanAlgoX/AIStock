@@ -2,6 +2,9 @@ import axios from 'axios';
 import { getParsedApiError } from '../api/error';
 
 const errors: Record<string, [string, string]> = {
+  personal_model_invalid: ['请选择服务商，并填写有效的模型 ID。', 'Select a provider and enter a valid model ID.'],
+  personal_key_required: ['请在我的账户中配置个人 LLM API 后重试。', 'Configure your personal LLM API in My account, then retry.'],
+  model_settings_unavailable: ['模型设置暂不可用，请联系管理员。', 'Model settings are unavailable. Contact the administrator.'],
   invite_invalid: ['邀请码无效、已使用或已过期，请联系管理员。', 'The invitation is invalid, used or expired. Contact the administrator.'],
   admin_required: ['此操作仅限平台管理员。', 'This operation is restricted to platform administrators.'],
   email_change_requires_verification: ['修改邮箱需要重新验证，请联系管理员。', 'Changing your email requires verification. Contact the administrator.'],

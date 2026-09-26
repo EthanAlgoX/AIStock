@@ -1,3 +1,4 @@
+import { MemberModelSettings } from '../components/settings/MemberModelSettings';
 import { uiLocale } from '../utils/uiLanguage';
 import { useEffect, useState } from 'react';
 import apiClient from '../api';
@@ -34,7 +35,8 @@ export default function MemberSettingsPage() {
         <p className="break-all text-sm">{email}</p>
         <p className="mt-3 text-sm leading-6 text-secondary-text">{l('需要修改邮箱或恢复账户时，请联系部署管理员。', 'Contact the deployment administrator to change your email or recover your account.')}</p>
       </SettingsSectionCard>
-      <SettingsSectionCard title={l('试用额度', 'Trial allowance')} description={l('每日上限由管理员调整，输入、输出与专家调用共享额度。UTC 00:00（北京时间 08:00）重置。', 'The administrator controls your daily limit, shared across input, output and expert calls. Resets at 00:00 UTC.')}>
+      <MemberModelSettings />
+      <SettingsSectionCard title={l('平台每日额度', 'Daily platform allowance')} description={l('每日上限由管理员调整，输入、输出与专家调用共享额度。UTC 00:00（北京时间 08:00）重置。', 'The administrator controls your daily limit, shared across input, output and expert calls. Resets at 00:00 UTC.')}>
         {quota ? <p className="text-sm tabular-nums">{l('已用', 'Used')} {number(quota.used)} / {number(quota.limit)} · {l('剩余', 'Remaining')} {number(quota.remaining)}</p> : <p className="text-sm text-secondary-text">{l('暂未获取额度。', 'Allowance is not available yet.')}</p>}
         <Button variant="secondary" className="mt-4" onClick={() => void refreshStatus()}>{l('刷新额度', 'Refresh allowance')}</Button>
       </SettingsSectionCard>

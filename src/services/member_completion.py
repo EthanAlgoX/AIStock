@@ -23,15 +23,25 @@ def member_completion(messages, *, tools=None, max_tokens=None, temperature=None
     reservation = len(json.dumps(payload, ensure_ascii=False).encode('utf-8')) + 2048 + limit
     if reservation > 60000:
         raise TrialError('context_too_large', 413)
+    from src.services.member_model_settings import load, model_params
+    from src.storage import DatabaseManager
+    personal = load(DatabaseManager.get_instance())
     if not _CALL_SLOTS.acquire(timeout=5):
         raise TrialError('model_busy', 429)
     service = member['service']
     try:
         with control_plane():
             service.require_enabled(member['id'])
-            params = trial_model_params()
-            call_id = service.trials.reserve(member['id'], 'workspace:' + uuid.uuid4().hex,
-                                             reservation, workspace=True, model=params.get("model"))
+            run_id = 'workspace:' + uuid.uuid4().hex
+            if personal:
+                params = model_params(personal)
+                call_id = service.trials.record_personal_call(member['id'], run_id, reservation, params['model'])
+            else:
+                if service.trials.status(member['id'])['limit'] <= 0:
+                    raise TrialError('personal_key_required', 403)
+                params = trial_model_params()
+                call_id = service.trials.reserve(member['id'], run_id, reservation,
+                                                 workspace=True, model=params.get('model'))
         import litellm
         kwargs = dict(params, messages=messages, max_tokens=limit, timeout=45,
                       num_retries=0, stream=False)

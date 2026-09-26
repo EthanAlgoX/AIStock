@@ -301,6 +301,14 @@ export function parseApiError(error: unknown): ParsedApiError {
     ?? '请求未成功完成，请稍后重试。';
   const matchText = buildMatchText([rawMessage, errorMessage, causeMessage, code, errorCode, response?.statusText]);
 
+  if (includesAny(matchText, ['personal_key_required'])) {
+    return createParsedApiError({
+      title: '个人 LLM API',
+      message: '请在我的账户中配置个人 LLM API 后重试。',
+      rawMessage, status, category: 'llm_not_configured',
+    });
+  }
+
   if (includesAny(matchText, ['agent mode is not enabled', 'agent_mode'])) {
     return createParsedApiError({
       title: 'Agent 模式未开启',

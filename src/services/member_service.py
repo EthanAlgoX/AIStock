@@ -1,4 +1,4 @@
-"""Private workspaces for existing invited identities; one identity/one budget.
+"""Private workspaces for registered identities; one identity/one platform budget.
 
 The legacy owner store remains the control plane. Only server-authenticated
 identity IDs select private stores; no HTTP workspace selector is accepted.
@@ -14,7 +14,7 @@ from dataclasses import fields, MISSING
 
 from src import auth
 from src.services.trial_service import TrialService, TrialError
-from src.storage import DatabaseManager, TrialUserRecord, WorkspaceCapabilityPreferenceRecord
+from src.storage import DatabaseManager, TrialUserRecord, TrialBudgetRecord, WorkspaceCapabilityPreferenceRecord
 from sqlalchemy import select
 from src.workspace_scope import workspace_scope, suspend_workspace_scope
 
@@ -133,6 +133,19 @@ class MemberService:
                 value = field.default_factory() if field.default_factory is not MISSING else field.default
                 setattr(config, field.name, copy.deepcopy(value))
         config.database_path = database._engine.url.database
+        from src.services.member_model_settings import load, model_params
+        personal = load(database)
+        with self.db.get_session() as session:
+            budget = session.get(TrialBudgetRecord, member['id'])
+            if not budget or budget.limit <= 0:
+                config.typesafe_api_key = ''
+        if personal:
+            params = model_params(personal)
+            config.litellm_model = config.agent_litellm_model = params['model']
+            config.litellm_fallback_models = []
+            config.llm_channels = []
+            config.llm_models_source = 'llm_channels'
+            config.llm_model_list = [{'model_name': params['model'], 'litellm_params': params}]
         config.stock_list = []
         config.agent_event_alert_rules_json = ''
         config.agent_skill_dir = ''
@@ -219,7 +232,7 @@ def main():
     """Host-only account recovery; never changes ownership or replenishes quota."""
     import argparse
     import getpass
-    parser = argparse.ArgumentParser(description='Recover an invited private workspace account on the deployment host.')
+    parser = argparse.ArgumentParser(description='Recover a private workspace account on the deployment host.')
     parser.add_argument('action', choices=['reset-password'])
     parser.add_argument('--email', required=True)
     args = parser.parse_args()

@@ -82,7 +82,7 @@ class TrialService:
             'expiresAt': expires.isoformat(),
         }
 
-    def enroll(self, email, password, invite):
+    def enroll(self, email, password, invite, *, allow_personal=False):
         email = auth.normalize_email(email)
         if not 8 <= len(password) <= 128 or not password.strip():
             raise TrialError('password_length')
@@ -105,12 +105,20 @@ class TrialService:
                     TrialInvitationRecord.claimed_at.is_(None),
                     TrialInvitationRecord.invite_expires > now,
                 ))
-                if not legacy_invite and not invitation:
+                if not legacy_invite and not invitation and not (allow_personal and not invite):
                     raise TrialError('invite_invalid', 401)
                 if email == auth.account_email():
                     raise TrialError('email_in_use', 409)
                 if user and user.password_hash:
                     raise TrialError('already_enrolled', 409)
+
+                if allow_personal and not invite:
+                    # Never claim an existing pending identity or its funded budget.
+                    if user:
+                        raise TrialError('already_enrolled', 409)
+                    user = TrialUserRecord(id=uuid.uuid4().hex, email=email)
+                    session.add(user)
+                    session.add(TrialBudgetRecord(id=user.id, limit=0, used=0))
 
                 if invitation:
                     user_id = user.id if user else uuid.uuid4().hex
@@ -366,6 +374,24 @@ class TrialService:
                 feature=feature if feature in FEATURES else 'other', model=model))
         return call_id
 
+    def record_personal_call(self, user_id, run_id, amount, model):
+        """Audit own-key usage without reserving any platform allowance."""
+        from src.services.user_activity_service import ACTIVITY, FEATURES
+        context = ACTIVITY.get() or {}
+        call_id = uuid.uuid4().hex
+        with self.db.session_scope() as session:
+            user = session.get(TrialUserRecord, user_id)
+            if not user or not user.enabled or not user.password_hash:
+                raise TrialError('account_disabled', 403)
+            session.add(TrialCallRecord(id=call_id, user_id=user_id, run_id=run_id,
+                day_budget='personal:' + utc_naive_now().date().isoformat(),
+                reserved=amount, charged=amount))
+            feature = context.get('feature', 'other')
+            session.add(UserCallDetailRecord(call_id=call_id,
+                request_id=context.get('request_id', run_id),
+                feature=feature if feature in FEATURES else 'other', model=model))
+        return call_id
+
     def settle(self, call_id, actual, *, prompt_tokens=None, completion_tokens=None, duration_ms=None):
         overflow = False
         with self.db.session_scope() as session:
@@ -381,10 +407,10 @@ class TrialService:
                 if detail:
                     detail.prompt_tokens, detail.completion_tokens = prompt_tokens, completion_tokens
                     detail.duration_ms = duration_ms
-                for budget_id in (call.user_id, call.day_budget):
+                for budget_id in (() if call.day_budget.startswith('personal:') else (call.user_id, call.day_budget)):
                     session.execute(update(TrialBudgetRecord).where(TrialBudgetRecord.id == budget_id)
                                     .values(used=TrialBudgetRecord.used - (call.reserved - actual)))
-                if actual > call.reserved:
+                if actual > call.reserved and not call.day_budget.startswith('personal:'):
                     # A provider contract violation must remain visible in accounting.
                     # Suspend this identity rather than allowing further paid calls.
                     session.execute(update(TrialUserRecord).where(TrialUserRecord.id == call.user_id)

@@ -5,7 +5,7 @@ export type AuthStatusResponse = {
   role?: 'admin' | 'member' | null;
   userId?: string | null;
   multiUserEnabled?: boolean;
-  registrationMode?: 'invite' | 'closed';
+  registrationMode?: 'open' | 'invite' | 'closed';
   quota?: { used: number; limit: number; remaining: number } | null;
   accountMode?: boolean;
   accountState?: 'register' | 'migrate' | 'ready';

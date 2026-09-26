@@ -6,7 +6,7 @@
 
 默认 `ADMIN_ACCESS_MODE=local` 为本地单人模式，**无需邮箱注册或登录**，直接进入网站。仅接受直接回环访问，启动时绑定 `127.0.0.1`。不用于局域网、公网或反向代理。已有账户文件仍保留，切回服务器模式后继续使用，不删除原数据。
 
-服务器设置 `ADMIN_ACCESS_MODE=server` 并重启，强制 HTTPS 与邮箱账户；旧 `ADMIN_AUTH_ENABLED=false` 不能关闭保护。`MULTI_USER_ENABLED=true` 开启受邀成员私有工作区，详细隔离、额度和部署说明见 [多用户工作区](multi-user-isolation.md)。邮箱是登录标识，当前不自动发验证邮件；管理员通过邀请码控制注册。
+服务器设置 `ADMIN_ACCESS_MODE=server` 并重启，强制 HTTPS 与邮箱账户；旧 `ADMIN_AUTH_ENABLED=false` 不能关闭保护。`MULTI_USER_ENABLED=true` 开启成员私有工作区，详细隔离、额度和部署说明见 [多用户工作区](multi-user-isolation.md)。邮箱是登录标识，当前不自动发验证邮件；邀请码用于领取平台每日额度；不填邀请码也可注册并使用个人 LLM API。
 
 ### 初始化管理员
 
@@ -36,7 +36,7 @@
 
 `ADMIN_ACCESS_MODE=local` is the default single-user mode: **no signup or login**. Bind directly to loopback (`127.0.0.1`); LAN/public/proxied access is rejected. Existing credentials and data remain available when switching back to server mode.
 
-Set `ADMIN_ACCESS_MODE=server` and restart for a shared deployment. HTTPS and email accounts are mandatory regardless of `ADMIN_AUTH_ENABLED`. `MULTI_USER_ENABLED=true` enables invited private members; see [Private workspaces](multi-user-isolation.md) for isolation, quotas and deployment limits. Email verification is not automated; registration is invitation-controlled.
+Set `ADMIN_ACCESS_MODE=server` and restart for a shared deployment. HTTPS and email accounts are mandatory regardless of `ADMIN_AUTH_ENABLED`. `MULTI_USER_ENABLED=true` enables private members; see [Private workspaces](multi-user-isolation.md) for isolation, quotas and deployment limits. Email verification is not automated; invitation codes grant platform allowance, while users without a code can register and supply their own LLM API.
 
 Back up the actual service data/configuration. Credentials live in `.admin_password_hash` beside `DATABASE_PATH`, storing email and password hash, never plaintext. Use private persistent storage.
 

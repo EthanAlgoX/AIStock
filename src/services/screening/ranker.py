@@ -535,6 +535,12 @@ def _call_llm(
     max_tokens: int | None = 2048,
 ) -> str:
     """Call LLM via litellm with fallback models and channel configs."""
+    from src.services.member_service import current_member
+    if current_member():
+        from src.services.member_completion import member_completion
+        response = member_completion([{'role': 'user', 'content': prompt}],
+                                     temperature=temperature, max_tokens=max_tokens)
+        return _extract_completion_text(response)
     import litellm
 
     if silent:

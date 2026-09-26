@@ -77,6 +77,43 @@ class MemberNotificationSettings(BaseModel):
     enabled: bool
 
 
+class MemberModelSettings(BaseModel):
+    model_config = {'extra': 'forbid'}
+    provider: str = Field(max_length=32)
+    model: str = Field(max_length=160)
+    apiKey: str = Field(default='', max_length=4096, repr=False)
+
+
+def _member_model_action(action):
+    from src.services.member_service import current_member
+    from src.services.trial_service import TrialError
+    from fastapi.responses import JSONResponse
+    if not current_member():
+        raise HTTPException(403, 'Member workspace required')
+    try:
+        return action(_service().db)
+    except TrialError as exc:
+        return JSONResponse(status_code=exc.status, content={'error': exc.code})
+
+
+@router.get('/model-settings')
+def member_model_settings():
+    from src.services.member_model_settings import public_settings
+    return _member_model_action(public_settings)
+
+
+@router.put('/model-settings')
+def update_member_model_settings(body: MemberModelSettings):
+    from src.services.member_model_settings import save
+    return _member_model_action(lambda db: save(db, body.provider, body.model.strip(), body.apiKey.strip()))
+
+
+@router.delete('/model-settings')
+def delete_member_model_settings():
+    from src.services.member_model_settings import remove
+    return _member_model_action(remove)
+
+
 @router.get('/chat-settings')
 def member_chat_settings():
     from src.services.member_service import current_member

@@ -113,7 +113,9 @@ def add_error_handlers(app) -> None:
             content={
                 "error": "validation_error",
                 "message": "请求参数验证失败",
-                "detail": exc.errors()
+                "detail": ([{"loc": e["loc"], "type": e["type"], "msg": "Invalid model settings"}
+                            for e in exc.errors()] if request.url.path.rstrip('/').endswith('/workspace/model-settings')
+                           else exc.errors())
             }
         )
     
