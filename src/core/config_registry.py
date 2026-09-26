@@ -71,6 +71,7 @@ _CATEGORY_DEFINITIONS: List[Dict[str, Any]] = [
 ]
 
 WEB_SETTINGS_HIDDEN_FROM_UI = {
+    "SIMULATION_RUNTIME_URL",  # Deployment-only private execution bridge; never browser-editable.
     # Host-only deployment and billing policy; never mutable from a member UI.
     'ADMIN_ACCESS_MODE', 'MULTI_USER_ENABLED', 'TRIAL_ENABLED',
     'TRIAL_MODEL', 'TRIAL_DAILY_TOKEN_LIMIT',

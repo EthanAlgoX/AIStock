@@ -38,6 +38,11 @@ export type JevTaskConfig = {
   lookbackDays?: number;
 };
 export type RuleConfig = {
+  externalRuntime?: boolean;
+  sourceStartDate?: string;
+  sourceEndDate?: string;
+  timeframe?: string;
+  evaluationKind?: string;
   reportLanguage?: string;
   definitionRevision?: number;
   jevTask?: JevTaskConfig;
@@ -127,6 +132,10 @@ export type PortfolioDay = {
   validationLabel?: string;
 };
 export type Portfolio = {
+  timing?: PortfolioTiming | null;
+  executionLedger?: SimulationExecution[] | null;
+  executionCoverage?: {source: string; sourceCount: number | null; returnedCount: number} | null;
+  externalEvidence?: {recomputedAt?: string; sourceUpdatedAt: string; sourceBacktest: string; tradeCount?: number; fees?: number; slippage?: number; positions?: unknown; trades: unknown[]; decisions: unknown[]; lastClosedBar?: string; feedStatus?: string; modelEvaluation?: string};
   id: number;
   definitionId?: number | null;
   name: string;
@@ -176,6 +185,7 @@ export type ValidationOptions = {
 };
 const root = "/api/v1/simulation/portfolios";
 export const portfoliosApi = {
+  runtimeStatus: async () => (await client.get<{configured: boolean; available: boolean}>(`${root}/runtime-status`)).data,
   agentOptions: async () =>
     (await client.get<AgentOptions>(`${root}/agent-options`)).data,
   holdings: async (id: number) =>
@@ -345,4 +355,50 @@ export const portfoliosApi = {
   },
   control: async (id: number, action: "run" | "start" | "pause" | "stop") =>
     (await client.post<Portfolio>(`${root}/${id}/control`, { action })).data,
+};
+
+export type ResearchMetrics = {sharpe: number | null; cumulativeReturn: number; maxDrawdown: number; filledOrders: number};
+export type PortfolioResearch = {
+  id: number; sourceId: number; candidateDefinitionId: number | null; accepted: boolean;
+  sampleHash: string; finalReason: string; bestIndex: number | null;
+  windows: Record<string, {start: string; end: string; samples: number}>;
+  baseline: Record<string, ResearchMetrics>; final: ResearchMetrics | null;
+  experiments: {field: string; before: number; after: number; reason: string; train: ResearchMetrics; validation: ResearchMetrics}[];
+};
+export const portfolioResearchApi = {
+  list: async (id: number) => (await client.get<{items: PortfolioResearch[]}>(`${root}/${id}/research`)).data.items,
+  create: async (id: number, maxDrawdown: number) => (await client.post<PortfolioResearch>(`${root}/${id}/research`, {maxDrawdown, budget: 12})).data,
+  adopt: async (id: number) => (await client.post<{id: number}>(`${root}/research/${id}/adopt`)).data,
+};
+
+export type SimulationCurve = {
+  timing?: PortfolioTiming | null;
+  id: number; definitionId?: number; name: string; market: RuleConfig['market']; status: string;
+  error: boolean; externalRuntime: boolean; initialCash: number; currency: string;
+  cumulativeReturn: number | null; maxDrawdown: number | null; lastDate: string | null; observations: number;
+  curve: {time: string; value: number; benchmark: number | null}[];
+};
+export type SourceEvolution = {
+  id: string; status: string; completed: number; budget: number; createdAt: string; passed: boolean; finalChecked: boolean;
+  candidateVersion?: string; evaluation: Record<string, unknown>; holdout: Record<string, unknown>;
+  experiments: {ordinal: number; change_json: unknown; validation_metrics_json: {sharpe?: number; total_return?: number; max_drawdown?: number}; decision: string; reason: string}[];
+};
+export const simulationOverviewApi = {
+  get: async () => (await client.get<{items: SimulationCurve[]; runtime: {configured: boolean; available: boolean}}>(`${root}/overview`)).data,
+  evolution: async (id: number) => (await client.get<{supported: boolean; items: SourceEvolution[]}>(`${root}/${id}/evolution`)).data,
+  evolve: async (id: number, maxDrawdown: number) => (await client.post<{supported: boolean; items: SourceEvolution[]}>(`${root}/${id}/evolution`, {budget: 12, maxDrawdown})).data,
+};
+
+export type SimulationExecution = {
+  id: string; timestamp: string; code: string; side: 'buy' | 'sell'; quantity: number;
+  price: number | null; fee: number | null; reason: string; status: string;
+};
+
+
+export type PortfolioTiming = {
+  signalTimeframe: string;
+  valuation: 'live_quote' | 'bar_close';
+  execution: 'quote_simulation' | 'next_open';
+  timezone: 'UTC' | 'market';
+  granularity: 'observation' | 'bar' | 'trading_day';
 };

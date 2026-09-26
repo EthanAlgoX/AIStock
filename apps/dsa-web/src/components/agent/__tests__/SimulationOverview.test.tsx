@@ -1,0 +1,35 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, expect, it, vi } from 'vitest';
+import { SimulationOverview } from '../SimulationOverview';
+import { SourceEvolutionPanel } from '../SourceEvolutionPanel';
+const api = vi.hoisted(() => ({get:vi.fn(),evolution:vi.fn(),evolve:vi.fn()}));
+vi.mock('../../../api/portfolios', () => ({simulationOverviewApi:api}));
+const row = {id:1, name:'Live fixture', status:'running', market:'US', initialCash:10000, observations:0, curve:[], maxDrawdown:null, cumulativeReturn:null, lastDate:null};
+beforeEach(() => {vi.clearAllMocks();api.get.mockResolvedValue({items:[row,{...row,id:2,name:'Paused fixture',status:'paused'}],runtime:{configured:false,available:false}});api.evolution.mockResolvedValue({supported:true,items:[]});});
+it('prioritizes running accounts and keeps empty observations unknown', async () => {
+  const open=vi.fn(),research=vi.fn();render(<SimulationOverview onOpen={open} onResearch={research} />);
+  await screen.findByText('Live fixture');
+  expect(screen.queryByText('Paused fixture')).toBeNull();
+  expect(screen.getByText('等待有效模拟观测，尚无收益曲线。')).toBeVisible();
+  expect(screen.queryByText('0%')).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'回测与进化'}));expect(research).toHaveBeenCalledWith(1);
+  fireEvent.click(screen.getByRole('checkbox',{name:'包含暂停和停止的账户'}));expect(screen.getByText('Paused fixture')).toBeVisible();
+  expect(api.get).toHaveBeenCalledTimes(1);
+  fireEvent.change(screen.getByRole('combobox',{name:'市场'}),{target:{value:'CRYPTO'}});
+  expect(screen.getByText('当前筛选下没有正在模拟的策略。')).toBeVisible();
+});
+it('does not treat a candidate without final evaluation as passed', async () => {
+  api.evolution.mockResolvedValue({supported:true,items:[{id:'research',status:'SUCCEEDED',completed:1,budget:1,candidateVersion:'candidate',passed:false,finalChecked:false,experiments:[]}]});
+  render(<SourceEvolutionPanel id={-1004} />);
+  expect(await screen.findByText(/验证候选，待最终检查/)).toBeTruthy();
+  expect(screen.queryByText('检查通过')).toBeNull();
+  api.evolve.mockResolvedValue({supported:true,items:[]});
+  fireEvent.change(screen.getByRole('spinbutton'),{target:{value:'15'}});
+  fireEvent.click(screen.getByRole('button',{name:'运行参数实验'}));
+  await waitFor(()=>expect(api.evolve).toHaveBeenCalledWith(-1004,.15));
+});
+it('explains unsupported search instead of allowing model calls', async () => {
+  api.evolution.mockResolvedValue({supported:false,items:[]});render(<SourceEvolutionPanel id={-1006} />);
+  await screen.findByText(/此版本尚无可复核/);
+  expect(screen.getByRole('button',{name:'运行参数实验'})).toBeDisabled();
+});

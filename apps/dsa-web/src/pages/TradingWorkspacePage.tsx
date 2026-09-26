@@ -1,6 +1,8 @@
-import { PortfolioRunExplanation } from "../components/agent/PortfolioRunExplanation";
+import { recordTime } from "../utils/portfolioTiming";
+import { localizedStockName } from "../utils/markets";
+import { PortfolioDetailWorkspace } from "../components/agent/PortfolioDetailWorkspace";
+import { SimulationOverview } from "../components/agent/SimulationOverview";
 import { useUiLanguage } from '../contexts/UiLanguageContext';
-import { localizedStockName } from '../utils/markets';
 import { useUiLiteral } from '../hooks/useUiLiteral';
 import { UiLiteral } from '../components/i18n/UiLiteral';
 import { useEffect, useMemo, useState } from "react";
@@ -13,7 +15,6 @@ import { resolveStrategyPool } from "../utils/strategyStockPool";
 import { TradingAgentConfig } from "../components/agent/TradingAgentConfig";
 import ResearchReportsWorkspace from "./ResearchReportsWorkspace";
 import { AppPage, ConfirmDialog } from "../components/common";
-import { AnalysisChart } from "../components/report/AnalysisChart";
 import {
   portfoliosApi,
   type Portfolio,
@@ -22,10 +23,6 @@ import {
   type UniversePreview,
 } from "../api/portfolios";
 
-const formatNumber = (v: number | null | undefined, percent = false, language = "en") =>
-  v == null
-    ? "—"
-    : `${(v * (percent ? 100 : 1)).toLocaleString(language === "zh" ? "zh-CN" : language, { maximumFractionDigits: 2 })}${percent ? "%" : ""}`;
 const status = (p: Portfolio) =>
   p.busy
     ? "更新中"
@@ -70,21 +67,9 @@ const seed: RuleConfig = {
   startDate: null,
   endDate: null,
 };
-const metricLabels = [
-  ["cumulativeReturn", "累计收益", true],
-  ["dailyReturn", "当日收益", true],
-  ["annualizedReturn", "年化收益", true],
-  ["maxDrawdown", "最大回撤", true],
-  ["annualizedVolatility", "年化波动率", true],
-  ["turnover", "区间换手率", true],
-  ["sharpe", "夏普比率", false],
-  ["calmar", "卡玛比率", false],
-] as const;
-
 export default function TradingWorkspacePage() {
   const uiLiteral = useUiLiteral();
   const { language } = useUiLanguage();
-  const fmt = (v: number | null | undefined, percent = false) => formatNumber(v, percent, language);
   const [params, setParams] = useSearchParams();
   const legacy =
     params.get("view") === "reports" ||
@@ -117,12 +102,10 @@ export default function TradingWorkspacePage() {
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [runtimeUnavailable, setRuntimeUnavailable] = useState(false);
   const [sending, setSending] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{kind: 'definition' | 'portfolio'; id: number; name: string} | null>(null);
   const [deleteError, setDeleteError] = useState('');
-  const [date, setDate] = useState("");
-  const [tab, setTab] = useState("trades");
-  const [windowSize, setWindowSize] = useState(120);
   const [refresh, setRefresh] = useState(0);
   const stockIndex = useStockIndex(creating, draft.market);
   const pool = useMemo(
@@ -145,12 +128,14 @@ export default function TradingWorkspacePage() {
     let timer: ReturnType<typeof setTimeout>;
     const load = async () => {
       try {
-        const [list, selected, saved] = await Promise.all([
+        const [list, selected, saved, runtime] = await Promise.all([
           portfoliosApi.list(),
           id ? portfoliosApi.detail(id) : Promise.resolve(null),
           portfoliosApi.definitions(),
+          portfoliosApi.runtimeStatus?.(),
         ]);
         if (alive) {
+          setRuntimeUnavailable(Boolean(runtime?.configured && !runtime.available));
           setItems(list);
           setDefinitions(saved);
           setDetail(selected);
@@ -200,19 +185,18 @@ export default function TradingWorkspacePage() {
         <ResearchReportsWorkspace mode="trading" />
       </>
     );
-  const select = (next: number) => {
+  const select = (next: number, research = false) => {
     const owner = items.find((p) => p.id === next)?.definitionId;
     setParams({
       portfolio: String(next),
+      ...(research ? {panel: "research"} : {}),
       ...(owner ? { strategy: String(owner) } : {}),
     });
     setLaunch(null);
     setCreating(false);
-    setDate("");
     setDetail(null);
   };
   const days = detail?.id === id ? detail.days || [] : [];
-  const latest = days.at(-1);
   const detailDefinition = definitions.find(d => d.id === detail?.definitionId);
   const historical = !!detailDefinition && (detail?.config.definitionRevision ?? 1) !== (detailDefinition.config.definitionRevision ?? 1);
   const editBlocked = !!definition && items.some(p => p.definitionId === definition.id &&
@@ -227,7 +211,6 @@ export default function TradingWorkspacePage() {
     setLaunch(null);
     setCreating(true);
   };
-  const selected = days.find((d) => d.date === date) || latest;
   const change = <K extends keyof RuleConfig>(key: K, value: RuleConfig[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
   const submit = async (e: React.FormEvent) => {
@@ -305,7 +288,6 @@ export default function TradingWorkspacePage() {
     } catch (e) { setDeleteError(failure(e)); }
     finally { setSending(false); }
   };
-  const visible = days.slice(-windowSize);
   const inputClass =
     "mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
   return (
@@ -314,11 +296,11 @@ export default function TradingWorkspacePage() {
         <div>
           <h1 className="text-2xl font-semibold"><UiLiteral text={"策略验证与运行"} /></h1>
           <p className="mt-2 text-sm text-secondary-text">
-            <UiLiteral text={"历史回测与每日模拟，持续跟踪每一笔决策。"} /></p>
+            <UiLiteral text={"先观察模拟收益，再展开策略进行回测与改进。"} /></p>
         </div>
-        <div className="flex gap-3">
-          <Link className="btn-secondary" to="/trading?view=reports">
-            <UiLiteral text={"历史研究提案"} /></Link>
+        <div className="flex flex-wrap gap-3">
+          {(id || definitionId || creating) && <Link className="btn-secondary" to="/trading?view=reports">
+            <UiLiteral text={"历史研究提案"} /></Link>}
           <button
             className="btn-primary"
             onClick={() => {
@@ -534,8 +516,19 @@ export default function TradingWorkspacePage() {
           </form>
         </section>
       ) : (
-        <div className="grid gap-7 lg:grid-cols-[250px_minmax(0,1fr)]">
-          <aside>
+        <>
+        {!id && !definitionId ? <SimulationOverview onOpen={select} onResearch={next => {
+          const paper = items.find(p => p.id === next);
+          const backtest = items.filter(p => paper?.definitionId && p.definitionId === paper.definitionId && p.mode === 'backtest' && p.status === 'completed').sort((a,b) => Math.abs(b.id) - Math.abs(a.id))[0];
+          if (paper?.config.externalRuntime || backtest) select(backtest?.id ?? next, true);
+          else if (paper?.definitionId) setParams({strategy: String(paper.definitionId), panel: 'research'});
+          else select(next, true);
+        }} /> : <button className="btn-secondary mb-5" onClick={() => { setParams({}); setDetail(null); setLaunch(null); }}><UiLiteral text="← 返回模拟收益总览" /></button>}
+        <details open={Boolean(id || definitionId)} className="border-t border-border pt-4">
+        <summary className={id ? "hidden" : "mb-5 cursor-pointer text-lg font-semibold"}><UiLiteral text="策略详情、回测与自进化" /> · {definitions.length}</summary>
+        {!id && !definitionId && <Link className="btn-secondary mb-5 inline-flex" to="/trading?view=reports"><UiLiteral text="历史研究提案" /></Link>}
+        <div className={id ? "min-w-0" : "grid gap-7 lg:grid-cols-[250px_minmax(0,1fr)]"}>
+          <aside className={id ? "hidden" : undefined}>
             <h2 className="mb-3 font-semibold"><UiLiteral text={"我的策略"} /></h2>
             <label className="mb-4 block text-sm">{uiLiteral("市场")}
               <select className="mt-2 w-full rounded-lg border border-border bg-background p-2" value={marketFilter} onChange={e => setMarketFilter(e.target.value)}>
@@ -584,7 +577,10 @@ export default function TradingWorkspacePage() {
             )}
           </aside>
           <section className="min-w-0" aria-label={uiLiteral("策略详情")}>
+            {runtimeUnavailable && <p role="alert" className="mb-4 text-warning"><UiLiteral text="私有运行引擎暂时不可用，本地策略仍可使用。" /></p>}
             {definition && (
+              <details id="strategy-configuration" open={!id || Boolean(launch)} className="mb-5 border-b border-border pb-4">
+              <summary className="cursor-pointer py-2 font-medium"><UiLiteral text="策略配置与验证账户" /> · {definition.name}</summary>
               <section
                 className="mb-7 border-b border-border pb-6"
                 aria-label={uiLiteral("已保存策略")}
@@ -592,7 +588,7 @@ export default function TradingWorkspacePage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h2 className="min-w-0 break-words text-xl font-semibold">{definition.name}</h2>
                   <div className="flex flex-wrap gap-2">
-                    {definition.config.engine === 'agent' && <button className="btn-secondary" disabled={sending || editBlocked} onClick={() => {
+                    {definition.config.engine === 'agent' && !definition.config.externalRuntime && <button className="btn-secondary" disabled={sending || editBlocked} onClick={() => {
                       setEditing({id: definition.id, revision: definition.config.definitionRevision ?? 1});
                       openConfig({ ...seed, ...definition.config }, definition.name);
                     }}><UiLiteral text="修改配置" /></button>}
@@ -604,7 +600,7 @@ export default function TradingWorkspacePage() {
                     </button>
                   </div>
                 </div>
-                {editBlocked && <p className="mt-3 text-sm text-secondary-text"><UiLiteral text="请先暂停或停止运行，再修改配置。" /></p>}
+                {editBlocked && !definition.config.externalRuntime && <p className="mt-3 text-sm text-secondary-text"><UiLiteral text="请先暂停或停止运行，再修改配置。" /></p>}
                 {items.some(p => p.definitionId === definition.id && p.status === 'stopped') && !items.some(p => p.definitionId === definition.id && (p.busy || ['running', 'paused'].includes(p.status))) &&
                   <p role="status" className="mt-3 text-sm text-secondary-text"><UiLiteral text="已停止运行，不再自动调用模型或更新估值，待执行计划已取消；历史记录和模拟持仓保留。" /></p>}
                 <p className="mt-2 text-sm text-secondary-text">
@@ -615,7 +611,7 @@ export default function TradingWorkspacePage() {
                   {definition.config.market} · {definition.config.decisionBackend === "rules" ? uiLiteral("固定规则") : definition.config.decisionBackend === "jev" ? `JEV · ${definition.config.jevModel || ""}` : "LLM"}
                 </p>
                 <p className="mt-2 text-sm text-secondary-text">
-                  <UiLiteral text={"同一版配置共用最近的模拟账户，回测独立记账。修改配置后，下次运行创建新账户，旧持仓和历史保留。"} /></p>
+                  <UiLiteral text={definition.config.externalRuntime ? "来源版本只读。历史回测按冻结样本重新计算，模拟账户独立续跑。" : "同一版配置共用最近的模拟账户，回测独立记账。修改配置后，下次运行创建新账户，旧持仓和历史保留。"} /></p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {definition.config.engine === "agent" ? <>
                   {(
@@ -643,6 +639,10 @@ export default function TradingWorkspacePage() {
                         }
                         setLaunch(action);
                         setValidationCash(definition.config.initialCash);
+                        if (definition.config.externalRuntime) {
+                          setValidationStart(definition.config.sourceStartDate || "");
+                          setValidationEnd(definition.config.sourceEndDate || "");
+                        }
                         setError("");
                       }}
                     >
@@ -650,17 +650,17 @@ export default function TradingWorkspacePage() {
                     </button>
                   ))}
                   </> : <p className="text-sm text-secondary-text"><UiLiteral text={"此策略的固定规则已下线，历史记录可查看，但不能创建或继续运行。"} /></p>}
-                  <button
+                  {!definition.config.externalRuntime && <button
                     className="btn-secondary"
                     onClick={() => {
                       setEditing(null);
                       openConfig({ ...seed, ...definition.config }, `${definition.name} · 新版本`);
                     }}
                   >
-                    <UiLiteral text={"复制策略"} /></button>
+                    <UiLiteral text={"复制策略"} /></button>}
                 </div>
                 {launch === "backtest" &&
-                  definition.config.engine === "agent" && (
+                  definition.config.engine === "agent" && !definition.config.externalRuntime && (
                     <div className="mt-4 border-y border-border py-4">
                       <p className="text-sm text-warning">
                         <UiLiteral text={definition.config.decisionBackend === "rules"
@@ -717,8 +717,7 @@ export default function TradingWorkspacePage() {
                         });
                         setDetail(created);
                         setLaunch(null);
-                        setDate("");
-                        await portfoliosApi.control(
+                                            await portfoliosApi.control(
                           created.id,
                           launch === "start" ? "start" : "run",
                         );
@@ -752,6 +751,7 @@ export default function TradingWorkspacePage() {
                           required
                           min={1000}
                           max={100000000}
+                          readOnly={definition.config.externalRuntime}
                           value={validationCash}
                           onChange={(e) =>
                             setValidationCash(Number(e.target.value))
@@ -765,6 +765,7 @@ export default function TradingWorkspacePage() {
                               className={inputClass}
                               type="date"
                               required
+                              readOnly={definition.config.externalRuntime}
                               value={validationStart}
                               onChange={(e) =>
                                 setValidationStart(e.target.value)
@@ -776,6 +777,7 @@ export default function TradingWorkspacePage() {
                               className={inputClass}
                               type="date"
                               required
+                              readOnly={definition.config.externalRuntime}
                               value={validationEnd}
                               onChange={(e) => setValidationEnd(e.target.value)}
                             />
@@ -819,6 +821,7 @@ export default function TradingWorkspacePage() {
                     <UiLiteral text={"尚未验证。保存策略不会自动运行或创建模拟账户。"} /></p>
                 )}
               </section>
+              </details>
             )}
 
             {detail?.id === id ? (
@@ -828,7 +831,7 @@ export default function TradingWorkspacePage() {
                     <h2 className="text-xl font-semibold">{detail.name}</h2>
                     <p className="mt-2 text-sm text-secondary-text">
                       {detail.mode === "paper"
-                        ? uiLiteral("每日持续模拟")
+                        ? uiLiteral(detail.config.externalRuntime ? "实时行情模拟" : "每日持续模拟")
                         : detail.config.decisionBackend === "rules"
                           ? uiLiteral("规则历史回测")
                           : detail.config.engine === "agent"
@@ -837,8 +840,8 @@ export default function TradingWorkspacePage() {
                       <UiLiteral text={"· 固定版本 "} />{detail.versionId} · {uiLiteral(status(detail))}
                     </p>
                     <p className="mt-1 text-xs text-secondary-text">
-                      <UiLiteral text={"观察区间："} />{days[0]?.date || detail.config.startDate} <UiLiteral text={" 至"} />{" "}
-                      {detail.lastDate || uiLiteral("等待收盘")} · {days.length} <UiLiteral text={" 个交易日 ·"} />{" "}
+                      <UiLiteral text={"观察区间："} />{recordTime(days[0]?.date || detail.config.startDate)} <UiLiteral text={" 至"} />{" "}
+                      {detail.lastDate ? recordTime(detail.lastDate) : uiLiteral("等待收盘")} · {days.length} <UiLiteral text=" 条记录 ·" />{" "}
                       {detail.currency}
                     </p>
                   </div>
@@ -869,18 +872,24 @@ export default function TradingWorkspacePage() {
                         {detail.status === "running" ? uiLiteral("暂停交易") : uiLiteral("持续运行")}
                       </button>
                     )}
-                      <button
+                      {!detail.config.externalRuntime && <button
                         className="btn-secondary"
                         onClick={() => {
                         setEditing(null);
                         openConfig(detail.config, `${detail.name} · 新版本`);
                       }}
                     >
-                      <UiLiteral text={"复制配置"} /></button>
+                      <UiLiteral text={"复制配置"} /></button>}
                   </div>
                 </div>
                 {historical && <p role="status" className="mb-4 text-sm text-secondary-text"><UiLiteral text="这是旧版配置的历史记录，请从策略页运行最新配置。" /></p>}
-                {!!detail.agentCalls?.length && <details className="mb-5 border-y border-border py-4"><summary className="cursor-pointer"><UiLiteral text={"Agent 调用记录（含未成交和失败，最近20次）"} /></summary>{detail.agentCalls.map(c=><details key={c.id} className="mt-3"><summary className="cursor-pointer text-sm">{c.createdAt} · {c.model} · {c.usage.total_tokens ?? "未知"} Token · {c.status === "rejected" ? uiLiteral("计划未通过校验") : c.status === "failed" ? uiLiteral("调用失败") : uiLiteral("已收到回答，成交见账本")}</summary>{c.error && <p className="mt-2 text-sm text-danger">{c.error}</p>}<pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{c.answer}</pre><details><summary className="cursor-pointer text-xs"><UiLiteral text={"本次输入与 Prompt"} /></summary><pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(c.input,null,2)}</pre></details></details>)}</details>}
+                {detail.mode === "backtest" && detail.status !== "completed" && (
+                  <p role="status" className="mb-4 font-medium">
+                    <UiLiteral text={detail.error && !detail.busy
+                      ? "历史验证已中断，以下仅为已完成日期的部分结果，不代表完整回测。"
+                      : "历史验证尚未完成，当前指标仅覆盖已记账日期。"} />
+                  </p>
+                )}
                 {detail.error && (
                   <p
                     role="alert"
@@ -891,409 +900,18 @@ export default function TradingWorkspacePage() {
                 {detail.status === "stopped" && <p role="status" className="mb-4 text-sm text-secondary-text"><UiLiteral text="已停止运行，不再自动调用模型或更新估值，待执行计划已取消；历史记录和模拟持仓保留。" /></p>}
                 {detail.status === "paused" && (
                   <p className="mb-4 text-sm text-secondary-text">
-                    <UiLiteral text={"已暂停自动买卖；持仓保留，继续按收盘价估值。"} /></p>
+                    <UiLiteral text={detail.config.externalRuntime ? "私有引擎已暂停，持仓保留；恢复后继续检查行情。" : "已暂停自动买卖；持仓保留，继续按收盘价估值。"} /></p>
                 )}
-                <PortfolioRunExplanation portfolio={detail} />
-                <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border py-5 xl:grid-cols-4">
-                  {metricLabels.map(([key, label, percent]) => (
-                    <div key={key}>
-                      <dt className="text-xs text-secondary-text">{uiLiteral(label)}</dt>
-                      <dd className="mt-2 text-xl font-semibold tabular-nums">
-                        {fmt(detail.metrics?.[key], percent)}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-                <p className="mt-3 text-xs leading-5 text-secondary-text">
-                  <UiLiteral text={"年化指标至少需要 20 个记账交易日；夏普在零波动、卡玛在零回撤时不定义。当日收益对应最近估值日。收益已扣配置费用与滑点。"} /></p>
-                {detail.evaluation && <section className="mt-6 border-b border-border pb-5">
-                  <h3 className="font-semibold"><UiLiteral text="资金与样本核对" /></h3>
-                  <dl className="mt-3 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
-                    <div><dt className="text-secondary-text"><UiLiteral text="评测口径" /></dt><dd className="mt-1 font-mono text-xs">{detail.evaluation.protocolId}</dd></div>
-                    <div><dt className="text-secondary-text"><UiLiteral text="行情样本指纹" /></dt><dd className="mt-1 font-mono text-xs" title={detail.evaluation.sampleHash || undefined}>{detail.evaluation.sampleHash?.slice(0, 12) || "—"}</dd></div>
-                    <div><dt className="text-secondary-text"><UiLiteral text="实际成交 / 拒单" /></dt><dd className="mt-1 tabular-nums">{detail.evaluation.filledOrders} / {detail.evaluation.rejectedOrders}</dd></div>
-                    <div><dt className="text-secondary-text"><UiLiteral text="平均资金使用率" /></dt><dd className="mt-1 tabular-nums">{fmt(detail.evaluation.averageExposure, true)}</dd></div>
-                    <div><dt className="text-secondary-text"><UiLiteral text="手续费与交易税" /></dt><dd className="mt-1 tabular-nums">{formatNumber(detail.evaluation.feesPaid, false, language)} {detail.currency}</dd></div>
-                    <div><dt className="text-secondary-text"><UiLiteral text="滑点成本" /></dt><dd className="mt-1 tabular-nums">{formatNumber(detail.evaluation.slippagePaid, false, language)} {detail.currency}</dd></div>
-                    <div><dt className="text-secondary-text"><UiLiteral text="相对基准价格收益差" /></dt><dd className="mt-1 tabular-nums">{fmt(detail.evaluation.excessVsBenchmark, true)}</dd></div>
-                    <div><dt className="text-secondary-text"><UiLiteral text="评测交易日" /></dt><dd className="mt-1 tabular-nums">{detail.evaluation.samples}</dd></div>
-                  </dl>
-                  {detail.evaluation.filledOrders === 0 && <p className="mt-3 text-sm text-secondary-text"><UiLiteral text="尚无成交；收益为零不能证明策略有效。" /></p>}
-                  {detail.evaluation.complete === false && <p className="mt-3 text-sm text-secondary-text"><UiLiteral text="回测尚未完成，当前指标仅覆盖已记账日期。" /></p>}
-                </section>}
-                <section className="mt-6 border-b border-border pb-5">
-                  <h3 className="font-semibold"><UiLiteral text={"同配置的历史与模拟验证"} /></h3>
-                  <p className="mt-1 text-xs text-secondary-text"><UiLiteral text="仅固定规则且行情指纹、资金和成本相同的完整结果可直接比较；其他记录只供观察。" /></p>
-                  {detail.comparisons?.length ? (
-                    <div className="mt-3 overflow-x-auto">
-                      <table className="w-full text-left text-sm">
-                        <thead>
-                          <tr>
-                            {[
-                              "账户",
-                              "观察区间",
-                              "交易日",
-                              "累计收益",
-                              "最大回撤",
-                              "可比性",
-                            ].map((x) => (
-                              <th key={x} className="p-2">
-                                {uiLiteral(x)}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {detail.comparisons.map((c) => (
-                            <tr className="border-t border-border" key={c.id}>
-                              <td className="p-2">
-                                <button
-                                  className="text-primary"
-                                  onClick={() => select(c.id)}
-                                >
-                                  {c.mode === "backtest"
-                                    ? uiLiteral("历史回测")
-                                    : uiLiteral("实时模拟")}{" "}
-                                  · {c.name}
-                                </button>
-                              </td>
-                              <td className="p-2 whitespace-nowrap">
-                                {c.startDate || "—"} — {c.endDate || "—"}
-                              </td>
-                              <td className="p-2">{c.samples}</td>
-                              <td className="p-2">
-                                {fmt(c.metrics.cumulativeReturn, true)}
-                              </td>
-                              <td className="p-2">
-                                {fmt(c.metrics.maxDrawdown, true)}
-                              </td>
-                              <td className="p-2"><UiLiteral text={c.comparable ? "同口径" : "样本或资金口径不同"} /></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-secondary-text">
-                      <UiLiteral text={"尚无同配置的"} />{detail.mode === "paper" ? uiLiteral("历史回测") : uiLiteral("实时模拟")}
-                      <UiLiteral text={"。在所属策略中选择另一种验证；旧记录可先复制配置并保存为策略。"} /></p>
-                  )}
-                </section>
-                {days.length ? (
-                  <>
-                    <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="font-semibold"><UiLiteral text={"业绩走势"} /></h3>
-                      <select
-                        aria-label={uiLiteral("曲线范围")}
-                        className="rounded border border-border bg-background p-2 text-sm"
-                        value={windowSize}
-                        onChange={(e) => setWindowSize(Number(e.target.value))}
-                      >
-                        <option value={30}><UiLiteral text={"最近 30 个交易日"} /></option>
-                        <option value={120}><UiLiteral text={"最近 120 个交易日"} /></option>
-                      </select>
-                    </div>
-                    <AnalysisChart
-                      chart={{
-                        version: 1,
-                        type: "line",
-                        title: uiLiteral("累计收益与基准对比"),
-                        source: `${uiLiteral("每日净值账本")} · ${uiLiteral(detail.config.benchmarkName || "基准")}`,
-                        basis: "scenario",
-                        unit: "%",
-                        series: [
-                          {
-                            key: "v0",
-                            name:
-                              uiLiteral(detail.mode === "paper" ? "模拟收益" : "回测收益"),
-                          },
-                          {
-                            key: "v1",
-                            name: uiLiteral(detail.config.benchmarkName || "基准"),
-                          },
-                        ],
-                        data: visible.map((d) => ({
-                          label: d.date,
-                          v0: (d.equity / detail.config.initialCash - 1) * 100,
-                          v1:
-                            d.benchmarkReturn == null
-                              ? null
-                              : d.benchmarkReturn * 100,
-                        })),
-                      }}
-                    />
-                    <AnalysisChart
-                      chart={{
-                        version: 1,
-                        type: "bar",
-                        title: uiLiteral("每日收益率"),
-                        source: uiLiteral("每日模拟净值变化，非实盘"),
-                        basis: "scenario",
-                        unit: "%",
-                        series: [{ key: "v0", name: uiLiteral("每日收益") }],
-                        data: visible.map((d) => ({
-                          label: d.date,
-                          v0: d.dailyReturn * 100,
-                        })),
-                      }}
-                    />
-                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          ["trades", "每日买卖"],
-                          ["holdings", "当前持仓"],
-                          ["opinions", "每日观点"],
-                        ].map(([key, label]) => (
-                          <button
-                            key={key}
-                            aria-pressed={tab === key}
-                            className={
-                              tab === key ? "btn-primary" : "btn-secondary"
-                            }
-                            onClick={() => setTab(key)}
-                          >
-                            {uiLiteral(label)}
-                          </button>
-                        ))}
-                      </div>
-                      {tab !== "holdings" && (
-                        <label className="text-sm">
-                          <UiLiteral text={"查看日期"} />{" "}
-                          <select
-                            className="rounded border border-border bg-background p-2"
-                            aria-label={uiLiteral("查看日期")}
-                            value={selected?.date || ""}
-                            onChange={(e) => setDate(e.target.value)}
-                          >
-                            {[...days].reverse().map((d) => (
-                              <option key={d.date}>{d.date}</option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
-                    </div>
-                    {tab === "holdings" ? (
-                      <>
-                        <p className="mb-3 text-sm text-secondary-text">
-                          <UiLiteral text={"净资产 "} />{fmt(latest?.equity)} <UiLiteral text={" · 可用现金"} />{" "}
-                          {fmt(latest?.cash)} <UiLiteral text={" · 持仓市值"} />{" "}
-                          {fmt(latest?.marketValue)}
-                        </p>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-sm">
-                            <thead>
-                              <tr>
-                                {[
-                                  "股票",
-                                  "数量",
-                                  "含费用成本",
-                                  "估值价格",
-                                  "市值",
-                                  "浮动盈亏",
-                                ].map((x) => (
-                                  <th className="p-3" key={x}>
-                                    {uiLiteral(x)}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {latest?.holdings.map((h) => (
-                                <tr
-                                  key={h.code}
-                                  className="border-t border-border"
-                                >
-                                  <td className="p-3">{h.code}</td>
-                                  {[
-                                    h.quantity,
-                                    h.averageCost,
-                                    h.price,
-                                    h.marketValue,
-                                    h.unrealizedPnl,
-                                  ].map((v, i) => (
-                                    <td className="p-3 tabular-nums" key={i}>
-                                      {fmt(v)}
-                                    </td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        {!latest?.holdings.length && (
-                          <p className="py-5 text-secondary-text"><UiLiteral text={"当前空仓。"} /></p>
-                        )}
-                      </>
-                    ) : tab === "opinions" ? (
-                      <div className="divide-y divide-border">
-                        {selected?.opinions.map((o) => (
-                          <article key={o.code} className="py-4">
-                            <div className="flex gap-3 font-medium">
-                              <span>{o.code}</span>
-                              <span
-                                className={
-                                  o.stance === "bullish"
-                                    ? "text-success"
-                                    : o.stance === "bearish"
-                                      ? "text-danger"
-                                      : "text-secondary-text"
-                                }
-                              >
-                                {o.decisionBackend === "jev"
-                                  ? uiLiteral(o.decision === "buy" ? "买入" : o.decision === "sell" ? "卖出" : "不动")
-                                  : o.stance === "bullish"
-                                  ? uiLiteral("看好")
-                                  : o.stance === "bearish"
-                                    ? uiLiteral("看淡")
-                                    : uiLiteral("中性")}
-                              </span>
-                              {o.held && (
-                                <span className="text-xs text-secondary-text">
-                                  <UiLiteral text={"当日持仓"} /></span>
-                              )}
-                            </div>
-                            {o.decisionBackend === "jev" ? (
-                              <div className="mt-2 space-y-2 text-sm text-secondary-text">
-                                <p>JEV · {uiLiteral("置信度")} {((o.confidence ?? 0) * 100).toFixed(1)}% · {uiLiteral("目标仓位")} {((o.targetWeight ?? 0) * 100).toFixed(1)}%</p>
-                                <p className="flex flex-wrap gap-x-4 gap-y-1">
-                                  {(["buy", "sell", "hold"] as const).map((key) => <span key={key}>
-                                    {uiLiteral(key === "buy" ? "买入" : key === "sell" ? "卖出" : "不动")} {((o.probabilities?.[key] ?? 0) * 100).toFixed(1)}%
-                                  </span>)}
-                                </p>
-                                <p><UiLiteral text="仅决策结果，无模型解释。目标仓位已应用调仓比例和账户约束，实际成交请查看交易记录。" /></p>
-                              </div>
-                            ) : <p className="mt-2 max-w-3xl text-sm leading-6 text-secondary-text">{o.reason}</p>}
-                          </article>
-                        ))}
-                        <p className="py-3 text-xs text-secondary-text">
-                          <UiLiteral text={detail.config.decisionBackend === "rules"
-                            ? "观点由固定版本的网格规则计算；每个股票池成员每天都有记录。"
-                            : "观点由保存时冻结的 Agent Skill 生成；每个股票池成员每天都有记录。"} /></p>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                          <thead>
-                            <tr>
-                              {[
-                                "股票／方向",
-                                "数量",
-                                "成交价",
-                                "费用",
-                                "信号日",
-                                "状态／原因",
-                              ].map((x) => (
-                                <th className="p-3" key={x}>
-                                  {uiLiteral(x)}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {selected?.trades.map((t, i) => (
-                              <tr
-                                key={i}
-                                className="border-t border-border align-top"
-                              >
-                                <td className="p-3 whitespace-nowrap">
-                                  {t.code} ·{" "}
-                                  {t.side === "buy" ? uiLiteral("买入") : uiLiteral("卖出")}
-                                </td>
-                                <td className="p-3">{t.quantity}</td>
-                                <td className="p-3">{fmt(t.price)}</td>
-                                <td className="p-3">{fmt(t.fee)}</td>
-                                <td className="p-3 whitespace-nowrap">
-                                  {t.signalDate}
-                                </td>
-                                <td className="min-w-64 p-3 leading-6">
-                                  {t.status === "filled"
-                                    ? uiLiteral("模拟成交")
-                                    : uiLiteral("未成交")}{" "}
-                                  · {uiLiteral(t.reason)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        {!selected?.trades.length && (
-                          <p className="py-5 text-secondary-text">
-                            <UiLiteral text={"当日无买卖。查看每日观点了解持有、等待或暂停原因。"} /></p>
-                        )}
-                      </div>
-                    )}
-                    {selected?.replayed && (
-                      <p className="mt-3 text-xs text-warning">
-                        <UiLiteral text={"此日期在恢复运行时补记，属于规则历史回放，不计作当时在线决策的证明。"} /></p>
-                    )}
-                    {selected?.workspaceRunId && (
-                      <Link
-                        className="mt-5 inline-block text-sm text-primary"
-                        to={`/runs/${selected.workspaceRunId}`}
-                      >
-                        <UiLiteral text={"查看对应任务与运行 →"} /></Link>
-                    )}
-                  </>
-                ) : (
-                  <div className="py-16 text-center">
-                    <h3 className="text-lg font-medium"><UiLiteral text={"尚无已记账交易日"} /></h3>
-                    <p className="mt-3 text-sm text-secondary-text">
-                      <UiLiteral text={"点击运行一次或持续运行；尚未收盘时会等待行情。首日形成观点，下一交易日才可能成交。"} /></p>
-                  </div>
-                )}
-                {selected?.universe && (
-                  <details className="mt-5 border-y border-border py-4">
-                    <summary className="cursor-pointer">
-                      <UiLiteral text={"当日范围、决策与 Token"} /></summary>
-                    <p className="mt-3 text-sm">
-                      {uiLiteral(selected.validationLabel || "")} ·{" "}
-                      {selected.usage
-                        ? detail.config.decisionBackend === "rules" ? uiLiteral("规则引擎 · 无模型调用") : `${selected.usage.model} · ${selected.usage.tokens} Token`
-                        : uiLiteral("本日无模型决策")}
-                    </p>
-                    <p className="mt-2 text-xs text-secondary-text">
-                      {uiLiteral(selected.universe.coverage)} · {selected.universe.source}{" "}
-                      · {selected.universe.observedAt}
-                    </p>
-                    <ul className="mt-3 space-y-2">
-                      {selected.universe.candidates.map((c) => (
-                        <li key={c.code} className="text-sm">
-                          {c.code}：{uiLiteral(c.reason)}
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-                <details className="mt-7 border-t border-border py-4">
-                  <summary className="cursor-pointer font-medium">
-                    <UiLiteral text={"策略规则、指标口径与边界"} /></summary>
-                  <div className="mt-4 space-y-3 text-sm leading-6 text-secondary-text">
-                    <p>
-                      {detail.config.decisionBackend === "rules"
-                        ? uiLiteral("内置高量高波动网格：固定版本规则依据已收盘日线计算量比、区间波动和目标仓位；下一交易日开盘按费用与滑点模拟成交。")
-                        : detail.config.engine === "agent"
-                        ? uiLiteral(`${detail.config.skillSnapshot?.name || "Agent 策略 Skill"}：使用保存时冻结的 Skill、交易指令和范围生成每日目标仓位，并由程序风控与模拟账本执行。`)
-                        : uiLiteral("固定规则策略已下线；此处仅保留历史账本与指标供查看。")}
-                    </p>
-                    {detail.config.decisionBackend === "rules" && detail.config.ruleVersion && (
-                      <p><UiLiteral text="规则版本：" /> <code>{detail.config.ruleVersion}</code></p>
-                    )}
-                    <p>
-                      <UiLiteral text={"股票池："} />{detail.config.symbols.join("、")}<UiLiteral text={"。最大持仓"} />{" "}
-                      {detail.config.maxPositions} <UiLiteral text={" 只；单股建仓上限"} />{" "}
-                      {fmt(detail.config.maxWeight, true)}
-                      <UiLiteral text={"。当前版本不可修改。佣金"} />{" "}
-                      {fmt(detail.config.commissionRate, true)}<UiLiteral text={"，卖出税费"} />{" "}
-                      {fmt(detail.config.sellTaxRate, true)}<UiLiteral text={"，滑点"} />{" "}
-                      {fmt(detail.config.slippageRate, true)}。
-                    </p>
-                    <p>
-                      {uiLiteral("区间换手率 = 买卖成交额总和 ÷ 2 ÷ 平均净资产。年化收益按 {days} 个交易日复利折算；夏普使用日超额收益与样本标准差；卡玛 = 年化收益 ÷ 最大回撤，无风险利率").replace("{days}", detail.market === "CRYPTO" ? "365" : "252")}{" "}
-                      {fmt(detail.config.riskFreeRate, true)}。
-                    </p>
-                    <p>
-                      <UiLiteral text={detail.market === "CRYPTO" ? "现货日线模拟不包含盘口和部分成交；不验证交易所最小下单量。历史回测与实时模拟分别记账，行情缺失会中止当日记账。" : "使用日线价格进行简化撮合，不模拟盘口、部分成交、涨跌停排队及分红配股。基准 ETF 存在跟踪误差。历史回测与实时模拟分别记账，不拼接收益曲线。行情缺失会中止当日记账。"} /></p>
-                  </div>
-                </details>
+                <PortfolioDetailWorkspace key={detail.id} portfolio={detail} panel={params.get('panel')}
+                  onPanel={panel => setParams(previous => { const next=new URLSearchParams(previous); next.set('panel',panel); return next; })}
+                  onSelect={select}
+                  onAdopt={strategyId => {setParams({strategy:String(strategyId)});setRefresh(x=>x+1);}}
+                  onBacktest={definition ? () => {
+                    setLaunch('backtest');setValidationCash(definition.config.initialCash);
+                    if(definition.config.externalRuntime){setValidationStart(definition.config.sourceStartDate||'');setValidationEnd(definition.config.sourceEndDate||'');}
+                    requestAnimationFrame(()=>document.getElementById('strategy-configuration')?.scrollIntoView({block:'start'}));
+                  } : undefined}
+                />
               </>
             ) : definition ? null : (
               <div className="py-20 text-center">
@@ -1310,6 +928,8 @@ export default function TradingWorkspacePage() {
             )}
           </section>
         </div>
+        </details>
+        </>
       )}
       <ConfirmDialog
         isOpen={deleteTarget !== null}

@@ -38,3 +38,17 @@ Pages use the existing `/api/v1/simulation/portfolios` definition, preview and e
 The existing `/api/v1/crypto/market` and asset data endpoints remain available. Legacy hourly `/api/v1/crypto/screen` and `/api/v1/crypto/backtest` remain for compatibility; the website no longer uses their simplified backtest or in-memory positions. Hourly results and the new daily ledger are different evaluation protocols.
 
 Existing SQLite quantity columns can retain fractional values; new tables declare Float. No ledger reset is required. Back up the database before deployment. Before rolling back to older code, pause new crypto simulations so the old scheduler does not encounter an unsupported market.
+
+## Parameter research and deployment-private strategies
+
+Completed fixed-universe rule backtests with at least 100 recorded days expose parameter research in the existing trading detail page. The same framework also supports the equity volume/volatility rule.
+
+Research replays saved daily snapshots without fetching new data or calling LLM/JEV. Chronological splits are 60% training, 20% validation and 20% final check, each with fresh initial capital and its own rebalance clock. Up to 16 single-field candidates (12 in the UI) keep universe, costs, capital and execution rules fixed. Lookback mutations cannot exceed stored history. Split returns cannot be combined into a continuous account return.
+
+Selection requires positive cost-adjusted validation Sharpe improving by more than 0.05, the configured drawdown limit, training Sharpe degradation no worse than 0.10 and acceptable training drawdown. Only the selected candidate enters the final check; failure does not trigger selection of another candidate. Passing candidates can be saved separately for existing backtest/paper workflows. Running strategies are never replaced automatically.
+
+Experiments persist in the scoped database; identical requests reuse records. Historical data is already visible, so repeated research is not independent blind testing. Future forward observations remain necessary. Drawdown uses the full account high-water mark even when the displayed window is shortened.
+
+External verified configurations, provenance and ledgers can live only in the server database; Git stores the generic framework and synthetic tests. Daily adaptations must be retested and must not inherit hourly source performance. This remains daily paper accounting, not tick execution or arbitrary self-modifying strategy code.
+
+Scoped endpoints: `GET/POST /api/v1/simulation/portfolios/{id}/research` (`budget`, `maxDrawdown`), and idempotent `POST /api/v1/simulation/portfolios/research/{id}/adopt`. The additive `simulation_portfolio_research` table may remain on rollback; existing strategy records are unchanged.

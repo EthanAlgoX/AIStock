@@ -24,7 +24,7 @@ const api = vi.hoisted(() => ({
   previewUniverse: vi.fn(),
   holdings: vi.fn(),
 }));
-vi.mock("../../api/portfolios", () => ({ portfoliosApi: api }));
+vi.mock("../../api/portfolios", () => ({ portfoliosApi: api, simulationOverviewApi: {get: vi.fn().mockResolvedValue({items:[],runtime:{configured:false,available:false}}), evolution: vi.fn().mockResolvedValue({supported:false,items:[]})} }));
 vi.mock("../../hooks/useStockIndex", () => ({
   useStockIndex: () => ({
     loading: stockState.loading,
@@ -119,10 +119,9 @@ it("shows real zero metrics, daily opinions and current positions without invent
   );
   await screen.findByText("累计收益");
   expect(screen.getAllByText("0%").length).toBeGreaterThan(0);
-  expect(screen.getByText(/当日无买卖/)).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "每日观点" }));
+  fireEvent.click(screen.getByRole("tab", { name: "决策记录" }));
   screen.getAllByText("突破过去高点，拟继续持有").forEach(element => expect(element).toBeVisible());
-  fireEvent.click(screen.getByRole("button", { name: "当前持仓" }));
+  fireEvent.click(screen.getByRole("tab", { name: "成交与持仓" }));
   expect(screen.getByRole("cell", { name: "600519" })).toBeVisible();
   expect(screen.getByRole("link", { name: "历史研究提案" })).toHaveAttribute(
     "href",
@@ -293,7 +292,7 @@ it("renders JEV categories and probabilities without a fabricated explanation", 
   api.list.mockResolvedValue([jev]);
   api.detail.mockResolvedValue(jev);
   render(<MemoryRouter initialEntries={["/trading?portfolio=1"]}><TradingWorkspacePage /></MemoryRouter>);
-  fireEvent.click(await screen.findByRole("button", {name:"每日观点"}));
+  fireEvent.click(await screen.findByRole("tab", {name:"决策记录"}));
   expect(await screen.findByText(/85.0%/)).toBeVisible();
   expect(screen.getByText(/仅决策结果，无模型解释/)).toBeVisible();
   expect(screen.queryByText("not a model explanation")).not.toBeInTheDocument();
@@ -447,7 +446,7 @@ it('stops all validations from the saved strategy and confirms deletion', async 
   api.list.mockResolvedValue([]);
   fireEvent.click(screen.getByRole('button', {name:'停止并删除'}));
   await waitFor(() => expect(api.deleteDefinition).toHaveBeenCalledWith(7));
-  expect(await screen.findByText('尚无策略。先保存规则，再选择回测或模拟。')).toBeVisible();
+  expect(await screen.findByText('当前筛选下没有正在模拟的策略。')).toBeVisible();
 });
 
 it('keeps a failed delete visible for retry without removing the strategy', async () => {
@@ -561,4 +560,27 @@ it('requires an explicit crypto market change before previewing typed pairs', as
   fireEvent.click(screen.getByRole('button', {name:'预览股票范围'}));
   expect(await screen.findByRole('alert')).toHaveTextContent('请先将市场切换');
   expect(api.previewUniverse).not.toHaveBeenCalled();
+});
+
+it('keeps private versions out of the native editor and uses frozen replay terms', async () => {
+  const external = {...config, externalRuntime:true, sourceStartDate:'2026-08-01', sourceEndDate:'2026-08-31', initialCash:10000};
+  api.definitions.mockResolvedValue([{id:-1,name:'Private fixture',config:external}]);
+  api.list.mockResolvedValue([]);
+  render(<MemoryRouter initialEntries={['/trading?strategy=-1']}><TradingWorkspacePage /></MemoryRouter>);
+  await screen.findByRole('heading',{name:'Private fixture'});
+  expect(screen.queryByRole('button',{name:'修改配置'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'复制策略'})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'历史回测'}));
+  expect(screen.getByDisplayValue('2026-08-01')).toHaveAttribute('readonly');
+  expect(screen.getByDisplayValue('2026-08-31')).toHaveAttribute('readonly');
+  expect(screen.getByDisplayValue('10000')).toHaveAttribute('readonly');
+  expect(screen.queryByText(/每次最多处理20个交易日/)).not.toBeInTheDocument();
+});
+
+it('never labels a live JEV account as retrospective model replay', async () => {
+  api.detail.mockResolvedValue({...detail,id:-1006,config:{...config,externalRuntime:true,decisionBackend:'jev',evaluationKind:'model_replay'},executionLedger:[]});
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-1006']}><TradingWorkspacePage /></MemoryRouter>);
+  expect(await screen.findByText(/实时行情模拟/)).toBeVisible();
+  expect(screen.getByText('来源尚未提供完整周期合同，保留原始时间，不按日线解释。')).toBeVisible();
+  expect(screen.queryByText('模型历史回放，不代表历史时点预测')).toBeNull();
 });

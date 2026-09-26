@@ -2083,6 +2083,17 @@ class SimulationPortfolioDefinitionRecord(Base):
     created_at = Column(DateTime, nullable=False, default=utc_naive_now)
 
 
+class SimulationPortfolioResearchRecord(Base):
+    """Workspace-local immutable parameter experiments on a frozen daily sample."""
+    __tablename__ = 'simulation_portfolio_research'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_id = Column(Integer, nullable=False, index=True)
+    request_hash = Column(String(64), nullable=False, unique=True)
+    result_json = Column(Text, nullable=False)
+    candidate_definition_id = Column(Integer)
+    created_at = Column(DateTime, nullable=False, default=utc_naive_now)
+
+
 class SimulationPortfolioRunRecord(Base):
     """Durable fixed-version paper/backtest account and cooperative execution lease."""
     __tablename__ = 'simulation_portfolio_runs'

@@ -7,6 +7,8 @@ from src.schemas.jev_task import JevTaskConfig
 from src.services.simulation_portfolio_service import SimulationPortfolioService
 from src.services.simulation_portfolio_engine import BENCHMARKS, GRID_RULE_VERSION
 
+from src.services.simulation_runtime_service import SimulationRuntimeService
+
 router = APIRouter()
 
 
@@ -97,7 +99,7 @@ def call(fn, *args):
 
 @router.get("")
 def portfolios():
-    return {"items": SimulationPortfolioService().list()}
+    return {"items": SimulationPortfolioService().list() + SimulationRuntimeService().items("/portfolios")}
 
 
 @router.post("")
@@ -135,7 +137,7 @@ def preview_universe(body: UniversePreview):
 
 @router.get("/definitions")
 def definitions():
-    return {"items": SimulationPortfolioService().definitions()}
+    return {"items": SimulationPortfolioService().definitions() + SimulationRuntimeService().items("/definitions")}
 
 
 @router.post("/definitions")
@@ -145,34 +147,98 @@ def save_definition(body: StrategyConfig):
 
 @router.put("/definitions/{definition_id}")
 def update_definition(definition_id: int, body: StrategyUpdate):
+    if definition_id < 0:
+        raise HTTPException(409, "Private versions are immutable; create a new version in their source runtime")
     return call(SimulationPortfolioService().update_definition, definition_id, body.model_dump())
 
 
 @router.post("/definitions/{definition_id}/stop")
 def stop_definition(definition_id: int):
+    if definition_id < 0:
+        return SimulationRuntimeService().request("POST", f"/definitions/{definition_id}/stop")
     return call(SimulationPortfolioService().control_definition, definition_id)
 
 
 @router.delete("/definitions/{definition_id}")
 def delete_definition(definition_id: int):
+    if definition_id < 0:
+        return SimulationRuntimeService().request("DELETE", f"/definitions/{definition_id}")
     return call(lambda: SimulationPortfolioService().control_definition(definition_id, remove=True))
 
 
 @router.delete("/{portfolio_id}")
 def delete_portfolio(portfolio_id: int):
+    if portfolio_id < 0:
+        return SimulationRuntimeService().request("DELETE", f"/portfolios/{portfolio_id}")
     return call(SimulationPortfolioService().delete_portfolio, portfolio_id)
 
 
 @router.post("/definitions/{definition_id}/validations")
 def create_validation(definition_id: int, body: ValidationCreate):
+    if definition_id < 0:
+        return SimulationRuntimeService().request("POST", f"/definitions/{definition_id}/validations", body.model_dump())
     return call(SimulationPortfolioService().create_validation, definition_id, body.model_dump())
+
+
+@router.get("/overview")
+def overview():
+    private = SimulationRuntimeService().overview()
+    return {'items': SimulationPortfolioService().overview() + private['items'],
+            'runtime': private['runtime']}
+
+
+@router.get("/runtime-status")
+def runtime_status():
+    return SimulationRuntimeService().status()
 
 
 @router.get("/{portfolio_id}")
 def detail(portfolio_id: int):
+    if portfolio_id < 0:
+        return SimulationRuntimeService().request("GET", f"/portfolios/{portfolio_id}")
     return call(SimulationPortfolioService().detail, portfolio_id)
 
 
 @router.post("/{portfolio_id}/control")
 def control(portfolio_id: int, body: Control):
+    if portfolio_id < 0:
+        return SimulationRuntimeService().request("POST", f"/portfolios/{portfolio_id}/control", body.model_dump())
     return call(SimulationPortfolioService().control, portfolio_id, body.action)
+
+
+class ResearchCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
+    budget: int = Field(default=12, ge=1, le=16)
+    maxDrawdown: float = Field(default=.2, gt=0, le=.8)
+
+
+@router.get('/{portfolio_id}/research')
+def research_list(portfolio_id: int):
+    from src.services.simulation_research_service import SimulationResearchService
+    return {'items': call(SimulationResearchService().list, portfolio_id)}
+
+
+@router.post('/{portfolio_id}/research')
+def research_create(portfolio_id: int, body: ResearchCreate):
+    from src.services.simulation_research_service import SimulationResearchService
+    return call(SimulationResearchService().create, portfolio_id, body.budget, body.maxDrawdown)
+
+
+@router.post('/research/{research_id}/adopt')
+def research_adopt(research_id: int):
+    from src.services.simulation_research_service import SimulationResearchService
+    return call(SimulationResearchService().adopt, research_id)
+
+
+@router.get('/{portfolio_id}/evolution')
+def evolution_list(portfolio_id: int):
+    if portfolio_id >= 0:
+        raise HTTPException(404, 'Use native parameter research')
+    return SimulationRuntimeService().request('GET', f'/portfolios/{portfolio_id}/evolution')
+
+
+@router.post('/{portfolio_id}/evolution')
+def evolution_create(portfolio_id: int, body: ResearchCreate):
+    if portfolio_id >= 0:
+        raise HTTPException(404, 'Use native parameter research')
+    return SimulationRuntimeService().request('POST', f'/portfolios/{portfolio_id}/evolution', body.model_dump())

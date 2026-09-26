@@ -354,6 +354,26 @@ class SimulationPortfolioService:
             ).all()
             return [self._item(row) for row in rows]
 
+    def overview(self):
+        from src.services.simulation_overview import summarize
+        with self.db.get_session() as session:
+            rows = session.scalars(select(SimulationPortfolioRunRecord).where(
+                SimulationPortfolioRunRecord.mode == 'paper',
+                SimulationPortfolioRunRecord.status != 'deleted',
+            ).order_by(SimulationPortfolioRunRecord.id.desc())).all()
+            versions = [row.strategy_version_id for row in rows]
+            histories = {}
+            if versions:
+                runs = session.scalars(select(SimulationRunRecord).where(
+                    SimulationRunRecord.strategy_version_id.in_(versions),
+                    SimulationRunRecord.execution_mode == 'portfolio_day',
+                    SimulationRunRecord.status == 'completed',
+                ).order_by(SimulationRunRecord.id)).all()
+                for run in runs:
+                    histories.setdefault(run.strategy_version_id, []).append(json.loads(run.result_snapshot_json))
+            return [summarize(dict(self._item(row), currency=BENCHMARKS[json.loads(row.config_json)['market']][2]),
+                              histories.get(row.strategy_version_id, [])) for row in rows]
+
     @staticmethod
     def _item(row):
         config = json.loads(row.config_json)
@@ -371,6 +391,9 @@ class SimulationPortfolioService:
             busy=bool(row.lease_until and row.lease_until > utc_naive_now()),
             nextCheck=row.next_check_at.isoformat(),
             config=config,
+            timing=dict(signalTimeframe='1d', valuation='bar_close', execution='next_open',
+                        timezone='UTC' if config['market'] == 'CRYPTO' else 'market',
+                        granularity='trading_day'),
         )
 
     def detail(self, portfolio_id):
@@ -413,6 +436,7 @@ class SimulationPortfolioService:
                 "sellTaxRate",
                 "slippageRate",
                 "riskFreeRate", "engine", "decisionBackend", "ruleVersion", "skillSnapshot",
+                "cryptoLookbackDays", "cryptoRebalanceDays", "cryptoAllocation", "cryptoTopN",
                 "systemPrompt", "jevTask", "jevWeightStep", "jevModel", "gridLookbackDays",
                 "gridMinVolumeRatio", "gridMinRange", "gridLevels", "universe", "scopeRefresh",
             )
