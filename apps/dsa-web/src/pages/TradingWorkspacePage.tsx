@@ -299,7 +299,8 @@ export default function TradingWorkspacePage() {
             <UiLiteral text={"先观察模拟收益，再展开策略进行回测与改进。"} /></p>
         </div>
         <div className="flex flex-wrap gap-3">
-          {(id || definitionId || creating) && <Link className="btn-secondary" to="/trading?view=reports">
+          {!id && !definitionId && !creating && params.get('view')!=='manage' && <Link className="btn-secondary" to="/trading?view=manage"><UiLiteral text="管理策略" /></Link>}
+          {(id || definitionId || creating || params.get("view")==="manage") && <Link className="btn-secondary" to="/trading?view=reports">
             <UiLiteral text={"历史研究提案"} /></Link>}
           <button
             className="btn-primary"
@@ -517,15 +518,14 @@ export default function TradingWorkspacePage() {
         </section>
       ) : (
         <>
-        {!id && !definitionId ? <SimulationOverview onOpen={select} onResearch={next => {
+        {!id && !definitionId && params.get("view")!=="manage" ? <SimulationOverview onOpen={select} onAdopt={strategy=>setParams({strategy:String(strategy)})} onResearch={next => {
           const paper = items.find(p => p.id === next);
           const backtest = items.filter(p => paper?.definitionId && p.definitionId === paper.definitionId && p.mode === 'backtest' && p.status === 'completed').sort((a,b) => Math.abs(b.id) - Math.abs(a.id))[0];
           if (paper?.config.externalRuntime || backtest) select(backtest?.id ?? next, true);
           else if (paper?.definitionId) setParams({strategy: String(paper.definitionId), panel: 'research'});
           else select(next, true);
         }} /> : <button className="btn-secondary mb-5" onClick={() => { setParams({}); setDetail(null); setLaunch(null); }}><UiLiteral text="← 返回模拟收益总览" /></button>}
-        <details open={Boolean(id || definitionId)} className="border-t border-border pt-4">
-        <summary className={id ? "hidden" : "mb-5 cursor-pointer text-lg font-semibold"}><UiLiteral text="策略详情、回测与自进化" /> · {definitions.length}</summary>
+        {Boolean(id || definitionId || params.get('view')==='manage') && <div className="border-t border-border pt-4">
         {!id && !definitionId && <Link className="btn-secondary mb-5 inline-flex" to="/trading?view=reports"><UiLiteral text="历史研究提案" /></Link>}
         <div className={id ? "min-w-0" : "grid gap-7 lg:grid-cols-[250px_minmax(0,1fr)]"}>
           <aside className={id ? "hidden" : undefined}>
@@ -928,7 +928,7 @@ export default function TradingWorkspacePage() {
             )}
           </section>
         </div>
-        </details>
+        </div>}
         </>
       )}
       <ConfirmDialog

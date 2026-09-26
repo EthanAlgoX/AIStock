@@ -6174,5 +6174,11 @@
   "成交日期": "Execution date",
   "允许": "Allow",
   "暂停": "Pause",
-  "回撤曲线": "Drawdown curve"
+  "回撤曲线": "Drawdown curve",
+  "模拟策略": "Simulated strategies",
+  "点击策略展开详情": "Select a strategy to expand its details",
+  "在收益曲线中显示": "Show in return chart",
+  "返回模拟账户": "Back to simulation account",
+  "策略设置与运行控制": "Strategy settings & controls",
+  "管理策略": "Manage strategies"
 }

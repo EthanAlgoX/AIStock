@@ -23,6 +23,7 @@ const panels = [
   ["evidence", "口径与证据"],
 ] as const;
 type Props = {
+  compact?: boolean;
   portfolio: Portfolio;
   panel: string | null;
   onPanel: (panel: string) => void;
@@ -35,6 +36,7 @@ const objectRows = (value: unknown[]) =>
     (v): v is Record<string, unknown> => Boolean(v) && typeof v === "object",
   );
 export function PortfolioDetailWorkspace({
+  compact = false,
   portfolio: p,
   panel,
   onPanel,
@@ -64,53 +66,61 @@ export function PortfolioDetailWorkspace({
   );
   return (
     <div>
-      <dl className="grid grid-cols-2 gap-4 border-y border-border py-4 text-sm lg:grid-cols-4">
-        <div>
-          <dt className="text-secondary-text">{t("决策节奏")}</dt>
-          <dd className="mt-1 font-medium">
-            {t(signalLabel(timing?.signalTimeframe))}
-            {timing?.signalTimeframe &&
-            !["1d", "1h", "tick"].includes(timing.signalTimeframe)
-              ? ` · ${timing.signalTimeframe}`
-              : ""}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-secondary-text">{t("估值方式")}</dt>
-          <dd className="mt-1 font-medium">
-            {t(valuationLabel(timing?.valuation))}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-secondary-text">{t("成交规则")}</dt>
-          <dd className="mt-1">
+      {!compact || active === "evidence" ? (
+        <>
+          <dl className="grid grid-cols-2 gap-4 border-y border-border py-4 text-sm lg:grid-cols-4">
+            <div>
+              <dt className="text-secondary-text">{t("决策节奏")}</dt>
+              <dd className="mt-1 font-medium">
+                {t(signalLabel(timing?.signalTimeframe))}
+                {timing?.signalTimeframe &&
+                !["1d", "1h", "tick"].includes(timing.signalTimeframe)
+                  ? ` · ${timing.signalTimeframe}`
+                  : ""}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-secondary-text">{t("估值方式")}</dt>
+              <dd className="mt-1 font-medium">
+                {t(valuationLabel(timing?.valuation))}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-secondary-text">{t("成交规则")}</dt>
+              <dd className="mt-1">
+                {t(
+                  timing?.execution === "quote_simulation"
+                    ? "按观测报价模拟成交"
+                    : timing?.execution === "next_open"
+                      ? "下一根 K 线开盘成交"
+                      : "成交规则待确认",
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-secondary-text">{t("最新估值")}</dt>
+              <dd className="mt-1 break-words tabular-nums">
+                {recordTime(p.lastDate)}
+              </dd>
+            </div>
+          </dl>
+          <p className="my-3 max-w-4xl text-sm leading-6 text-secondary-text">
             {t(
-              timing?.execution === "quote_simulation"
-                ? "按观测报价模拟成交"
-                : timing?.execution === "next_open"
-                  ? "下一根 K 线开盘成交"
-                  : "成交规则待确认",
+              timing?.valuation === "live_quote"
+                ? "决策按信号周期触发，期间用实时报价更新持仓价值；每次估值不等于一次决策或成交。"
+                : timing?.signalTimeframe === "1d"
+                  ? "按交易日组织记录：收盘形成决策，后续交易日开盘模拟成交，成交在该日记账后显示。"
+                  : timing
+                    ? "按已收盘 K 线组织记录；决策、成交与估值分别保留原始时间。"
+                    : "来源尚未提供完整周期合同，保留原始时间，不按日线解释。",
             )}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-secondary-text">{t("最新估值")}</dt>
-          <dd className="mt-1 break-words tabular-nums">
-            {recordTime(p.lastDate)}
-          </dd>
-        </div>
-      </dl>
-      <p className="my-3 max-w-4xl text-sm leading-6 text-secondary-text">
-        {t(
-          timing?.valuation === "live_quote"
-            ? "决策按信号周期触发，期间用实时报价更新持仓价值；每次估值不等于一次决策或成交。"
-            : timing?.signalTimeframe === "1d"
-              ? "按交易日组织记录：收盘形成决策，后续交易日开盘模拟成交，成交在该日记账后显示。"
-              : timing
-                ? "按已收盘 K 线组织记录；决策、成交与估值分别保留原始时间。"
-                : "来源尚未提供完整周期合同，保留原始时间，不按日线解释。",
-        )}
-      </p>
+          </p>
+        </>
+      ) : (
+        <p className="mb-3 text-xs text-secondary-text">
+          {t(valuationLabel(timing?.valuation))} · {recordTime(p.lastDate)}
+        </p>
+      )}
       <nav
         role="tablist"
         aria-label={t("策略详情栏目")}

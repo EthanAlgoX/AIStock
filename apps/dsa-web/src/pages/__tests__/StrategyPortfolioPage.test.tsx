@@ -584,3 +584,12 @@ it('never labels a live JEV account as retrospective model replay', async () => 
   expect(screen.getByText('来源尚未提供完整周期合同，保留原始时间，不按日线解释。')).toBeVisible();
   expect(screen.queryByText('模型历史回放，不代表历史时点预测')).toBeNull();
 });
+
+it('keeps the overview free of a second strategy detail section',async()=>{
+ render(<MemoryRouter><TradingWorkspacePage/></MemoryRouter>);
+ await screen.findByText('当前筛选下没有正在模拟的策略。');
+ expect(screen.queryByText('策略详情、回测与自进化')).toBeNull();
+ expect(screen.queryByText('我的策略')).toBeNull();
+ fireEvent.click(screen.getByRole('link',{name:'管理策略'}));
+ expect(await screen.findByText('我的策略')).toBeVisible();
+});
