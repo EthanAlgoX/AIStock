@@ -86,7 +86,14 @@ export function SimulationOverview({
         (all || row.status === "running") &&
         (market === "ALL" || row.market === market),
     )
-    .sort((a, b) => Number(b.observations > 0) - Number(a.observations > 0));
+    .sort((a, b) => {
+      const aReturn = a.cumulativeReturn;
+      const bReturn = b.cumulativeReturn;
+      const aKnown = typeof aReturn === "number" && Number.isFinite(aReturn);
+      const bKnown = typeof bReturn === "number" && Number.isFinite(bReturn);
+      if (aKnown && bKnown) return bReturn - aReturn || a.id - b.id;
+      return Number(bKnown) - Number(aKnown) || a.id - b.id;
+    });
   const visible = filtered.filter((row) => !hidden.includes(row.id));
   const data = useMemo(() => {
     const times = new Map<number, Record<string, number>>();

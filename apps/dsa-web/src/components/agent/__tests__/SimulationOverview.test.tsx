@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { SimulationOverview } from '../SimulationOverview';
 import { SourceEvolutionPanel } from '../SourceEvolutionPanel';
@@ -40,4 +40,35 @@ it('explains unsupported search instead of allowing model calls', async () => {
   api.evolution.mockResolvedValue({supported:false,items:[]});render(<SourceEvolutionPanel id={-1006} />);
   await screen.findByText(/此版本尚无可复核/);
   expect(screen.getByRole('button',{name:'运行参数实验'})).toBeDisabled();
+});
+
+it('ranks current returns descending on every poll, keeping unknowns last and expansion attached to the account', async () => {
+  vi.useFakeTimers();
+  const items = [
+    {...row, id:1, name:'Losing strategy', cumulativeReturn:-.1, observations:1},
+    {...row, id:2, name:'Unknown strategy'},
+    {...row, id:3, name:'Winning strategy', cumulativeReturn:.2, observations:1},
+    {...row, id:4, name:'Flat strategy', cumulativeReturn:0, observations:1},
+    {...row, id:5, name:'Tied strategy', cumulativeReturn:.2, observations:1},
+    {...row, id:6, name:'Invalid strategy', cumulativeReturn:Number.NaN, observations:1},
+  ];
+  api.get.mockResolvedValue({items,runtime:{configured:false,available:false}});
+  let view: ReturnType<typeof render> | undefined;
+  const names = () => screen.getAllByRole('button').filter(button => button.hasAttribute('aria-expanded'))
+    .map(button => items.find(item => button.textContent?.includes(item.name))?.name);
+  try {
+    await act(async () => {view=render(<SimulationOverview onOpen={vi.fn()} onResearch={vi.fn()} onAdopt={vi.fn()} />);});
+    expect(names()).toEqual(['Winning strategy','Tied strategy','Flat strategy','Losing strategy','Unknown strategy','Invalid strategy']);
+    fireEvent.click(screen.getByRole('button',{name:/Losing strategy/}));
+    expect(screen.getByText('Expanded account 1')).toBeVisible();
+    api.get.mockResolvedValue({items:[...items].reverse().map(item => item.id===1 ? {...item,cumulativeReturn:.3} : item),runtime:{configured:false,available:false}});
+    await act(async () => {await vi.advanceTimersByTimeAsync(30000);});
+    expect(names()).toEqual(['Losing strategy','Winning strategy','Tied strategy','Flat strategy','Unknown strategy','Invalid strategy']);
+    expect(screen.getByText('Expanded account 1')).toBeVisible();
+    expect(api.get).toHaveBeenCalledTimes(2);
+    expect(items.map(item => item.id)).toEqual([1,2,3,4,5,6]);
+  } finally {
+    view?.unmount();
+    vi.useRealTimers();
+  }
 });

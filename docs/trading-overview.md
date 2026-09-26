@@ -3,6 +3,7 @@
 `/trading` 默认展示正在模拟运行的账户收益曲线，而不是策略配置。各账户使用自己的初始资金计算收益，共用 UTC 时间轴；默认不展示暂停或停止的账户，可用筛选开关包含它们。历史回测不进入总览曲线，也不会计入模拟收益。
 
 - 可按市场、观察时间范围筛选，勾选要对照的账户，并显示已有的基准曲线。时间范围仅裁剪展示，不重设收益起点。不同币种、开始时间及观察周期的账户不构成同口径排名。
+- 策略条目默认按当前累计模拟收益率降序排列，每次刷新自动重排；零收益排在负收益之前，无有效收益数据的账户排在末尾，同收益按账户 ID 稳定排序。排序使用完整模拟账本的收益率，不随曲线显示窗口改变；展开状态跟随账户保留。
 - 总览每 30 秒刷新。更新时间来自实际账本；无观测显示为空，错误不会改成零收益。私有引擎不可用时显示提示，原生账户仍可查看。停止或失败的更新不外推收益。
 - 曲线接口仅传输摘要与保留局部极值的观测点；收益和最大回撤按完整账本计算。原始逐日 / 逐次记录在详情中。总览不发出下单、模拟运行或模型请求。
 - 收益曲线下只有一组可展开策略条目：点击条目在原位查看成交持仓、决策、表现和研究，同一时间只展开一个。复选框只控制曲线显示，不触发展开。详情按需加载，收起后停止刷新；没有独立的底部详情区。配置与启停从「管理策略」或展开项中的「策略设置与运行控制」进入。
@@ -18,6 +19,8 @@
 ## English
 
 The trading workspace opens with forward simulation returns, followed by one accordion of strategy rows. Only one row expands at a time, directly below its summary. Checkboxes control curve visibility independently. Full details load only when expanded and stop refreshing on collapse. There is no second detail section at the page bottom; configuration and lifecycle controls have a dedicated management entry. Each account uses its own initial capital and a shared UTC timeline. Historical backtests never enter forward curves. Paused/stopped accounts are opt-in. Market, display-period and series filters apply only to presentation; they do not rebase returns. Available benchmarks are optional and missing data is not fabricated. Different currencies, start dates and observation periods do not form a comparable performance ranking.
+
+Strategy rows sort by current cumulative forward return, descending, on every refresh. Zero returns precede losses; missing or non-finite returns appear last, with account ID breaking ties consistently. Sorting uses full-ledger returns regardless of the chart display window, and expanded details remain attached to their account.
 
 The overview refreshes every 30 seconds using recorded observation times. Empty histories remain unknown; refresh failures retain the previous data with a warning. Compact curves preserve local extremes; return and drawdown summaries use the complete ledger. Full records remain in account details. Loading the overview does not execute trades, simulations or model calls.
 
