@@ -194,7 +194,9 @@ def runtime_status():
 
 @router.get('/runtime-records')
 def runtime_records(kind: Literal['documents', 'llm_calls', 'paper_events', 'job_events', 'record_history',
-                                  'operation_requests', 'backtests', 'evolution_runs', 'experiments'] = 'documents',
+                                  'operation_requests', 'backtests', 'evolution_runs', 'experiments',
+                                  'runtime_market_versions', 'runtime_execution_sessions', 'runtime_session_event_links',
+                                  'runtime_execution_batches', 'runtime_session_call_links'] = 'documents',
                     before: int | None = Query(default=None, ge=1), limit: int = Query(default=50, ge=1, le=100)):
     from urllib.parse import urlencode
     query = dict(kind=kind, limit=limit)
@@ -209,7 +211,7 @@ def runtime_document(document_id: int):
 
 
 @router.get('/{portfolio_id}/records')
-def portfolio_records(portfolio_id: int, kind: Literal['calls', 'events', 'days', 'research'] = 'events',
+def portfolio_records(portfolio_id: int, kind: Literal['calls', 'events', 'days', 'research', 'sessions', 'executions'] = 'events',
                       before: int | None = Query(default=None, ge=1), limit: int = Query(default=50, ge=1, le=100)):
     from src.repositories.simulation_audit_repo import records
     if portfolio_id < 0:

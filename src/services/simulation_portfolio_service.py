@@ -8,6 +8,7 @@ import math
 import re
 import uuid
 from src.repositories.simulation_audit_repo import event as audit_event
+from src.repositories import simulation_session_repo as execution_sessions
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select, update, or_, delete
 from src.storage import (
@@ -254,11 +255,13 @@ class SimulationPortfolioService:
 
     @staticmethod
     def _halt(row, status):
+        from sqlalchemy.orm import object_session
         state = json.loads(row.state_json)
         state['pending'] = None
         row.state_json = json.dumps(state)
         row.status, row.lease_token, row.lease_until = status, None, None
         row.error_message = None
+        execution_sessions.close(object_session(row), row, status)
 
     def control_definition(self, definition_id, *, remove=False):
         with self.db.session_scope() as session:
@@ -353,6 +356,7 @@ class SimulationPortfolioService:
             session.add(row)
             session.flush()
             result_id = row.id
+            execution_sessions.lineage(session, row)
             audit_event(session, row.id, 'portfolio.created', dict(config=config, accountId=account.id),
                         version_id=version.id)
         return self.detail(result_id)
@@ -412,6 +416,7 @@ class SimulationPortfolioService:
             if row is None or row.status == "deleted":
                 raise LookupError("策略账户不存在")
             result = self._item(row)
+            result.update(execution_sessions.describe(session, row))
             runs = session.scalars(
                 select(SimulationRunRecord)
                 .where(
@@ -504,6 +509,10 @@ class SimulationPortfolioService:
                 self._check_revision(session, config)
             if action in {'start', 'run'} and config.get('engine') != 'agent':
                 raise ValueError('固定规则策略已下线，历史记录仅供查看。请新建 Agent + 策略 Skill。')
+            if action == "start" and row.mode != "paper":
+                raise ValueError("历史回测只能单次运行")
+            if action in {"start", "run"}:
+                execution_sessions.ensure(session, row, explicit=row.status not in {"running", "paused"})
             if action == "start":
                 if row.mode != "paper":
                     raise ValueError("历史回测只能单次运行")
@@ -665,6 +674,12 @@ class SimulationPortfolioService:
         return data, sources, end
 
     def _persist_day(self, session, row, state, output, day, histories, baseline, sources):
+        period = execution_sessions.ensure(session, row)
+        output['executionSessionId'] = period.id
+        output['timeContract'] = dict(tradingDate=day, market=json.loads(row.config_json)['market'],
+                                     executionModel='next_open', executionPrecision='trading_day',
+                                     executionAt=None, recordedAt=output.get('recordedAt') or
+                                     datetime.now(timezone.utc).isoformat())
         run = SimulationRunRecord(
             strategy_version_id=row.strategy_version_id,
             execution_mode="portfolio_day",
@@ -678,6 +693,7 @@ class SimulationPortfolioService:
         )
         session.add(run)
         session.flush()
+        execution_sessions.link(session, period.id, 'day', run.id, output['timeContract'])
         for trade in output["trades"]:
             order = SimulationOrderRecord(
                 account_id=row.account_id,
@@ -691,6 +707,11 @@ class SimulationPortfolioService:
             )
             session.add(order)
             session.flush()
+            execution_sessions.link(session, period.id, 'order', order.id,
+                dict(decisionReason=(trade.get('decisionEvidence') or {}).get('opinion', {}).get('reason')
+                     or trade['reason'], rejectionReason=trade['reason'] if trade['status'] == 'rejected' else None,
+                     signalDate=trade.get('signalDate'), decisionEvidence=trade.get('decisionEvidence'),
+                     **output['timeContract']))
             if trade["status"] == "filled":
                 session.add(
                     SimulationFillRecord(
@@ -843,6 +864,7 @@ class SimulationPortfolioService:
 
     def execute(self, portfolio_id, token, automatic=False):
         workspace, audit_id, failure = None, None, None
+        period_context = None
         processed = 0
         cancelled = False
         try:
@@ -866,6 +888,11 @@ class SimulationPortfolioService:
                 trigger="schedule" if automatic else "manual",
             )
             with self.db.session_scope() as session:
+                self._claim_day(session, portfolio_id, token)
+                portfolio = session.get(SimulationPortfolioRunRecord, portfolio_id)
+                period = execution_sessions.ensure(session, portfolio)
+                execution_sessions.link(session, period.id, 'batch', audit_id)
+                period_context = execution_sessions.current_execution_session.set(period.id)
                 audit = session.get(WorkspaceRunRecord, audit_id)
                 audit.status, audit.started_at = "running", utc_naive_now()
             from src.services.member_service import recheck_member
@@ -939,7 +966,12 @@ class SimulationPortfolioService:
                         )
                     workspace._finish_run(audit_id, "cancelled" if cancelled else "failed" if failure else "completed", error_message=failure)
             finally:
+                if period_context is not None:
+                    execution_sessions.current_execution_session.reset(period_context)
                 with self.db.session_scope() as session:
+                    row = session.get(SimulationPortfolioRunRecord, portfolio_id)
+                    if row is not None and row.lease_token == token and row.status == 'completed':
+                        execution_sessions.close(session, row, 'completed')
                     session.execute(
                         update(SimulationPortfolioRunRecord)
                         .where(

@@ -198,6 +198,8 @@ class TradingAgentService:
             session.add(record)
             session.flush()
             call_id = record.id
+            from src.repositories.simulation_session_repo import link_call
+            link_call(session, call_id)
         from src.storage import SimulationTradingCallEvidenceRecord
         from src.repositories.simulation_audit_repo import complete_call
         with self.db.session_scope() as session:

@@ -5,7 +5,8 @@ from dataclasses import asdict, is_dataclass
 from sqlalchemy import select
 from src.storage import (SimulationAuditEventRecord, SimulationTradingCallRecord,
                          SimulationTradingCallEvidenceRecord, SimulationPortfolioRunRecord,
-                         SimulationRunRecord, SimulationPortfolioResearchRecord, utc_naive_now)
+                         SimulationRunRecord, SimulationPortfolioResearchRecord, utc_naive_now,
+                         SimulationExecutionSessionRecord, SimulationSessionEvidenceRecord)
 
 
 def json_evidence(value):
@@ -41,7 +42,7 @@ def complete_call(session, call_id, response):
 
 
 def records(db, portfolio_id, kind, before=None, limit=50):
-    if kind not in {'calls', 'events', 'days', 'research'} or not 1 <= limit <= 100:
+    if kind not in {'calls', 'events', 'days', 'research', 'sessions', 'executions'} or not 1 <= limit <= 100:
         raise ValueError('Invalid simulation record page')
     with db.get_session() as session:
         portfolio = session.get(SimulationPortfolioRunRecord, portfolio_id)
@@ -53,7 +54,11 @@ def records(db, portfolio_id, kind, before=None, limit=50):
         if definition_id is not None:
             event_condition |= ((SimulationAuditEventRecord.object_type == 'definition') &
                                 (SimulationAuditEventRecord.object_id == definition_id))
+        period_ids = select(SimulationExecutionSessionRecord.id).where(
+            SimulationExecutionSessionRecord.portfolio_id == portfolio_id)
         model, condition = {
+            'sessions': (SimulationExecutionSessionRecord, SimulationExecutionSessionRecord.portfolio_id == portfolio_id),
+            'executions': (SimulationSessionEvidenceRecord, SimulationSessionEvidenceRecord.session_id.in_(period_ids)),
             'calls': (SimulationTradingCallRecord, SimulationTradingCallRecord.portfolio_id == portfolio_id),
             'events': (SimulationAuditEventRecord, event_condition),
             'days': (SimulationRunRecord, (SimulationRunRecord.strategy_version_id == portfolio.strategy_version_id) &

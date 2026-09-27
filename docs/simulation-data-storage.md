@@ -57,3 +57,29 @@ python scripts/audit_simulation_records.py /path/to/quantevo.db --engine private
 ```
 
 The read-only auditor uses a consistent SQLite snapshot and reports trade/order/fill count mismatches, missing reasons, private journal gaps, missing strategy versions and missing per-fill costs. Native executions now carry the frozen signal's `decisionEvidence`, including the opinion, model call ID and skill digest. Rejection reasons remain distinct from strategy rationale. Old missing evidence remains unknown; existing daily opinions and calls can still be traced by strategy version and signal date. No historical decisions or costs are fabricated.
+
+## 市场版本与运行轮次 / Market versions and execution periods
+
+SQLite 新增 `simulation_market_versions` 和 `simulation_portfolio_lineage`，把市场、策略定义、配置修订与账户关联。市场内版本号按已登记修订分配；原 `source_revision` 和旧 `strategy_version_id` 保留，不能把旧表中每次新账户生成的 `version=1` 当作唯一业务版本。市场版本冻结配置，账户本金、验证日期等运行参数保存在轮次配置快照。没有可靠定义关联的旧账户使用独立的历史标识，不按名称猜测合并。
+
+`simulation_execution_sessions` 保存运行轮次 ID、顺序号、上一轮 ID、市场版本、起止时间、结束原因、起止账户状态和配置快照。明确停止、删除或更改配置结束当前轮次；停止后重新启动创建新轮次，但保留原账户现金和持仓。普通暂停/恢复、重复启动、调度检查、服务重启不创建新轮次。历史回测完成结束其轮次；错误重试继续原轮次。仅有历史状态而没有可靠启动事件的正在运行账户接入为 `adopted_unknown_start`，`started_at=NULL`，另记实际接入时间 `observed_at`，不补造旧轮次。
+
+`simulation_session_evidence` 将轮次与工作区检查批次、逐日运行、模型调用及订单关联。订单通过既有订单 ID 继续关联成交；净值通过逐日运行 ID 关联轮次。模型调用在发出前固定所属轮次，停止时撤销执行租约，旧轮结果不能写进新轮账本。买卖理由、拒单原因、信号日期和时间口径分别入库。
+
+时间口径：原生日线观测只证明交易日与开盘价模拟，新增 `timeContract.executionPrecision=trading_day`、`executionAt=null`，另存真实 UTC `recordedAt`。旧 `filled_at` 的午夜值仅作兼容，不表示真实逐笔成交时刻。私有逐笔模拟保留来源 timestamp。所有时间均需连同精度与用途解读，不能将写库时间当作成交时间。
+
+原生详情追加 `marketVersion`、`executionSessions`，逐日输出追加 `executionSessionId`、`timeContract`。分页接口 `records?kind=sessions|executions` 可读取完整轮次和关联证据（含已隐藏账户）；旧响应字段继续兼容，默认累计收益仍按账户计算，不因新轮次清零。
+
+私有适配器使用 `simulation_runtime_sessions.py` 在同一个 SQLite 中建立 `runtime_market_versions`、`runtime_execution_sessions`、`runtime_session_event_links`、`runtime_execution_batches` 和 `runtime_session_call_links`。市场由适配器明确注册，未确认市场保持空值；SQLite 触发器将启停和事件关联与原账本原子提交。行情/模型返回后，写入前必须在事务内验证轮次仍有效，错误处理也不能覆盖新轮状态。适配器负责把暂停与停止区分开。
+
+迁移：先一致性备份、停止写入，再创建新增表，按旧账户创建顺序登记市场版本，对当前模拟账户接入未知开始时间的轮次。旧交易和历史 API 调用不按时间猜测轮次；继续保留原策略、账户和逐日关联。新增表不删除或改写原账本。回滚私有适配器时须同时停用新增运行轮次触发器，避免旧执行器绕过轮次校验；保留新增表供审计，不用旧备份覆盖发布后的成交。
+
+### English
+
+Additive SQLite tables separate market-specific immutable strategy revisions, continuous accounts, execution periods and individual scheduler batches. Explicit stop/start creates a new period linked to its predecessor without resetting cash or positions. Pause/resume and process restarts retain the period; completed backtests close theirs. Newly captured model calls, days and orders link to the period, while fills and equity remain reachable through their existing order/day foreign keys. A stale batch cannot commit after its period ends.
+
+Legacy running accounts are adopted with an unknown start (`started_at=NULL`) and a separate observed-at timestamp. Historical trades are not assigned fabricated periods. Native daily execution precision remains a trading day; old midnight fill timestamps are compatibility values, not exact execution times. Additive detail fields and paginated sessions/executions endpoints expose these distinctions. Private adapters use the same SQLite-first contract with lifecycle/event triggers and guarded writes. Back up and stop writers before migration; retain evidence tables and disable private lifecycle triggers when rolling back to an executor without period guards.
+
+停止对应实例写入并完成备份后，原生迁移命令为 `python scripts/migrate_simulation_sessions.py /path/to/stock_analysis.db`；成员工作区应对各自 `workspace.db` 单独执行。命令可重复执行，并将迁移计数写入 SQLite 审计表。私有适配器在启动初始化时调用 `install` 并注册可信市场映射；上次进程遗留的未结束检查批次标记为 `interrupted`，账户轮次仍保持连续。
+
+After backing up and stopping writers, run the native migration command above separately for the owner and each member database. It is idempotent and journals migration counts in SQLite. Private startup marks unfinished checks as interrupted without creating a new account execution period.

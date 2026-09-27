@@ -2121,6 +2121,63 @@ class SimulationPortfolioRunRecord(Base):
     created_at = Column(DateTime, nullable=False, default=utc_naive_now)
 
 
+class SimulationMarketVersionRecord(Base):
+    """Immutable definition revision within one market, independent of accounts."""
+    __tablename__ = 'simulation_market_versions'
+    id = Column(Integer, primary_key=True)
+    definition_key = Column(String(80), nullable=False, index=True)
+    market = Column(String(16), nullable=False, index=True)
+    version = Column(Integer, nullable=False)
+    source_revision = Column(Integer, nullable=False)
+    config_json = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=utc_naive_now)
+    __table_args__ = (
+        UniqueConstraint('definition_key', 'market', 'version'),
+        UniqueConstraint('definition_key', 'market', 'source_revision'),
+    )
+
+
+class SimulationPortfolioLineageRecord(Base):
+    __tablename__ = 'simulation_portfolio_lineage'
+    portfolio_id = Column(Integer, ForeignKey('simulation_portfolio_runs.id'), primary_key=True)
+    market_version_id = Column(Integer, ForeignKey('simulation_market_versions.id'), nullable=False, index=True)
+
+
+class SimulationExecutionSessionRecord(Base):
+    """A stop/start period. Account balances survive across periods."""
+    __tablename__ = 'simulation_execution_sessions'
+    id = Column(Integer, primary_key=True)
+    portfolio_id = Column(Integer, ForeignKey('simulation_portfolio_runs.id'), nullable=False, index=True)
+    market_version_id = Column(Integer, ForeignKey('simulation_market_versions.id'), nullable=False, index=True)
+    strategy_version_id = Column(Integer, ForeignKey('simulation_strategy_versions.id'), nullable=False)
+    sequence = Column(Integer, nullable=False)
+    previous_id = Column(Integer, ForeignKey('simulation_execution_sessions.id'))
+    status = Column(String(16), nullable=False, default='open')
+    started_at = Column(DateTime)  # Unknown for accounts adopted during migration.
+    observed_at = Column(DateTime, nullable=False, default=utc_naive_now)
+    ended_at = Column(DateTime)
+    start_kind = Column(String(32), nullable=False)
+    end_reason = Column(String(64))
+    start_state_json = Column(Text, nullable=False)
+    end_state_json = Column(Text)
+    config_json = Column(Text, nullable=False)
+    __table_args__ = (UniqueConstraint('portfolio_id', 'sequence'),
+        Index('uix_simulation_open_session', 'portfolio_id', unique=True,
+              sqlite_where=text("status = 'open'")),)
+
+
+class SimulationSessionEvidenceRecord(Base):
+    """Typed links to immutable day, order, model-call and workspace records."""
+    __tablename__ = 'simulation_session_evidence'
+    id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, ForeignKey('simulation_execution_sessions.id'), nullable=False, index=True)
+    kind = Column(String(24), nullable=False)
+    record_id = Column(String(80), nullable=False)
+    payload_json = Column(Text, nullable=False, default='{}')
+    recorded_at = Column(DateTime, nullable=False, default=utc_naive_now)
+    __table_args__ = (UniqueConstraint('kind', 'record_id'),)
+
+
 class SimulationOrderRecord(Base):
     """Paper order sourced from one completed simulation run."""
     __tablename__ = 'simulation_orders'
