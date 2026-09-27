@@ -1,3 +1,4 @@
+import { simulationTimeTicks } from "../../utils/simulationTimeAxis";
 import { useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -119,7 +120,8 @@ export function PortfolioPerformance({ portfolio }: { portfolio: Portfolio }) {
                 type="number"
                 scale="time"
                 domain={["dataMin", "dataMax"]}
-                tickCount={5}
+                ticks={simulationTimeTicks(data.map((point) => point.time))}
+                      interval="preserveStartEnd"
                 minTickGap={40}
                 tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                 tickFormatter={(time) =>

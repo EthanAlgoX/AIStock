@@ -136,11 +136,20 @@ beforeEach(() => {
 });
 
 describe("App routing behavior", () => {
+  it("renders the public homepage even when authentication is loading or unavailable", async () => {
+    vi.mocked(AuthContext.useAuth).mockReturnValue(makeAuthState({ authEnabled: true, isLoading: true, loadError: { title: 'Offline', message: 'Offline', rawMessage: 'Offline', category: 'upstream_network' } }));
+    render(<App />);
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('用 AI 赋能投研');
+    expect(window.location.pathname).toBe('/');
+    expect(screen.queryByTestId('login-page')).not.toBeInTheDocument();
+  });
+
   it("shows loading fallback while auth status is initializing", () => {
     vi.mocked(AuthContext.useAuth).mockReturnValue(
       makeAuthState({ isLoading: true }),
     );
 
+    window.history.pushState({}, "", "/overview");
     const { container } = render(<App />);
 
     expect(container.querySelector(".border-t-cyan")).toBeInTheDocument();

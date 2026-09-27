@@ -198,3 +198,11 @@ The desktop application header is sticky, opaque, and task-first. Primary items 
 - **Don't** wrap every section in a large rounded card.
 - **Don't** use fake market metrics, performance data, or decorative charts.
 - **Don't** use semantic colors where no semantic state exists.
+
+### Public homepage
+
+The public homepage extends the existing AI Stock identity with the approved composition C: a left-aligned proposition and actions, an introduction and market coverage on the right, then a full-width five-module demonstration. Research, validation, and tracking lead into invitation-code / own-API access options and an expandable FAQ. Its contract is “Make research-to-validation inspectable”; this is a public product tour, not a replacement for the workspace design system.
+
+`HomePage.css` scopes a fixed light palette to `.home-page`: porcelain `hsl(220 27% 97%)`, charcoal `hsl(225 32% 10%)`, white surfaces, mineral rules `hsl(220 18% 85%)`, and cobalt `hsl(231 86% 52%)` for actions, selection, focus, and demonstration marks. Workspace light/dark tokens remain unchanged. The inherited UI font, 36–56px desktop hero, 1280px maximum content width, thin dividers, 8px action corners, and 12px demonstration surface keep the presentation precise and restrained. Below 720px, columns stack and the module tabs scroll horizontally.
+
+Module tabs support arrow keys, Home, and End, keep the selected tab visible, and label their panel; links and controls retain visible focus and reduced-motion support. Every example table, curve, signal, and outcome is explicitly fictional product education, never evidence of live market data, returns, or executed orders. Preserve the example labels and limitations wherever these demonstrations appear.

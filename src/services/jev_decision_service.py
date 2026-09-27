@@ -126,6 +126,12 @@ class JevDecisionService:
             session.add(record)
             session.flush()
             call_id = record.id
+        from src.storage import SimulationTradingCallEvidenceRecord
+        from src.repositories.simulation_audit_repo import complete_call
+        with db.session_scope() as session:
+            session.add(SimulationTradingCallEvidenceRecord(call_id=call_id,
+                request_json=json.dumps(dict(budget=budget, timeout=[10, 60]))))
+        http_status, response_text = None, None
         body = None
         status, error, usage = 'failed', None, {}
         try:
@@ -134,6 +140,8 @@ class JevDecisionService:
             try:
                 with requests.post(endpoint, headers={'Authorization': f'Bearer {self.config.typesafe_api_key}'},
                                    json=request, timeout=(10, 60), allow_redirects=False) as response:
+                    http_status = response.status_code
+                    response_text = response.text
                     if response.status_code != 200:
                         raise ValueError(f"JEV HTTP {response.status_code}; no trading plan created. Check API settings or retry later.")
                     body = response.json()
@@ -176,12 +184,14 @@ class JevDecisionService:
                 decisions[question_id] = answer
             status = 'received'
             return decisions, dict(model=actual_model, tokens=tokens, callId=call_id)
-        except ValueError as exc:
+        except Exception as exc:
             error = str(exc)
             raise
         finally:
             with db.session_scope() as session:
                 record = session.get(SimulationTradingCallRecord, call_id)
+                complete_call(session, call_id, dict(httpStatus=http_status, body=body,
+                    responseText=response_text if isinstance(response_text, str) else None))
                 record.status, record.error_message = status, error
                 record.output_text = json.dumps(body, ensure_ascii=False) if body is not None else ''
                 record.usage_json = json.dumps(usage)

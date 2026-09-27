@@ -12,7 +12,13 @@ def summarize(portfolio, days):
             continue
         peak = max(peak, equity)
         drawdown = max(drawdown, 1 - equity / peak) if peak > 0 else drawdown
-        points.append(dict(time=day['date'], value=equity / initial - 1,
+        # A daily signal date is not a midnight account observation. Paper
+        # snapshots carry the actual booking timestamp; use it on the shared
+        # intraday axis, while leaving the ledger's trading date untouched.
+        observed_at = day['date']
+        if portfolio.get('mode') == 'paper' and len(observed_at) == 10:
+            observed_at = day.get('recordedAt') or observed_at
+        points.append(dict(time=observed_at, value=equity / initial - 1,
                            benchmark=day.get('benchmarkReturn')))
     # Preserve endpoints and local extrema instead of smoothing away drawdowns.
     selected = {0, len(points) - 1} if points else set()

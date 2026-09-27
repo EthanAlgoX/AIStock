@@ -7,6 +7,7 @@ import logging
 import math
 import re
 import uuid
+from src.repositories.simulation_audit_repo import event as audit_event
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select, update, or_, delete
 from src.storage import (
@@ -187,6 +188,7 @@ class SimulationPortfolioService:
             row = SimulationPortfolioDefinitionRecord(name=config["name"], config_json=json.dumps(config))
             session.add(row)
             session.flush()
+            audit_event(session, row.id, 'definition.created', dict(config=config), object_type='definition')
             return dict(id=row.id, name=row.name, config=config)
 
     def update_definition(self, definition_id, payload):
@@ -213,9 +215,12 @@ class SimulationPortfolioService:
             # Preserve immutable ledgers, but revoke queued/in-flight work for the old config.
             for row in runs:
                 self._halt(row, 'stopped')
+            before_config = json.loads(definition.config_json)
             config['definitionRevision'] = revision + 1
             definition.name = config['name']
             definition.config_json = json.dumps(config)
+            audit_event(session, definition_id, 'definition.updated', dict(before=before_config, after=config,
+                        stoppedPortfolioIds=[row.id for row in runs]), object_type='definition')
             return dict(id=definition.id, name=definition.name, config=config)
 
     @staticmethod
@@ -264,6 +269,8 @@ class SimulationPortfolioService:
             affected = [r for r in rows if json.loads(r.config_json).get('definitionId') == definition_id]
             for row in affected:
                 self._halt(row, 'deleted' if remove else 'stopped')
+                audit_event(session, row.id, 'portfolio.deleted' if remove else 'portfolio.stopped',
+                            dict(definitionId=definition_id, state=json.loads(row.state_json)))
             if remove:
                 session.get(SimulationPortfolioDefinitionRecord, definition_id).deleted_at = utc_naive_now()
             return dict(id=definition_id, deleted=remove, affectedRuns=len(affected))
@@ -277,6 +284,7 @@ class SimulationPortfolioService:
                 raise LookupError("策略账户不存在")
             row = session.get(SimulationPortfolioRunRecord, portfolio_id)
             self._halt(row, 'deleted')
+            audit_event(session, row.id, 'portfolio.deleted', dict(state=json.loads(row.state_json)))
         return dict(id=portfolio_id, deleted=True)
 
     @staticmethod
@@ -345,6 +353,8 @@ class SimulationPortfolioService:
             session.add(row)
             session.flush()
             result_id = row.id
+            audit_event(session, row.id, 'portfolio.created', dict(config=config, accountId=account.id),
+                        version_id=version.id)
         return self.detail(result_id)
 
     def list(self):
@@ -506,6 +516,8 @@ class SimulationPortfolioService:
                 raise ValueError("无效操作")
             elif row.status == 'stopped':
                 row.status = 'ready'
+            audit_event(session, row.id, 'portfolio.' + action, dict(status=row.status, lastDate=row.last_date),
+                        version_id=row.strategy_version_id)
         if action in {"start", "run"}:
             self.enqueue(portfolio_id, automatic=action == "start")
         return self.detail(portfolio_id)

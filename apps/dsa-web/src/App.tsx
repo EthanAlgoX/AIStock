@@ -25,6 +25,7 @@ import "./App.css";
 
 const SettingsPage = lazy(() => import("./pages/PlatformSettingsPage"));
 const MemberSettingsPage = lazy(() => import('./pages/MemberSettingsPage'));
+const HomePage = lazy(() => import("./pages/HomePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const TrialPage = lazy(() => import("./pages/TrialPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
@@ -76,6 +77,10 @@ const AppContent: React.FC = () => {
     }
   }, [loggedIn, isLoading, location.pathname]);
 
+  if (location.pathname === '/') {
+    return <StandaloneRouteBoundary><HomePage /></StandaloneRouteBoundary>;
+  }
+
   if (location.pathname === '/try') {
     return <StandaloneRouteBoundary><TrialPage /></StandaloneRouteBoundary>;
   }
@@ -114,7 +119,7 @@ const AppContent: React.FC = () => {
   }
 
   if (location.pathname === "/login") {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/overview" replace />;
   }
 
   return (

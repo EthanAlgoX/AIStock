@@ -1,7 +1,7 @@
 """Workspace-scoped executable rule portfolios; never accepts executable code."""
 
 from typing import Literal
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, ConfigDict
 from src.schemas.jev_task import JevTaskConfig
 from src.services.simulation_portfolio_service import SimulationPortfolioService
@@ -190,6 +190,31 @@ def overview():
 @router.get("/runtime-status")
 def runtime_status():
     return SimulationRuntimeService().status()
+
+
+@router.get('/runtime-records')
+def runtime_records(kind: Literal['documents', 'llm_calls', 'paper_events', 'job_events', 'record_history',
+                                  'operation_requests', 'backtests', 'evolution_runs', 'experiments'] = 'documents',
+                    before: int | None = Query(default=None, ge=1), limit: int = Query(default=50, ge=1, le=100)):
+    from urllib.parse import urlencode
+    query = dict(kind=kind, limit=limit)
+    if before is not None:
+        query['before'] = before
+    return SimulationRuntimeService().request('GET', '/records?' + urlencode(query))
+
+
+@router.get('/runtime-records/documents/{document_id}')
+def runtime_document(document_id: int):
+    return SimulationRuntimeService().request('GET', f'/records/documents/{document_id}')
+
+
+@router.get('/{portfolio_id}/records')
+def portfolio_records(portfolio_id: int, kind: Literal['calls', 'events', 'days', 'research'] = 'events',
+                      before: int | None = Query(default=None, ge=1), limit: int = Query(default=50, ge=1, le=100)):
+    from src.repositories.simulation_audit_repo import records
+    if portfolio_id < 0:
+        raise HTTPException(422, 'Use runtime-records for private engine evidence')
+    return call(records, SimulationPortfolioService().db, portfolio_id, kind, before, limit)
 
 
 @router.get("/{portfolio_id}")

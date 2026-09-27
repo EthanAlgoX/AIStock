@@ -12,6 +12,17 @@ def account():
     return dict(id=1, name='Example', market='US', status='running', config={'initialCash':100})
 
 
+def test_mixed_daily_and_intraday_paper_curves_do_not_start_at_signal_midnight():
+    daily = {'date': '2026-09-26', 'recordedAt': '2026-09-27T00:00:06+00:00', 'equity': 100}
+    hourly = {'date': '2026-09-26T16:30:04+00:00', 'equity': 100}
+    paper = dict(account(), mode='paper')
+    points = summarize(paper, [daily])['curve'] + summarize(paper, [hourly])['curve']
+    assert min(p['time'] for p in points) == hourly['date']
+    assert daily['date'] == '2026-09-26'
+    assert summarize(dict(account(), mode='backtest'), [daily])['curve'][0]['time'] == daily['date']
+    assert summarize(paper, [dict(date='2026-09-25', equity=100)])['curve'][0]['time'] == '2026-09-25'
+
+
 def test_preserves_extremes_endpoints_and_full_history_drawdown():
     days=[dict(date=(date(2020,1,1)+timedelta(days=i)).isoformat(),equity=100+i/100) for i in range(2000)]
     days[543]['equity']=180

@@ -57,7 +57,7 @@ export default function TrialPage() {
   return <main className="min-h-screen bg-background px-5 py-7 text-foreground md:px-10">
     <div className="mx-auto max-w-6xl">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
-        <Link to="/try" className="text-xl font-semibold tracking-tight">AI Stock</Link>
+        <Link to="/" className="text-xl font-semibold tracking-tight">AI Stock</Link>
         <div className="flex items-center gap-4"><Link className="text-sm text-secondary-text hover:text-primary" to="/login">{l('管理员登录', 'Admin sign in')}</Link><UiLanguageToggle /></div>
       </header>
       <div className="py-10 md:py-14">

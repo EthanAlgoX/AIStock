@@ -52,3 +52,27 @@ def test_failed_overview_is_reported_even_when_health_endpoint_works(monkeypatch
             'items': [], 'runtime': {'configured': True, 'available': False}}
     with patch('src.services.simulation_runtime_service.current_workspace_database', return_value=object()):
         assert SimulationRuntimeService().overview()['runtime']['configured'] is False
+
+
+def test_archive_endpoints_preserve_member_isolation(monkeypatch):
+    from api.v1.endpoints.simulation_portfolios import runtime_records, runtime_document
+    monkeypatch.setenv('SIMULATION_RUNTIME_URL', 'http://private/bridge')
+    with patch('src.services.simulation_runtime_service.current_workspace_database', return_value=object()), patch('requests.Session.request') as request:
+        for operation in (lambda: runtime_records(kind='llm_calls', before=None, limit=50), lambda: runtime_document(1)):
+            with pytest.raises(HTTPException) as error:
+                operation()
+            assert error.value.status_code == 404
+        request.assert_not_called()
+
+
+def test_archive_query_validation_does_not_contact_runtime():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from api.v1.endpoints.simulation_portfolios import router
+    app = FastAPI()
+    app.include_router(router, prefix="/portfolios")
+    with patch.object(SimulationRuntimeService, 'request') as request:
+        client = TestClient(app)
+        for query in ('kind=credentials', 'limit=101', 'limit=0', 'before=0'):
+            assert client.get('/portfolios/runtime-records?' + query).status_code == 422
+        request.assert_not_called()

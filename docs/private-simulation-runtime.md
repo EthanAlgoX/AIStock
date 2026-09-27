@@ -54,3 +54,20 @@ Back up both runtimes before deployment. To roll back, stop the private service,
 Portfolio details, list items and overview summaries can provide additive `timing`: `signalTimeframe` (e.g. `1h`, `1d`), `valuation` (`live_quote` / `bar_close`), `execution` (`quote_simulation` / `next_open`), `timezone` (`UTC` / `market`) and `granularity` (`observation` / `bar` / `trading_day`). An hourly signal does not imply hourly-only valuation. Legacy private responses without this contract remain unknown; they do not inherit native daily explanations. `externalEvidence.lastClosedBar` optionally identifies the most recent signal bar. These fields do not alter execution or scheduling.
 
 详情、列表与总览可追加以上 `timing` 字段，分别声明信号周期、估值、成交与时间轴口径；小时信号不代表只能按小时估值。旧私有接口缺少合同则显示待确认，不套用原生日级文案。可选 `externalEvidence.lastClosedBar` 保留最近信号 K 线。元数据不改变执行或调度。
+
+
+## SQLite 数据合同 / SQLite persistence
+
+私有运行适配器必须保留数据库中的完整账本、模型调用和文件正文，不能只写 Markdown 或文件路径。分页证据接口、迁移和恢复要求见 [交易推演数据持久化](simulation-data-storage.md)。
+
+Private adapters must persist complete ledgers, model calls and artifact bodies in SQLite, rather than only Markdown or file paths. See [Simulation data retention](simulation-data-storage.md) for pagination, migration and recovery.
+
+## Curve time-axis endpoints / 曲线横轴起止刻度
+
+Overview and portfolio performance charts use explicit time ticks and preserve the first and last visible observation labels. Automatic calendar rounding must not hide the initial paper-account observation. Date-range filters use the filtered observations; no earlier point is synthesized. Tick and tooltip timestamps retain the existing UTC convention.
+
+收益总览与策略详情的曲线使用明确时间刻度，保留当前可见观测的首尾时间标签，避免日历整点刻度隐藏模拟起点。时间范围筛选后以筛选内的观测为准，不补造更早数据点；刻度与提示继续沿用 UTC 时间。
+
+Native daily paper snapshots use `recordedAt` (actual ledger booking time) on the combined intraday overview axis, not midnight of the signal's `date`. Strategy detail keeps the trading date. Existing timestamped observations and historical backtests are unchanged; legacy records without `recordedAt` retain their original date.
+
+原生日线模拟在汇总时间轴上使用 `recordedAt`（实际记账时间），不再把信号的交易日期误读成当天凌晨。策略详情保留交易日期；带完整时间的观测及历史回测不变，缺少 `recordedAt` 的旧记录保留原日期。

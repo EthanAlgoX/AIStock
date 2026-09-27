@@ -5,17 +5,18 @@ import { Button, Input } from '../components/common';
 import { UiLanguageToggle } from '../components/i18n/UiLanguageToggle';
 import { useAuth } from '../hooks';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
+import { HOME_COPY } from '../i18n/homeCopy';
 import { authApi } from '../api/auth';
 import { accountErrorMessage } from '../utils/accountError';
 
 export default function LoginPage() {
   const { accountMode, accountState, passwordSet, refreshStatus, registrationMode, multiUserEnabled } = useAuth();
-  const [joining, setJoining] = useState(false);
-  const { localize: l } = useUiLanguage();
-  const navigate = useNavigate();
   const [params] = useSearchParams();
+  const [joining, setJoining] = useState(params.get('mode') === 'register' && registrationMode !== 'closed' && accountMode && accountState === 'ready');
+  const { localize: l, language } = useUiLanguage();
+  const navigate = useNavigate();
   const raw = params.get('redirect') || '';
-  const redirect = raw.startsWith('/') && !raw.startsWith('//') && !raw.includes('\\') && !raw.startsWith('/login') ? raw : '/';
+  const redirect = raw.startsWith('/') && !raw.startsWith('//') && !raw.includes('\\') && !raw.startsWith('/login') && raw !== '/' ? raw : '/overview';
   const register = joining || (accountMode ? accountState === 'register' : !passwordSet);
   const migrate = accountMode && accountState === 'migrate';
   const [email, setEmail] = useState('');
@@ -31,7 +32,7 @@ export default function LoginPage() {
   return <main className="min-h-screen bg-background px-5 py-10 text-foreground sm:py-16">
     <header className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4">
       <div className="min-w-0">
-        <span className="text-xl font-semibold tracking-tight">AI Stock</span>
+        <Link to="/" aria-label={HOME_COPY[language].backHome} className="text-xl font-semibold tracking-tight">AI Stock</Link>
         <p className="mt-2 max-w-lg text-sm leading-6 text-secondary-text">{l('用 AI 赋能每一位股票交易者，成为自己的超级投研个体。', 'Empower every stock trader with AI to become a one-person research powerhouse.')}</p>
       </div><UiLanguageToggle />
     </header>

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { UiLanguageProvider } from '../contexts/UiLanguageContext';
 import { authApi } from '../api/auth';
 import LoginPage from './LoginPage';
@@ -87,4 +87,23 @@ it('allows open registration without an invitation and guides personal setup', a
   fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'long-password' } });
   fireEvent.click(screen.getByRole('button', { name: 'Create account & continue' }));
   await waitFor(() => expect(authApi.register).toHaveBeenCalledWith(expect.objectContaining({ memberRegistration: true, inviteCode: '' })));
+});
+
+function LocationProbe() { const location = useLocation(); return <output data-testid="destination">{location.pathname}</output>; }
+it('opens public registration from the homepage without bypassing closed registration', () => {
+  state.accountState = 'ready'; state.passwordSet = true; state.registrationMode = 'open';
+  const route = '/login?mode=register&redirect=%2Foverview';
+  render(<MemoryRouter initialEntries={[route]}><UiLanguageProvider><LoginPage /></UiLanguageProvider></MemoryRouter>);
+  expect(screen.getByRole('heading', {name:'Create your private workspace'})).toBeInTheDocument();
+  cleanup(); state.registrationMode = 'closed';
+  render(<MemoryRouter initialEntries={[route]}><UiLanguageProvider><LoginPage /></UiLanguageProvider></MemoryRouter>);
+  expect(screen.getByRole('heading', {name:'Welcome back'})).toBeInTheDocument();
+});
+it.each(['/login', '/login?redirect=%2F', '/login?redirect=%2F%2Fevil.example'])('lands in the workspace after sign-in at %s', async (entry) => {
+  state.accountState = 'ready'; state.passwordSet = true;
+  render(<MemoryRouter initialEntries={[entry]}><UiLanguageProvider><LoginPage /><LocationProbe /></UiLanguageProvider></MemoryRouter>);
+  fireEvent.change(screen.getByLabelText('Email'), {target:{value:'owner@example.com'}});
+  fireEvent.change(screen.getByLabelText('Password', {exact:true}), {target:{value:'long-password'}});
+  fireEvent.submit(screen.getByRole('button', {name:'Sign in'}).closest('form')!);
+  await waitFor(() => expect(screen.getByTestId('destination')).toHaveTextContent('/overview'));
 });

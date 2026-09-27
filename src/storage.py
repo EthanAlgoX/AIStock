@@ -2063,6 +2063,15 @@ class SimulationTradingCallRecord(Base):
     created_at = Column(DateTime, nullable=False, default=utc_naive_now)
 
 
+class SimulationTradingCallEvidenceRecord(Base):
+    """Additive transport evidence; old model call rows remain readable."""
+    __tablename__ = 'simulation_trading_call_evidence'
+    call_id = Column(Integer, ForeignKey('simulation_trading_calls.id'), primary_key=True)
+    request_json = Column(Text, nullable=False)
+    response_json = Column(Text)
+    completed_at = Column(DateTime)
+
+
 class SimulationUniverseSnapshotRecord(Base):
     """Private, observed universe evidence; never backdated to manufacture a backtest."""
     __tablename__ = 'simulation_universe_snapshots'

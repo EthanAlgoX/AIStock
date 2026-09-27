@@ -1,3 +1,4 @@
+import { simulationTimeTicks } from "../../utils/simulationTimeAxis";
 import { InlinePortfolioDetails } from "./InlinePortfolioDetails";
 import { signalLabel } from "../../utils/portfolioTiming";
 import { useEffect, useMemo, useState } from "react";
@@ -227,7 +228,8 @@ export function SimulationOverview({
                       dataKey="time"
                       domain={["dataMin", "dataMax"]}
                       scale="time"
-                      tickCount={5}
+                      ticks={simulationTimeTicks(data.map((point) => point.time))}
+                      interval="preserveStartEnd"
                       tick={{
                         fontSize: 11,
                         fill: "hsl(var(--muted-foreground))",

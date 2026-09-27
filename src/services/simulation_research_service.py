@@ -2,6 +2,7 @@
 import hashlib
 import json
 import math
+import uuid
 from copy import deepcopy
 
 from sqlalchemy import select
@@ -41,7 +42,7 @@ def candidates(config):
                 yield {'field': field, 'before': config.get(field), 'after': value}
 
 
-def replay(config, snapshots):
+def replay(config, snapshots, on_day=None):
     config = dict(config, startDate=snapshots[0]['date'])
     state, days = {'cash': config['initialCash']}, []
     for snap in snapshots:
@@ -54,6 +55,8 @@ def replay(config, snapshots):
                                 reasons={o['code']: o['reason'] for o in decisions},
                                 directions={o['code']: 'hold' for o in decisions if o.get('decision') == 'hold'})
         days.append(output)
+        if on_day is not None:
+            on_day(dict(output, opinions=decisions, pending=state['pending']))
     result = metrics(days, config['initialCash'], config['riskFreeRate'], 365 if config['market'] == 'CRYPTO' else 252)
     result['filledOrders'] = sum(t['status'] == 'filled' for d in days for t in d['trades'])
     result['feesPaid'] = sum(t['fee'] for d in days for t in d['trades'])
@@ -116,47 +119,69 @@ class SimulationResearchService:
                 SimulationPortfolioResearchRecord.request_hash == digest))
             if previous:
                 return self.item(previous)
-        splits = {'train': snapshots[:n*3//5], 'validation': snapshots[n*3//5:n*4//5], 'final': snapshots[n*4//5:]}
-        baseline = {key: replay(config, splits[key]) for key in ('train', 'validation')}
-        experiments, best = [], None
-        for change in list(candidates(config))[:budget]:
-            candidate = dict(config, **{change['field']: change['after']})
-            train, validation = (replay(candidate, splits[key]) for key in ('train', 'validation'))
-            reason = verdict(validation, baseline['validation'], max_drawdown)
-            if (train['sharpe'] is None or baseline['train']['sharpe'] is None
-                    or train['sharpe'] < baseline['train']['sharpe'] - .1
-                    or train['maxDrawdown'] > max_drawdown):
-                reason = 'train_regression'
-            experiments.append(dict(**change, train=train, validation=validation, reason=reason))
-            if reason == 'passed' and (best is None or validation['sharpe'] > experiments[best]['validation']['sharpe']):
-                best = len(experiments)-1
-        # The final segment is never used to choose or retry a candidate.
-        baseline['final'] = replay(config, splits['final'])
-        final, candidate_config, accepted = None, None, False
-        if best is not None:
-            change = experiments[best]
-            candidate_config = dict(config, **{change['field']: change['after']})
-            final = replay(candidate_config, splits['final'])
-            accepted = verdict(final, baseline['final'], max_drawdown) == 'passed'
-        result = dict(policy=POLICY, sampleHash=source['evaluation']['sampleHash'], maxDrawdown=max_drawdown,
-                      windows={key: dict(start=rows[0]['date'], end=rows[-1]['date'], samples=len(rows)) for key, rows in splits.items()},
-                      baseline=baseline, experiments=experiments, bestIndex=best, final=final,
-                      accepted=accepted, candidateConfig=candidate_config,
-                      finalReason=verdict(final, baseline['final'], max_drawdown) if final else 'no_candidate')
-        try:
+        from src.repositories.simulation_audit_repo import event
+        request_id = uuid.uuid4().hex
+
+        def journal(action, payload):
             with self.db.session_scope() as session:
-                row = SimulationPortfolioResearchRecord(source_id=source_id, request_hash=digest,
-                                                        result_json=json.dumps(result, allow_nan=False))
-                session.add(row)
-                session.flush()
-                return self.item(row)
-        except IntegrityError:
-            with self.db.get_session() as session:
-                row = session.scalar(select(SimulationPortfolioResearchRecord).where(
-                    SimulationPortfolioResearchRecord.request_hash == digest))
-                if row is None:
-                    raise
-                return self.item(row)
+                event(session, source_id, action, payload, request_id=request_id, version_id=source['versionId'])
+
+        def evaluate(candidate, sample, phase):
+            journal('research.phase', dict(phase=phase, config=candidate,
+                    start=sample[0]['date'], end=sample[-1]['date']))
+            return replay(candidate, sample, on_day=lambda day:
+                          journal('research.day', dict(phase=phase, day=day)))
+
+        journal('research.started', dict(requestHash=digest, budget=budget, maxDrawdown=max_drawdown,
+                config=config, sourceRunIds=[row.id for row in rows]))
+        try:
+            splits = {'train': snapshots[:n*3//5], 'validation': snapshots[n*3//5:n*4//5], 'final': snapshots[n*4//5:]}
+            baseline = {key: evaluate(config, splits[key], 'baseline.' + key) for key in ('train', 'validation')}
+            experiments, best = [], None
+            for change in list(candidates(config))[:budget]:
+                candidate = dict(config, **{change['field']: change['after']})
+                train, validation = (evaluate(candidate, splits[key], f'candidate.{len(experiments)}.' + key) for key in ('train', 'validation'))
+                reason = verdict(validation, baseline['validation'], max_drawdown)
+                if (train['sharpe'] is None or baseline['train']['sharpe'] is None
+                        or train['sharpe'] < baseline['train']['sharpe'] - .1
+                        or train['maxDrawdown'] > max_drawdown):
+                    reason = 'train_regression'
+                experiments.append(dict(**change, train=train, validation=validation, reason=reason))
+                if reason == 'passed' and (best is None or validation['sharpe'] > experiments[best]['validation']['sharpe']):
+                    best = len(experiments)-1
+            # The final segment is never used to choose or retry a candidate.
+            baseline['final'] = evaluate(config, splits['final'], 'baseline.final')
+            final, candidate_config, accepted = None, None, False
+            if best is not None:
+                change = experiments[best]
+                candidate_config = dict(config, **{change['field']: change['after']})
+                final = evaluate(candidate_config, splits['final'], 'candidate.final')
+                accepted = verdict(final, baseline['final'], max_drawdown) == 'passed'
+            result = dict(policy=POLICY, sampleHash=source['evaluation']['sampleHash'], maxDrawdown=max_drawdown,
+                          windows={key: dict(start=rows[0]['date'], end=rows[-1]['date'], samples=len(rows)) for key, rows in splits.items()},
+                          baseline=baseline, experiments=experiments, bestIndex=best, final=final,
+                          accepted=accepted, candidateConfig=candidate_config,
+                          finalReason=verdict(final, baseline['final'], max_drawdown) if final else 'no_candidate')
+            try:
+                with self.db.session_scope() as session:
+                    row = SimulationPortfolioResearchRecord(source_id=source_id, request_hash=digest,
+                                                            result_json=json.dumps(result, allow_nan=False))
+                    session.add(row)
+                    session.flush()
+                    event(session, source_id, 'research.completed', dict(researchId=row.id, result=result),
+                          request_id=request_id, version_id=source['versionId'])
+                    return self.item(row)
+            except IntegrityError:
+                with self.db.get_session() as session:
+                    row = session.scalar(select(SimulationPortfolioResearchRecord).where(
+                        SimulationPortfolioResearchRecord.request_hash == digest))
+                    if row is None:
+                        raise
+                    journal('research.reused', dict(researchId=row.id))
+                    return self.item(row)
+        except Exception as exc:
+            journal('research.failed', dict(error=str(exc), errorType=type(exc).__name__))
+            raise
 
     def adopt(self, research_id):
         with self.db.session_scope() as session:

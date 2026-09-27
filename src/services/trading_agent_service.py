@@ -198,6 +198,12 @@ class TradingAgentService:
             session.add(record)
             session.flush()
             call_id = record.id
+        from src.storage import SimulationTradingCallEvidenceRecord
+        from src.repositories.simulation_audit_repo import complete_call
+        with self.db.session_scope() as session:
+            session.add(SimulationTradingCallEvidenceRecord(call_id=call_id, request_json=json.dumps(
+                dict(temperature=0, maxTokens=max_output_tokens, budget=budget,
+                     timeout=60 if resource == 'trading_range' else 45))))
         response = None
         try:
             with activity_scope('trading', resource):
@@ -240,6 +246,9 @@ class TradingAgentService:
                     record.output_text = str(response.content)
                     record.usage_json = json.dumps(getattr(response, 'usage', None) or {}, default=str)
                     record.model = response.model or response.provider
+                complete_call(session, call_id, None if response is None else {
+                    key: getattr(response, key, None) for key in
+                    ('content', 'reasoning_content', 'provider_blocks', 'tool_calls', 'usage', 'provider', 'model', 'raw')})
                 if record.status == 'started':
                     record.status = 'received'
 
