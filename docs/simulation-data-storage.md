@@ -42,3 +42,18 @@ Native ledgers retain existing account and daily-run tables. The additive `simul
 Private engines reuse their existing backtest, paper-event, job, evolution and model-call journals. The framework's SQLite document store adds versioned, checksum-verified BLOB content, replacing file-only manifests, replay results, frozen bars and model-answer archives. Existing artifacts are imported without inventing historical API calls. Secret files and database backups are excluded. The private record/document endpoints above are owner-only and preserve source records in full.
 
 Back up SQLite consistently, stop the affected engine during cutover, verify imported bytes and test recovery on a copied database. Migration must not reset accounts or invoke models. Native schema additions are backward compatible; private rollback restores matching adapter code and exports, with database restoration performed only while the engine is stopped.
+
+## 逐笔操作证据 / Per-execution evidence
+
+买入、卖出和被拒订单必须同时保留决策理由与执行结果，两者不能混用：执行失败原因不等于策略为什么发出订单。原生逐日 `trades` 新增 `decisionEvidence`，从前一信号的冻结意见传递完整分类/置信度（如有）、调用 ID、策略摘要和决策后端；字段存入既有 `simulation_runs.result_snapshot_json`，不另建账本。旧记录缺少直接关联时保持空值，可按策略版本、`signalDate` 查询原始逐日意见和模型调用。
+
+私有引擎的成交应保存 `reason` 或 `decision_reason`、参考价、逐笔费用/滑点、成交前后现金/数量及信号周期；`paper_events` 在同一事务归档完整载荷。已有拒单口径的 `reason` 可继续表示执行失败原因，策略依据另存 `decision_reason` 与 `decision_evidence`。JEV 只能保存实际分类、概率和约束规则，不生成不存在的模型解释。缺失的历史理由和逐笔费用不补造。
+
+可运行只读核查（输出包含私有运行元数据，不提交 Git）：
+
+```bash
+python scripts/audit_simulation_records.py /path/to/stock_analysis.db --engine native
+python scripts/audit_simulation_records.py /path/to/quantevo.db --engine private
+```
+
+The read-only auditor uses a consistent SQLite snapshot and reports trade/order/fill count mismatches, missing reasons, private journal gaps, missing strategy versions and missing per-fill costs. Native executions now carry the frozen signal's `decisionEvidence`, including the opinion, model call ID and skill digest. Rejection reasons remain distinct from strategy rationale. Old missing evidence remains unknown; existing daily opinions and calls can still be traced by strategy version and signal date. No historical decisions or costs are fabricated.

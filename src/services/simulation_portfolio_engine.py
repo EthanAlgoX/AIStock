@@ -198,6 +198,7 @@ def step(config, state, day, history, benchmark_close):
                 slippage=abs(fill - raw) * quantity,
                 gross=gross,
                 reason=reason,
+                decisionEvidence=pending.get('evidence', {}).get(code),
                 signalDate=pending["date"],
                 status="filled",
             )
@@ -227,6 +228,7 @@ def step(config, state, day, history, benchmark_close):
             elif wanted > 0:
                 trades.append(dict(code=code, side='buy', quantity=0, price=None, rawPrice=prices[code]['open'], fee=0,
                     gross=0, slippage=0, reason=rejected_prefix + pending['reasons'][code],
+                    decisionEvidence=pending.get('evidence', {}).get(code),
                     signalDate=pending['date'], status='rejected'))
     elif pending and pending["date"] < day:
         selected = pending["selected"]
@@ -254,6 +256,7 @@ def step(config, state, day, history, benchmark_close):
                         gross=0,
                         slippage=0,
                         reason=rejected_prefix + pending["reasons"][code],
+                        decisionEvidence=pending.get('evidence', {}).get(code),
                         signalDate=pending["date"],
                         status="rejected",
                     )

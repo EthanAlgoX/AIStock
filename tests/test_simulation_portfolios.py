@@ -293,3 +293,21 @@ def test_invalid_validation_does_not_create_account(workspace):
     with pytest.raises(LookupError):
         service.create_validation(99999, dict(mode='paper'))
     assert service.list() == []
+
+
+def test_execution_keeps_signal_evidence_for_buy_sell_and_rejection():
+    evidence = {'opinion': {'reason': 'classified', 'confidence': .82},
+                'usage': {'callId': 17}, 'skillDigest': 'frozen-version'}
+    for side, cash, positions, weight in [
+        ('buy', 10000, {}, .5),
+        ('sell', 0, {'AAPL': {'quantity': 10, 'averageCost': 100}}, 0),
+        ('buy', 100, {}, 1),
+    ]:
+        state = dict(cash=cash, positions=positions, pending=dict(date='2025-02-09',
+            weights={'AAPL': weight}, reasons={'AAPL': 'classified'}, evidence={'AAPL': evidence}))
+        _, result = step(config(), state, '2025-02-10', {'AAPL': history()}, 100)
+        trade = result['trades'][0]
+        assert trade['side'] == side
+        assert trade['decisionEvidence'] == evidence
+        assert trade['signalDate'] == '2025-02-09'
+        assert trade['status'] == ('rejected' if cash == 100 else 'filled')

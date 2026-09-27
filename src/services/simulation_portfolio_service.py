@@ -799,7 +799,10 @@ class SimulationPortfolioService:
                 remaining -= usage['tokens']
                 state['pending'] = dict(date=day, selected=[o['code'] for o in opinions if o['targetWeight'] > 0],
                                         weights={o['code']: o['targetWeight'] for o in opinions},
-                                        reasons={o['code']: o['reason'] for o in opinions})
+                                        reasons={o['code']: o['reason'] for o in opinions},
+                                        evidence={o['code']: dict(opinion=o, usage=usage,
+                                            skillDigest=config['skillSnapshot']['digest'],
+                                            decisionBackend=config.get('decisionBackend')) for o in opinions})
                 if config.get('decisionBackend') == 'jev':
                     state['pending']['directions'] = {
                         o['code']: ('buy' if o['targetWeight'] > o['currentWeight'] + 1e-8 else
