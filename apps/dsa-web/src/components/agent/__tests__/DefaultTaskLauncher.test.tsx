@@ -29,7 +29,9 @@ describe("default task entry", () => {
     expect(screen.getByText(/Duan Yongping, Warren Buffett/)).toBeInTheDocument();
     expect(view.container.textContent).not.toMatch(/[\u3400-\u9fff]/);
     fireEvent.click(button);
-    await waitFor(() => expect(api.createTask).toHaveBeenCalledExactlyOnceWith(plan.task));
+    await waitFor(() => expect(api.createTask).toHaveBeenCalledExactlyOnceWith({
+      ...plan.task, config: { ...plan.task.config, reportLanguage: "en" },
+    }));
     localStorage.setItem("dsa.uiLanguage", 'zh');
   });
   beforeEach(() => {
@@ -52,7 +54,10 @@ describe("default task entry", () => {
     fireEvent.click(button);
     fireEvent.click(button);
     await waitFor(() => expect(api.runTask).toHaveBeenCalledTimes(1));
-    expect(api.createTask).toHaveBeenCalledExactlyOnceWith(makePlan(kind).task);
+    const plannedTask = makePlan(kind).task;
+    expect(api.createTask).toHaveBeenCalledExactlyOnceWith({
+      ...plannedTask, config: { ...plannedTask.config, reportLanguage: "zh" },
+    });
   });
 
   it("does not apply a late plan for a previous stock", async () => {

@@ -51,7 +51,7 @@ describe('MarketReviewRegionSelector', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '选择大盘复盘市场' }));
     fireEvent.click(screen.getByRole('button', { name: '全部市场' }));
-    expect(onChange).toHaveBeenLastCalledWith(['cn', 'hk', 'us', 'jp', 'kr', 'tw', 'gb', 'ca', 'au', 'in', 'de', 'fr']);
+    expect(onChange).toHaveBeenLastCalledWith(['cn', 'hk', 'us', 'jp', 'kr', 'tw', 'gb', 'ca', 'au', 'in', 'de', 'fr', 'crypto']);
 
     fireEvent.click(screen.getByRole('button', { name: /服务器默认/ }));
     expect(onChange).toHaveBeenLastCalledWith(undefined);

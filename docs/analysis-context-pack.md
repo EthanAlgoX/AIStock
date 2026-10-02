@@ -76,7 +76,7 @@ P1 Block Catalog：
 
 P2 新增 `AnalysisContextBuilder`，但首版只做 assembler：从普通分析 pipeline 已经拿到的 artifacts 组装内部 `AnalysisContextPack`。Issue 验收项里的“复用现有数据源”在本 slice 中解释为复用 pipeline 已 fetch 的 `realtime_quote`、`base_context`、`enhanced_context`、`trend_result`、`chip_data`、`fundamental_context`、`news_context` 等 artifacts；builder 本身 zero-fetch，不调用 DB、fetcher、SearchService、Agent 工具或具体 provider。
 
-P2 输入契约使用 `PipelineAnalysisArtifacts`：`code`、`stock_name`、`market`、`phase`、`base_context`、`enhanced_context`、`realtime_quote`、`trend_result`、`chip_data`、`fundamental_context`、`news_context`、`news_result_count`、`metadata`。单股 `build()` 与批量 `build_batch()` 复用同一结构，避免 P3 runtime 接入时再次改签名。
+P2 输入契约使用 `PipelineAnalysisArtifacts`：`code`、`stock_name`、`market`、`phase`、`base_context`、`enhanced_context`、`realtime_quote`、`trend_result`、`chip_data`、`fundamental_context`、`news_context`、`news_result_count`、`metadata`。现增加可选 `news_evidence_context`、`social_context`，既有 `portfolio_context` 保留。`news_context` 继续承载兼容的合并输入；`metadata.news_channels_separated=true` 时，builder 仅从 `news_evidence_context` 构造新闻块，社交内容单独构造辅助块。旧 caller 未提供该标记时仍使用 `news_context`；显式 `news_result_count=0` 的检索诊断文本不当作新闻证据。单股 `build()` 与批量 `build_batch()` 复用同一结构，继续供 P3 runtime 接入使用。
 
 P2 block 组装边界：
 
@@ -86,10 +86,11 @@ P2 block 组装边界：
 - `quote` 会透传 #1386 P3 的 `fetched_at`、`provider_timestamp`、`is_stale`、`stale_seconds`、`fallback_from`。状态优先级固定为 `STALE > FALLBACK > AVAILABLE`：`is_stale=True`、`price_stale`、`quote_stale`、`quote_stale_seconds` 等显式 marker 标为 `stale`；`stale_seconds` 且 `is_stale=False` 只是元数据，不单独推断 stale。builder 只映射上游 artifact，不做质量评分。
 - `daily_bars` 只表达完整日线窗口，优先读 `base_context.today`、`base_context.yesterday`、`base_context.date`、`base_context.data_missing`；date-only 放入 `value` 或 `metadata`，不写入 `timestamp`。
 - `enhanced_context.today` 上的 `is_partial_bar`、`is_estimated`、`estimated_fields` 优先进入 `technical`；缺失时仍兼容 `enhanced_context.today.data_source` 为 `realtime:*` 的旧 heuristic。partial/estimated 只进入 `technical`，`daily_bars` 不承载 partial/estimated，warning 使用 `intraday_realtime_overlay`。
-- `technical` 优先复用 `trend_result.to_dict()`；无 trend artifact 时为 `missing`。
+- `technical` 优先复用 `trend_result.to_dict()`；无 trend artifact 时为 `missing`。可选 `indicator_availability.ma20=false` 表示有效历史不足以建立基础趋势，整块为 `missing`，原因码 `technical_history_insufficient`，状态质量分为 35；已有 MA20 但其它指标不可用，或有实时估算覆盖时为 `partial`。非空 `analysis_warnings` 映射为公开 `technical_input_limited` 告警码，完整诊断保留在技术输入中；旧 trend artifact 未提供这些字段时保持兼容。
 - `chip` 复用 `chip_data.to_dict()`；无 chip artifact 默认 `missing`，只有输入 metadata/artifact 明确 not_supported 时才标 `not_supported`。
 - `fundamentals` 只读 `fundamental_context` 参数；`ok` 映射为 `available`，`not_supported` 映射为 `not_supported`，`partial` 映射为 `partial`，P5 后 `failed` 映射为 `fetch_failed` + 稳定 reason code `fundamental_pipeline_failed`；不写入 `errors[]` 原文。
-- `news` 非空白字符串为 `available`，空白或缺失为 `missing`；`news_result_count` 写入 pack metadata。
+- `news` 有证据时默认 `available`；`metadata.news_search_status` 为 `partial` / `fetch_failed` 且仍有可用证据时为 `partial`。无证据且检索明确失败时为 `fetch_failed`，其余空白或缺失为 `missing`。`news_result_count` 写入 pack metadata，表示按保守 URL 身份去重的成功检索结果数，不表示全部进入模型，也不包含社交热度或本地资讯池条目数。
+- 非空 `social_context` 构造独立 `social` 辅助块，附 `social_sentiment_unverified` 告警与 `metadata={"auxiliary": true, "quality_weighted": false}`。它不填补 `news`，不参与固定六块的数据质量评分。
 
 P2 不组装 `portfolio`、`events`、`market_context`，也不把 `capital_flow` 拆成独立 block；首版只把它保留在 fundamentals 的 coverage/source chain metadata 中。P2 当时也不改变 Prompt、不让普通分析或 Agent runtime 消费 pack、不写入 history/task/report metadata、不暴露完整 pack 到 API/Web/Bot/Desktop/通知；P5 只在现有 builder 上追加低敏评分、`fetch_failed` 细分和 Prompt 限制，不新增 fetcher。
 
@@ -99,7 +100,7 @@ P3 在 P2 `AnalysisContextBuilder` 之后接入运行态消费，但消费面限
 
 普通分析 Prompt 的顺序固定为：基础信息 -> #1386 `market_phase_context` 渲染区块 -> `analysis_context_pack_summary` -> 技术面、实时行情、新闻等既有区块。`analysis_context_pack_summary` 只包含 subject、`pack_version`、block `status` / `source` / `warnings` / `missing_reason`、`metadata.news_result_count`、`data_quality.warnings` 和 P5 低敏数据限制，不得输出 `news.content`、`trend_result`、`chip`、`fundamental_context` 等原始 payload。
 
-Agent 路径同样只传 summary。`AgentExecutor._build_user_message()` 在 market phase 段之后、pre-fetched JSON 之前插入 summary；`AgentOrchestrator._build_context()` 只把 summary 放入 `ctx.meta["analysis_context_pack_summary"]`，禁止写入 `ctx.data`；`BaseAgent._build_messages()` 在 market phase user message 之后、`_inject_cached_data()` 之前插入 summary。Agent 路径会在 `_ensure_agent_history()` 预取后读取一次 `storage.get_analysis_context()` 作为 `daily_bars` 的低敏状态来源，读取失败或无可用上下文时才标记 `daily_bars_missing`，该读取 fail-open 且不把日线原始 payload 写入 Agent runtime context。Agent 首轮没有复用普通分析新闻检索，`news` block 为 `missing` 是当前 P3 的预期状态。
+Agent 路径同样只传 summary。`AgentExecutor._build_user_message()` 在 market phase 段之后、pre-fetched JSON 之前插入 summary；`AgentOrchestrator._build_context()` 只把 summary 放入 `ctx.meta["analysis_context_pack_summary"]`，禁止写入 `ctx.data`；`BaseAgent._build_messages()` 在 market phase user message 之后、`_inject_cached_data()` 之前插入 summary。Agent 路径会在 `_ensure_agent_history()` 预取后读取一次 `storage.get_analysis_context()` 作为 `daily_bars` 的低敏状态来源，读取失败或无可用上下文时才标记 `daily_bars_missing`，该读取 fail-open 且不把日线原始 payload 写入 Agent runtime context。P3 首版 Agent 首轮没有复用普通分析新闻检索，`news` block 为 `missing` 是当前 P3 的预期状态；后续本地资讯接入可为初始 `news_evidence_context` 提供证据。只有社交输入时 `news` 仍为 `missing`。summary / overview 描述初始输入，不包含 Agent 后续工具检索结果，不能据此判断整次 Agent 最终获取了哪些证据。
 
 P3 当时不持久化完整 pack，不新增 API/Web/Bot/Desktop 字段，不改变报告 JSON schema，不把 summary 写入 `analysis_history.context_snapshot`、task status 或 report metadata；history snapshot 和 diagnostic snapshot 会剥离 `market_phase_context`、`analysis_context_pack`、`analysis_context_pack_summary` 等 runtime prompt key。P4 在此基础上新增低敏 overview，可见性只覆盖历史详情、同步分析响应、completed task status 和 Web 报告页；P5 继续复用 summary 消费路径，不改 LLM 输出 JSON schema。Agent 工具级 pack cache 复用仍是后续工作。
 
@@ -151,6 +152,8 @@ P5 在不升级 `PACK_VERSION`、不新增 fetcher、不新增配置项、不做
 
 评分只计算固定六块，不随辅助块缺失重归一化，未来新增 block 不自动影响总分。权重固定为 `quote=25`、`daily_bars=25`、`technical=25`、`news=10`、`fundamentals=10`、`chip=5`；状态分固定为 `available=100`、`partial=75`、`estimated=75`、`not_supported=70`、`fallback=65`、`stale=50`、`missing=35`、`fetch_failed=25`。总分公式为 `round(sum(block_score * weight) / 100)`。
 
+`social` 与 `portfolio` 均为辅助块，不参与这六块的分数、权重或重归一化。社交帖子数量、投票、热度和情绪分不能提高 `news` 的可用性，也不能作为交易方向置信度。摘要中的证据限制要求：重复链接不是新增来源，未知发布时间不能证明近期催化，量价规则事件不证明新闻因果。
+
 `limitations` 优先列出核心块 `quote` / `daily_bars` / `technical` 的 `stale`、`fallback`、`missing`、`fetch_failed`、`partial`、`estimated`；其次列出辅助块 `news` / `fundamentals` / `chip` 的 `fetch_failed`、`fallback`、`stale`。辅助块单纯缺失不进入限制列表，避免把新闻缺失、未配置搜索或不支持能力解释成利好/利空。
 
 Prompt 数据限制只在 `format_analysis_context_pack_prompt_section()` 内渲染，紧跟 pack summary，因此普通分析、single Agent 和 multi-agent 复用同一消费路径。中文输出 `数据限制`，英文输出 `Data Limitations`；只有真实 score 存在时才输出评分行。若 `quote`、`daily_bars` 或 `technical` 为 degraded 状态，Prompt 明确要求最终 JSON 的 `confidence_level` 不得为 `高` / `High`。Prompt 继续只使用 status/source/warnings/missing_reason/低敏评分，不输出 raw payload、新闻正文、趋势原始值、secret、token 或 webhook。
@@ -158,6 +161,16 @@ Prompt 数据限制只在 `format_analysis_context_pack_prompt_section()` 内渲
 #1386 P2-full 在 P5 score/limitations 之后、confidence/safety 之前追加最小的 `phase × degraded data` 交叉约束：当 `AnalysisContextPack.phase` 来自合法 `MarketPhaseContext`，且 `quote`、`daily_bars` 或 `technical` 存在 degraded 状态时，Prompt 只补充当前阶段下数据质量如何限制盘中判断、开盘计划或保守分析；它不替代 P5 的 confidence/safety 规则，也不复述 `market_phase_context` 的 phase-only 文案。`pack.phase` 缺失、非 dict 或包含非法 phase 时 fail-open，仅保留 P5 通用数据限制。
 
 overview 只扩展现有公开面：`analysis_context_pack_overview.data_quality` 白名单包含 `overall_score`、`level`、`block_scores`、`limitations`，不重复公开 `warnings`。`render_analysis_context_pack_overview()` 与 `extract_analysis_context_pack_overview()` / persisted sanitizer 都会清洗该对象；旧 overview 缺少 `data_quality` 时仍正常读取。`details.context_snapshot` 继续剥离顶层 `analysis_context_pack_overview`，不公开完整 pack。
+
+## 信号证据补充（market-radar 参考）
+
+技术输入可选追加 `indicator_availability`、`analysis_warnings`、`rule_events`、`analysis_date`、`analysis_source` 与 `valid_bars`。规则事件包含 `rule_id`、`rule_version`、`parameters`、`evidence` 数值、`bar_date`、`source`、`reference_start` / `reference_end` 和观察方向，属于输入证据，不新增交易 action 或独立评分；事件本身不计入既有 `signal_score`。
+
+MA60 不足 60 根有效日线时保持不可用，不以 MA20 替代；MACD / RSI 预热不足时不把默认枚举解释成有效指标。末段显式未闭合或估算日线继续支持既有盘中价格、均线与指标估算，并附 `analysis_warnings`，但不生成确认规则事件，`indicator_availability.rule_events=false`。历史中间的未闭合、估算或无效记录，以及识别到的缺口或来源口径变化会截断窗口并重新预热。无闭合标记的既有日线保持兼容，不宣称完成所有交易所日历或供应商复权验证。
+
+新闻与社交来源、检索计数、展示预算、兼容范围、验证和回滚见 [信号证据说明](signal-evidence.md) / [English](signal-evidence_EN.md)。此补充不新增配置、依赖、数据库迁移或真实下单能力。
+
+按需新闻的保守 URL 身份只去普通 fragment 锚点及主查询的明确追踪参数；`/`、`!` 开头的 hash 路由与内部查询原样保留，不能因共享应用入口而合并为同一证据。此规则不改变资讯库的持久化身份。
 
 ## P6 告警、持仓、历史和回测联动
 

@@ -456,6 +456,13 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         'options': [],
         'validation': {},
         'display_order': 5,
+        'help_key': 'settings.ai_model.TYPESAFE_API_KEY',
+        'examples': ['TYPESAFE_API_KEY=your_api_key'],
+        'docs': [{
+            'label': 'JEV trading decisions / JEV 交易决策',
+            'href': 'https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/jev-trading-decisions.md#configuration--配置',
+        }],
+        'warning_codes': ['secret_value'],
     },
     "TYPESAFE_BASE_URL": {
         'title': 'JEV API Base URL',
@@ -470,6 +477,12 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         'options': [],
         'validation': {},
         'display_order': 6,
+        'help_key': 'settings.ai_model.TYPESAFE_BASE_URL',
+        'examples': ['TYPESAFE_BASE_URL=https://api.typesafe.ai'],
+        'docs': [{
+            'label': 'JEV trading decisions / JEV 交易决策',
+            'href': 'https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/jev-trading-decisions.md#configuration--配置',
+        }],
     },
     "TYPESAFE_MODEL": {
         'title': 'JEV Model',
@@ -484,6 +497,12 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         'options': [],
         'validation': {},
         'display_order': 7,
+        'help_key': 'settings.ai_model.TYPESAFE_MODEL',
+        'examples': ['TYPESAFE_MODEL=jev-latest'],
+        'docs': [{
+            'label': 'JEV trading decisions / JEV 交易决策',
+            'href': 'https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/jev-trading-decisions.md#configuration--配置',
+        }],
     },
     "LLM_CHANNELS": {
         "title": "LLM Channels",

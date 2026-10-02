@@ -289,58 +289,58 @@ async def app_lifespan(app: FastAPI):
     os.environ.pop(RUNTIME_SCHEDULER_RUN_IMMEDIATELY_ENV, None)
     os.environ.pop(RUNTIME_SCHEDULER_SUPPRESS_START_ENV, None)
     os.environ.pop(RUNTIME_SCHEDULER_ARGS_ENV, None)
-    runtime_scheduler_service = RuntimeSchedulerService(
-        owns_schedule=runtime_owns_schedule,
-        force_enabled=runtime_force_enabled,
-        run_immediately_in_background=True,
-        schedule_args_overrides=runtime_scheduler_args,
-        # API owns an independent alert poller, even when daily research is off.
-        background_tasks_provider=lambda config: [],
-    )
-    app.state.runtime_scheduler_service = runtime_scheduler_service
-    if not runtime_suppress_start:
-        app.state.runtime_scheduler_service.reconcile_from_config(
-            run_immediately=runtime_run_immediately,
-        )
-    app.state.system_config_service = SystemConfigService(
-        runtime_scheduler=app.state.runtime_scheduler_service,
-    )
-    _schedule_stock_index_background_refresh(app, "startup")
-    # A one-shot automatic strategy batch is backed by an in-process task, so
-    # it cannot continue across a process restart.  Persist an honest terminal
-    # state instead of leaving the Run Center on an endless "running" label.
-    from src.services.strategy_definition_service import StrategyDefinitionService
-
-    interrupted_batches = StrategyDefinitionService().reconcile_interrupted_automatic_runs()
-    if interrupted_batches:
-        logger.warning("Marked %s interrupted automatic strategy research batch(es) as failed", interrupted_batches)
-    # Published-strategy continuous research controls are durable.  Reattach
-    # their in-process workers after an API restart; each worker re-checks the
-    # persisted state before every cycle.
     from src.services.strategy_continuous_run_service import StrategyContinuousRunService
 
-    strategy_continuous_runs = StrategyContinuousRunService()
-    strategy_continuous_runs.resume_active()
-    app.state.strategy_continuous_runs = strategy_continuous_runs
-    from src.services.workspace_service import WorkspaceSchedulerService, WorkspaceService
-
-    from src.services.simulation_portfolio_service import SimulationPortfolioService
-    SimulationPortfolioService().recover()
-    interrupted_workspace_runs = WorkspaceService().reconcile_interrupted_runs()
-    if interrupted_workspace_runs:
-        logger.warning("Marked %s interrupted Agent workspace run(s) as failed", interrupted_workspace_runs)
-    workspace_scheduler = WorkspaceSchedulerService()
-    from src.services.member_service import run_member_maintenance
-    run_member_maintenance(reconcile=True)
-    workspace_scheduler.start()
-    app.state.workspace_scheduler = workspace_scheduler
-    # Price polling is independent of daily LLM scheduling (including --serve-only).
-    if runtime_owns_schedule:
-        from src.services.alert_polling import AlertPollingService
-
-        app.state.alert_poller = AlertPollingService()
-        app.state.alert_poller.start()
     try:
+        runtime_scheduler_service = RuntimeSchedulerService(
+            owns_schedule=runtime_owns_schedule,
+            force_enabled=runtime_force_enabled,
+            run_immediately_in_background=True,
+            schedule_args_overrides=runtime_scheduler_args,
+            # API owns an independent alert poller, even when daily research is off.
+            background_tasks_provider=lambda config: [],
+        )
+        app.state.runtime_scheduler_service = runtime_scheduler_service
+        if not runtime_suppress_start:
+            app.state.runtime_scheduler_service.reconcile_from_config(
+                run_immediately=runtime_run_immediately,
+            )
+        app.state.system_config_service = SystemConfigService(
+            runtime_scheduler=app.state.runtime_scheduler_service,
+        )
+        _schedule_stock_index_background_refresh(app, "startup")
+        # A one-shot automatic strategy batch is backed by an in-process task, so
+        # it cannot continue across a process restart.  Persist an honest terminal
+        # state instead of leaving the Run Center on an endless "running" label.
+        from src.services.strategy_definition_service import StrategyDefinitionService
+
+        interrupted_batches = StrategyDefinitionService().reconcile_interrupted_automatic_runs()
+        if interrupted_batches:
+            logger.warning("Marked %s interrupted automatic strategy research batch(es) as failed", interrupted_batches)
+        # Published-strategy continuous research controls are durable.  Reattach
+        # their in-process workers after an API restart; each worker re-checks the
+        # persisted state before every cycle.
+        strategy_continuous_runs = StrategyContinuousRunService()
+        app.state.strategy_continuous_runs = strategy_continuous_runs
+        strategy_continuous_runs.resume_active()
+        from src.services.workspace_service import WorkspaceSchedulerService, WorkspaceService
+
+        from src.services.simulation_portfolio_service import SimulationPortfolioService
+        SimulationPortfolioService().recover()
+        interrupted_workspace_runs = WorkspaceService().reconcile_interrupted_runs()
+        if interrupted_workspace_runs:
+            logger.warning("Marked %s interrupted Agent workspace run(s) as failed", interrupted_workspace_runs)
+        workspace_scheduler = WorkspaceSchedulerService()
+        app.state.workspace_scheduler = workspace_scheduler
+        from src.services.member_service import run_member_maintenance
+        run_member_maintenance(reconcile=True)
+        workspace_scheduler.start()
+        # Price polling is independent of daily LLM scheduling (including --serve-only).
+        if runtime_owns_schedule:
+            from src.services.alert_polling import AlertPollingService
+
+            app.state.alert_poller = AlertPollingService()
+            app.state.alert_poller.start()
         yield
     finally:
         alert_poller = getattr(app.state, "alert_poller", None)
@@ -353,10 +353,6 @@ async def app_lifespan(app: FastAPI):
                 await refresh_task
         if hasattr(app.state, "system_config_service"):
             delattr(app.state, "system_config_service")
-        continuous_runs = getattr(app.state, "strategy_continuous_runs", None)
-        if continuous_runs is not None:
-            continuous_runs.stop_workers()
-            delattr(app.state, "strategy_continuous_runs")
         workspace_scheduler = getattr(app.state, "workspace_scheduler", None)
         if workspace_scheduler is not None:
             workspace_scheduler.stop()
@@ -365,6 +361,10 @@ async def app_lifespan(app: FastAPI):
         if runtime_scheduler is not None:
             runtime_scheduler.stop()
             delattr(app.state, "runtime_scheduler_service")
+        # Stop job producers before taking the owner/member controller snapshot.
+        StrategyContinuousRunService.stop_all_workers()
+        if hasattr(app.state, "strategy_continuous_runs"):
+            delattr(app.state, "strategy_continuous_runs")
 
 
 def create_app(static_dir: Optional[Path] = None) -> FastAPI:

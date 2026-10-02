@@ -273,6 +273,108 @@ class TestZeroValueHandling(unittest.TestCase):
         self.assertIsNone(SocialSentimentService._coalesce(None, None))
 
 
+class TestSocialEvidenceAttribution(unittest.TestCase):
+    """Keep supplied post evidence without implying verification or recency."""
+
+    @staticmethod
+    def _format(mentions):
+        return SocialSentimentService._format_social_intel(
+            "AAPL",
+            reddit_data={"report": {"buzz_score": 0, "top_mentions": mentions}},
+            x_entry={"sentiment_score": 0.0},
+            poly_entry={"trade_count": 0},
+        )
+
+    def test_preserves_supplied_source_time_author_and_zero_values(self):
+        result = self._format([
+            {
+                "text": "Original company discussion",
+                "url": "https://www.reddit.com/r/stocks/comments/abc",
+                "published_at": "2026-10-02T09:00:00Z",
+                "created_at": "2026-10-01T09:00:00Z",
+                "author": "market_reader",
+                "sentiment_score": 0,
+                "upvotes": 0,
+            },
+            {
+                "title": "Another discussion",
+                "permalink": "http://example.com/post",
+                "created_at": 0,
+                "author": {"username": "another_reader"},
+            },
+        ])
+
+        self.assertIn("Source URL: https://www.reddit.com/r/stocks/comments/abc", result)
+        self.assertIn("Post time (published_at, supplied): 2026-10-02T09:00:00Z", result)
+        self.assertIn("Post time (created_at, supplied): 2026-10-01T09:00:00Z", result)
+        self.assertIn("author: market_reader", result)
+        self.assertIn("sentiment: 0", result)
+        self.assertIn("0 upvotes", result)
+        self.assertIn("Post time (created_at, supplied): 0", result)
+        self.assertIn("Source URL: http://example.com/post", result)
+        self.assertIn("author: another_reader", result)
+        self.assertIn("Trade Count: 0", result)
+
+    def test_unknown_post_time_is_explicit_without_inventing_source_or_author(self):
+        result = self._format([{"text": "Undated discussion"}])
+
+        self.assertIn("Post time: unknown (recency unverified)", result)
+        self.assertNotIn("Source URL:", result)
+        self.assertNotIn("author:", result)
+
+    def test_invalid_attribution_urls_are_omitted_without_losing_post(self):
+        urls = [
+            "javascript:alert(1)",
+            "file:///tmp/post",
+            "/r/stocks/comments/abc",
+            "https://reader:secret@example.com/post",
+            "https://@example.com/post",
+            "https://[invalid/post",
+            "https://example.com:invalid/post",
+            "https://example.com/with space",
+            "https://example.com/post\nInjected metadata",
+            "https://example.com\\@other.example/post",
+        ]
+        for url in urls:
+            with self.subTest(url=url):
+                result = self._format([{"text": "Keep valid discussion", "url": url}])
+                self.assertIn("Keep valid discussion", result)
+                self.assertNotIn("Source URL:", result)
+                self.assertNotIn("reader:secret", result)
+
+    def test_malformed_mentions_do_not_hide_valid_posts_or_platform_metrics(self):
+        result = self._format([
+            None,
+            "not a post object",
+            {"text": {"body": "not a string"}},
+            {"text": 42},
+            {"text": "   "},
+            {"text": "Valid discussion", "author": ["invalid author"]},
+        ])
+
+        self.assertIn('1. "Valid discussion"', result)
+        self.assertIn("Buzz Score: 0/100", result)
+        self.assertIn("Sentiment Score: 0.0", result)
+        self.assertIn("Trade Count: 0", result)
+        self.assertNotIn("author:", result)
+
+    def test_malformed_mentions_container_does_not_break_other_metrics(self):
+        for mentions in ("not a list", {"text": "not a list"}, 42):
+            with self.subTest(mentions=mentions):
+                result = self._format(mentions)
+                self.assertIn("Buzz Score: 0/100", result)
+                self.assertIn("Trade Count: 0", result)
+                self.assertNotIn("Top Mentions:", result)
+
+    def test_attention_metrics_and_platform_scores_have_evidence_limits(self):
+        result = self._format([{"text": "Unverified comment"}])
+
+        self.assertIn("not verified bullish evidence or directional confidence", result)
+        self.assertIn("Comments are unverified", result)
+        self.assertIn("do not add their scores together", result)
+        self.assertIn("Missing post timestamps do not establish recency", result)
+
+
 class TestFindTickerInTrending(unittest.TestCase):
     """Tests for _find_ticker_in_trending helper."""
 

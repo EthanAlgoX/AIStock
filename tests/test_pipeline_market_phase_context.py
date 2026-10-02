@@ -546,8 +546,8 @@ class PipelineMarketPhaseContextTestCase(unittest.TestCase):
         run_context = executor.run.call_args.kwargs["context"]
         self.assertIn("Social sentiment raw payload", run_context["news_context"])
         summary = run_context["analysis_context_pack_summary"]
-        self.assertIn("新闻: available", summary)
-        self.assertNotIn("新闻: missing", summary)
+        self.assertIn("新闻: missing", summary)
+        self.assertIn("社交舆情: available", summary)
         self.assertNotIn("Social sentiment raw payload", summary)
 
         save_kwargs = pipeline.db.save_analysis_history.call_args.kwargs
@@ -557,6 +557,9 @@ class PipelineMarketPhaseContextTestCase(unittest.TestCase):
             "items",
             str(save_kwargs["context_snapshot"]["analysis_context_pack_overview"]),
         )
+        enhanced_context = save_kwargs["context_snapshot"]["enhanced_context"]
+        self.assertNotIn("social_context", enhanced_context)
+        self.assertNotIn("news_evidence_context", enhanced_context)
 
     def test_agent_pack_summary_uses_db_daily_context_after_history_prefetch(self):
         pipeline = _make_pipeline(agent_mode=True, save_context_snapshot=True)

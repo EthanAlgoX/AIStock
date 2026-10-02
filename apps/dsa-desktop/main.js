@@ -6,6 +6,7 @@ const net = require('net');
 const http = require('http');
 const https = require('https');
 const { TextDecoder } = require('util');
+const { pathToFileURL } = require('url');
 
 let mainWindow = null;
 let backendProcess = null;
@@ -1514,13 +1515,65 @@ function buildElectronUpdaterState(status, updateInfo = {}, extraState = {}) {
   });
 }
 
-function sanitizeReleaseUrl(candidateUrl) {
-  if (typeof candidateUrl !== 'string' || !candidateUrl.trim()) {
-    return RELEASES_PAGE_URL;
+function sanitizeExternalUrl(candidateUrl) {
+  if (typeof candidateUrl !== 'string' || !candidateUrl.trim()
+    || /[\\\u0000-\u0020\u007f]/.test(candidateUrl)) {
+    return null;
   }
+  try {
+    const parsed = new URL(candidateUrl);
+    return ['http:', 'https:'].includes(parsed.protocol) && parsed.hostname
+      && !parsed.username && !parsed.password ? parsed.toString() : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function configureDesktopNavigation(webContents, {
+  getBackendOrigin = () => desktopBackendOrigin,
+  loadingPageUrl,
+  openExternal = (url) => shell.openExternal(url),
+  onError = (error) => logLine(`[navigation] external link could not be opened: ${String(error)}`),
+} = {}) {
+  const isApplicationUrl = (url) => {
+    const safeUrl = sanitizeExternalUrl(url);
+    if (safeUrl && new URL(safeUrl).origin === getBackendOrigin()) return true;
+    if (!loadingPageUrl) return false;
+    try {
+      const parsed = new URL(url);
+      const loading = new URL(loadingPageUrl);
+      return parsed.protocol === 'file:' && parsed.hostname === loading.hostname
+        && parsed.pathname === loading.pathname && !parsed.username && !parsed.password;
+    } catch (_error) {
+      return false;
+    }
+  };
+  const openSafeExternal = (url) => {
+    const safeUrl = sanitizeExternalUrl(url);
+    if (!safeUrl) return;
+    // Opening a browser can fail; keep that failure outside the Electron event callback.
+    Promise.resolve().then(() => openExternal(safeUrl)).catch(onError);
+  };
+  webContents.setWindowOpenHandler(({ url }) => {
+    openSafeExternal(url);
+    return { action: 'deny' };
+  });
+  webContents.on('will-navigate', (event, url) => {
+    if (isApplicationUrl(url)) return;
+    event.preventDefault();
+    openSafeExternal(url);
+  });
+  webContents.on('will-redirect', (event, url) => {
+    if (!isApplicationUrl(url)) event.preventDefault();
+  });
+}
+
+function sanitizeReleaseUrl(candidateUrl) {
+  const safeUrl = sanitizeExternalUrl(candidateUrl);
+  if (!safeUrl) return RELEASES_PAGE_URL;
 
   try {
-    const parsed = new URL(candidateUrl.trim());
+    const parsed = new URL(safeUrl);
     const allowedReleasePathPrefix = `/${GITHUB_OWNER}/${GITHUB_REPO}/releases`;
     const isGithubHost = parsed.origin === 'https://github.com';
     const isRepositoryReleasePath =
@@ -1921,6 +1974,7 @@ async function createWindow() {
   logStartup('BrowserWindow created');
 
   const loadingPath = path.join(__dirname, 'renderer', 'loading.html');
+  configureDesktopNavigation(mainWindow.webContents, { loadingPageUrl: pathToFileURL(loadingPath).toString() });
   const loadingPageStartedAt = Date.now();
   await mainWindow.loadFile(loadingPath);
   logStartup(`Loading page rendered in ${Date.now() - loadingPageStartedAt}ms`);
@@ -1954,11 +2008,6 @@ async function createWindow() {
       );
     }
   );
-
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
-    return { action: 'deny' };
-  });
 
   const appDir = resolveAppDir();
   const envPath = path.join(appDir, '.env');
@@ -2121,6 +2170,8 @@ module.exports = {
   resolveDesktopConnectHost,
   renderDesktopShareImage,
   restorePackagedRuntimeStateFromBackup,
+  configureDesktopNavigation,
+  sanitizeExternalUrl,
   sanitizeReleaseUrl,
   startBackend,
   stopBackend,

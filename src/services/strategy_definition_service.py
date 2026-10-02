@@ -1077,10 +1077,10 @@ class StrategyDefinitionService:
             }
 
         if control_ids:
-            # Wake the registered singleton workers so they observe the durable
+            # Wake workers belonging to this store so they observe the durable
             # terminated state immediately instead of waiting until next_run_at.
             from src.services.strategy_continuous_run_service import StrategyContinuousRunService
-            StrategyContinuousRunService.wake_registered_controls(control_ids)
+            StrategyContinuousRunService.wake_registered_controls(control_ids, db_manager=self.db)
         return result
 
     def _deletion_impact(self, session, strategy: SimulationStrategyRecord) -> dict[str, Any]:

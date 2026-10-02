@@ -268,6 +268,10 @@ tail -f /opt/stock-analyzer/logs/stock_analysis_*.log
 
 ### 健康检查
 
+通过 `main.py --serve` / `--serve-only` 启动时，先导入应用，再最多等待 60 秒完成应用初始化和监听；冷数据库恢复不再受旧的 3 秒限制。启动失败保留原因，超时会请求取消并清理已创建的服务，阻止初始化稍后完成后才开始监听。同步阻塞代码无法被线程强制终止，取消后若清理仍未结束会记录警告。此等待不包含模块导入时间，也不改变直接 `uvicorn server:app` 的启动机制。
+
+Compose 的 `server` 服务按实际 `API_PORT` 请求 `/api/health`：连接或 HTTP 失败返回非零，不再以无条件成功掩盖故障。默认定时 `analyzer` 不启动 HTTP，因此镜像默认 `HEALTHCHECK NONE`；只有 Web 服务启用 HTTP 健康检查。进程存在或最近报告存在不能证明 API 当前可用。 Compose 显式向容器传入同一解析后的 `API_PORT`，确保 shell 覆盖值、启动参数、端口映射与探针一致。
+
 ```bash
 # 检查进程
 ps aux | grep main.py

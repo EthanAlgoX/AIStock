@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApiError, createParsedApiError } from '../../api/error';
 import { AuthProvider, useAuth } from '../AuthContext';
@@ -67,6 +67,26 @@ describe('AuthContext', () => {
     fireEvent.click(screen.getByRole('button', { name: 'refresh-status' }));
     await waitFor(() => expect(getStatus).toHaveBeenCalledTimes(2));
     expect(localStorage.getItem('dsa.research-task-draft.v1')).toBe('new private draft');
+  });
+
+  it.each(['success', 'failure'] as const)('ignores an older auth-status %s after a newer identity refresh', async (outcome) => {
+    let resolve!: (status: unknown) => void;
+    let reject!: (error: unknown) => void;
+    const previous = new Promise((res, rej) => { resolve = res; reject = rej; });
+    const current = { authEnabled: true, loggedIn: true, role: 'member', userId: 'current-member',
+      multiUserEnabled: true, deploymentMode: 'server', setupState: 'enabled' };
+    getStatus.mockReturnValueOnce(previous).mockResolvedValueOnce(current);
+    render(<AuthProvider><Probe /></AuthProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'refresh-status' }));
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('logged-in'));
+    localStorage.setItem('dsa.research-task-draft.v1', 'current identity draft');
+    await act(async () => {
+      if (outcome === 'success') resolve({ ...current, loggedIn: false, userId: undefined });
+      else reject(new Error('Old status failed'));
+    });
+    expect(screen.getByTestId('status')).toHaveTextContent('logged-in');
+    expect(localStorage.getItem('investcrew.activeIdentity')).toBe('current-member');
+    expect(localStorage.getItem('dsa.research-task-draft.v1')).toBe('current identity draft');
   });
 
   it('refreshes auth state after a successful login', async () => {

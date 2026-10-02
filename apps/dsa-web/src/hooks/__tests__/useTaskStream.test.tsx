@@ -83,6 +83,25 @@ describe('useTaskStream', () => {
     expect(eventSourceInstance.close).toHaveBeenCalled();
   });
 
+  it('discards queued events from a closed stream after a new workspace subscribes', async () => {
+    const first = renderHook(() => useTaskStream({ enabled: true }));
+    await waitFor(() => expect(eventSourceInstances).toHaveLength(1));
+    const previous = eventSourceInstance;
+    first.unmount();
+    const callbacks = {
+      onConnected: vi.fn(), onTaskCreated: vi.fn(), onTaskStarted: vi.fn(),
+      onTaskProgress: vi.fn(), onTaskCompleted: vi.fn(), onTaskFailed: vi.fn(), onError: vi.fn(),
+    };
+    renderHook(() => useTaskStream({ enabled: true, ...callbacks }));
+    await waitFor(() => expect(eventSourceInstances).toHaveLength(2));
+    for (const type of ['connected', 'task_created', 'task_started', 'task_progress', 'task_completed', 'task_failed']) {
+      previous.listeners[type]?.(new MessageEvent(type, { data: JSON.stringify({ task_id: 'previous-private-task' }) }));
+    }
+    previous.onerror?.(new Event('error'));
+    for (const callback of Object.values(callbacks)) expect(callback).not.toHaveBeenCalled();
+    expect(eventSourceInstance.close).not.toHaveBeenCalled();
+  });
+
   it('parses task_progress events and forwards the updated task payload', async () => {
     const onTaskProgress = vi.fn();
     const onTaskFlowEvent = vi.fn();

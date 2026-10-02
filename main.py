@@ -51,7 +51,32 @@ if _packaged_import_probe:
     import sys
 
     try:
-        importlib.import_module(_packaged_import_probe)
+        _probe_module = importlib.import_module(_packaged_import_probe)
+        if _packaged_import_probe == "src.services.simulation_strategy_service":
+            _template_service = object.__new__(_probe_module.SimulationStrategyService)
+            if not _template_service.list_templates():
+                raise RuntimeError("Simulation template catalog is empty")
+        elif _packaged_import_probe == "src.strategy_kernels.catalog":
+            _kernel_catalog = _probe_module.builtin_kernel_catalog()
+            if not _kernel_catalog:
+                raise RuntimeError("Built-in kernel catalog is empty")
+            for _kernel in _kernel_catalog.values():
+                _kernel_module = importlib.import_module(_kernel["entrypoint"].split(":", 1)[0])
+                if not callable(getattr(_kernel_module, "run", None)):
+                    raise RuntimeError("Built-in kernel entrypoint is unavailable")
+        elif _packaged_import_probe == "src.services.report_renderer":
+            _renderer_config = _probe_module.get_config()
+            _configured_templates = _renderer_config.report_templates_dir
+            try:
+                # Probe bundled defaults independently of a local custom path.
+                # This process exits after the probe; normal config is preserved.
+                _renderer_config.report_templates_dir = "templates"
+                for _platform in ("markdown", "wechat", "brief"):
+                    _rendered = _probe_module.render(_platform, [])
+                    if not isinstance(_rendered, str) or not _rendered.strip():
+                        raise RuntimeError(f"Built-in report template failed to render: {_platform}")
+            finally:
+                _renderer_config.report_templates_dir = _configured_templates
     except Exception as exc:
         print(
             f"ERROR: packaged import failed for {_packaged_import_probe}: {exc}",
@@ -1106,7 +1131,13 @@ def _run_analysis_with_runtime_scheduler_lock(
     )
 
 
-def start_api_server(host: str, port: int, config: Config) -> None:
+def start_api_server(
+    host: str,
+    port: int,
+    config: Config,
+    *,
+    _startup_timeout_seconds: float = 60.0,
+) -> None:
     """
     在后台线程启动 FastAPI 服务
 
@@ -1115,6 +1146,7 @@ def start_api_server(host: str, port: int, config: Config) -> None:
         port: 监听端口
         config: 配置对象
     """
+    import asyncio
     import socket
     import threading
     import uvicorn
@@ -1135,13 +1167,8 @@ def start_api_server(host: str, port: int, config: Config) -> None:
         "log_level": level_name,
         "log_config": None,
     }
-    # Import the ASGI app object in the calling thread instead of handing uvicorn
-    # the "api.app:app" import string. With the string, uvicorn imports the app
-    # lazily inside the server thread, and that import (litellm + the full app
-    # tree, ~10s+ on constrained hosts) runs inside the startup probe window
-    # below, tripping the 3.0s timeout and causing a restart loop on slower
-    # machines. Importing first keeps the heavy work out of the probe window;
-    # genuine import failures still surface immediately to the caller.
+    # Keep module imports outside the readiness budget. App lifespan recovery
+    # still runs inside that budget, and must finish before reporting readiness.
     from api.app import app as fastapi_app
 
     try:
@@ -1159,7 +1186,62 @@ def start_api_server(host: str, port: int, config: Config) -> None:
             fastapi_app,
             **uvicorn_kwargs,
         )
-    uvicorn_server = uvicorn.Server(config=uvicorn_config)
+    stop_requested = threading.Event()
+    server_runtime = {}
+
+    class StartupManagedServer(uvicorn.Server):
+        async def startup(self, sockets=None):
+            lifespan_startup = self.lifespan.startup
+
+            async def guarded_startup():
+                await lifespan_startup()
+                # Uvicorn does not check should_exit between lifespan startup
+                # and binding. A synchronous cold start can outlive the caller's
+                # timeout and must never create a late listener.
+                if stop_requested.is_set():
+                    raise asyncio.CancelledError()
+                # Let create_server finish handing its listener to uvicorn
+                # before cancelling; cancellation inside that coroutine can
+                # otherwise orphan a bound socket on some asyncio loops.
+                server_runtime["binding"] = True
+
+            self.lifespan.startup = guarded_startup
+            try:
+                await super().startup(sockets=sockets)
+            finally:
+                self.lifespan.startup = lifespan_startup
+                server_runtime["binding"] = False
+
+        async def shutdown(self, sockets=None):
+            await super().shutdown(sockets=sockets)
+            self._api_shutdown_complete = True
+
+        async def serve(self, sockets=None):
+            server_runtime["loop"] = asyncio.get_running_loop()
+            server_runtime["task"] = asyncio.current_task()
+            if stop_requested.is_set():
+                return
+            try:
+                await super().serve(sockets=sockets)
+            finally:
+                if stop_requested.is_set() and not getattr(self, "_api_shutdown_complete", False):
+                    # Close a listener that won the readiness/timeout race, or
+                    # gracefully release an app whose lifespan completed before
+                    # the guard prevented binding. Runner teardown also cancels
+                    # uvicorn's separate, unfinished lifespan task.
+                    if self.started:
+                        cleanup = self.shutdown(sockets=sockets)
+                    else:
+                        lifespan = getattr(self, "lifespan", None)
+                        startup_event = getattr(lifespan, "startup_event", None)
+                        cleanup = lifespan.shutdown() if startup_event is not None and startup_event.is_set() else None
+                    if cleanup is not None:
+                        try:
+                            await asyncio.wait_for(cleanup, timeout=1.0)
+                        except (asyncio.CancelledError, asyncio.TimeoutError):
+                            pass
+
+    uvicorn_server = StartupManagedServer(config=uvicorn_config)
     if not use_config_signal_handlers:
         install_signal_handlers = getattr(uvicorn_server, "install_signal_handlers", None)
         if isinstance(install_signal_handlers, bool):
@@ -1170,35 +1252,52 @@ def start_api_server(host: str, port: int, config: Config) -> None:
     def run_server():
         try:
             uvicorn_server.run()
-        except Exception as exc:  # noqa: BLE001 - surface startup issues to caller promptly
-            startup_error.append(exc)
+        except BaseException as exc:  # uvicorn also uses SystemExit for startup failure
+            if not (stop_requested.is_set() and isinstance(exc, asyncio.CancelledError)):
+                startup_error.append(exc)
 
-    thread = threading.Thread(target=run_server, daemon=True)
+    thread = threading.Thread(target=run_server, name="api-server", daemon=True)
     thread.start()
 
-    timeout_seconds = 3.0
-    wait_deadline = time.time() + timeout_seconds
-    while time.time() < wait_deadline:
-        if startup_error:
-            raise RuntimeError(
-                f"FastAPI server failed to start: {host}:{port}; {startup_error[0]}"
-            )
-        if uvicorn_server.started:
-            logger.info(f"FastAPI 服务已启动: http://{host}:{port}")
-            return
-        if not thread.is_alive():
-            break
-        time.sleep(0.05)
+    def stop_startup():
+        stop_requested.set()
+        uvicorn_server.should_exit = True
+        loop = server_runtime.get("loop")
+        task = server_runtime.get("task")
+        if loop is not None and task is not None and not task.done():
+            def cancel_unless_binding():
+                if not server_runtime.get("binding") and not task.done():
+                    task.cancel()
 
-    if startup_error:
-        raise RuntimeError(f"FastAPI server failed to start: {host}:{port}; {startup_error[0]}")
-    if uvicorn_server.started:
-        logger.info(f"FastAPI 服务已启动: http://{host}:{port}")
-        return
-    if not thread.is_alive():
-        raise RuntimeError(f"FastAPI 服务器启动后立即退出: {host}:{port}")
+            try:
+                loop.call_soon_threadsafe(cancel_unless_binding)
+            except RuntimeError:  # the server already closed its event loop
+                pass
+        thread.join(timeout=3.0)
+        if thread.is_alive():
+            logger.warning("FastAPI 启动已取消，后台线程仍在完成初始化或清理: %s:%s", host, port)
 
-    raise RuntimeError(f"FastAPI 服务在 {timeout_seconds:.1f}s 内未完成启动: {host}:{port}")
+    timeout_seconds = max(0.0, _startup_timeout_seconds)
+    wait_deadline = time.monotonic() + timeout_seconds
+    logger.info("正在等待 FastAPI 应用初始化完成（最多 %.1fs）: %s:%s", timeout_seconds, host, port)
+    try:
+        while True:
+            if startup_error:
+                raise RuntimeError(
+                    f"FastAPI server failed to start: {host}:{port}; {startup_error[0]}"
+                ) from startup_error[0]
+            if uvicorn_server.started:
+                logger.info(f"FastAPI 服务已启动: http://{host}:{port}")
+                return
+            if not thread.is_alive():
+                raise RuntimeError(f"FastAPI 服务器在应用就绪前退出: {host}:{port}")
+            remaining = wait_deadline - time.monotonic()
+            if remaining <= 0:
+                raise RuntimeError(f"FastAPI 服务在 {timeout_seconds:.1f}s 内未完成启动: {host}:{port}")
+            time.sleep(min(0.05, remaining))
+    except BaseException:
+        stop_startup()
+        raise
 
 
 def _is_truthy_env(var_name: str, default: str = "true") -> bool:

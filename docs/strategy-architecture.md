@@ -1,32 +1,23 @@
-# 策略中心前端架构
+# 策略定义与研究执行架构
 
 AI Stock 将交易策略视为第一对象。策略不是单一 Prompt 或独立 Agent，而是由多个 Agent Instance、数据授权、决策规则、风险边界、经验集合、版本和运行记录构成的可验证配置。
 
-## 当前页面与路由
+## 当前入口与历史边界
 
-- `/overview`：策略驾驶舱；展示待处理事项、策略状态和验证前置条件。
-- `/strategies`：策略模板与我的策略目录；模板需要复制为独立策略后再配置。
-- `/strategies/:strategyId`：单个策略工作台。
-- `/strategies/:strategyId/editor`：配置研究范围、输入数据、已发布 Agent 工作流和决策边界；不在此编辑 Agent 节点。
-- `/agents`：Agent 模板库与多 Agent 工作流编排；正式工作流版本可供策略引用。
-- `/data`：策略、回测和运行共享的数据来源与证据目录。
-- `/backtests`：StrategyVersion 回测中心；`/validation` 与 `/research` 作为兼容路由保留。
-- `/runs`、`/runs/:runId`：正式策略的自动选股研究批次和候选 Agent 运行只读回放入口；运行中心不提供独立的单标的执行入口。
-- `/news`：实时新闻输入查看入口。
+当前 `/overview` 是投研助理，`/screening` 是策略选股，`/trading` 是策略账户与模拟运行，`/runs`、`/runs/:runId` 展示任务与成果。方法、工具、数据源与专家由 `/capabilities/*` 管理。`/strategies/*`、`/strategy-editor`、`/backtests` 已跳转投研助理，`/agents` 跳转专家能力中心，`/data` 跳转数据能力中心；完整当前页面见 [网站功能与执行逻辑](website-functional-logic.md)。
 
-页面关系为 `Agent 中心 + 数据中心 → 策略中心 → 回测中心 → 运行中心`。侧边栏以用户任务为顺序，先显示策略工作台，再显示能力资产和验证运行。旧入口保留兼容跳转：`/` 到 `/overview`，`/simulation` 与 `/runs/preview` 到 `/runs`，`/strategy-editor` 到策略中心（不会再跳转到硬编码策略）。
+下文描述仍保留的策略定义、正式 Agent 图研究及其 API 兼容契约。编辑器交互是历史产品设计，不代表当前路由仍开放该编辑器。策略账户的历史回放、持续模拟成交与净值账本是另一执行路径，见 [策略验证与运行](strategy-portfolios.md)，不要将定义发布或研究批次视为已成交。
 
 ## 前端领域对象
 
-`apps/dsa-web/src/types/strategy.ts` 定义了 Strategy、StrategyVersion、AgentTemplate、AgentInstance、AgentConnection、Run、Evidence、DecisionProposal 和 CandidateExperience 的边界。`api/strategyWorkspace.ts` 是临时的前端 Adapter；它提供已整理的策略和 Agent 模板，不代表真实市场数据、收益或执行结果。
+`apps/dsa-web/src/types/strategy.ts` 定义策略与研究图领域对象；`apps/dsa-web/src/api/strategyWorkspace.ts` 调用现有后端接口。策略定义、发布、研究与持续控制分别由 `src/services/strategy_*` 服务持久化；模板元数据不代表真实市场收益或执行结果。
 
 ## 诚实状态
 
-数据源、策略持久化、运行时、模拟成交和验证指标尚未全部接入。相关页面必须显示“尚未连接”“暂无运行记录”或“未启用”，不得生成虚假新闻、模拟收益或真实交易指令。
+状态以对应服务的实际记录为准。没有来源、成果、运行或账户账本时显示缺失/失败，不能从保存配置推断模型执行成功，也不能从模型提案推断模拟成交。
 
-## 后端接口方向
+打包桌面端包含官方模板和内置可信 Python 内核的源文件及模块；上传的 Python 内核需要源码部署的独立解释器。冻结后端不充当通用 Python，执行上传内核返回 `STRATEGY_KERNEL_RUNTIME_UNSUPPORTED`，而不是以包已校验或版本已保存推断运行环境可执行。详见 [桌面打包](desktop-package.md)。
 
-后续后端应提供策略/版本 CRUD、模板复制、静态图校验、数据源与授权、运行/Agent Run 记录、证据追踪、验证实验、候选经验审核、模拟账本和风险决策等接口。所有 Run 应保存策略版本、Agent 快照、Prompt/模型版本、数据快照、Evidence ID、经验集版本与最终决策提案。
 ## 策略定义与版本发布闭环（已实现）
 
 `Strategy` 是可归档的策略身份；`StrategyVersion` 是完整定义。创建策略会在同一事务中创建一个 `DRAFT`。只有草稿可以修改；发布后版本变为 `PUBLISHED`、`immutable=true`，所有 Agent、连接、Prompt、风险规则和画布坐标均不可修改。
@@ -45,7 +36,7 @@ Agent 使用 `lineage_id` 作为跨版本稳定身份：从正式版本创建草
 
 草稿冲突会暂停自动保存。用户可比较浏览器本地草稿与服务器草稿、明确加载服务器版本，或保留本地内容；系统不会用旧 revision 强制覆盖服务器。版本差异以 lineage 匹配 Agent，并以分类列表展示 Agent、Prompt（哈希）、连接和策略策略项变化。
 
-### 本阶段未实现
+### 正式图研究与持续控制
 
 正式版本现在可发起“自动扫描研究”：先读取版本冻结的 `dataPermissionSnapshot`、`marketScope` 与 `screeningPolicy`，调用已连接的 K 线选股服务形成候选和输入快照，再为每个候选创建独立、可追溯的 Agent 图研究运行。新版本按 ANALYSIS、DECISION 执行，最后才执行只读复盘的 REFLECTION；旧正式版本中的 INPUT Agent 仍按原始冻结图兼容运行。最终展示的是决策 Agent 的研究提案。运行中心在没有可用 LLM 渠道时会明确阻止新批次并提示在设置中配置模型，避免把不可能产生分析或决策的批次伪装为成功。
 
@@ -53,11 +44,13 @@ Agent 使用 `lineage_id` 作为跨版本稳定身份：从正式版本创建草
 
 运行中心把已发布策略的研究执行分成两种明确模式：**运行一次**立即创建一批候选扫描与 Agent 研究；**持续运行**创建持久化控制记录，按用户选择的间隔重复创建新的研究批次。持续控制只有 `running`、`paused`、`terminated` 三种意图状态；暂停与终止会阻止下一轮，已经开始的批次会完成并保留可追溯记录。服务重启后会恢复仍为 `running` 的控制记录。该控制层不包含订单、风险放行、成交、持仓、账本、收益或自动交易能力。
 
+进程关闭先停止创建任务的轮询器，再停止所有工作区持续控制器。已开始的批次仍绑定原数据库完成；恢复后的下一轮及成员数据库重新打开后的执行必须等待同一控制的在途批次，不能产生重叠研究或写入另一用户数据库。数据库与 control ID 共同定义归属，不同工作区的同名 ID 互不阻塞。成员维护也会恢复持久化运行控制，并将中断的一次性批次明确记为失败。
+
 运行中并非只在最后写入结果：选股完成后，候选及其子运行会立即出现；每个 Agent 的 `queued`、`running`、`completed` 或 `failed` 状态会写回该子运行快照。运行中心在活动批次期间每 2.5 秒刷新，候选详情每 2 秒刷新，因此可以看到当前执行到的 Agent 和完成/失败原因，而无需猜测后台状态。
 
 “运行一次”使用进程内后台任务，不能跨服务重启恢复。应用启动时会把遗留的 `queued` / `running` 一次性批次明确标记为“服务重启导致中断”，用户可以重新提交；持续运行控制则仍会按其持久化状态恢复下一周期。
 
-定时调度、Evidence/DataSnapshot、结构化 DecisionProposal、Risk Engine/RiskDecision、模拟成交、账本、反思执行和经验检索仍未实现，也不会由此页面伪装为可用。
+正式图研究不会生成账户级订单审批、模拟成交或账户净值，也不提供完整经验检索闭环。共享工作区已有定时任务、数据快照和成果账本；策略账户已有独立模拟执行与每日账本，这些能力不能归为图研究批次的成交。
 
 ### 本轮交互收口
 

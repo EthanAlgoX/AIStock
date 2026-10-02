@@ -205,3 +205,11 @@ FRED_API_KEY=your_fred_api_key
 - Longbridge OpenAPI: https://open.longportapp.com/
 - Finnhub API: https://finnhub.io/docs/api
 - Alpha Vantage API: https://www.alphavantage.co/documentation/
+
+## 日线质量、实时值与截止日
+
+BaseFetcher 在指标计算和保存前校验必要日期/OHLCV：缺失或不可解析日期、必要字段缺失、非有限数、非正价格、负成交量和 high < low 会拒绝整批。自动路由继续下一来源；指定提供方保持原单源失败语义。适配器不再删除必要字段坏行或以 close 补造 open/high/low、以零补造缺失 volume。零成交量、可空的 amount/pct/turnover 仍兼容；交易所竞价收盘超出日内高低范围也保留现有口径，不将其擅自改写。
+
+TickFlow 日线缓存写入前使用相同校验；公共实时数值转换拒绝 NaN/Inf，TickFlow 复用该转换，统一报价的基本可用性检查也核对有限正价格，避免异常值阻断 fallback。Tushare 旧实时接口的 volume 已是股数，不再次除以 100，Pro 接口现有单位处理不变。
+
+history_loader 的数据库与网络查询共用缓冲起点和显式/冻结截止日；即使供应商忽略请求日期，也过滤越界返回，只有未来数据或缺少可核查日期时返回不可用。不迁移旧数据库，历史上已被上游删掉的坏行无法通过本次校验补回；这也不等于完成复权或完整交易日历验证。严格校验可能增加来源切换，失败应按日志排查而不是静默补造数据。

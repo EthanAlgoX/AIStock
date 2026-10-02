@@ -553,14 +553,17 @@ class BaseFetcher(ABC):
         处理：
         1. 确保日期列格式正确
         2. 数值类型转换
-        3. 去除空值行
+        3. 拒绝关键行情非法的批次，供管理器切换数据源
         4. 按日期排序
         """
         df = df.copy()
+        required_cols = ['date', 'open', 'high', 'low', 'close', 'volume']
+        missing = [col for col in required_cols if col not in df.columns]
+        if missing:
+            raise DataFetchError(f"[{self.name}] 日线缺少必要字段: {', '.join(missing)}")
         
         # 确保日期列为 datetime 类型
-        if 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'])
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')
         
         # 数值列类型转换
         numeric_cols = ['open', 'high', 'low', 'close', 'volume', 'amount', 'pct_chg']
@@ -568,8 +571,18 @@ class BaseFetcher(ABC):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
         
-        # 去除关键列为空的行
-        df = df.dropna(subset=['close', 'volume'])
+        # 不删除非法行后拼接两侧历史，否则技术窗口会跨过未知行情缺口。
+        prices = df[['open', 'high', 'low', 'close']]
+        invalid = (
+            df['date'].isna()
+            | df[['open', 'high', 'low', 'close', 'volume']].isna().any(axis=1)
+            | ~np.isfinite(df[['open', 'high', 'low', 'close', 'volume']]).all(axis=1)
+            | (prices <= 0).any(axis=1)
+            | (df['volume'] < 0)
+            | (df['high'] < df['low'])
+        )
+        if invalid.any():
+            raise DataFetchError(f"[{self.name}] 日线含 {int(invalid.sum())} 条非法日期或 OHLCV 数据")
         
         # 按日期升序排序
         df = df.sort_values('date', ascending=True).reset_index(drop=True)

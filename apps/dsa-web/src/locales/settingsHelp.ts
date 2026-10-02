@@ -176,6 +176,25 @@ const settingsHelpZhCN: SettingsHelpMap = {
     impact: ['影响模型选择、路由、fallback 和可用模型声明。'],
     notes: ['如果 YAML 配置失效，系统会回退到渠道或 legacy 配置路径。'],
   },
+  'settings.ai_model.TYPESAFE_API_KEY': {
+    title: 'JEV API Key',
+    summary: 'TypeSafe 的独立 API 密钥，用于 JEV 买入、卖出或不动分类。',
+    usage: '保存密钥后，在新建交易策略时显式选择 JEV；密钥只保存在服务端设置中。',
+    impact: ['不生成研究报告，也不加入普通 LLM 的备用模型链。'],
+    notes: ['接口失败会明确报错，不会自动切换到 LLM。'],
+  },
+  'settings.ai_model.TYPESAFE_BASE_URL': {
+    title: 'JEV API 服务地址',
+    summary: 'TypeSafe System One 的 HTTPS 服务根地址，可带 /v1 后缀。',
+    usage: '默认使用 https://api.typesafe.ai；仅在使用可信兼容服务时修改。',
+    notes: ['地址不能包含账号、密码、查询参数或片段。'],
+  },
+  'settings.ai_model.TYPESAFE_MODEL': {
+    title: 'JEV 模型',
+    summary: '指定新建 JEV 交易策略采用的模型别名或固定版本。',
+    usage: '默认 jev-latest；策略保存时会冻结模型名称。',
+    notes: ['修改全局配置不会改写已有策略的模型；需要复制或新建策略。'],
+  },
   'settings.ai_model.LLM_TEMPERATURE': {
     title: 'Temperature',
     summary: '控制模型输出随机性。',
@@ -1445,6 +1464,25 @@ const settingsHelpEnUS: SettingsHelpMap = {
     valueNotes: ['A valid model_list has higher priority than channels and legacy keys.', 'The Web channel editor does not edit the YAML file.'],
     impact: ['Affects model routing, fallbacks, and available model declarations.'],
     notes: ['If the YAML cannot be parsed, the system falls back to channels or legacy configuration.'],
+  },
+  'settings.ai_model.TYPESAFE_API_KEY': {
+    title: 'JEV API Key',
+    summary: 'A separate TypeSafe credential for JEV buy, sell, or hold classification.',
+    usage: 'Save the key and explicitly select JEV when creating a trading strategy. The key stays in server settings.',
+    impact: ['Does not generate research reports or join the regular LLM fallback chain.'],
+    notes: ['API failures are reported without automatically switching to an LLM.'],
+  },
+  'settings.ai_model.TYPESAFE_BASE_URL': {
+    title: 'JEV API Base URL',
+    summary: 'The HTTPS service root for TypeSafe System One, optionally ending in /v1.',
+    usage: 'Keep https://api.typesafe.ai unless using a trusted compatible service.',
+    notes: ['The URL must not contain credentials, query parameters, or a fragment.'],
+  },
+  'settings.ai_model.TYPESAFE_MODEL': {
+    title: 'JEV Model',
+    summary: 'The model alias or fixed version used by newly created JEV trading strategies.',
+    usage: 'Defaults to jev-latest. Saving a strategy freezes its model name.',
+    notes: ['Changing this global setting does not rewrite existing strategies. Copy or create a strategy to use another model.'],
   },
   'settings.ai_model.LLM_TEMPERATURE': {
     title: 'Temperature',

@@ -4046,6 +4046,20 @@ class GeminiAnalyzer:
 {chr(10).join('- ' + note for note in consistency_notes)}
 """
         
+            technical_evidence = {
+                key: trend[key]
+                for key in ("indicator_availability", "analysis_warnings", "rule_events",
+                            "analysis_date", "analysis_source", "valid_bars")
+                if trend.get(key)
+            }
+            if technical_evidence:
+                prompt += (
+                    "\n### 技术证据与预热状态\n"
+                    "未就绪指标不可当作中性或看多证据；规则事件仅描述量价观察，"
+                    "不改变系统评分，也不证明新闻导致价格变化。\n"
+                    + json.dumps(technical_evidence, ensure_ascii=False) + "\n"
+                )
+
         # 添加昨日对比数据
         if 'yesterday' in context:
             volume_change = context.get('volume_change_ratio', 'N/A')

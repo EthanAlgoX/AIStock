@@ -23,7 +23,7 @@ def _build_mock_ticker(
     info: dict,
     income_stmt: pd.DataFrame | None = None,
     cashflow: pd.DataFrame | None = None,
-    dividends: pd.Series | None = None,
+    dividends: pd.Series | pd.DataFrame | None = None,
 ) -> MagicMock:
     ticker = MagicMock()
     ticker.get_info.return_value = info
@@ -32,6 +32,22 @@ def _build_mock_ticker(
     ticker.quarterly_cashflow = cashflow if cashflow is not None else pd.DataFrame()
     ticker.dividends = dividends if dividends is not None else pd.Series(dtype="float64")
     return ticker
+
+
+def _fixed_pandas_clock(as_of: str):
+    """Freeze only the adapter clock, preserving the real pandas date operations."""
+    class FixedTimestamp(pd.Timestamp):
+        @classmethod
+        def now(cls, tz=None):
+            return pd.Timestamp(as_of, tz=tz)
+
+    class FixedPandas:
+        Timestamp = FixedTimestamp
+
+        def __getattr__(self, name):
+            return getattr(pd, name)
+
+    return FixedPandas()
 
 
 class TestYfinanceSymbolConversion(unittest.TestCase):
@@ -52,6 +68,14 @@ class TestYfinanceSymbolConversion(unittest.TestCase):
 
 
 class TestYfinanceFundamentalAdapter(unittest.TestCase):
+    def setUp(self) -> None:
+        clock = patch(
+            "data_provider.yfinance_fundamental_adapter.pd",
+            _fixed_pandas_clock("2026-06-01 12:00:00"),
+        )
+        clock.start()
+        self.addCleanup(clock.stop)
+
     def test_populates_growth_earnings_dividend_boards_for_us_stock(self) -> None:
         info = {
             "financialCurrency": "USD",
@@ -161,6 +185,23 @@ class TestYfinanceFundamentalAdapter(unittest.TestCase):
         self.assertEqual(len(div["events"]), 4)
         # summed TTM (0.26*3 + 0.27 = 1.05), NOT the trailingAnnualDividendRate 99.0 fallback
         self.assertAlmostEqual(div["ttm_cash_dividend_per_share"], 1.05, places=2)
+
+    def test_ttm_window_includes_cutoff_date_and_excludes_previous_day(self) -> None:
+        for tz in (None, "America/New_York", "Asia/Hong_Kong"):
+            with self.subTest(tz=tz):
+                dividends = pd.Series(
+                    [9.0, 0.25, 0.5],
+                    index=pd.DatetimeIndex(["2025-05-31", "2025-06-01", "2026-05-31"], tz=tz),
+                    name="Dividends",
+                )
+                ticker = _build_mock_ticker({"currency": "USD", "currentPrice": 100}, dividends=dividends)
+                with patch("yfinance.Ticker", return_value=ticker):
+                    bundle = YfinanceFundamentalAdapter().get_fundamental_bundle("AAPL")
+                dividend = bundle["earnings"]["dividend"]
+                self.assertEqual(dividend["ttm_event_count"], 2)
+                self.assertEqual(len(dividend["events"]), 3)
+                self.assertAlmostEqual(dividend["ttm_cash_dividend_per_share"], 0.75)
+                self.assertAlmostEqual(dividend["ttm_dividend_yield_pct"], 0.75)
 
     def test_falls_back_to_info_when_statements_only_have_4_quarters(self) -> None:
         """yfinance default is 4 quarters → statement-derived YoY refuses to use QoQ.

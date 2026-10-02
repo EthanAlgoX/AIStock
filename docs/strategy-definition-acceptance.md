@@ -1,29 +1,26 @@
-# 策略定义验收
+# 策略定义与项目验收
 
-策略定义与版本发布的验收不覆盖 Run、Evidence、Risk 或模拟账本。它包含策略图的连接规则、字段映射、草稿并发控制、发布不可变性、版本差异和本地冲突分叉。
+当前可执行入口是 `.github/workflows/strategy-definition-acceptance.yml` 的 `workflow_dispatch`，而不是已删除的专用验收脚本。该工作流复用既有门禁；策略定义与版本发布的行为由后端测试覆盖，当前网站使用投研助理、选股、模拟账户及任务成果入口。
 
-## 可重复门禁
+## 工作流实际步骤
 
-在已经按 `.github/requirements-ci.txt` 建好 Python 测试环境后运行：
+1. 安装现有 Python/Web 依赖及 Chromium，执行 `scripts/check_ai_assets.py`。
+2. 执行 `scripts/ci_gate.sh`：语法、关键 flake8、完整离线 pytest。
+3. 完整 Web 单元测试（两 worker）、lint 和 build。
+4. `DSA_STRATEGY_E2E=1` 启动隔离 API、Vite 与 SQLite，用随机凭证执行真实认证/页面 smoke，单 worker、零重试。
+5. 使用 `docker/Dockerfile` 构建镜像，在镜像内导入 API、数据、Agent 依赖与选股等关键模块。
+6. 无论成功失败，都上传 `.artifacts/strategy-definition-acceptance/` 的日志及浏览器输出。所有带 `tee` 的步骤启用 `pipefail`，不掩盖失败退出码。
 
-```bash
-.venv/bin/python scripts/verify_strategy_definition_acceptance.py --full
-```
+流程不上传隔离数据库、凭证文件或生产配置；验收截图及录屏属于 Actions artifact，不应合入仓库。容器阶段只检查构建与运行时导入，**没有**启动 Compose 或执行容器 HTTP 生命周期 smoke，不能宣称这部分已覆盖。
 
-脚本为 fail-open Intelligence 测试建立 30 个独立 pytest 进程，接着执行该测试文件、两次完整 pytest、Web 测试、lint、build 和 flake8 gate。认证 Smoke 在同一隔离服务中重复 10 次，并额外执行 3 次完整冷启动；三条策略浏览器场景则在独立 SQLite 上连续运行两次。每一步均写入 `.artifacts/strategy-definition-acceptance/<UTC timestamp>/`，并由 `summary.json` 依据进程退出码和 JUnit XML 判定；任何失败都会返回非零。
+## 本机复现与契约
 
-可按阶段诊断：`--stage e2e-auth`、`--stage e2e`、`--stage frontend`、`--stage python` 或 `--stage docker`。`--full` 会运行全部阶段；Docker 阶段会实际 build、Compose 启动、容器内健康检查和 HTTP lifecycle smoke。正式浏览器验收使用隔离 `DATABASE_PATH`、Chromium 和 `retries=0`，不能连接开发数据库或生产凭证。每次运行均生成 `summary.json` 与 `latest.json`，JUnit 与子进程退出码共同决定状态。
+具体命令见 [测试说明](testing.md)。现有 `scripts/smoke_strategy_definition.py <隔离 API 地址>` 检查定义/发布接口，创建 `smoke-` 数据但不执行模型或交易。定义测试覆盖图连接、字段映射、草稿 revision 冲突、发布不可变性、幂等与版本差异。持续研究、计划领取、私有工作区恢复和模拟账本另由对应服务测试覆盖，不能从“发布成功”推断已执行或已成交。
 
-当前闭环只覆盖策略定义、草稿、版本发布、版本差异与本地冲突分叉；不覆盖 Run、Evidence、Risk 或模拟账本 Runtime。
+浏览器配置用当前页面的 role/label 定位，历史策略编辑器路由已兼容跳转。报告 smoke 使用隔离库中的已保存报告，不调用真实 LLM 或通知渠道。测试环境可用 `DSA_PLAYWRIGHT_CHANNEL=chrome` 选择已安装 Chrome，CI 默认 Chromium。
 
-## 当前本机完整验收证据
+## 通过条件与缺口
 
-正式完整验收已于 `20260813T160814Z` 完成，摘要为 `status: passed`：fail-open 为 30/30，Intelligence 文件为 25/25，两次完整离线 pytest 均为 6262 个 JUnit tests、0 failure、0 error；前端专项为 7 个文件、65 个断言，完整前端为 1161 passed、2 个既有 skipped；认证 Smoke 为同服务 10/10 与冷启动 3/3；隔离 Chromium 的三条核心场景连续两轮均为 3 passed、`retries=0`；Docker 镜像构建、独立 Compose、容器健康检查与容器内策略定义 smoke 均为退出码 0。
+每次交付记录实际执行命令、结果、环境与未验证项。历史测试数量、旧脚本的 `summary.json`、删除页面的截图均不是当前 head 的验收证据。不得以重试成功替代修复确定性问题，也不得把缺失 Docker、Windows 打包或供应商凭证列为通过。
 
-本次核心 E2E 的一次失败揭示了测试编排竞态：连续点击模板库时，第四次点击可能发生在前一个 React 状态提交前，导致新增节点被旧闭包覆盖。`strategy-editor-flow.spec.ts` 现在在每次真实“添加模板”后等待生产画布节点数增长，再发起下一次用户点击；该修正后重新获得两轮零失败。它不改变策略编辑器业务规则，也没有引入重试或固定等待。
-
-Docker Desktop 自带 CLI 位于应用资源目录但不在本机默认 `PATH`；验收时以临时 PATH 使用该 CLI，不修改全局环境。验收脚本的 Compose 模型已改为完全独立：不复用开发 Compose 的固定容器名、宿主 8000 端口或开发 volumes。`.github/workflows/strategy-definition-acceptance.yml` 已提供 `workflow_dispatch` 门禁并上传产物；本地仅完成 YAML 语法检查，尚未触发或宣称 GitHub Hosted Actions 已通过。
-
-## 前端可访问定位
-
-策略编辑器提供 `agent-node-*`、`agent-input-handle-*`、`agent-output-handle-*`、`agent-connection-*`、`connection-config-panel`、`field-mapping-editor`、`field-mapping-row-*`、`strategy-configuration-panel`、`save-status` 和 `revision-conflict-dialog`。浏览器测试应优先使用 role、label 和这些稳定标识，而非 CSS 类名。
+该手动工作流不自动发布、推送、打 tag 或执行实盘；真实模型/SMTP、全部行情源、公网 HTTPS/代理与备份恢复需在实际部署环境单独验证。执行语义见 [策略定义与研究架构](strategy-architecture.md) 和 [网站功能与执行逻辑](website-functional-logic.md)。

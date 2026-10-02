@@ -21,6 +21,7 @@ import {
   useUiLanguage,
 } from "./contexts/UiLanguageContext";
 import { useAgentChatStore } from "./stores/agentChatStore";
+import { getLoginRedirect } from './utils/loginRedirect';
 import "./App.css";
 
 const SettingsPage = lazy(() => import("./pages/PlatformSettingsPage"));
@@ -119,7 +120,7 @@ const AppContent: React.FC = () => {
   }
 
   if (location.pathname === "/login") {
-    return <Navigate to="/overview" replace />;
+    return <Navigate to={getLoginRedirect(new URLSearchParams(location.search).get('redirect'))} replace />;
   }
 
   return (

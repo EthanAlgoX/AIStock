@@ -72,6 +72,8 @@ class PipelineAnalysisArtifacts:
     news_result_count: Optional[int]
     metadata: Dict[str, Any]
     portfolio_context: Optional[Dict[str, Any]] = None
+    news_evidence_context: Optional[str] = None
+    social_context: Optional[str] = None
 
 
 class AnalysisContextBuilder:
@@ -94,6 +96,19 @@ class AnalysisContextBuilder:
         blocks["chip"] = _build_chip_block(artifacts)
         blocks["fundamentals"] = _build_fundamentals_block(artifacts)
         blocks["news"] = _build_news_block(artifacts)
+        social_content = (artifacts.social_context or "").strip()
+        if social_content:
+            blocks["social"] = AnalysisContextBlock(
+                status=ContextFieldStatus.AVAILABLE,
+                items={"content": AnalysisContextItem(
+                    status=ContextFieldStatus.AVAILABLE,
+                    value=social_content,
+                    source="social_sentiment_service",
+                )},
+                source="social_sentiment_service",
+                warnings=["social_sentiment_unverified"],
+                metadata={"auxiliary": True, "quality_weighted": False},
+            )
         portfolio_block = _build_portfolio_block(artifacts)
         if portfolio_block is not None:
             blocks["portfolio"] = portfolio_block
@@ -265,15 +280,30 @@ def _build_technical_block(
         artifacts.enhanced_context
     )
     warnings = [_REALTIME_OVERLAY_WARNING] if has_realtime_overlay else []
+    trend_warnings = trend.get("analysis_warnings")
+    if isinstance(trend_warnings, list) and any(
+        isinstance(item, str) and item.strip() for item in trend_warnings
+    ):
+        warnings.append("technical_input_limited")
+    availability = trend.get("indicator_availability")
+    incomplete_indicators = isinstance(availability, Mapping) and any(
+        ready is False for ready in availability.values()
+    )
+    insufficient_history = isinstance(availability, Mapping) and availability.get("ma20") is False
+    source = _source_text(trend.get("analysis_source"))
     block_status = (
+        ContextFieldStatus.MISSING
+        if insufficient_history else
         ContextFieldStatus.PARTIAL
-        if has_realtime_overlay
+        if has_realtime_overlay or incomplete_indicators
         else ContextFieldStatus.AVAILABLE
     )
     items: Dict[str, AnalysisContextItem] = {
         "trend_result": AnalysisContextItem(
-            status=ContextFieldStatus.AVAILABLE,
+            status=ContextFieldStatus.MISSING if insufficient_history else ContextFieldStatus.AVAILABLE,
             value=trend,
+            source=source,
+            missing_reason="technical_history_insufficient" if insufficient_history else None,
             warnings=list(warnings),
         )
     }
@@ -288,6 +318,7 @@ def _build_technical_block(
         AnalysisContextBlock(
             status=block_status,
             items=items,
+            source=source,
             warnings=warnings,
             metadata={
                 key: value
@@ -420,31 +451,56 @@ def _build_fundamentals_block(artifacts: PipelineAnalysisArtifacts) -> AnalysisC
 
 
 def _build_news_block(artifacts: PipelineAnalysisArtifacts) -> AnalysisContextBlock:
-    content = (artifacts.news_context or "").strip()
+    separated = bool((artifacts.metadata or {}).get("news_channels_separated"))
+    content = (
+        artifacts.news_evidence_context if separated else artifacts.news_context
+    ) or ""
+    content = content.strip()
     metadata: Dict[str, Any] = {}
     if artifacts.news_result_count is not None:
         metadata["news_result_count"] = artifacts.news_result_count
+    search_status = (artifacts.metadata or {}).get("news_search_status")
+    if search_status:
+        metadata["search_status"] = search_status
+    source = (artifacts.metadata or {}).get("news_sources") or None
+    # A formatted empty-search report is diagnostic text, not news evidence.
+    if not separated and artifacts.news_result_count == 0:
+        content = ""
 
     if not content:
+        status = (
+            ContextFieldStatus.FETCH_FAILED
+            if search_status == "fetch_failed"
+            else ContextFieldStatus.MISSING
+        )
         return AnalysisContextBlock(
-            status=ContextFieldStatus.MISSING,
+            status=status,
             items={
                 "content": AnalysisContextItem(
-                    status=ContextFieldStatus.MISSING,
-                    missing_reason="news_context_missing",
+                    status=status,
+                    missing_reason="news_search_failed" if status == ContextFieldStatus.FETCH_FAILED
+                    else "news_context_missing",
                 )
             },
             metadata=metadata,
         )
 
+    status = (
+        ContextFieldStatus.PARTIAL
+        if search_status in {"partial", "fetch_failed"}
+        else ContextFieldStatus.AVAILABLE
+    )
     return AnalysisContextBlock(
-        status=ContextFieldStatus.AVAILABLE,
+        status=status,
         items={
             "content": AnalysisContextItem(
-                status=ContextFieldStatus.AVAILABLE,
+                status=status,
                 value=content,
+                source=source,
             )
         },
+        source=source,
+        warnings=["news_search_partial"] if status == ContextFieldStatus.PARTIAL else [],
         metadata=metadata,
     )
 

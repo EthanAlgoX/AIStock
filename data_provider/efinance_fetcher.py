@@ -596,15 +596,7 @@ class EfinanceFetcher(BaseFetcher):
         # 重命名列
         df = df.rename(columns=column_mapping)
         
-        # Fallback: if OHLC columns are missing (e.g. very old data path), fill from close
-        if 'close' in df.columns and 'open' not in df.columns:
-            df['open'] = df['close']
-            df['high'] = df['close']
-            df['low'] = df['close']
-            
-        # Fill volume and amount if missing
-        if 'volume' not in df.columns:
-            df['volume'] = 0
+        # 必要 OHLCV 缺失时由 BaseFetcher 拒绝并切换来源，不补造行情。
         if 'amount' not in df.columns:
             df['amount'] = 0
 

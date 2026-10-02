@@ -62,8 +62,8 @@ class OfficialBarsFetcher(BaseFetcher):
         for key in required[1:] + ['amount']:
             if key in frame:
                 frame[key] = frame[key].map(number)
-        frame = frame.dropna(subset=required)
-        frame = frame[(frame['close'] > 0) & (frame['open'] > 0) & (frame['volume'] >= 0)]
+        if frame[required].isna().any().any() or (frame['close'] <= 0).any() or (frame['open'] <= 0).any() or (frame['volume'] < 0).any():
+            raise DataFetchError('Invalid official daily bars')
         if frame.empty or ((frame['high'] < frame[['open', 'close', 'low']].max(axis=1)) | (frame['low'] > frame[['open', 'close']].min(axis=1)) | (frame['low'] <= 0)).any() or frame['date'].duplicated().any():
             raise DataFetchError('Invalid or duplicate official daily bars')
         frame = frame.sort_values('date').reset_index(drop=True)

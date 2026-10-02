@@ -36,6 +36,66 @@ const QUALITY_STYLE = {
   poor: { variant: 'danger', tone: 'danger' },
 } as const satisfies Record<string, { variant: BadgeVariant; tone: StatusTone }>;
 
+type EvidenceWarning = 'social_sentiment_unverified' | 'news_search_partial' | 'technical_input_limited';
+
+const EVIDENCE_COPY: Record<ReportLanguage, {
+  social: string;
+  newsSearchFailed: string;
+  technicalHistoryInsufficient: string;
+  warnings: Record<EvidenceWarning, string>;
+}> = {
+  zh: {
+    social: '社交舆情',
+    newsSearchFailed: '新闻检索失败，未取得可核实新闻；这不代表不存在利空。请检查搜索配置、网络或限流后重新分析',
+    technicalHistoryInsufficient: '连续有效日线不足，无法完成趋势分析；请补齐日线历史并重新分析',
+    warnings: {
+      social_sentiment_unverified: '社交帖子未经核实，热度和投票不能作为利好事实或方向性置信依据',
+      news_search_partial: '部分新闻检索失败，已保留可用来源；消息面风险排查范围受限',
+      technical_input_limited: '技术输入受历史样本、数据连续性等限制；详细原因见技术分析',
+    },
+  },
+  en: {
+    social: 'social sentiment',
+    newsSearchFailed: 'News retrieval failed and no verifiable news was obtained; this does not establish the absence of adverse news. Check search configuration, network, or rate limits and rerun',
+    technicalHistoryInsufficient: 'There are too few consecutive valid daily bars to complete trend analysis; load enough daily history and rerun',
+    warnings: {
+      social_sentiment_unverified: 'Social posts are unverified; buzz and votes do not establish bullish facts or directional confidence',
+      news_search_partial: 'Some news searches failed; available sources were retained, but news-risk coverage is limited',
+      technical_input_limited: 'Technical inputs are limited by historical sample coverage, data continuity, or related issues; see the technical analysis for details',
+    },
+  },
+  ko: {
+    social: '소셜 심리',
+    newsSearchFailed: '뉴스 검색에 실패하여 검증 가능한 뉴스를 확보하지 못했습니다. 악재가 없다는 뜻은 아닙니다. 검색 설정, 네트워크 또는 제한을 확인한 후 다시 분석하세요',
+    technicalHistoryInsufficient: '연속된 유효 일봉이 부족하여 추세 분석을 완료할 수 없습니다. 일봉 이력을 확보한 후 다시 분석하세요',
+    warnings: {
+      social_sentiment_unverified: '소셜 게시물은 검증되지 않았습니다. 관심도와 투표는 호재나 시장 방향에 대한 신뢰도의 근거가 아닙니다',
+      news_search_partial: '일부 뉴스 검색에 실패했습니다. 확보된 출처는 유지되지만 뉴스 위험 점검 범위가 제한됩니다',
+      technical_input_limited: '과거 표본 범위, 데이터 연속성 등의 문제로 기술 분석 입력이 제한됩니다. 자세한 원인은 기술 분석을 확인하세요',
+    },
+  },
+  ja: {
+    social: 'ソーシャルセンチメント',
+    newsSearchFailed: 'ニュース検索に失敗し、検証可能なニュースを取得できませんでした。悪材料がないとは判断できません。検索設定、接続状況やアクセス制限を確認し、再分析してください',
+    technicalHistoryInsufficient: '連続した有効な日足データが不足しているため、トレンド分析を完了できません。日足の履歴を補って再分析してください',
+    warnings: {
+      social_sentiment_unverified: '投稿内容は未検証です。注目度や投票数は、確認済みの好材料や相場方向の確信度を示しません',
+      news_search_partial: '一部のニュース検索に失敗しました。取得できた情報源は保持されていますが、ニュースリスクの確認範囲は限られます',
+      technical_input_limited: '技術分析の入力は、履歴サンプルの範囲やデータの連続性などに制限があります。詳細は技術分析を確認してください',
+    },
+  },
+  'zh-TW': {
+    social: '社群情緒',
+    newsSearchFailed: '新聞檢索失敗，未取得可核實新聞；這不代表不存在利空。請檢查搜尋設定、網路或流量限制後重新分析',
+    technicalHistoryInsufficient: '連續有效日線不足，無法完成趨勢分析；請補齊日線歷史並重新分析',
+    warnings: {
+      social_sentiment_unverified: '社群貼文未經核實，熱度與投票不能作為利多事實或方向性信心依據',
+      news_search_partial: '部分新聞檢索失敗，已保留可用來源；消息面風險排查範圍受限',
+      technical_input_limited: '技術輸入受歷史樣本、資料連續性等限制；詳細原因請見技術分析',
+    },
+  },
+};
+
 const BLOCK_LABELS: Record<ReportLanguage, Record<string, string>> = withUiLanguages({
   zh: {
     quote: '行情',
@@ -289,7 +349,7 @@ const formatLimitation = (
     return value;
   }
 
-  const label = BLOCK_LABELS[language][key] || key;
+  const label = key === 'social' ? EVIDENCE_COPY[language].social : BLOCK_LABELS[language][key] || key;
   const statusLabel = (text.status as Record<string, string>)[status] || status;
   return language === 'zh' ? `${label}：${statusLabel}` : `${label}: ${statusLabel}`;
 };
@@ -299,10 +359,23 @@ const formatMissingReason = (
   language: ReportLanguage,
   status: AnalysisContextPackBlockStatus,
 ): string => {
-  const detail = MISSING_REASON_LABELS[language][reason]
+  const evidenceDetail = reason === 'news_search_failed'
+    ? EVIDENCE_COPY[language].newsSearchFailed
+    : reason === 'technical_history_insufficient'
+      ? EVIDENCE_COPY[language].technicalHistoryInsufficient
+      : undefined;
+  const detail = evidenceDetail || MISSING_REASON_LABELS[language][reason]
     || STATUS_FALLBACK_GUIDANCE[language][status]
     || UNKNOWN_REASON_DETAILS[language];
   return `${detail} (${TEXT[language].diagnosticCode}: ${reason})`;
+};
+
+const formatWarning = (warning: string, language: ReportLanguage): string => {
+  if (warning === 'social_sentiment_unverified' || warning === 'news_search_partial'
+    || warning === 'technical_input_limited') {
+    return `${EVIDENCE_COPY[language].warnings[warning]} (${TEXT[language].diagnosticCode}: ${warning})`;
+  }
+  return warning;
 };
 
 export const AnalysisContextSummary: React.FC<AnalysisContextSummaryProps> = ({
@@ -433,7 +506,7 @@ export const AnalysisContextSummary: React.FC<AnalysisContextSummaryProps> = ({
           {overview.warnings?.length ? (
             <div className="mb-3 home-subpanel p-3 text-xs leading-5 text-warning">
               <span className="font-medium">{text.warnings}: </span>
-              {overview.warnings.join(', ')}
+              {overview.warnings.map((warning) => formatWarning(warning, reportLanguage)).join(', ')}
             </div>
           ) : null}
 
@@ -454,7 +527,9 @@ export const AnalysisContextSummary: React.FC<AnalysisContextSummaryProps> = ({
                 <div key={block.key} className="home-subpanel p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{block.label}</p>
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {block.key === 'social' ? EVIDENCE_COPY[reportLanguage].social : block.label}
+                      </p>
                       <p className="mt-1 truncate text-xs text-secondary-text">
                         {text.source}: {block.source || text.sourceUnavailable}
                       </p>
@@ -467,7 +542,7 @@ export const AnalysisContextSummary: React.FC<AnalysisContextSummaryProps> = ({
 
                   {block.warnings?.length ? (
                     <p className="mt-2 text-xs leading-5 text-warning">
-                      {text.warnings}: {block.warnings.join(', ')}
+                      {text.warnings}: {block.warnings.map((warning) => formatWarning(warning, reportLanguage)).join(', ')}
                     </p>
                   ) : null}
                   {detail ? (

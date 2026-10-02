@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import re
+import shlex
 from pathlib import Path
 
 import yaml
@@ -75,8 +77,27 @@ def test_futu_sdk_is_collected_and_probed_in_desktop_backends() -> None:
 
     assert '"${PYTHON_BIN}" -c "import futu"' in macos_script
     assert 'cmd+=("--collect-all" "futu")' in macos_script
-    assert "for module in src.services.screening.pipeline futu orjson" in macos_script
+    macos_probe = re.search(
+        r'^[ \t]*for module in (?P<modules>[^\n]+); do\s+'
+        r'if DSA_PACKAGED_IMPORT_PROBE="\$\{module\}" "\$\{packaged_entry\}"',
+        macos_script,
+        flags=re.MULTILINE,
+    )
+    assert macos_probe is not None
+    assert {"src.services.screening.pipeline", "futu", "orjson"}.issubset(
+        shlex.split(macos_probe.group("modules"))
+    )
 
     assert 'Test-PythonCode -Python $pythonBin -Code "import futu"' in windows_script
     assert "'--collect-all', 'futu'" in windows_script
-    assert "@('src.services.screening.pipeline', 'futu', 'orjson')" in windows_script
+    windows_probe = re.search(
+        r'^[ \t]*foreach \(\$module in @\((?P<modules>[^)]*)\)\) \{\s+'
+        r'\$env:DSA_PACKAGED_IMPORT_PROBE = \$module\s+'
+        r'\$probeProcess = Start-Process -FilePath \$packagedEntry -Wait -PassThru',
+        windows_script,
+        flags=re.MULTILINE,
+    )
+    assert windows_probe is not None
+    assert {"src.services.screening.pipeline", "futu", "orjson"}.issubset(
+        re.findall(r"'([^']+)'", windows_probe.group("modules"))
+    )

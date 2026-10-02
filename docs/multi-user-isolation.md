@@ -93,3 +93,9 @@ Personal settings accept official OpenAI, DeepSeek, Anthropic and Google Gemini 
 Personal calls have a `personal:<UTC date>` usage source and do not debit personal or global platform budgets. Credentials are stored in `workspaces/<user ID>/.model-credentials.json` using private atomic writes (0700 directory, 0600 file), never returned in API responses or shared across accounts. They are **not encrypted**; server/backup administrators can read them. Include the private data directory in protected backups. Removing settings affects future calls, not requests already sent.
 
 The member-only `GET/PUT/DELETE /api/v1/workspace/model-settings` API accepts `{provider, model, apiKey}` and returns only provider/model/configured/providers. Auth status adds registration mode `open`; deploy client and server together. Reverting the image restores invitation-only signup; unfunded accounts remain unfunded and the older code ignores their personal credentials. Preserve credentials and usage records when rolling back.
+
+## 在途请求与持续控制 / In-flight responses and controllers
+
+注销、切换身份或重新认证时，前端身份版本只递增、不复用。旧认证响应、聊天历史、任务提交/停止、报告读取、关注股删除和已关闭 SSE 连接不能回填新身份状态；清空界面不代表取消已发送的模型调用。管理员与成员的持续研究控制器均参与正常 ASGI 生命周期清理和重启恢复，工作者绑定原数据库，成员库重开仍等待同库同控制的在途批次。CLI／桌面终止进程可能截断批次，由下次启动记录中断并恢复未来周期。
+
+Identity revisions remain monotonic across logout, switching users and reauthentication. Old auth/history/task/report/delete responses and closed SSE events cannot populate the new user's state; clearing a client does not cancel dispatched model calls. Owner and member continuous research controllers participate in normal ASGI lifespan cleanup and restart recovery, retain the original database, and wait for in-flight work when the same database/control is reopened. CLI/desktop process termination can interrupt a batch; the next startup records that interruption and resumes future cycles.

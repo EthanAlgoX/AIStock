@@ -1,6 +1,6 @@
 # 策略定义闭环验收 Loop Prompt
 
-将以下内容直接交给当前代码库的开发 Agent。
+> 历史规划存档：下面 Prompt 对应已删除的专用验收脚本和旧策略编辑器，不是当前执行指令。不要据此恢复旧页面、运行已不存在的脚本或沿用旧结果。当前命令和覆盖边界以 [策略定义验收](strategy-definition-acceptance.md) 与 [测试说明](testing.md) 为准。
 
 ```text
 你是一名资深 FastAPI、SQLAlchemy、React/TypeScript、Playwright、测试基础设施和 CI 工程师。请继续在当前 AI Stock 代码库中直接实施。

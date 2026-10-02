@@ -195,6 +195,28 @@ class TestLLMUsageHMACFieldsRegistered(unittest.TestCase):
         self.assertEqual(field["help_key"], "settings.ai_model.LLM_USAGE_HMAC_KEY_VERSION")
 
 
+class TestTypeSafeHelpMetadata(unittest.TestCase):
+    def test_decision_settings_expose_help_without_changing_model_routing(self):
+        fields = {
+            field['key']: field
+            for category in build_schema_response()['categories']
+            for field in category['fields']
+        }
+        for key in ('TYPESAFE_API_KEY', 'TYPESAFE_BASE_URL', 'TYPESAFE_MODEL'):
+            with self.subTest(key=key):
+                field = fields[key]
+                self.assertEqual(field['category'], 'ai_model')
+                self.assertEqual(field['help_key'], f'settings.ai_model.{key}')
+                self.assertTrue(field['examples'][0].startswith(f'{key}='))
+                self.assertIn('docs/jev-trading-decisions.md', field['docs'][0]['href'])
+        self.assertTrue(fields['TYPESAFE_API_KEY']['is_sensitive'])
+        self.assertEqual(fields['TYPESAFE_API_KEY']['ui_control'], 'password')
+        self.assertIn('secret_value', fields['TYPESAFE_API_KEY']['warning_codes'])
+        self.assertIn('trading decisions only', fields['TYPESAFE_API_KEY']['description'])
+        self.assertEqual(fields['TYPESAFE_BASE_URL']['default_value'], 'https://api.typesafe.ai')
+        self.assertEqual(fields['TYPESAFE_MODEL']['default_value'], 'jev-latest')
+
+
 class TestGenerationBackendFieldsRegistered(unittest.TestCase):
     def test_analysis_backend_fields_are_ai_model_selects(self):
         expected = {

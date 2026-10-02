@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib
 import json
 import os
-import resource
 import subprocess
 import sys
 import tempfile
@@ -228,6 +227,12 @@ class StrategyKernelExecutorService:
         from src.services.member_service import current_member
         if current_member():
             raise StrategyKernelExecutionError('ADMIN_REQUIRED', 'Uploaded executable packages require administrator access.', 403)
+        if getattr(sys, "frozen", False):
+            raise StrategyKernelExecutionError(
+                "STRATEGY_KERNEL_RUNTIME_UNSUPPORTED",
+                "打包桌面端暂不支持执行上传的 Python 策略内核，请使用源码部署的独立 Python 运行环境。",
+                409,
+            )
         archive_path = self._archive_path(str(package.get("sha256") or ""))
         if not archive_path.exists():
             raise StrategyKernelExecutionError("STRATEGY_KERNEL_ARCHIVE_MISSING", "策略内核归档不存在。", 409)
@@ -263,6 +268,9 @@ class StrategyKernelExecutorService:
                 raise StrategyKernelExecutionError("STRATEGY_KERNEL_OUTPUT_INVALID", "策略函数没有返回有效 JSON。", 422) from exc
 
     def _limits(self) -> None:
+        # Windows has no resource module and does not use the POSIX preexec hook.
+        import resource
+
         limits = [
             (resource.RLIMIT_CPU, self.TIMEOUT_SECONDS),
             (resource.RLIMIT_FSIZE, self.OUTPUT_LIMIT_BYTES),

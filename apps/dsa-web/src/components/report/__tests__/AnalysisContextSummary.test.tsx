@@ -183,6 +183,123 @@ describe('AnalysisContextSummary', () => {
     expect(screen.queryByText(/^Action:/)).not.toBeInTheDocument();
   });
 
+  it.each([
+    ['zh', '社交舆情', '新闻检索失败，未取得可核实新闻', '社交帖子未经核实'],
+    ['en', 'social sentiment', 'News retrieval failed and no verifiable news was obtained', 'Social posts are unverified'],
+    ['ko', '소셜 심리', '뉴스 검색에 실패하여 검증 가능한 뉴스를 확보하지 못했습니다', '소셜 게시물은 검증되지 않았습니다'],
+    ['ja', 'ソーシャルセンチメント', 'ニュース検索に失敗し、検証可能なニュースを取得できませんでした', '投稿内容は未検証です'],
+    ['zh-TW', '社群情緒', '新聞檢索失敗，未取得可核實新聞', '社群貼文未經核實'],
+  ] as const)('localizes social evidence and failed news in %s without showing raw posts', (
+    language, socialLabel, failedNewsDetail, socialWarning,
+  ) => {
+    const evidenceOverview = {
+      ...overview,
+      blocks: [
+        {
+          key: 'social',
+          label: '社交舆情',
+          status: 'available',
+          source: 'social_sentiment_service',
+          warnings: ['social_sentiment_unverified', 'future_social_warning'],
+          missingReasons: [],
+          items: { content: { value: 'Raw social post stays private' } },
+        },
+        {
+          key: 'news',
+          label: '新闻',
+          status: 'fetch_failed',
+          source: null,
+          warnings: [],
+          missingReasons: ['news_search_failed'],
+        },
+      ],
+      warnings: [],
+      counts: { ...overview.counts, missing: 0 },
+      metadata: { triggerSource: 'api', newsResultCount: 0 },
+    } as AnalysisContextPackOverview;
+
+    render(<AnalysisContextSummary overview={evidenceOverview} language={language} />);
+    const panel = screen.getByTestId('analysis-context-summary');
+    fireEvent.click(panel.querySelector('summary') as HTMLElement);
+
+    expect(screen.getByText(socialLabel)).toBeVisible();
+    expect(screen.getByText(new RegExp(socialWarning))).toBeVisible();
+    expect(screen.getByText(new RegExp(failedNewsDetail))).toBeVisible();
+    expect(screen.getByText(/social_sentiment_unverified/)).toBeInTheDocument();
+    expect(screen.getByText(/news_search_failed/)).toBeInTheDocument();
+    expect(screen.getByText(/future_social_warning/)).toBeInTheDocument();
+    expect(screen.queryByText('Raw social post stays private')).not.toBeInTheDocument();
+  });
+
+  it('explains partial news warnings in blocks and the overview while preserving unknown codes', () => {
+    const partialNewsOverview: AnalysisContextPackOverview = {
+      ...overview,
+      blocks: [{
+        key: 'news',
+        label: 'news',
+        status: 'partial',
+        source: 'news_search, local_intelligence',
+        warnings: ['news_search_partial'],
+        missingReasons: [],
+      }],
+      counts: { ...overview.counts, available: 0, missing: 0, fetchFailed: 0, partial: 1 },
+      warnings: ['news_search_partial', 'future_overview_warning'],
+    };
+
+    render(<AnalysisContextSummary overview={partialNewsOverview} language="en" />);
+    const panel = screen.getByTestId('analysis-context-summary');
+    fireEvent.click(panel.querySelector('summary') as HTMLElement);
+
+    expect(screen.getAllByText(/Some news searches failed; available sources were retained/)).toHaveLength(2);
+    expect(screen.getAllByText(/news_search_partial/)).toHaveLength(2);
+    expect(screen.getByText(/future_overview_warning/)).toBeInTheDocument();
+  });
+
+  it('explains insufficient valid technical history instead of suggesting a missing provider', () => {
+    const insufficientHistoryOverview: AnalysisContextPackOverview = {
+      ...overview,
+      blocks: [{
+        key: 'technical', label: '技术', status: 'missing', source: null,
+        warnings: [], missingReasons: ['technical_history_insufficient'],
+      }],
+      counts: { ...overview.counts, available: 0, missing: 1, fetchFailed: 0 },
+    };
+    render(<AnalysisContextSummary overview={insufficientHistoryOverview} />);
+    const panel = screen.getByTestId('analysis-context-summary');
+    fireEvent.click(panel.querySelector('summary') as HTMLElement);
+
+    expect(screen.getByText(/连续有效日线不足，无法完成趋势分析/)).toBeVisible();
+    expect(screen.getByText(/请补齐日线历史并重新分析/)).toBeVisible();
+    expect(screen.getByText(/technical_history_insufficient/)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['zh', '技术输入受历史样本、数据连续性等限制；详细原因见技术分析'],
+    ['en', 'Technical inputs are limited by historical sample coverage, data continuity, or related issues; see the technical analysis for details'],
+    ['ko', '과거 표본 범위, 데이터 연속성 등의 문제로 기술 분석 입력이 제한됩니다. 자세한 원인은 기술 분석을 확인하세요'],
+    ['ja', '技術分析の入力は、履歴サンプルの範囲やデータの連続性などに制限があります。詳細は技術分析を確認してください'],
+    ['zh-TW', '技術輸入受歷史樣本、資料連續性等限制；詳細原因請見技術分析'],
+  ] as const)('localizes technical input limitations in %s in blocks and the overview', (language, detail) => {
+    const limitedTechnicalOverview: AnalysisContextPackOverview = {
+      ...overview,
+      blocks: [{
+        key: 'technical', label: '技术', status: 'partial', source: 'trend_analyzer',
+        warnings: ['technical_input_limited'], missingReasons: [],
+      }],
+      counts: { ...overview.counts, available: 0, missing: 0, fetchFailed: 0, partial: 1 },
+      warnings: ['technical_input_limited'],
+    };
+    render(<AnalysisContextSummary overview={limitedTechnicalOverview} language={language} />);
+    const panel = screen.getByTestId('analysis-context-summary');
+    fireEvent.click(panel.querySelector('summary') as HTMLElement);
+
+    expect(screen.getAllByText(new RegExp(detail))).toHaveLength(2);
+    expect(screen.getAllByText(/technical_input_limited/)).toHaveLength(2);
+    if (language !== 'zh') {
+      expect(screen.queryByText(/技术输入受历史样本/)).not.toBeInTheDocument();
+    }
+  });
+
   it('does not claim available fundamentals were unused when only provenance is missing', () => {
     const availableFundamentalsOverview: AnalysisContextPackOverview = {
       ...overview,

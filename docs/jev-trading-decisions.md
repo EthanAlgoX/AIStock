@@ -22,6 +22,10 @@ These settings use the existing configuration persistence and runtime reload mec
 
 这些配置复用现有设置保存与重载机制，支持环境变量和 Docker。密钥不进入策略定义或交易调用记录。平台／成员模型配置的权限边界保持现状，不新增独立成员密钥系统。无需安装新 SDK 或执行数据库迁移。
 
+All three existing settings include registered help metadata and Chinese/English help dialogs. Examples use placeholders for secrets; adding help does not change routing or runtime defaults.
+
+三个既有设置均提供注册表帮助元数据与中英帮助弹窗，密钥样例使用占位符；补齐帮助不改变模型路由和运行默认值。
+
 ## Customize the decision task / 自定义决策任务
 
 Select JEV in Trade simulation to configure **JEV decision task & inputs**. These settings belong to the strategy, not the global model connection. They are saved as `jevTask`, copied with the strategy and reused for manual, daily and replay runs. Existing strategies without this object retain the defaults.

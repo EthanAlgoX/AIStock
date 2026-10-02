@@ -11,6 +11,24 @@ const flattenHelp = (help: ReturnType<typeof getSettingsHelpContent>) => [
   ...(help?.notes ?? []),
 ].filter(Boolean).join(' ');
 
+describe('JEV decision settings help', () => {
+  it.each(['zh', 'en'])('keeps decision credentials separate from report routing in %s', (locale) => {
+    const apiKeyHelp = getSettingsHelpContent('settings.ai_model.TYPESAFE_API_KEY', undefined, locale);
+    const apiCopy = flattenHelp(apiKeyHelp);
+    expect(apiKeyHelp?.title).toBe('JEV API Key');
+    expect(apiCopy).toContain(locale === 'zh' ? '不生成研究报告' : 'Does not generate research reports');
+    expect(apiCopy).toContain(locale === 'zh' ? '不会自动切换到 LLM' : 'without automatically switching to an LLM');
+
+    const urlCopy = flattenHelp(getSettingsHelpContent('settings.ai_model.TYPESAFE_BASE_URL', undefined, locale));
+    expect(urlCopy).toContain('HTTPS');
+    expect(urlCopy).toContain('/v1');
+
+    const modelCopy = flattenHelp(getSettingsHelpContent('settings.ai_model.TYPESAFE_MODEL', undefined, locale));
+    expect(modelCopy).toContain('jev-latest');
+    expect(modelCopy).toContain(locale === 'zh' ? '不会改写已有策略' : 'does not rewrite existing strategies');
+  });
+});
+
 describe('Skill Outcome auto-weight settings help', () => {
   it('describes the attributable Outcome threshold in Chinese', () => {
     const help = getSettingsHelpContent(

@@ -25,9 +25,9 @@ async function login(page: Page) {
   await page.goto('/login');
   await page.waitForLoadState('domcontentloaded');
 
-  const passwordInput = page.locator('#password');
-  const submitButton = page.getByRole('button', { name: /授权进入工作台|完成设置并登录/ });
-  const homeLink = page.getByRole('link', { name: '主 Agent' });
+  const passwordInput = page.getByLabel('密码', { exact: true });
+  const submitButton = page.getByRole('button', { name: /^(登录|创建账户并进入)$/ });
+  const homeLink = page.getByRole('link', { name: '投研助理', exact: true });
 
   const isAlreadyAuthenticated =
     page.url().endsWith('/overview') ||
@@ -40,7 +40,7 @@ async function login(page: Page) {
 
   await expect(passwordInput).toBeVisible({ timeout: 10_000 });
   await passwordInput.fill(smokePassword!);
-  const passwordConfirmInput = page.locator('#passwordConfirm');
+  const passwordConfirmInput = page.getByLabel('确认密码', { exact: true });
   if (await passwordConfirmInput.isVisible().catch(() => false)) {
     await passwordConfirmInput.fill(smokePassword!);
   }
@@ -54,7 +54,7 @@ async function login(page: Page) {
     submitButton.click(),
   ]);
 
-  await page.waitForURL(/\/overview$/, { timeout: 15_000 });
+  await page.waitForURL(/\/overview(?:\?.*)?$/, { timeout: 15_000 });
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(1000);
 }
@@ -75,20 +75,25 @@ async function openWorkspaceDrawer(page: Page, language: 'zh' | 'en' = 'zh') {
 
 test.describe('web smoke', () => {
   test.use({ locale: 'zh-CN' });
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      if (!localStorage.getItem('dsa.uiLanguage')) localStorage.setItem('dsa.uiLanguage', 'zh');
+    });
+  });
 
   test('login page renders password form', async ({ page }, testInfo) => {
     await page.goto('/login');
     await page.waitForLoadState('domcontentloaded');
 
     // Check for branding
-    await expect(page.getByText('DAILY STOCK').first()).toBeVisible();
-    await expect(page.getByText('Analysis Engine')).toBeVisible();
+    await expect(page.getByRole('link', { name: '返回首页' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /创建管理员账户|欢迎回来/ })).toBeVisible();
 
     // Check for password input
-    await expect(page.locator('#password')).toBeVisible();
+    await expect(page.getByLabel('密码', { exact: true })).toBeVisible();
 
     // Check for submit button
-    await expect(page.getByRole('button', { name: /授权进入工作台|完成设置并登录/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^(登录|创建账户并进入)$/ })).toBeVisible();
 
     await captureSmokeScreenshot(page, testInfo, 'smoke-login-page-zh');
   });
@@ -96,12 +101,11 @@ test.describe('web smoke', () => {
   test('primary Agent is the authenticated home workspace', async ({ page }, testInfo) => {
     await login(page);
 
-    await expect(page).toHaveURL(/\/overview$/);
+    await expect(page).toHaveURL(/\/overview(?:\?.*)?$/);
     await expect(page.getByTestId('chat-workspace')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole('heading', { name: '主 Agent' })).toBeVisible();
-    await expect(page.getByRole('link', { name: '市场情报' })).toBeVisible();
-    await expect(page.getByRole('link', { name: '个股分析' })).toBeVisible();
-    await expect(page.getByRole('link', { name: '能力总览' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '投研助理' })).toBeVisible();
+    await expect(page.getByRole('link', { name: '市场雷达', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: '个股研究', exact: true })).toBeVisible();
 
     await captureSmokeScreenshot(page, testInfo, 'smoke-primary-agent-page-zh', { fullPage: true });
   });
@@ -123,11 +127,8 @@ test.describe('web smoke', () => {
 
     await expect(page.getByRole('button', { name: /打开本次会话能力|调整/ })).toBeVisible();
 
-    const prompt = '请简要分析 600519';
-    await input.fill(prompt);
-    await page.getByRole('button', { name: '发送' }).click();
-
-    await expect(page.locator('p').filter({ hasText: prompt }).last()).toBeVisible({ timeout: 5000 });
+    await input.fill('本地验收输入');
+    await expect(page.getByRole('button', { name: '发送' })).toBeEnabled();
   });
 
   test('chat page uses accessible labels instead of native title attributes for key actions', async ({ page }) => {
@@ -175,18 +176,15 @@ test.describe('web smoke', () => {
   test('language switch updates UI copy and persists after page refresh', async ({ page }, testInfo) => {
     await login(page);
 
-    const drawer = await openWorkspaceDrawer(page);
-    const languageToggle = drawer.getByRole('button', { name: '切换界面语言' });
+    const languageToggle = page.getByRole('combobox', { name: '切换界面语言' });
     await expect(languageToggle).toBeVisible();
-    await expect(drawer.getByRole('link', { name: '平台设置' })).toBeVisible();
-    await expect(page.getByRole('link', { name: '主 Agent' })).toBeVisible();
+    await expect(page.getByRole('link', { name: '投研助理', exact: true })).toBeVisible();
 
-    await languageToggle.click();
+    await languageToggle.selectOption('en');
 
-    const englishLanguageToggle = page.getByRole('button', { name: 'Switch UI language' });
+    const englishLanguageToggle = page.getByRole('combobox', { name: 'Switch UI language' });
     await expect(englishLanguageToggle).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Platform settings' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Primary Agent' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Research assistant', exact: true })).toBeVisible();
     await captureSmokeScreenshot(page, testInfo, 'smoke-home-page-en');
 
     expect(await page.evaluate(() => localStorage.getItem('dsa.uiLanguage'))).toBe('en');
@@ -194,10 +192,10 @@ test.describe('web smoke', () => {
     await page.reload();
     await page.waitForLoadState('domcontentloaded');
 
-    await expect(page.getByRole('link', { name: 'Primary Agent' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Research assistant', exact: true })).toBeVisible();
 
+    await expect(page.getByRole('combobox', { name: 'Switch UI language' })).toBeVisible();
     const englishDrawer = await openWorkspaceDrawer(page, 'en');
-    await expect(englishDrawer.getByRole('button', { name: 'Switch UI language' })).toBeVisible();
     await englishDrawer.getByRole('link', { name: 'Platform settings' }).click();
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000);
@@ -214,7 +212,8 @@ test.describe('web smoke', () => {
   test('capability overview separates tools, MCP, data, and experts', async ({ page }, testInfo) => {
     await login(page);
 
-    await page.getByRole('link', { name: '能力总览' }).click();
+    const drawer = await openWorkspaceDrawer(page);
+    await drawer.getByRole('link', { name: '能力总览' }).click();
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000);
 

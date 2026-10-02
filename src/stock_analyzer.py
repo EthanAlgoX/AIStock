@@ -17,8 +17,9 @@
 """
 
 import logging
+import math
 from dataclasses import dataclass, field
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from enum import Enum
 
 import pandas as pd
@@ -94,7 +95,7 @@ class TrendAnalysisResult:
     ma5: float = 0.0
     ma10: float = 0.0
     ma20: float = 0.0
-    ma60: float = 0.0
+    ma60: Optional[float] = None
     current_price: float = 0.0
     
     # 乖离率（与 MA5 的偏离度）
@@ -104,7 +105,7 @@ class TrendAnalysisResult:
     
     # 量能分析
     volume_status: VolumeStatus = VolumeStatus.NORMAL
-    volume_ratio_5d: float = 0.0     # 当日成交量/5日均量
+    volume_ratio_5d: Optional[float] = None  # 当日成交量/此前5日均量
     volume_trend: str = ""           # 量能趋势描述
     
     # 支撑压力
@@ -114,16 +115,16 @@ class TrendAnalysisResult:
     support_levels: List[float] = field(default_factory=list)
 
     # MACD 指标
-    macd_dif: float = 0.0          # DIF 快线
-    macd_dea: float = 0.0          # DEA 慢线
-    macd_bar: float = 0.0           # MACD 柱状图
+    macd_dif: Optional[float] = None  # DIF 快线
+    macd_dea: Optional[float] = None  # DEA 慢线
+    macd_bar: Optional[float] = None  # MACD 柱状图
     macd_status: MACDStatus = MACDStatus.BULLISH
     macd_signal: str = ""            # MACD 信号描述
 
     # RSI 指标
-    rsi_6: float = 0.0              # RSI(6) 短期
-    rsi_12: float = 0.0             # RSI(12) 中期
-    rsi_24: float = 0.0             # RSI(24) 长期
+    rsi_6: Optional[float] = None   # RSI(6) 短期
+    rsi_12: Optional[float] = None  # RSI(12) 中期
+    rsi_24: Optional[float] = None  # RSI(24) 长期
     rsi_status: RSIStatus = RSIStatus.NEUTRAL
     rsi_signal: str = ""              # RSI 信号描述
 
@@ -132,6 +133,12 @@ class TrendAnalysisResult:
     signal_score: int = 0            # 综合评分 0-100
     signal_reasons: List[str] = field(default_factory=list)
     risk_factors: List[str] = field(default_factory=list)
+    indicator_availability: Dict[str, bool] = field(default_factory=dict)
+    analysis_warnings: List[str] = field(default_factory=list)
+    rule_events: List[Dict[str, Any]] = field(default_factory=list)
+    analysis_date: Optional[str] = None
+    analysis_source: Optional[str] = None
+    valid_bars: int = 0
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -147,7 +154,7 @@ class TrendAnalysisResult:
             'bias_ma5': self.bias_ma5,
             'bias_ma10': self.bias_ma10,
             'bias_ma20': self.bias_ma20,
-            'volume_status': self.volume_status.value,
+            'volume_status': self.volume_status.value if self.indicator_availability.get('volume_ratio_5d', True) else None,
             'volume_ratio_5d': self.volume_ratio_5d,
             'volume_trend': self.volume_trend,
             'support_ma5': self.support_ma5,
@@ -159,13 +166,19 @@ class TrendAnalysisResult:
             'macd_dif': self.macd_dif,
             'macd_dea': self.macd_dea,
             'macd_bar': self.macd_bar,
-            'macd_status': self.macd_status.value,
+            'macd_status': self.macd_status.value if self.indicator_availability.get('macd', True) else None,
             'macd_signal': self.macd_signal,
             'rsi_6': self.rsi_6,
             'rsi_12': self.rsi_12,
             'rsi_24': self.rsi_24,
-            'rsi_status': self.rsi_status.value,
+            'rsi_status': self.rsi_status.value if self.indicator_availability.get('rsi', True) else None,
             'rsi_signal': self.rsi_signal,
+            'indicator_availability': dict(self.indicator_availability),
+            'analysis_warnings': list(self.analysis_warnings),
+            'rule_events': list(self.rule_events),
+            'analysis_date': self.analysis_date,
+            'analysis_source': self.analysis_source,
+            'valid_bars': self.valid_bars,
         }
 
 
@@ -198,6 +211,9 @@ class StockTrendAnalyzer:
     RSI_LONG = 24              # 长期RSI周期
     RSI_OVERBOUGHT = 70        # 超买阈值
     RSI_OVERSOLD = 30          # 超卖阈值
+    RULE_PERIOD = 20
+    RULE_VOLUME_RATIO = 2.0
+    _PROVENANCE_FIELDS = ('data_source', 'source', 'provider', 'adjustment', 'volume_unit', 'currency')
     
     def __init__(self):
         """初始化分析器"""
@@ -215,14 +231,22 @@ class StockTrendAnalyzer:
             TrendAnalysisResult 分析结果
         """
         result = TrendAnalysisResult(code=code)
-        
-        if df is None or df.empty or len(df) < 20:
+        result.indicator_availability = dict.fromkeys(
+            ('ma5', 'ma10', 'ma20', 'ma60', 'volume_ratio_5d', 'macd',
+             'rsi_6', 'rsi_12', 'rsi_24', 'rsi', 'rule_events'), False,
+        )
+        df = self._prepare_history(df, result)
+        result.valid_bars = len(df)
+        if not df.empty:
+            result.analysis_date = pd.Timestamp(df.iloc[-1]['date']).date().isoformat()
+            result.analysis_source = self._bar_source(df.iloc[-1], df.attrs)
+
+        if len(df) < 20:
             logger.warning(f"{code} 数据不足，无法进行趋势分析")
             result.risk_factors.append("数据不足，无法完成分析")
+            result.analysis_warnings.append(f"连续有效日线仅 {len(df)} 根，趋势分析至少需要 20 根。")
+            result.risk_factors.extend(result.analysis_warnings)
             return result
-        
-        # 确保数据按日期排序
-        df = df.sort_values('date').reset_index(drop=True)
         
         # 计算均线
         df = self._calculate_mas(df)
@@ -234,10 +258,20 @@ class StockTrendAnalyzer:
         # 获取最新数据
         latest = df.iloc[-1]
         result.current_price = float(latest['close'])
-        result.ma5 = float(latest['MA5'])
-        result.ma10 = float(latest['MA10'])
-        result.ma20 = float(latest['MA20'])
-        result.ma60 = float(latest.get('MA60', 0))
+        result.ma5 = self._finite_number(latest['MA5']) or 0.0
+        result.ma10 = self._finite_number(latest['MA10']) or 0.0
+        result.ma20 = self._finite_number(latest['MA20']) or 0.0
+        result.ma60 = self._finite_number(latest['MA60'])
+        for key in ('ma5', 'ma10', 'ma20', 'ma60'):
+            result.indicator_availability[key] = bool(
+                self._finite_number(latest[key.upper()]) is not None and latest[key.upper()] > 0
+            )
+        if not all(result.indicator_availability[key] for key in ('ma5', 'ma10', 'ma20')):
+            result.analysis_warnings.append("趋势均线无效，已停止技术评分。")
+            result.risk_factors.extend(result.analysis_warnings)
+            return result
+        if result.ma60 is None:
+            result.analysis_warnings.append("MA60 有效样本不足 60 根，未以短周期均线替代。")
 
         # 1. 趋势判断
         self._analyze_trend(df, result)
@@ -260,7 +294,175 @@ class StockTrendAnalyzer:
         # 7. 生成买入信号
         self._generate_signal(result)
 
+        # 规则事件是独立的数值证据，不参与既有综合评分。
+        self._analyze_rule_events(df, result)
+        result.risk_factors.extend(result.analysis_warnings)
+
         return result
+
+    @staticmethod
+    def _finite_number(value: Any) -> Optional[float]:
+        if value is None or isinstance(value, (bool, np.bool_)):
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return number if math.isfinite(number) else None
+
+    @staticmethod
+    def _explicit_flag(value: Any, expected: bool = True) -> bool:
+        return isinstance(value, (bool, np.bool_)) and bool(value) == expected
+
+    @staticmethod
+    def _metadata_text(value: Any) -> Optional[str]:
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
+    def _bar_source(self, bar: pd.Series, attrs: Dict[str, Any]) -> Optional[str]:
+        pending = (self._explicit_flag(bar.get('is_partial_bar'))
+                   or self._explicit_flag(bar.get('is_estimated'))
+                   or self._explicit_flag(bar.get('closed'), False))
+        if pending and 'realtime_source' in bar:
+            # Realtime overlay prices may differ from the preserved daily
+            # provider. An explicitly unknown quote source stays unknown.
+            return self._metadata_text(bar.get('realtime_source'))
+        for metadata in (bar, attrs):
+            for key in ('data_source', 'source', 'provider'):
+                value = self._metadata_text(metadata.get(key))
+                if value:
+                    return value
+        return self._metadata_text(attrs.get('daily_source'))
+
+    def _prepare_history(self, df: Optional[pd.DataFrame], result: TrendAnalysisResult) -> pd.DataFrame:
+        """Keep the latest valid segment; never join across explicit quality boundaries.
+
+        Existing daily data without closure metadata remains supported. A valid
+        partial/estimated tail may update intraday indicators, but cannot emit
+        rule events. Interior partial bars reset the subsequent window.
+        Calendar gaps are respected when supplied, rather than guessed from
+        wall-clock days (which would also reject stock-market weekends).
+        """
+        if df is None or df.empty:
+            return pd.DataFrame()
+        required = {'date', 'open', 'high', 'low', 'close', 'volume'}
+        missing = required.difference(df.columns)
+        if missing:
+            result.analysis_warnings.append("日线缺少必要字段：" + '、'.join(sorted(missing)))
+            return df.iloc[:0].copy()
+
+        df = df.copy()
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        if df['date'].isna().any():
+            result.analysis_warnings.append("日线日期无效，无法确认连续窗口，已停止技术评分。")
+            return df.iloc[:0].copy()
+        df = df.sort_values('date', kind='stable').reset_index(drop=True)
+        for key in ('open', 'high', 'low', 'close', 'volume'):
+            df[key] = df[key].mask(df[key].map(lambda value: isinstance(value, (bool, np.bool_))))
+            df[key] = pd.to_numeric(df[key], errors='coerce')
+
+        pending = df.apply(
+            lambda row: self._explicit_flag(row.get('is_partial_bar'))
+            or self._explicit_flag(row.get('is_estimated'))
+            or self._explicit_flag(row.get('closed'), False), axis=1,
+        )
+        # Preserve the existing realtime indicator contract: trailing realtime
+        # rows are estimates, while an interior pending row breaks continuity.
+        end = len(df)
+        while end and pending.iloc[end - 1]:
+            end -= 1
+        if end < len(df):
+            result.analysis_warnings.append("末段日线未闭合或为估算值，技术指标仅供盘中观察，未生成确认规则事件。")
+        if pending.iloc[:end].any():
+            result.analysis_warnings.append("历史中间未闭合或估算日线已排除，后续窗口重新预热。")
+        start = 0
+        previous_date = None
+        previous_identity = None
+        invalid_count = 0
+        boundaries = 0
+        for index, row in df.iterrows():
+            numbers = {key: self._finite_number(row[key]) for key in ('open', 'high', 'low', 'close', 'volume')}
+            quality = row.get('quality')
+            flags = set(quality) if isinstance(quality, (list, tuple)) and all(
+                isinstance(flag, str) for flag in quality
+            ) else set()
+            quality_missing = quality is None or (isinstance(quality, float) and math.isnan(quality))
+            invalid_quality = (not quality_missing and not isinstance(quality, (list, tuple))) or bool(
+                flags.difference({'gap_before', 'corporate_action'})
+            )
+            if isinstance(quality, (list, tuple)) and not all(isinstance(flag, str) for flag in quality):
+                invalid_quality = True
+            valid = all(value is not None for value in numbers.values())
+            if valid:
+                # Some stock feeds exclude auctions from high/low while their
+                # closing price includes the auction; retain that convention.
+                valid = (numbers['volume'] >= 0 and numbers['high'] >= numbers['low']
+                         and all(numbers[key] > 0 for key in ('open', 'high', 'low', 'close')))
+            current_date = row['date']
+            if (not valid or invalid_quality or (pending.iloc[index] and index < end)
+                    or (previous_date is not None and current_date <= previous_date)):
+                start = index + 1
+                previous_identity = None
+                invalid_count += 1
+            else:
+                identity = tuple(self._metadata_text(row.get(key)) or self._metadata_text(df.attrs.get(key))
+                                 for key in self._PROVENANCE_FIELDS)
+                # The appended realtime estimate may have no daily provenance.
+                # Allow it to update estimates without inventing its source;
+                # this window will not be eligible for rule events.
+                if pending.iloc[index] and not any(identity):
+                    identity = previous_identity
+                boundary = (self._explicit_flag(row.get('gap_before'))
+                            or bool(flags.intersection({'gap_before', 'corporate_action'}))
+                            or (previous_identity is not None and identity != previous_identity))
+                if boundary:
+                    start = index
+                    boundaries += 1
+                previous_identity = identity
+            previous_date = current_date
+        if invalid_count:
+            result.analysis_warnings.append(f"{invalid_count} 根日线存在缺失、无效值或重复日期，窗口已重新预热。")
+        if boundaries:
+            result.analysis_warnings.append("日线缺口或来源口径变化，已从边界重新预热，未拼接历史指标。")
+        return df.iloc[start:].reset_index(drop=True)
+
+    def _analyze_rule_events(self, df: pd.DataFrame, result: TrendAnalysisResult) -> None:
+        """Explain latest range/volume events using the previous twenty bars only."""
+        period = self.RULE_PERIOD
+        latest = df.iloc[-1]
+        ready = len(df) >= period + 1 and not (
+            self._explicit_flag(latest.get('is_partial_bar'))
+            or self._explicit_flag(latest.get('is_estimated'))
+            or self._explicit_flag(latest.get('closed'), False)
+        )
+        result.indicator_availability['rule_events'] = ready
+        if not ready:
+            return
+        previous = df.iloc[-period - 1:-1]
+        common = {
+            'rule_version': '1', 'bar_date': result.analysis_date, 'source': result.analysis_source,
+            'reference_start': pd.Timestamp(previous.iloc[0]['date']).date().isoformat(),
+            'reference_end': pd.Timestamp(previous.iloc[-1]['date']).date().isoformat(),
+        }
+        close = float(latest['close'])
+        reference_high = float(previous['high'].max())
+        reference_low = float(previous['low'].min())
+        if close > reference_high or close < reference_low:
+            direction = 'up' if close > reference_high else 'down'
+            result.rule_events.append({
+                **common, 'rule_id': 'range20', 'direction': direction,
+                'parameters': {'period': period},
+                'evidence': {'close': close, 'reference_high': reference_high, 'reference_low': reference_low},
+                'summary': '收盘价突破此前20根日线最高价。' if direction == 'up' else '收盘价跌破此前20根日线最低价。',
+            })
+        mean_volume = math.fsum(float(value) / period for value in previous['volume'])
+        ratio = self._finite_number(float(latest['volume']) / mean_volume) if mean_volume > 0 else None
+        if ratio is not None and ratio >= self.RULE_VOLUME_RATIO:
+            result.rule_events.append({
+                **common, 'rule_id': 'volume20', 'direction': 'above',
+                'parameters': {'period': period, 'ratio': self.RULE_VOLUME_RATIO},
+                'evidence': {'volume': float(latest['volume']), 'mean_volume20': mean_volume, 'volume_ratio20': ratio},
+                'summary': '成交量达到此前20根日线均量的2倍；不代表价格方向。',
+            })
     
     def _calculate_mas(self, df: pd.DataFrame) -> pd.DataFrame:
         """计算均线"""
@@ -268,10 +470,7 @@ class StockTrendAnalyzer:
         df['MA5'] = df['close'].rolling(window=5).mean()
         df['MA10'] = df['close'].rolling(window=10).mean()
         df['MA20'] = df['close'].rolling(window=20).mean()
-        if len(df) >= 60:
-            df['MA60'] = df['close'].rolling(window=60).mean()
-        else:
-            df['MA60'] = df['MA20']  # 数据不足时使用 MA20 替代
+        df['MA60'] = df['close'].rolling(window=60).mean()
         return df
 
     def _calculate_macd(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -330,7 +529,8 @@ class StockTrendAnalyzer:
             rsi = 100 - (100 / (1 + rs))
 
             # 填充 NaN 值
-            rsi = rsi.fillna(50)  # 默认中性值
+            rsi = rsi.fillna(50)  # 完整且无涨跌的样本使用中性值
+            rsi.iloc[:period] = np.nan  # 需 period 次价格变化，不能用默认值代替预热
 
             # 添加到 DataFrame
             col_name = f'RSI_{period}'
@@ -418,10 +618,15 @@ class StockTrendAnalyzer:
             return
         
         latest = df.iloc[-1]
-        vol_5d_avg = df['volume'].iloc[-6:-1].mean()
+        vol_5d_avg = math.fsum(float(value) / 5 for value in df['volume'].iloc[-6:-1])
         
         if vol_5d_avg > 0:
-            result.volume_ratio_5d = float(latest['volume']) / vol_5d_avg
+            result.volume_ratio_5d = self._finite_number(float(latest['volume']) / vol_5d_avg)
+        result.indicator_availability['volume_ratio_5d'] = result.volume_ratio_5d is not None
+        if result.volume_ratio_5d is None:
+            result.volume_trend = "此前5日均量无效，未判断量能形态"
+            result.analysis_warnings.append("此前5日均量为零或量比无效，量能未计入评分。")
+            return
         
         # 判断价格变化
         prev_close = df.iloc[-2]['close']
@@ -488,8 +693,12 @@ class StockTrendAnalyzer:
         - 金叉：DIF 上穿 DEA
         - 死叉：DIF 下穿 DEA
         """
-        if len(df) < self.MACD_SLOW:
+        # Slow EMA warmup + signal EMA warmup + a preceding value for crosses.
+        required = self.MACD_SLOW + self.MACD_SIGNAL
+        if len(df) < required:
             result.macd_signal = "数据不足"
+            result.indicator_availability['macd'] = False
+            result.analysis_warnings.append(f"MACD 连续有效样本不足 {required} 根，未计入评分。")
             return
 
         latest = df.iloc[-1]
@@ -499,6 +708,16 @@ class StockTrendAnalyzer:
         result.macd_dif = float(latest['MACD_DIF'])
         result.macd_dea = float(latest['MACD_DEA'])
         result.macd_bar = float(latest['MACD_BAR'])
+        result.indicator_availability['macd'] = all(
+            self._finite_number(value) is not None
+            for value in (result.macd_dif, result.macd_dea, result.macd_bar,
+                          prev['MACD_DIF'], prev['MACD_DEA'])
+        )
+        if not result.indicator_availability['macd']:
+            result.macd_dif = result.macd_dea = result.macd_bar = None
+            result.macd_signal = "指标值无效"
+            result.analysis_warnings.append("MACD 非有限，未计入评分。")
+            return
 
         # 判断金叉死叉
         prev_dif_dea = prev['MACD_DIF'] - prev['MACD_DEA']
@@ -551,16 +770,20 @@ class StockTrendAnalyzer:
         - RSI < 30：超卖，关注反弹
         - 40-60：中性区域
         """
-        if len(df) < self.RSI_LONG:
-            result.rsi_signal = "数据不足"
-            return
-
         latest = df.iloc[-1]
-
-        # 获取 RSI 数据
-        result.rsi_6 = float(latest[f'RSI_{self.RSI_SHORT}'])
-        result.rsi_12 = float(latest[f'RSI_{self.RSI_MID}'])
-        result.rsi_24 = float(latest[f'RSI_{self.RSI_LONG}'])
+        for period in (self.RSI_SHORT, self.RSI_MID, self.RSI_LONG):
+            value = self._finite_number(latest[f'RSI_{period}']) if len(df) >= period + 1 else None
+            key = f'rsi_{period}'
+            setattr(result, key, value)
+            result.indicator_availability[key] = value is not None
+        result.indicator_availability['rsi'] = all(
+            result.indicator_availability[f'rsi_{period}']
+            for period in (self.RSI_SHORT, self.RSI_MID, self.RSI_LONG)
+        )
+        if not result.indicator_availability['rsi']:
+            result.rsi_signal = "数据不足"
+            result.analysis_warnings.append(f"RSI 完整样本不足 {self.RSI_LONG + 1} 根，未计入评分。")
+            return
 
         # 以中期 RSI(12) 为主进行判断
         rsi_mid = result.rsi_12
@@ -596,7 +819,7 @@ class StockTrendAnalyzer:
         """
         score = 0
         reasons = []
-        risks = []
+        risks = list(result.risk_factors)
 
         # === 趋势评分（30分）===
         trend_scores = {
@@ -672,12 +895,13 @@ class StockTrendAnalyzer:
             VolumeStatus.SHRINK_VOLUME_UP: 6,     # 无量上涨较差
             VolumeStatus.HEAVY_VOLUME_DOWN: 0,    # 放量下跌最差
         }
-        vol_score = volume_scores.get(result.volume_status, 8)
+        volume_ready = result.indicator_availability.get('volume_ratio_5d', True)
+        vol_score = volume_scores.get(result.volume_status, 8) if volume_ready else 0
         score += vol_score
 
-        if result.volume_status == VolumeStatus.SHRINK_VOLUME_DOWN:
+        if volume_ready and result.volume_status == VolumeStatus.SHRINK_VOLUME_DOWN:
             reasons.append("✅ 缩量回调，主力洗盘")
-        elif result.volume_status == VolumeStatus.HEAVY_VOLUME_DOWN:
+        elif volume_ready and result.volume_status == VolumeStatus.HEAVY_VOLUME_DOWN:
             risks.append("⚠️ 放量下跌，注意风险")
 
         # === 支撑评分（10分）===
@@ -698,14 +922,15 @@ class StockTrendAnalyzer:
             MACDStatus.CROSSING_DOWN: 0,       # 下穿零轴
             MACDStatus.DEATH_CROSS: 0,        # 死叉
         }
-        macd_score = macd_scores.get(result.macd_status, 5)
+        macd_ready = result.indicator_availability.get('macd', True)
+        macd_score = macd_scores.get(result.macd_status, 5) if macd_ready else 0
         score += macd_score
 
-        if result.macd_status in [MACDStatus.GOLDEN_CROSS_ZERO, MACDStatus.GOLDEN_CROSS]:
+        if macd_ready and result.macd_status in [MACDStatus.GOLDEN_CROSS_ZERO, MACDStatus.GOLDEN_CROSS]:
             reasons.append(f"✅ {result.macd_signal}")
-        elif result.macd_status in [MACDStatus.DEATH_CROSS, MACDStatus.CROSSING_DOWN]:
+        elif macd_ready and result.macd_status in [MACDStatus.DEATH_CROSS, MACDStatus.CROSSING_DOWN]:
             risks.append(f"⚠️ {result.macd_signal}")
-        else:
+        elif macd_ready:
             reasons.append(result.macd_signal)
 
         # === RSI 评分（10分）===
@@ -716,14 +941,15 @@ class StockTrendAnalyzer:
             RSIStatus.WEAK: 3,            # 弱势
             RSIStatus.OVERBOUGHT: 0,       # 超买最差
         }
-        rsi_score = rsi_scores.get(result.rsi_status, 5)
+        rsi_ready = result.indicator_availability.get('rsi', True)
+        rsi_score = rsi_scores.get(result.rsi_status, 5) if rsi_ready else 0
         score += rsi_score
 
-        if result.rsi_status in [RSIStatus.OVERSOLD, RSIStatus.STRONG_BUY]:
+        if rsi_ready and result.rsi_status in [RSIStatus.OVERSOLD, RSIStatus.STRONG_BUY]:
             reasons.append(f"✅ {result.rsi_signal}")
-        elif result.rsi_status == RSIStatus.OVERBOUGHT:
+        elif rsi_ready and result.rsi_status == RSIStatus.OVERBOUGHT:
             risks.append(f"⚠️ {result.rsi_signal}")
-        else:
+        elif rsi_ready:
             reasons.append(result.rsi_signal)
 
         # === 综合判断 ===
@@ -763,6 +989,11 @@ class StockTrendAnalyzer:
         Returns:
             格式化的分析文本
         """
+        def number(value: Optional[float], spec: str) -> str:
+            return format(value, spec) if value is not None else "不可用"
+
+        macd_label = result.macd_status.value if result.indicator_availability.get('macd', True) else "不可用"
+        rsi_label = result.rsi_status.value if result.indicator_availability.get('rsi', True) else "未完成预热"
         lines = [
             f"=== {result.code} 趋势分析 ===",
             f"",
@@ -777,19 +1008,19 @@ class StockTrendAnalyzer:
             f"   MA20: {result.ma20:.2f} (乖离 {result.bias_ma20:+.2f}%)",
             f"",
             f"📊 量能分析: {result.volume_status.value}",
-            f"   量比(vs5日): {result.volume_ratio_5d:.2f}",
+            f"   量比(vs5日): {number(result.volume_ratio_5d, '.2f')}",
             f"   量能趋势: {result.volume_trend}",
             f"",
-            f"📈 MACD指标: {result.macd_status.value}",
-            f"   DIF: {result.macd_dif:.4f}",
-            f"   DEA: {result.macd_dea:.4f}",
-            f"   MACD: {result.macd_bar:.4f}",
+            f"📈 MACD指标: {macd_label}",
+            f"   DIF: {number(result.macd_dif, '.4f')}",
+            f"   DEA: {number(result.macd_dea, '.4f')}",
+            f"   MACD: {number(result.macd_bar, '.4f')}",
             f"   信号: {result.macd_signal}",
             f"",
-            f"📊 RSI指标: {result.rsi_status.value}",
-            f"   RSI(6): {result.rsi_6:.1f}",
-            f"   RSI(12): {result.rsi_12:.1f}",
-            f"   RSI(24): {result.rsi_24:.1f}",
+            f"📊 RSI指标: {rsi_label}",
+            f"   RSI(6): {number(result.rsi_6, '.1f')}",
+            f"   RSI(12): {number(result.rsi_12, '.1f')}",
+            f"   RSI(24): {number(result.rsi_24, '.1f')}",
             f"   信号: {result.rsi_signal}",
             f"",
             f"🎯 操作建议: {result.buy_signal.value}",

@@ -37,7 +37,7 @@ def safe_float(val: Any, default: Optional[float] = None) -> Optional[float]:
     
     处理场景：
     - None / 空字符串 → default
-    - pandas NaN / numpy NaN → default
+    - NaN / 正负无穷 → default
     - 数值字符串 → float
     - 已是数值 → float
     
@@ -58,17 +58,11 @@ def safe_float(val: Any, default: Optional[float] = None) -> Optional[float]:
             if val == "" or val == "-" or val == "--":
                 return default
         
-        # 处理 pandas/numpy NaN
-        # 使用 math.isnan 而不是 pd.isna，避免强制依赖 pandas
+        # 排除非有限数值，避免 Inf 进入报价或在整数转换时抛出异常。
         import math
-        try:
-            if math.isnan(float(val)):
-                return default
-        except (ValueError, TypeError):
-            pass
-        
-        return float(val)
-    except (ValueError, TypeError):
+        numeric = float(val)
+        return numeric if math.isfinite(numeric) else default
+    except (ValueError, TypeError, OverflowError):
         return default
 
 
@@ -187,7 +181,8 @@ class UnifiedRealtimeQuote:
     
     def has_basic_data(self) -> bool:
         """检查是否有基本的价格数据"""
-        return self.price is not None and self.price > 0
+        price = safe_float(self.price)
+        return price is not None and price > 0
     
     def has_volume_data(self) -> bool:
         """检查是否有量价数据"""

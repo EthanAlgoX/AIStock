@@ -63,6 +63,9 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [网站功能与执行逻辑](website-functional-logic.md) | 当前页面、数据/研究/模拟链路、模块归属与恢复边界（中英双语） |
+| [新闻、社交与技术证据](signal-evidence.md) | market-radar 借鉴取舍、出处、指标可用性与规则事件 |
+| [测试与验收](testing.md) | 后端/Web/浏览器/桌面/容器的当前命令与覆盖边界 |
 | [API 规格](architecture/api_spec.json) | FastAPI OpenAPI 规格产物 |
 | [贡献指南](CONTRIBUTING.md) | Issue、PR、测试、文档同步和协作要求 |
 

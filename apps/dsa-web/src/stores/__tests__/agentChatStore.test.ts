@@ -677,6 +677,154 @@ describe('agentChatStore.switchSession', () => {
 });
 
 describe('agentChatStore session Skill state', () => {
+  it('does not replace a live conversation when the initial history list omits its session', async () => {
+    localStorage.setItem('dsa_chat_session_id', 'session-test');
+    useAgentChatStore.setState({ hasInitialLoad: false });
+    const list = createDeferred<Awaited<ReturnType<typeof agentApi.getChatSessions>>>();
+    vi.mocked(agentApi.getChatSessions).mockResolvedValue([]).mockReturnValueOnce(list.promise);
+    const initial = useAgentChatStore.getState().loadInitialSession();
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    vi.mocked(agentApi.chatStream).mockResolvedValueOnce(new Response(new ReadableStream({ start(value) { controller = value; } }), { status: 200 }));
+    const stream = useAgentChatStore.getState().startStream({ session_id: 'session-test', request_id: 'new-initial-request', message: 'New accepted question' });
+    controller.enqueue(encoder.encode(accepted('new-initial-request') + '\n'));
+    await vi.waitFor(() => expect(useAgentChatStore.getState().messages.map(message => message.content)).toEqual(['New accepted question']));
+    list.resolve([]);
+    await initial;
+    expect(useAgentChatStore.getState().sessionId).toBe('session-test');
+    controller.enqueue(encoder.encode('data: {"type":"done","content":"Current final answer"}\n'));
+    controller.close();
+    await stream;
+    expect(useAgentChatStore.getState().messages.map(message => message.content)).toEqual(['New accepted question', 'Current final answer']);
+    expect(useAgentChatStore.getState().loading).toBe(false);
+  });
+
+  it('does not show an older history failure after a new question completes', async () => {
+    const detail = createDeferred<Awaited<ReturnType<typeof agentApi.getChatSessionMessages>>>();
+    vi.mocked(agentApi.getChatSessionMessages).mockReturnValueOnce(detail.promise);
+    const refreshing = useAgentChatStore.getState().refreshMessages();
+    vi.mocked(agentApi.chatStream).mockResolvedValueOnce(createStreamResponse([
+      accepted('new-refresh-request'), 'data: {"type":"done","content":"Current final answer"}',
+    ]));
+    await useAgentChatStore.getState().startStream({ session_id: 'session-test', request_id: 'new-refresh-request', message: 'New accepted question' });
+    detail.reject(new Error('Previous history failed'));
+    await refreshing;
+    expect(useAgentChatStore.getState().chatError).toBeNull();
+    expect(useAgentChatStore.getState().messages.map(message => message.content)).toEqual(['New accepted question', 'Current final answer']);
+  });
+  it('does not let switching history overwrite a new question in the same conversation', async () => {
+    const detail = createDeferred<Awaited<ReturnType<typeof agentApi.getChatSessionMessages>>>();
+    vi.mocked(agentApi.getChatSessionMessages).mockReturnValueOnce(detail.promise);
+    const switching = useAgentChatStore.getState().switchSession('destination');
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    vi.mocked(agentApi.chatStream).mockResolvedValueOnce(new Response(new ReadableStream({ start(value) { controller = value; } }), { status: 200 }));
+    useAgentChatStore.getState().setSelectedSkillIds(['current-skill']);
+    const stream = useAgentChatStore.getState().startStream({ session_id: 'destination', request_id: 'new-request', message: 'New accepted question', skills: ['current-skill'] });
+    controller.enqueue(encoder.encode(accepted('new-request', 'destination') + '\n'));
+    await vi.waitFor(() => expect(useAgentChatStore.getState().messages.map(message => message.content)).toEqual(['New accepted question']));
+    detail.resolve({ session_id: 'destination', messages: [{ id: 'old-answer', role: 'assistant', content: 'Previous saved answer', created_at: null }], session_state: { selected_skill_ids: ['previous-skill'] } });
+    await switching;
+    expect(useAgentChatStore.getState().messages.map(message => message.content)).toEqual(['New accepted question']);
+    expect(useAgentChatStore.getState().selectedSkillIds).toEqual(['current-skill']);
+    controller.enqueue(encoder.encode('data: {"type":"done","content":"Current final answer"}\n'));
+    controller.close();
+    await stream;
+    expect(useAgentChatStore.getState().messages.map(message => message.content)).toEqual(['New accepted question', 'Current final answer']);
+  });
+  it.each(['loadSessions', 'loadInitialSession'] as const)('discards %s history from a previous authenticated identity', async (method) => {
+    const pending = createDeferred<Awaited<ReturnType<typeof agentApi.getChatSessions>>>();
+    vi.mocked(agentApi.getChatSessions).mockReturnValueOnce(pending.promise);
+    useAgentChatStore.setState({ hasInitialLoad: false });
+    const loading = useAgentChatStore.getState()[method]();
+
+    // Match AuthProvider's private store reset and fresh conversation.
+    useAgentChatStore.setState(useAgentChatStore.getInitialState());
+    useAgentChatStore.getState().startNewChat('current-user-session');
+    pending.resolve([{ session_id: 'previous-user-session', title: 'Private old history', message_count: 1, created_at: null, last_active: null }]);
+    await loading;
+
+    expect(useAgentChatStore.getState().sessions).toEqual([]);
+    expect(useAgentChatStore.getState().sessionId).toBe('current-user-session');
+    expect(agentApi.getChatSessionMessages).not.toHaveBeenCalled();
+  });
+
+  it('discards initial messages that arrive after an authenticated identity reset', async () => {
+    localStorage.setItem('dsa_chat_session_id', 'session-test');
+    useAgentChatStore.setState({ hasInitialLoad: false });
+    vi.mocked(agentApi.getChatSessions).mockResolvedValueOnce([{ session_id: 'session-test', title: 'Previous user', message_count: 1, created_at: null, last_active: null }]);
+    const pending = createDeferred<Awaited<ReturnType<typeof agentApi.getChatSessionMessages>>>();
+    vi.mocked(agentApi.getChatSessionMessages).mockReturnValueOnce(pending.promise);
+    const loading = useAgentChatStore.getState().loadInitialSession();
+    await Promise.resolve();
+    expect(agentApi.getChatSessionMessages).toHaveBeenCalledWith('session-test');
+
+    useAgentChatStore.setState(useAgentChatStore.getInitialState());
+    useAgentChatStore.getState().startNewChat('current-user-session');
+    pending.resolve({ session_id: 'session-test', messages: [{ id: 'private', role: 'assistant', content: 'Previous private report', created_at: null }], session_state: { selected_skill_ids: ['old-private-skill'] } });
+    await loading;
+
+    expect(useAgentChatStore.getState().messages).toEqual([]);
+    expect(useAgentChatStore.getState().selectedSkillIds).toBeNull();
+    expect(useAgentChatStore.getState().sessionsLoading).toBe(false);
+  });
+
+  it('does not overwrite a newer history refresh with an older list', async () => {
+    const pending = createDeferred<Awaited<ReturnType<typeof agentApi.getChatSessions>>>();
+    vi.mocked(agentApi.getChatSessions).mockReturnValueOnce(pending.promise);
+    const older = useAgentChatStore.getState().loadSessions();
+    const latest = [{ session_id: 'session-test', title: 'Updated title', message_count: 2, created_at: null, last_active: null }];
+    vi.mocked(agentApi.getChatSessions).mockResolvedValueOnce(latest);
+    await useAgentChatStore.getState().loadSessions();
+    pending.resolve([]);
+    await older;
+    expect(useAgentChatStore.getState().sessions).toEqual(latest);
+  });
+
+  it.each([
+    { phase: 'initial-list', choice: [] },
+    { phase: 'initial-detail', choice: ['new-choice'] },
+    { phase: 'switch-detail', choice: ['new-choice'] },
+  ])('keeps the explicit Skill choice while restoring $phase history', async ({ phase, choice }) => {
+    useAgentChatStore.getState().startNewChat('saved-session');
+    const sessions = [{ session_id: 'saved-session', title: 'saved', message_count: 1, created_at: null, last_active: null }];
+    const list = createDeferred<typeof sessions>();
+    const detail = createDeferred<Awaited<ReturnType<typeof agentApi.getChatSessionMessages>>>();
+    if (phase !== 'switch-detail') {
+      vi.mocked(agentApi.getChatSessions).mockReturnValueOnce(phase === 'initial-list' ? list.promise : Promise.resolve(sessions));
+    }
+    vi.mocked(agentApi.getChatSessionMessages).mockReturnValueOnce(detail.promise);
+    useAgentChatStore.setState({ hasInitialLoad: false });
+    const loading = phase === 'switch-detail'
+      ? useAgentChatStore.getState().switchSession('destination')
+      : useAgentChatStore.getState().loadInitialSession();
+    if (phase !== 'initial-list') {
+      await vi.waitFor(() => expect(agentApi.getChatSessionMessages).toHaveBeenCalled());
+    }
+    useAgentChatStore.getState().setSelectedSkillIds(choice);
+    if (phase === 'initial-list') {
+      list.resolve(sessions);
+      await vi.waitFor(() => expect(agentApi.getChatSessionMessages).toHaveBeenCalled());
+    }
+    detail.resolve({ session_id: phase === 'switch-detail' ? 'destination' : 'saved-session', messages: [{ id: 'saved-answer', role: 'assistant', content: 'Previous saved answer', created_at: null }], session_state: { selected_skill_ids: ['previous-choice'] } });
+    await loading;
+    expect(useAgentChatStore.getState().messages.map(message => message.content)).toEqual(['Previous saved answer']);
+    expect(useAgentChatStore.getState().selectedSkillIds).toEqual(choice);
+  });
+
+  it.each([{ choice: [] }, { choice: ['new-choice'] }])('keeps the explicit Skill choice $choice when a missing saved session creates a fresh chat', async ({ choice }) => {
+    useAgentChatStore.getState().startNewChat('missing-session');
+    useAgentChatStore.setState({ hasInitialLoad: false });
+    const list = createDeferred<Awaited<ReturnType<typeof agentApi.getChatSessions>>>();
+    vi.mocked(agentApi.getChatSessions).mockReturnValueOnce(list.promise);
+    const loading = useAgentChatStore.getState().loadInitialSession();
+    useAgentChatStore.getState().setSelectedSkillIds(choice);
+    list.resolve([]);
+    await loading;
+    expect(useAgentChatStore.getState().sessionId).not.toBe('missing-session');
+    expect(useAgentChatStore.getState().selectedSkillIds).toEqual(choice);
+    expect(useAgentChatStore.getState().messages).toEqual([]);
+    expect(agentApi.getChatSessionMessages).not.toHaveBeenCalled();
+  });
+
   it('restores the saved Skill selection during the initial session load', async () => {
     localStorage.setItem('dsa_chat_session_id', 'saved-session');
     useAgentChatStore.setState({ hasInitialLoad: false });

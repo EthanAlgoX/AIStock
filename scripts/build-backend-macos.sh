@@ -117,8 +117,9 @@ for module in "${hidden_imports[@]}"; do
 done
 
 pushd "${ROOT_DIR}" >/dev/null
-cmd=("${PYTHON_BIN}" -m PyInstaller --name stock_analysis --onedir --noconfirm --noconsole --runtime-hook "${SCRIPT_DIR}/pyinstaller_runtime_compat.py" --add-data "static:static" --add-data "strategies:strategies" --add-data "src/assets/share_image:src/assets/share_image" --collect-data litellm --collect-data tiktoken --collect-data akshare)
+cmd=("${PYTHON_BIN}" -m PyInstaller --name stock_analysis --onedir --noconfirm --noconsole --runtime-hook "${SCRIPT_DIR}/pyinstaller_runtime_compat.py" --add-data "static:static" --add-data "strategies:strategies" --add-data "templates:templates" --add-data "src/assets/share_image:src/assets/share_image" --add-data "src/services/simulation_templates.json:src/services" --collect-data litellm --collect-data tiktoken --collect-data akshare)
 cmd+=("--collect-all" "src.services.screening")
+cmd+=("--collect-all" "src.strategy_kernels")
 cmd+=("--collect-all" "futu")
 cmd+=("${hidden_import_args[@]}" "main.py")
 
@@ -147,7 +148,7 @@ if ! "${packaged_entry}" --help >/tmp/dsa-packaged-help.log 2>&1; then
   exit 1
 fi
 
-for module in src.services.screening.pipeline futu orjson; do
+for module in src.services.screening.pipeline futu orjson src.services.simulation_strategy_service src.strategy_kernels.catalog src.services.report_renderer; do
   if DSA_PACKAGED_IMPORT_PROBE="${module}" "${packaged_entry}" >/tmp/dsa-packaged-import.log 2>&1; then
     cat /tmp/dsa-packaged-import.log
   else

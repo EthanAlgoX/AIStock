@@ -13,6 +13,12 @@ from src.agent.tools.registry import ToolParameter, ToolDefinition, ToolPolicy
 
 logger = logging.getLogger(__name__)
 
+
+def _round_indicator(value, digits):
+    """Preserve unavailable indicators as null rather than inventing values."""
+    return round(value, digits) if value is not None else None
+
+
 _ANALYSIS_READ_POLICY = ToolPolicy.declared(
     read_only=True,
     side_effects=["network_read", "db_read"],
@@ -50,6 +56,7 @@ def _handle_analyze_trend(stock_code: str) -> dict:
         logger.warning("analyze_trend(%s): Trend analysis failed", stock_code, exc_info=True)
         return {"error": f"Trend analysis failed for {stock_code}"}
 
+    serialized = result.to_dict()
     return {
         "code": result.code,
         "trend_status": result.trend_status.value,
@@ -63,27 +70,33 @@ def _handle_analyze_trend(stock_code: str) -> dict:
         "bias_ma5": round(result.bias_ma5, 2),
         "bias_ma10": round(result.bias_ma10, 2),
         "bias_ma20": round(result.bias_ma20, 2),
-        "volume_status": result.volume_status.value,
-        "volume_ratio_5d": round(result.volume_ratio_5d, 2),
+        "volume_status": serialized["volume_status"],
+        "volume_ratio_5d": _round_indicator(result.volume_ratio_5d, 2),
         "volume_trend": result.volume_trend,
         "support_ma5": result.support_ma5,
         "support_ma10": result.support_ma10,
         "resistance_levels": result.resistance_levels,
         "support_levels": result.support_levels,
-        "macd_dif": round(result.macd_dif, 4),
-        "macd_dea": round(result.macd_dea, 4),
-        "macd_bar": round(result.macd_bar, 4),
-        "macd_status": result.macd_status.value,
+        "macd_dif": _round_indicator(result.macd_dif, 4),
+        "macd_dea": _round_indicator(result.macd_dea, 4),
+        "macd_bar": _round_indicator(result.macd_bar, 4),
+        "macd_status": serialized["macd_status"],
         "macd_signal": result.macd_signal,
-        "rsi_6": round(result.rsi_6, 2),
-        "rsi_12": round(result.rsi_12, 2),
-        "rsi_24": round(result.rsi_24, 2),
-        "rsi_status": result.rsi_status.value,
+        "rsi_6": _round_indicator(result.rsi_6, 2),
+        "rsi_12": _round_indicator(result.rsi_12, 2),
+        "rsi_24": _round_indicator(result.rsi_24, 2),
+        "rsi_status": serialized["rsi_status"],
         "rsi_signal": result.rsi_signal,
         "buy_signal": result.buy_signal.value,
         "signal_score": result.signal_score,
         "signal_reasons": result.signal_reasons,
         "risk_factors": result.risk_factors,
+        "indicator_availability": result.indicator_availability,
+        "analysis_warnings": result.analysis_warnings,
+        "rule_events": result.rule_events,
+        "analysis_date": result.analysis_date,
+        "analysis_source": result.analysis_source,
+        "valid_bars": result.valid_bars,
     }
 
 

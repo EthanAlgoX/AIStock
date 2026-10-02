@@ -747,10 +747,80 @@ test('sanitizeReleaseUrl falls back for non-release links', (t) => {
   );
   assert.equal(
     mainModule.sanitizeReleaseUrl(
+      `https://user:secret@github.com/${mainModule.GITHUB_OWNER}/${mainModule.GITHUB_REPO}/releases`
+    ),
+    mainModule.RELEASES_PAGE_URL
+  );
+  assert.equal(
+    mainModule.sanitizeReleaseUrl(
       `https://github.com/${mainModule.GITHUB_OWNER}/${mainModule.GITHUB_REPO}/releases/tag/v3.13.0`
     ),
     `https://github.com/${mainModule.GITHUB_OWNER}/${mainModule.GITHUB_REPO}/releases/tag/v3.13.0`
   );
+});
+
+test('desktop external links accept credential-free HTTP(S) and reject other protocols', (t) => {
+  const mainModule = loadMainModule(t);
+  assert.equal(mainModule.sanitizeExternalUrl('https://example.com/news?q=stock'), 'https://example.com/news?q=stock');
+  assert.equal(mainModule.sanitizeExternalUrl('http://localhost:8123/overview'), 'http://localhost:8123/overview');
+  for (const url of [
+    'javascript:alert(1)', 'data:text/html,test', 'file:///tmp/private', 'vscode://open',
+    'https://user:secret@example.com/', 'https://token@example.com/',
+    'https:\\example.com', 'https://example.com/\nnews', '//example.com/news', 'not a url',
+  ]) {
+    assert.equal(mainModule.sanitizeExternalUrl(url), null, url);
+  }
+});
+
+test('desktop navigation keeps application and loading routes local and opens safe external links', async (t) => {
+  const mainModule = loadMainModule(t);
+  const handlers = new Map();
+  const opened = [];
+  let windowOpen;
+  let origin = '';
+  mainModule.configureDesktopNavigation({
+    on: (name, handler) => handlers.set(name, handler),
+    setWindowOpenHandler: (handler) => { windowOpen = handler; },
+  }, {
+    getBackendOrigin: () => origin,
+    loadingPageUrl: 'file:///tmp/desktop/renderer/loading.html',
+    openExternal: async (url) => opened.push(url),
+  });
+  const navigate = (url, name = 'will-navigate') => {
+    let prevented = false;
+    handlers.get(name)({ preventDefault: () => { prevented = true; } }, url);
+    return prevented;
+  };
+
+  assert.equal(navigate('file:///tmp/desktop/renderer/loading.html?error=backend%20failed'), false);
+  origin = 'http://localhost:8123';
+  assert.equal(navigate('http://localhost:8123/overview'), false);
+  assert.equal(navigate('http://localhost:8123/runs/run-1?view=report#details'), false);
+  assert.equal(navigate('http://localhost:8123/login', 'will-redirect'), false);
+  assert.equal(navigate('https://example.com/news'), true);
+  assert.equal(navigate('file:///tmp/desktop/other.html'), true);
+  assert.equal(navigate('http://user:secret@localhost:8123/overview'), true);
+  assert.equal(navigate('https://example.com/redirect', 'will-redirect'), true);
+  assert.deepEqual(windowOpen({ url: 'javascript:alert(1)' }), { action: 'deny' });
+  assert.deepEqual(windowOpen({ url: 'https://example.com/report' }), { action: 'deny' });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(opened, ['https://example.com/news', 'https://example.com/report']);
+});
+
+test('desktop external browser refusal is handled without a rejected event callback', async (t) => {
+  const mainModule = loadMainModule(t);
+  let windowOpen;
+  const errors = [];
+  mainModule.configureDesktopNavigation({
+    on: () => undefined,
+    setWindowOpenHandler: (handler) => { windowOpen = handler; },
+  }, {
+    openExternal: async () => { throw new Error('Browser refused'); },
+    onError: (error) => errors.push(error.message),
+  });
+  assert.deepEqual(windowOpen({ url: 'https://example.com/' }), { action: 'deny' });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(errors, ['Browser refused']);
 });
 
 test('fetchLatestReleaseJson rejects when response stream errors', async (t) => {

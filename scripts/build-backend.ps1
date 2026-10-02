@@ -135,11 +135,14 @@ $pyInstallerArgs = @(
   '--runtime-hook', $runtimeHook,
   '--add-data', 'static;static',
   '--add-data', 'strategies;strategies',
+  '--add-data', 'templates;templates',
   '--add-data', 'src/assets/share_image;src/assets/share_image',
+  '--add-data', 'src/services/simulation_templates.json;src/services',
   '--collect-data', 'litellm',
   '--collect-data', 'tiktoken',
   '--collect-data', 'akshare',
   '--collect-all', 'src.services.screening',
+  '--collect-all', 'src.strategy_kernels',
   '--collect-all', 'futu'
 )
 $pyInstallerArgs += $hiddenImportArgs
@@ -164,7 +167,7 @@ if (-not (Test-Path $packagedEntry)) {
 }
 $previousProbe = $env:DSA_PACKAGED_IMPORT_PROBE
 try {
-  foreach ($module in @('src.services.screening.pipeline', 'futu', 'orjson')) {
+  foreach ($module in @('src.services.screening.pipeline', 'futu', 'orjson', 'src.services.simulation_strategy_service', 'src.strategy_kernels.catalog', 'src.services.report_renderer')) {
     $env:DSA_PACKAGED_IMPORT_PROBE = $module
     $probeProcess = Start-Process -FilePath $packagedEntry -Wait -PassThru
     if ($probeProcess.ExitCode -ne 0) {

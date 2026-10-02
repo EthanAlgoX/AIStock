@@ -7,7 +7,7 @@ const day = {
   date: '2026-09-22', equity: 100000, cash: 100000, marketValue: 0, dailyReturn: 0, benchmarkReturn: 0, holdings: [], trades: [],
   opinions: [{ code: '688233', targetWeight: 0, reason: '成交量倍数 0.80，小于 1.3。', stance: 'neutral', held: false }],
 } as PortfolioDay;
-const portfolio = { mode: 'paper', status: 'running', days: [day] } as Portfolio;
+const portfolio = { mode: 'paper', status: 'running', config: { decisionBackend: 'rules' }, days: [day] } as Portfolio;
 
 describe('PortfolioRunExplanation', () => {
   it('shows the zero-target reason without requiring a hidden tab', () => {
@@ -40,6 +40,12 @@ describe('PortfolioRunExplanation', () => {
     render(<PortfolioRunExplanation portfolio={{ ...portfolio, mode: 'backtest', status: 'ready', error: 'timeout' }} />);
     expect(screen.getByText(/不代表完整回测/)).toBeVisible();
     expect(screen.getByText(/运行回测.*未完成的日期/)).toBeVisible();
+    expect(screen.getByText(/规则回测不调用决策模型/)).toBeVisible();
+  });
+  it('explains that resuming a model backtest invokes the decision model', () => {
+    render(<PortfolioRunExplanation portfolio={{ ...portfolio, mode: 'backtest', status: 'ready', error: 'timeout', config: { ...portfolio.config, decisionBackend: 'llm' } }} />);
+    expect(screen.getByText(/继续运行会调用模型/)).toBeVisible();
+    expect(screen.queryByText(/规则回测不调用决策模型/)).not.toBeInTheDocument();
   });
   it('does not call an active retry interrupted', () => {
     render(<PortfolioRunExplanation portfolio={{ ...portfolio, mode: 'backtest', status: 'ready', busy: true, error: 'timeout' }} />);

@@ -197,11 +197,13 @@ function connectSharedStream() {
   sharedEventSource = eventSource;
 
   eventSource.addEventListener('connected', () => {
+    if (sharedEventSource !== eventSource) return;
     notifyConnectionState(true);
     forEachSubscriber((callbacks) => callbacks.onConnected?.());
   });
 
   eventSource.addEventListener('task_created', (e) => {
+    if (sharedEventSource !== eventSource) return;
     const payload = parseEventData((e as MessageEvent<string>).data);
     if (payload) {
       forEachSubscriber((callbacks) => callbacks.onTaskCreated?.(payload.task));
@@ -209,6 +211,7 @@ function connectSharedStream() {
   });
 
   eventSource.addEventListener('task_started', (e) => {
+    if (sharedEventSource !== eventSource) return;
     const payload = parseEventData((e as MessageEvent<string>).data);
     if (payload) {
       forEachSubscriber((callbacks) => callbacks.onTaskStarted?.(payload.task));
@@ -216,6 +219,7 @@ function connectSharedStream() {
   });
 
   eventSource.addEventListener('task_progress', (e) => {
+    if (sharedEventSource !== eventSource) return;
     const payload = parseEventData((e as MessageEvent<string>).data);
     if (payload) {
       forEachSubscriber((callbacks) => {
@@ -228,6 +232,7 @@ function connectSharedStream() {
   });
 
   eventSource.addEventListener('task_completed', (e) => {
+    if (sharedEventSource !== eventSource) return;
     const payload = parseEventData((e as MessageEvent<string>).data);
     if (payload) {
       forEachSubscriber((callbacks) => callbacks.onTaskCompleted?.(payload.task));
@@ -235,6 +240,7 @@ function connectSharedStream() {
   });
 
   eventSource.addEventListener('task_failed', (e) => {
+    if (sharedEventSource !== eventSource) return;
     const payload = parseEventData((e as MessageEvent<string>).data);
     if (payload) {
       forEachSubscriber((callbacks) => callbacks.onTaskFailed?.(payload.task));
@@ -246,6 +252,7 @@ function connectSharedStream() {
   });
 
   eventSource.onerror = (error) => {
+    if (sharedEventSource !== eventSource) return;
     notifyConnectionState(false);
     forEachSubscriber((callbacks) => callbacks.onError?.(error));
     if (sharedEventSource === eventSource) {

@@ -208,6 +208,10 @@ def run_member_maintenance(*, alerts=False, reconcile=False):
                 workspace = WorkspaceService()
                 if reconcile:
                     workspace.reconcile_interrupted_runs()
+                    from src.services.strategy_definition_service import StrategyDefinitionService
+                    from src.services.strategy_continuous_run_service import StrategyContinuousRunService
+                    StrategyDefinitionService().reconcile_interrupted_automatic_runs()
+                    StrategyContinuousRunService().resume_active()
                     from src.services.simulation_portfolio_service import SimulationPortfolioService
                     SimulationPortfolioService().recover()
                 elif alerts:
@@ -224,6 +228,9 @@ def reset_member_stores():
     """Test/lifecycle cleanup only, never an HTTP operation."""
     with _STORE_LOCK:
         for database in _STORES.values():
+            controller = getattr(database, '_continuous_run_service', None)
+            if controller is not None:
+                controller.stop_workers()
             database._engine.dispose()
         _STORES.clear()
 

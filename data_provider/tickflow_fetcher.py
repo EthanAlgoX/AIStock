@@ -38,7 +38,7 @@ from .base import (
     is_st_stock,
     normalize_stock_code,
 )
-from .realtime_types import RealtimeSource, UnifiedRealtimeQuote, safe_int
+from .realtime_types import RealtimeSource, UnifiedRealtimeQuote, safe_float, safe_int
 
 
 logger = logging.getLogger(__name__)
@@ -229,21 +229,12 @@ class TickFlowFetcher(BaseFetcher):
             close = pd.to_numeric(normalized["close"], errors="coerce")
             normalized["pct_chg"] = close.pct_change().fillna(0.0) * 100.0
 
-        normalized = normalized.dropna(subset=["date", "close", "volume"])
         normalized = normalized.sort_values("date", ascending=True).reset_index(drop=True)
         return normalized[["code", *STANDARD_COLUMNS]]
 
     @staticmethod
     def _safe_float(value: Any) -> Optional[float]:
-        if value in (None, "", "-"):
-            return None
-        try:
-            numeric = float(value)
-            if math.isnan(numeric):
-                return None
-            return numeric
-        except (TypeError, ValueError):
-            return None
+        return safe_float(value)
 
     @staticmethod
     def _parse_bool(value: Optional[str], default: bool) -> bool:
@@ -460,26 +451,18 @@ class TickFlowFetcher(BaseFetcher):
             return frame
 
         dates = cls._extract_date_series(frame)
-        valid_dates = dates.dropna()
-        if valid_dates.empty:
-            logger.warning(
-                "[TickFlowFetcher] daily K-line response has no usable dates: symbol=%s context=%s rows=%d count=%d",
-                symbol,
-                context,
-                len(frame),
-                count,
-            )
-            return pd.DataFrame(columns=frame.columns)
+        if dates.isna().any():
+            raise DataFetchError("TickFlow daily K-line response contains invalid dates")
 
         if cls._is_daily_frame_truncated(
-            dates=valid_dates,
+            dates=dates,
             start_date=start_date,
             end_date=end_date,
             count=count,
             returned_rows=len(frame),
         ):
-            first_date = valid_dates.min().strftime("%Y-%m-%d")
-            last_date = valid_dates.max().strftime("%Y-%m-%d")
+            first_date = dates.min().strftime("%Y-%m-%d")
+            last_date = dates.max().strftime("%Y-%m-%d")
             logger.warning(
                 "[TickFlowFetcher] reject incomplete daily K-line response: symbol=%s context=%s "
                 "start=%s end=%s first=%s last=%s rows=%d count=%d reason=count_cap",
@@ -550,8 +533,12 @@ class TickFlowFetcher(BaseFetcher):
         return None
 
     def _set_daily_cache(self, cache_key: Tuple[str, str, str, str], df: pd.DataFrame) -> None:
+        frame = self._coerce_frame(df)
+        if not frame.empty:
+            # 复用日线校验，拒绝会反复失败的原始批次进入预取缓存。
+            self._clean_data(self._normalize_data(frame, cache_key[0]))
         with self._daily_cache_lock:
-            self._daily_cache[cache_key] = self._coerce_frame(df)
+            self._daily_cache[cache_key] = frame
 
     def _capability_available(self, capability: str) -> bool:
         now = monotonic()
@@ -666,11 +653,11 @@ class TickFlowFetcher(BaseFetcher):
                         count=request_count,
                         context="batch",
                     )
+                    if frame.empty:
+                        continue
+                    self._set_daily_cache(cache_key, frame)
                 except DataFetchError:
                     continue
-                if frame.empty:
-                    continue
-                self._set_daily_cache(cache_key, frame)
                 cached_count += 1
 
         logger.info(
@@ -762,6 +749,11 @@ class TickFlowFetcher(BaseFetcher):
                 symbol = str(quote.get("symbol") or "").upper()
                 if not symbol:
                     continue
+                price = safe_float(quote.get("last_price"))
+                if price is None:
+                    price = safe_float(quote.get("price"))
+                if price is None or price <= 0:
+                    continue
                 self._quote_cache[symbol] = (now, quote)
                 stored += 1
         return stored
@@ -821,7 +813,7 @@ class TickFlowFetcher(BaseFetcher):
         current = self._safe_float(quote.get("last_price"))
         if current is None:
             current = self._safe_float(quote.get("price"))
-        if current is None:
+        if current is None or current <= 0:
             return None
 
         ext = quote.get("ext") or {}

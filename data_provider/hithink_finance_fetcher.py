@@ -221,7 +221,6 @@ class HiThinkFinanceFetcher(BaseFetcher):
         ):
             normalized[target] = pd.to_numeric(raw.get(source), errors="coerce")
         normalized["pct_chg"] = normalized["close"].pct_change().fillna(0.0) * 100.0
-        normalized = normalized.dropna(subset=["date", "close", "volume"])
         return normalized[["code", *STANDARD_COLUMNS]].reset_index(drop=True)
 
     def get_realtime_quote(self, stock_code: str) -> Optional[UnifiedRealtimeQuote]:

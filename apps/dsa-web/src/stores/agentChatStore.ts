@@ -152,6 +152,20 @@ const getInitialSessionId = (): string =>
     : generateUUID();
 
 export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set, get) => {
+  // Keep request ordering outside resettable identity state.
+  let sessionListRevision = 0;
+  let conversationRevision = 0;
+  // History restores messages independently of a newer explicit Skill choice.
+  let skillSelectionRevision = 0;
+  const captureConversationRead = () => {
+    const { sessionId, messages } = get();
+    const revision = conversationRevision;
+    return (checkProgress = true) => {
+      const current = get();
+      return revision === conversationRevision && current.sessionId === sessionId
+        && (!checkProgress || (current.messages === messages && !current.loading));
+    };
+  };
   const deliverServerCancellation = async (requestId: string): Promise<void> => {
     try {
       await agentApi.cancelChatStream(requestId);
@@ -182,38 +196,48 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
   terminalStatus: null,
   stopError: false,
 
-  setSelectedSkillIds: (skillIds) => set({ selectedSkillIds: skillIds }),
+  setSelectedSkillIds: (skillIds) => {
+    skillSelectionRevision += 1;
+    set({ selectedSkillIds: skillIds });
+  },
 
   setCurrentRoute: (path) => set({ currentRoute: path }),
 
   clearCompletionBadge: () => set({ completionBadge: false }),
 
   loadSessions: async () => {
+    const ownsRead = captureConversationRead();
+    const revision = ++sessionListRevision;
     set({ sessionsLoading: true });
     try {
       const sessions = await agentApi.getChatSessions();
-      set({ sessions });
+      if (ownsRead() && revision === sessionListRevision) set({ sessions });
     } catch {
       // Ignore load errors
     } finally {
-      set({ sessionsLoading: false });
+      if (ownsRead(false) && revision === sessionListRevision) set({ sessionsLoading: false });
     }
   },
 
   loadInitialSession: async () => {
     const { hasInitialLoad } = get();
     if (hasInitialLoad) return;
+    const ownsRead = captureConversationRead();
+    const selectionRevision = skillSelectionRevision;
+    const revision = ++sessionListRevision;
     set({ hasInitialLoad: true, sessionsLoading: true });
 
     try {
       const sessionList = await agentApi.getChatSessions();
-      set({ sessions: sessionList });
+      if (!ownsRead()) return;
+      if (revision === sessionListRevision) set({ sessions: sessionList });
 
       const savedId = localStorage.getItem(STORAGE_KEY_SESSION);
       if (savedId) {
         const sessionExists = sessionList.some((s) => s.session_id === savedId);
         if (sessionExists) {
           const detail = await agentApi.getChatSessionMessages(savedId);
+          if (!ownsRead()) return;
           if (detail.messages.length > 0) {
             set({
               messages: detail.messages.map((m) => ({
@@ -221,13 +245,14 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
                 role: m.role,
                 content: m.content,
               })),
-              selectedSkillIds: detail.session_state.selected_skill_ids,
+              ...(selectionRevision === skillSelectionRevision
+                ? { selectedSkillIds: detail.session_state.selected_skill_ids } : {}),
             });
           }
         } else {
-          const newId = generateUUID();
-          set({ sessionId: newId, selectedSkillIds: null });
-          localStorage.setItem(STORAGE_KEY_SESSION, newId);
+          const selectedSkillIds = get().selectedSkillIds;
+          get().startNewChat();
+          if (selectionRevision !== skillSelectionRevision) set({ selectedSkillIds });
         }
       } else {
         localStorage.setItem(STORAGE_KEY_SESSION, get().sessionId);
@@ -235,21 +260,22 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
     } catch {
       // Ignore
     } finally {
-      set({ sessionsLoading: false });
+      if (ownsRead(false) && revision === sessionListRevision) set({ sessionsLoading: false });
     }
   },
 
   refreshMessages: async () => {
-    const { sessionId, loading, messages } = get();
+    const { sessionId, loading } = get();
     if (loading) return;
+    const ownsRead = captureConversationRead();
     try {
       const detail = await agentApi.getChatSessionMessages(sessionId);
-      if (get().sessionId !== sessionId || get().loading || get().messages !== messages) return;
+      if (!ownsRead()) return;
       set({ messages: detail.messages.map((m) => ({ id: m.id, role: m.role, content: m.content })) });
       localStorage.setItem(STORAGE_KEY_SESSION, sessionId);
       await get().loadSessions();
     } catch (error) {
-      if (get().sessionId === sessionId) set({ chatError: getParsedApiError(error) });
+      if (ownsRead()) set({ chatError: getParsedApiError(error) });
     }
   },
 
@@ -257,12 +283,14 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
     const { sessionId, messages, abortController } = get();
     if (targetSessionId === sessionId && messages.length > 0) return;
 
+    conversationRevision += 1;
     abortController?.abort();
     set({
       messages: [],
       selectedSkillIds: null,
       sessionId: targetSessionId,
       loading: false,
+      sessionsLoading: false,
       progressSteps: [],
       chatError: null,
       abortController: null,
@@ -273,10 +301,12 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
       stopError: false,
     });
     localStorage.setItem(STORAGE_KEY_SESSION, targetSessionId);
+    const ownsRead = captureConversationRead();
+    const selectionRevision = skillSelectionRevision;
 
     try {
       const detail = await agentApi.getChatSessionMessages(targetSessionId);
-      if (get().sessionId !== targetSessionId) {
+      if (!ownsRead()) {
         return;
       }
       set({
@@ -285,7 +315,8 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
           role: m.role,
           content: m.content,
         })),
-        selectedSkillIds: detail.session_state.selected_skill_ids,
+        ...(selectionRevision === skillSelectionRevision
+          ? { selectedSkillIds: detail.session_state.selected_skill_ids } : {}),
       });
     } catch {
       // Ignore
@@ -293,6 +324,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
   },
 
   startNewChat: (sessionId) => {
+    conversationRevision += 1;
     // Abort any in-flight stream so the old request does not keep running
     get().abortController?.abort();
     const newId = sessionId ?? generateUUID();
@@ -301,6 +333,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
       messages: [],
       selectedSkillIds: null,
       loading: false,
+      sessionsLoading: false,
       progressSteps: [],
       chatError: null,
       abortController: null,
@@ -327,6 +360,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
 
   startStream: async (payload, meta) => {
     if (get().loading) return;
+    conversationRevision += 1;
     const { abortController: prevAc, sessionId: storeSessionId } = get();
     prevAc?.abort();
 
@@ -339,6 +373,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
       stopping: false,
       terminalStatus: null,
       stopError: false,
+      sessionsLoading: false,
     });
 
     const streamSessionId = payload.session_id || storeSessionId;

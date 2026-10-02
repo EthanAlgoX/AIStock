@@ -1,12 +1,19 @@
 # -*- coding: utf-8 -*-
 """Validation tests for backend packaging scripts."""
 
+import ast
+import hashlib
 import json
 import os
 import runpy
 import shlex
+import shutil
 import subprocess
+import sys
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -69,6 +76,108 @@ def test_macos_backend_build_script_collects_builtin_screening_engine() -> None:
     assert "packaged_screening_strategy_count" in script
     assert "DSA_PACKAGED_IMPORT_PROBE" in main_py
     assert "importlib.import_module(_packaged_import_probe)" in main_py
+
+
+def test_backend_scripts_bundle_and_probe_business_catalog_resources() -> None:
+    macos = _read_text(REPO_ROOT / "scripts" / "build-backend-macos.sh")
+    windows = _read_text(REPO_ROOT / "scripts" / "build-backend.ps1")
+    assert '--add-data "src/services/simulation_templates.json:src/services"' in macos
+    assert "'--add-data', 'src/services/simulation_templates.json;src/services'" in windows
+    assert 'cmd+=("--collect-all" "src.strategy_kernels")' in macos
+    assert "'--collect-all', 'src.strategy_kernels'" in windows
+    assert '--add-data "templates:templates"' in macos
+    assert "'--add-data', 'templates;templates'" in windows
+    # These are in the executed frozen probe loops, not only hidden imports.
+    macos_probes = macos.split("Verifying packaged runtime imports", 1)[1].split("for module in ", 1)[1].split("; do", 1)[0]
+    windows_probes = windows.split("foreach ($module in @(", 1)[1].split("))", 1)[0]
+    for module in ("src.services.simulation_strategy_service", "src.strategy_kernels.catalog", "src.services.report_renderer"):
+        assert module in macos_probes
+        assert module in windows_probes
+
+
+def _run_packaged_resource_probe(module: str) -> None:
+    """Execute main's real early probe without importing the full CLI workflow."""
+    tree = ast.parse(_read_text(REPO_ROOT / "main.py"))
+    probe = next(
+        node for node in tree.body
+        if isinstance(node, ast.If)
+        and isinstance(node.test, ast.Name)
+        and node.test.id == "_packaged_import_probe"
+    )
+    code = compile(ast.Module(body=[probe], type_ignores=[]), str(REPO_ROOT / "main.py"), "exec")
+    exec(code, {"_packaged_import_probe": module})
+
+
+def _stage_frozen_catalogs(tmp_path, monkeypatch, layout):
+    from src.services import report_renderer, simulation_strategy_service
+    from src.strategy_kernels import catalog
+
+    runtime_root = tmp_path / layout if layout else tmp_path
+    service_dir = runtime_root / "src" / "services"
+    service_dir.mkdir(parents=True)
+    shutil.copy(REPO_ROOT / "src/services/simulation_templates.json", service_dir)
+    kernel_dir = runtime_root / "src" / "strategy_kernels"
+    shutil.copytree(REPO_ROOT / "src/strategy_kernels", kernel_dir, ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(REPO_ROOT / "templates", runtime_root / "templates")
+    # PyInstaller gives imported modules a __file__ underneath its runtime root.
+    # Keep the actual production methods: their relative-path reads hit this tree.
+    monkeypatch.setattr(simulation_strategy_service, "__file__", str(service_dir / "simulation_strategy_service.py"))
+    monkeypatch.setattr(catalog, "__file__", str(kernel_dir / "catalog.py"))
+    monkeypatch.setattr(report_renderer, "__file__", str(service_dir / "report_renderer.py"))
+    renderer_config = SimpleNamespace(report_templates_dir="templates", report_language="zh", report_show_llm_model=False)
+    monkeypatch.setattr(report_renderer, "get_config", lambda: renderer_config)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(runtime_root), raising=False)
+    return simulation_strategy_service, catalog, service_dir, kernel_dir
+
+
+@pytest.mark.parametrize("layout", ["_internal", ""])
+def test_frozen_catalog_layout_loads_real_templates_and_kernel_hashes(tmp_path, monkeypatch, layout) -> None:
+    service_module, catalog_module, _services, kernels = _stage_frozen_catalogs(tmp_path, monkeypatch, layout)
+    service = object.__new__(service_module.SimulationStrategyService)
+    assert service.list_templates() == json.loads(_read_text(REPO_ROOT / "src/services/simulation_templates.json"))
+    for item in catalog_module.builtin_kernel_catalog().values():
+        assert item["sha256"] == hashlib.sha256((kernels / f"{item['module']}.py").read_bytes()).hexdigest()
+    for module in ("src.services.simulation_strategy_service", "src.strategy_kernels.catalog", "src.services.report_renderer"):
+        with pytest.raises(SystemExit) as result:
+            _run_packaged_resource_probe(module)
+        assert result.value.code == 0
+
+
+@pytest.mark.parametrize("failure", ["missing_templates", "invalid_templates", "missing_kernel", "missing_report", "missing_macro"])
+def test_frozen_probe_rejects_missing_or_broken_business_resources(tmp_path, monkeypatch, failure) -> None:
+    _service, _catalog, services, kernels = _stage_frozen_catalogs(tmp_path, monkeypatch, "_internal")
+    module = "src.services.simulation_strategy_service"
+    if failure == "missing_templates":
+        (services / "simulation_templates.json").unlink()
+    elif failure == "invalid_templates":
+        (services / "simulation_templates.json").write_text("{invalid json", encoding="utf-8")
+    elif failure == "missing_kernel":
+        (kernels / "single_stock_research.py").unlink()
+        module = "src.strategy_kernels.catalog"
+    else:
+        templates = tmp_path / "_internal" / "templates"
+        (templates / ("report_wechat.j2" if failure == "missing_report" else "_macros.j2")).unlink()
+        module = "src.services.report_renderer"
+    with pytest.raises(SystemExit) as result:
+        _run_packaged_resource_probe(module)
+    assert result.value.code == 1
+
+
+def test_packaged_builtin_report_probe_preserves_custom_template_configuration(tmp_path, monkeypatch) -> None:
+    from src.services import report_renderer
+
+    _stage_frozen_catalogs(tmp_path, monkeypatch, "_internal")
+    custom_templates = tmp_path / "custom"
+    custom_templates.mkdir()
+    (custom_templates / "report_brief.j2").write_text("CUSTOM_REPORT", encoding="utf-8")
+    config = report_renderer.get_config()
+    config.report_templates_dir = str(custom_templates)
+    with pytest.raises(SystemExit) as result:
+        _run_packaged_resource_probe("src.services.report_renderer")
+    assert result.value.code == 0
+    assert config.report_templates_dir == str(custom_templates)
+    assert report_renderer.render("brief", []) == "CUSTOM_REPORT"
 
 
 def test_pyinstaller_runtime_hook_disables_incompatible_nltk_guard(

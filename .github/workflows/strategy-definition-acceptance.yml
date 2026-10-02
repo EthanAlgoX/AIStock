@@ -3,6 +3,9 @@ name: Strategy definition acceptance
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   acceptance:
     runs-on: ubuntu-latest
@@ -26,8 +29,34 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
-      - name: Run formal acceptance
-        run: python scripts/verify_strategy_definition_acceptance.py --full
+      - name: Prepare acceptance logs
+        run: mkdir -p .artifacts/strategy-definition-acceptance
+      - name: Check repository governance
+        run: python scripts/check_ai_assets.py
+      - name: Run backend gate
+        run: |
+          set -o pipefail
+          ./scripts/ci_gate.sh 2>&1 | tee .artifacts/strategy-definition-acceptance/backend.log
+      - name: Run web checks
+        working-directory: apps/dsa-web
+        run: |
+          set -o pipefail
+          npm test -- --maxWorkers=2 2>&1 | tee ../../.artifacts/strategy-definition-acceptance/web-tests.log
+          npm run lint 2>&1 | tee ../../.artifacts/strategy-definition-acceptance/web-lint.log
+          npm run build 2>&1 | tee ../../.artifacts/strategy-definition-acceptance/web-build.log
+      - name: Run isolated authenticated browser smoke
+        working-directory: apps/dsa-web
+        env:
+          DSA_STRATEGY_E2E: '1'
+        run: |
+          set -o pipefail
+          export DSA_WEB_SMOKE_PASSWORD="$(node -e "process.stdout.write(require('node:crypto').randomBytes(24).toString('base64url'))")"
+          npm run test:smoke -- --workers=1 --retries=0 --output=../../.artifacts/strategy-definition-acceptance/browser 2>&1 | tee ../../.artifacts/strategy-definition-acceptance/browser.log
+      - name: Build Docker image and verify runtime imports
+        run: |
+          set -o pipefail
+          docker build -f docker/Dockerfile -t ai-stock-acceptance . 2>&1 | tee .artifacts/strategy-definition-acceptance/docker-build.log
+          docker run --rm ai-stock-acceptance python -c "import api.app, src.config, src.storage, src.analyzer, src.services.screening.pipeline, data_provider, bot.dispatcher, futu, orjson" 2>&1 | tee .artifacts/strategy-definition-acceptance/docker-imports.log
       - name: Upload acceptance artifacts
         if: always()
         uses: actions/upload-artifact@v4

@@ -8,6 +8,7 @@ import { useUiLanguage } from '../contexts/UiLanguageContext';
 import { HOME_COPY } from '../i18n/homeCopy';
 import { authApi } from '../api/auth';
 import { accountErrorMessage } from '../utils/accountError';
+import { getLoginRedirect } from '../utils/loginRedirect';
 
 export default function LoginPage() {
   const { accountMode, accountState, passwordSet, refreshStatus, registrationMode, multiUserEnabled } = useAuth();
@@ -15,8 +16,7 @@ export default function LoginPage() {
   const [joining, setJoining] = useState(params.get('mode') === 'register' && registrationMode !== 'closed' && accountMode && accountState === 'ready');
   const { localize: l, language } = useUiLanguage();
   const navigate = useNavigate();
-  const raw = params.get('redirect') || '';
-  const redirect = raw.startsWith('/') && !raw.startsWith('//') && !raw.includes('\\') && !raw.startsWith('/login') && raw !== '/' ? raw : '/overview';
+  const redirect = getLoginRedirect(params.get('redirect'));
   const register = joining || (accountMode ? accountState === 'register' : !passwordSet);
   const migrate = accountMode && accountState === 'migrate';
   const [email, setEmail] = useState('');

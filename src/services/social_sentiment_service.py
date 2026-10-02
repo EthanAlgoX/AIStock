@@ -15,6 +15,7 @@ import logging
 import threading
 import time
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import requests
 from tenacity import (
@@ -241,6 +242,33 @@ class SocialSentimentService:
         return None
 
     @staticmethod
+    def _mention_source_url(mention: Dict[str, Any]) -> Optional[str]:
+        """Keep only absolute HTTP(S) attribution links without credentials."""
+        for key in ("url", "permalink", "link"):
+            value = mention.get(key)
+            if not isinstance(value, str):
+                continue
+            value = value.strip()
+            if not value or "\\" in value or any(char.isspace() or ord(char) < 32 for char in value):
+                continue
+            try:
+                parsed = urlparse(value)
+                if (
+                    parsed.scheme.lower() not in {"http", "https"}
+                    or not parsed.hostname
+                    or parsed.username is not None
+                    or parsed.password is not None
+                ):
+                    continue
+                # Accessing port validates malformed authorities, even though no
+                # network request is made for these attribution-only links.
+                parsed.port
+            except ValueError:
+                continue
+            return value
+        return None
+
+    @staticmethod
     def _format_social_intel(
         ticker: str,
         reddit_data: Optional[Dict],
@@ -250,6 +278,12 @@ class SocialSentimentService:
         """Format social sentiment data as a prompt-ready text block."""
         lines = [f"📱 Social Sentiment Intelligence for {ticker} (Reddit / X / Polymarket)"]
         lines.append("=" * 60)
+        lines.append(
+            "Evidence limits: Social buzz, mentions and votes are attention metrics, "
+            "not verified bullish evidence or directional confidence. Comments are unverified. "
+            "Different platforms use different score scales; do not add their scores together. "
+            "Missing post timestamps do not establish recency."
+        )
 
         # --- Reddit ---
         if reddit_data:
@@ -277,22 +311,52 @@ class SocialSentimentService:
 
             # Top mentions
             top_mentions = report.get("top_mentions", [])
-            if top_mentions:
+            if isinstance(top_mentions, list) and top_mentions:
                 lines.append("  Top Mentions:")
-                for i, m in enumerate(top_mentions[:5], 1):
-                    text = (m.get("text") or m.get("title") or "")[:120]
+                shown_mentions = 0
+                for m in top_mentions:
+                    if not isinstance(m, dict):
+                        continue
+                    text = m.get("text")
+                    if not isinstance(text, str) or not text.strip():
+                        text = m.get("title")
+                    if not isinstance(text, str) or not text.strip():
+                        continue
+                    text = " ".join(text.split())[:120]
                     sub = m.get("subreddit", "")
                     score = SocialSentimentService._coalesce(m.get("sentiment_score"), m.get("sentiment"))
-                    upvotes = m.get("upvotes", "")
+                    upvotes = m.get("upvotes")
                     meta_parts = []
                     if score is not None:
                         meta_parts.append(f"sentiment: {score}")
                     if sub:
                         meta_parts.append(f"r/{sub}")
-                    if upvotes:
+                    if upvotes is not None:
                         meta_parts.append(f"{upvotes} upvotes")
+                    author = m.get("author")
+                    if isinstance(author, dict):
+                        author = author.get("username") or author.get("name")
+                    if isinstance(author, str) and author.strip():
+                        meta_parts.append(f"author: {' '.join(author.split())}")
                     meta = f" ({', '.join(meta_parts)})" if meta_parts else ""
-                    lines.append(f"    {i}. \"{text}\"{meta}")
+                    shown_mentions += 1
+                    lines.append(f"    {shown_mentions}. \"{text}\"{meta}")
+                    time_fields = [
+                        key for key in ("published_at", "created_at")
+                        if isinstance(m.get(key), (str, int, float))
+                        and not isinstance(m.get(key), bool)
+                        and str(m[key]).strip()
+                    ]
+                    if time_fields:
+                        for key in time_fields:
+                            lines.append(f"       Post time ({key}, supplied): {m[key]}")
+                    else:
+                        lines.append("       Post time: unknown (recency unverified)")
+                    source_url = SocialSentimentService._mention_source_url(m)
+                    if source_url:
+                        lines.append(f"       Source URL: {source_url}")
+                    if shown_mentions >= 5:
+                        break
 
             # Daily stats
             daily = report.get("daily_stats", [])
@@ -339,5 +403,5 @@ class SocialSentimentService:
             lines.append("\n🔮 Polymarket: No active prediction markets found")
 
         lines.append("")
-        lines.append("Source: api.adanos.org — Real-time social sentiment aggregation")
+        lines.append("Source: api.adanos.org — Social sentiment aggregation")
         return "\n".join(lines)

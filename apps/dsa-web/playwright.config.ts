@@ -28,7 +28,9 @@ if (shouldRunStrategyE2E) {
   // The password is generated per runner and deliberately never committed.  The
   // application still uses its production login endpoint and signed cookie.
   process.env.DSA_STRATEGY_E2E_PASSWORD ||= crypto.randomBytes(24).toString('base64url');
-  fs.writeFileSync(strategyE2EEnv, `ADMIN_AUTH_ENABLED=true\nDATABASE_PATH=${strategyE2EDatabase}\n`, { mode: 0o600 });
+  // Vite serves source in this acceptance run; backend startup must not reinstall
+  // or rebuild the same node_modules while frontend checks are running.
+  fs.writeFileSync(strategyE2EEnv, `ADMIN_ACCESS_MODE=legacy\nADMIN_AUTH_ENABLED=true\nWEBUI_AUTO_BUILD=false\nDATABASE_PATH=${strategyE2EDatabase}\n`, { mode: 0o600 });
 }
 
 function resolveBackendCommand() {
@@ -59,6 +61,7 @@ export default defineConfig({
   retries: shouldRunStrategyE2E ? 0 : (process.env.CI ? 2 : 0),
   reporter: 'list',
   use: {
+    ...(process.env.DSA_PLAYWRIGHT_CHANNEL ? { channel: process.env.DSA_PLAYWRIGHT_CHANNEL } : {}),
     baseURL: `http://127.0.0.1:${frontendPort}`,
     locale: 'zh-CN',
     trace: 'on-first-retry',

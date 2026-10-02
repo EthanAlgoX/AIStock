@@ -6,16 +6,29 @@
 
 - React UI（Vite 构建）由本地 FastAPI 服务托管
 - Electron 启动时自动拉起后端服务，等待 `/api/health` 就绪后加载 UI
+- 内置后端导入应用后最多等待 60 秒完成初始化，启动失败或超时会清理已创建的服务并阻止迟到监听；Electron 自身的健康等待还包含模块导入时间，极慢环境仍可能显示启动错误。同步阻塞初始化不能被线程强制终止。
 - Windows 便携/安装模式下，用户配置文件 `.env` 和数据库放在 exe 同级目录；macOS 打包版使用 Electron 用户数据目录保存运行时配置
 - 桌面端会自动从本机 `8000-8100` 选择可用端口，并把实际选择的端口同步给内置后端；桌面端不依赖 `.env` 里的 `WEBUI_PORT` 来决定窗口连接地址，避免用户改端口后 Electron 仍等待旧端口导致启动超时
 - Desktop backend 默认随 `requirements.txt` 安装并冻结 `futu-api==10.8.6808`；Windows/macOS 构建脚本会在源码环境和 PyInstaller 产物中分别执行 `import futu`，防止发布包只安装但未携带 SDK。
 - 报告“分享”按钮使用 Electron 自带的隐藏 Chromium 窗口渲染本地后端输出的受限 HTML，并保存为 PNG；桌面安装包无需额外携带 `wkhtmltoimage`、`markdown-to-file` 或 Playwright 浏览器。
+
+## 页面导航与外链
+
+桌面主窗口只保留配置后端同源页面的内部导航。异源 HTTP(S) 链接在系统浏览器打开；带 URL 凭据、无法解析的地址或 `javascript:` / `file:` 等外部协议不交给系统执行。页面打开新窗口和页面内跳转使用同一边界；本地启动错误页仍可显示。导航单元测试覆盖此规则，Electron 构建本身不替代真实窗口操作验收。
+
+The main desktop window keeps navigation within its configured backend origin. Other HTTP(S) links open in the system browser; credential-bearing, malformed and unsupported external schemes are rejected. New-window requests and navigation share this boundary; local startup error pages remain supported. Unit tests cover these rules, while packaging alone does not validate interactive window behavior.
+
+The bundled backend waits up to 60 seconds for initialization after importing the application. Failures and timeouts clean up initialized services and prevent a late listener. Electron's separate health wait also includes imports, so very slow environments can still show a startup error. Synchronous blocking initialization cannot be forcibly stopped in a thread.
 
 ## 本地开发
 
 桌面端默认 `ADMIN_ACCESS_MODE=local`，直接回环访问，免注册和登录。只有主动配置服务器模式才需要账户；源码可使用 `python -m src.auth setup_token`，打包后端可使用 `stock_analysis --account-action setup-token`（Windows 为 `.exe`），恢复使用 `--account-action reset-password`。须使用实际后端的配置与数据目录，详见 [实例账户](instance-account.md)。
 
 Desktop defaults to `ADMIN_ACCESS_MODE=local`: direct loopback access with no signup/login. Only explicit server mode requires accounts. Packaged recovery/setup uses `stock_analysis --account-action setup-token` (or `.exe`) and `--account-action reset-password`, with the actual backend configuration/data directory. Source installs can use `python -m src.auth setup_token`. See [Instance account](instance-account.md).
+
+安装包包含模拟策略模板及内置可信 Python 内核的模块与原始源码，保留模板读取和策略版本哈希。打包后端不是通用 Python 解释器，暂不执行上传的 Python 策略内核，调用时返回 `STRATEGY_KERNEL_RUNTIME_UNSUPPORTED`；需执行上传内核时使用源码部署的独立 Python 子进程，不借桌面启动入口绕过既有隔离边界。POSIX 资源限制模块延后到对应执行分支加载，避免 Windows API 导入失败。
+
+Packages include the simulation template catalog and trusted built-in kernel modules/source, preserving template loading and version hashes. A frozen backend is not a general Python interpreter: uploaded kernel execution returns `STRATEGY_KERNEL_RUNTIME_UNSUPPORTED`. Use a source deployment with its separate Python subprocess for uploaded kernels. POSIX resource limits are loaded only where supported, so Windows can import the executor.
 
 一键启动（开发模式）：
 
@@ -237,6 +250,10 @@ bash scripts/build-backend-macos.sh
 ```
 
 该脚本会在安装依赖后执行 `--collect-all src.services.screening`、`--collect-all futu` 和 `--collect-data akshare`。构建完成后会通过冻结可执行文件校验 `src.services.screening.pipeline`、`futu`、`orjson` 均可导入，核对选股策略数量，并确认 AkShare 的 `file_fold/calendar.json` 已进入冻结产物，避免发行包在选股、热点题材、Futu 持仓导入或日线增强路径中因缺少模块/package data 降级。选股实现参考 AlphaSift。PR 主 CI 在 `requirements.txt`、Futu broker、Desktop 打包入口或相关 workflow 变化时，会分别运行 `desktop-futu-package-windows` 与 `desktop-futu-package-macos` 阻断检查。
+
+Windows/macOS 后端还会显式收集 `src/services/simulation_templates.json`、`templates/*.j2` 和 `--collect-all src.strategy_kernels`。内置内核通过动态导入运行，其源码文件同时用于版本哈希，因此模块与源码资源都必须保留。冻结产物探针实际调用策略模板 loader、读取内核目录哈希并校验三个 `run` 入口，同时使用内置报告模板渲染 markdown/wechat/brief；返回 fallback 的 `None` 不算通过。只通过模块 import 不再视为这些资源可用。缺失或损坏资源会使构建失败，避免安装后创建策略才返回 500 或报告静默降级。该探针只校验内置模板，正常运行仍保留自定义 `REPORT_TEMPLATES_DIR` 语义。
+
+Both backend build scripts bundle the simulation template JSON, report Jinja templates and built-in kernel modules/source files. Frozen probes load the actual catalog, read source hashes, check callable entrypoints and render markdown/wechat/brief using bundled defaults. A fallback `None` fails the probe; normal custom `REPORT_TEMPLATES_DIR` behavior is preserved.
 
 3) 打包 Electron 桌面应用
 

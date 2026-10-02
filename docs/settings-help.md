@@ -41,6 +41,7 @@ PR1 覆盖基础设施与首批代表性配置项：
 PR2 继续覆盖高频、易填错配置项：
 
 - AI 模型运行时：Agent 主模型、fallback 模型、高级 YAML 路由、temperature、provider API Key、OpenAI-compatible Base URL。
+- TypeSafe 交易决策：既有 `TYPESAFE_API_KEY`、`TYPESAFE_BASE_URL`、`TYPESAFE_MODEL` 补齐注册表帮助元数据与中英长文案；语义、默认值及密钥存储不变，见 [JEV 交易决策](jev-trading-decisions.md)。
 - LLM Channels 编辑器内部字段：渠道名、协议、Base URL、API Key、模型列表、运行时能力检测、主模型、Agent 主模型、fallback、Vision 和 temperature。
 - 数据源与搜索：Tushare、股票索引远程更新开关、实时行情优先级、实时技术指标、搜索 API Key、SearXNG、筹码分布、新闻窗口。
 - 通知：Webhook、Telegram、邮件、Discord/Slack 等聊天平台、报告输出、Webhook SSL 校验。

@@ -19,7 +19,7 @@ from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
-from sqlalchemy import desc, func, or_, select
+from sqlalchemy import desc, func, or_, select, update
 
 from src.agent.capability_grants import (
     FINANCIAL_MCP_SERVER_NAME,
@@ -2599,31 +2599,45 @@ class WorkspaceService:
 
     def run_due_schedules(self, now: Optional[datetime] = None) -> list[str]:
         now = now or utc_naive_now()
-        claimed: list[tuple[str, str]] = []
+        claimed: list[tuple[str, str, str]] = []
         with self.db.session_scope() as session:
             rows = session.execute(select(WorkspaceScheduleRecord).where(
                 WorkspaceScheduleRecord.enabled.is_(True), WorkspaceScheduleRecord.next_run_at <= now,
                 or_(WorkspaceScheduleRecord.claimed_at.is_(None), WorkspaceScheduleRecord.claimed_at < now - timedelta(minutes=10)),
             ).order_by(WorkspaceScheduleRecord.next_run_at).limit(20)).scalars().all()
             for row in rows:
-                row.claim_token, row.claimed_at = uuid.uuid4().hex, now
-                row.next_run_at = self._next_run(row.schedule_mode, row.run_at or "", row.interval_minutes, row.timezone, now, row.interval_days, row.next_run_at)
-                claimed.append((row.id, row.task_id))
+                token = uuid.uuid4().hex
+                next_run = self._next_run(row.schedule_mode, row.run_at or "", row.interval_minutes, row.timezone, now, row.interval_days, row.next_run_at)
+                # Selection is only a candidate list: another poller or schedule
+                # edit may have changed it before this transaction obtains a write lock.
+                changed = session.execute(update(WorkspaceScheduleRecord).where(
+                    WorkspaceScheduleRecord.id == row.id,
+                    WorkspaceScheduleRecord.enabled.is_(True),
+                    WorkspaceScheduleRecord.next_run_at == row.next_run_at,
+                    WorkspaceScheduleRecord.next_run_at <= now,
+                    or_(WorkspaceScheduleRecord.claimed_at.is_(None),
+                        WorkspaceScheduleRecord.claimed_at < now - timedelta(minutes=10)),
+                ).values(claim_token=token, claimed_at=now, next_run_at=next_run)
+                    .execution_options(synchronize_session=False)).rowcount
+                if changed:
+                    claimed.append((row.id, row.task_id, token))
         run_ids = []
-        for schedule_id, task_id in claimed:
+        for schedule_id, task_id, token in claimed:
             try:
                 run = self.create_run(task_id, trigger_type="schedule")
                 run_ids.append(run["id"])
                 with self.db.session_scope() as session:
-                    row = session.get(WorkspaceScheduleRecord, schedule_id)
-                    if row:
-                        row.last_run_at, row.last_run_id, row.claim_token, row.claimed_at = now, run["id"], None, None
+                    session.execute(update(WorkspaceScheduleRecord).where(
+                        WorkspaceScheduleRecord.id == schedule_id,
+                        WorkspaceScheduleRecord.claim_token == token,
+                    ).values(last_run_at=now, last_run_id=run["id"], claim_token=None, claimed_at=None))
             except Exception:  # noqa: BLE001 - one plan must not block all plans.
                 logger.exception("Failed to launch workspace schedule %s", schedule_id)
                 with self.db.session_scope() as session:
-                    row = session.get(WorkspaceScheduleRecord, schedule_id)
-                    if row:
-                        row.claim_token, row.claimed_at = None, None
+                    session.execute(update(WorkspaceScheduleRecord).where(
+                        WorkspaceScheduleRecord.id == schedule_id,
+                        WorkspaceScheduleRecord.claim_token == token,
+                    ).values(claim_token=None, claimed_at=None))
         return run_ids
 
     def reconcile_interrupted_runs(self) -> int:

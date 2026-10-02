@@ -939,6 +939,53 @@ describe('stockPoolStore', () => {
     expect(state.currentPage).toBe(1);
   });
 
+  it('keeps a new identity report when an old selection arrives after reset', async () => {
+    const oldReport = createDeferred<AnalysisReport>();
+    const newReport = { ...historyReport, meta: { ...historyReport.meta, id: 2, stockName: 'New identity report' } };
+    vi.mocked(historyApi.getDetail).mockReturnValueOnce(oldReport.promise).mockResolvedValueOnce(newReport);
+    const oldSelection = useStockPoolStore.getState().selectHistoryItem(1);
+    useStockPoolStore.getState().resetDashboardState();
+    await useStockPoolStore.getState().selectHistoryItem(2);
+    oldReport.resolve(historyReport);
+    await oldSelection;
+    expect(useStockPoolStore.getState().selectedReport).toEqual(newReport);
+  });
+
+  it('ignores a previous identity submission failure while a new submission is pending', async () => {
+    const oldRequest = createDeferred<Awaited<ReturnType<typeof analysisApi.analyzeAsync>>>();
+    const newRequest = createDeferred<Awaited<ReturnType<typeof analysisApi.analyzeAsync>>>();
+    vi.mocked(analysisApi.analyzeAsync).mockReturnValueOnce(oldRequest.promise).mockReturnValueOnce(newRequest.promise);
+    const oldSubmission = useStockPoolStore.getState().submitAnalysis({ stockCode: '600519' });
+    useStockPoolStore.getState().resetDashboardState();
+    const newSubmission = useStockPoolStore.getState().submitAnalysis({ stockCode: 'AAPL' });
+    oldRequest.reject(new Error('Previous identity failure'));
+    await oldSubmission;
+    expect(useStockPoolStore.getState().error).toBeNull();
+    expect(useStockPoolStore.getState().isAnalyzing).toBe(true);
+    newRequest.reject(new Error('Current request cancelled in test'));
+    await newSubmission;
+  });
+
+  it.each(['deleteSelectedHistory', 'deleteSelectedMarketReviewHistory'] as const)(
+    'ignores %s completion and failure from a previous identity', async (method) => {
+      for (const fails of [false, true]) {
+        const deletion = createDeferred<Awaited<ReturnType<typeof historyApi.deleteRecords>>>();
+        vi.mocked(historyApi.deleteRecords).mockReturnValueOnce(deletion.promise);
+        useStockPoolStore.setState({ selectedHistoryIds: [1], selectedMarketReviewHistoryIds: [10] });
+        const previousDeletion = useStockPoolStore.getState()[method]();
+        useStockPoolStore.getState().resetDashboardState();
+        useStockPoolStore.setState({ selectedHistoryIds: [2], selectedMarketReviewHistoryIds: [20] });
+        if (fails) deletion.reject(new Error('Previous identity deletion failure'));
+        else deletion.resolve({ deleted: 1 });
+        await previousDeletion;
+        expect(useStockPoolStore.getState().selectedHistoryIds).toEqual([2]);
+        expect(useStockPoolStore.getState().selectedMarketReviewHistoryIds).toEqual([20]);
+        expect(useStockPoolStore.getState().error).toBeNull();
+        expect(historyApi.getList).not.toHaveBeenCalled();
+      }
+    },
+  );
+
   it('tracks task lifecycle updates and resets all dashboard state', () => {
     const pendingTask = {
       taskId: 'task-1',

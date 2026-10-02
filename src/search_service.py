@@ -46,7 +46,12 @@ from src.data.stock_mapping import (
     foreign_stock_english_aliases,
 )
 from src.data.default_news_sources import DEFAULT_FINANCE_NEWS_SOURCES
-from src.services.run_diagnostics import record_provider_run, record_provider_run_started
+from src.services.run_diagnostics import (
+    record_provider_run,
+    record_provider_run_started,
+    sanitize_diagnostic_text,
+)
+from src.utils.sanitize import sanitize_decision_signal_text
 
 logger = logging.getLogger(__name__)
 
@@ -4754,6 +4759,70 @@ class SearchService:
         
         return results
     
+    @staticmethod
+    def _intel_url_identity(url: str) -> Optional[str]:
+        """Remove tracking/anchors while preserving business queries and SPA routes."""
+        value, has_fragment, fragment = (url or "").strip().partition("#")
+        if not value:
+            return None
+        route_fragment = "#" + fragment if has_fragment and fragment.startswith(("/", "!")) else ""
+        base, separator, query = value.partition("?")
+        if not separator:
+            return value + route_fragment
+        tracking_keys = {"fbclid", "gclid", "mc_cid", "mc_eid"}
+        parameters = query.split("&")
+        kept = []
+        for parameter in parameters:
+            key = unquote(parameter.split("=", 1)[0]).casefold()
+            if not key.startswith("utm_") and key not in tracking_keys:
+                kept.append(parameter)
+        if len(kept) == len(parameters):
+            return value + route_fragment
+        return (base + ("?" + "&".join(kept) if kept else "") + route_fragment) or None
+
+    @classmethod
+    def count_unique_intel_results(cls, intel_results: Dict[str, SearchResponse]) -> int:
+        """Count retrieved successful evidence using conservative URL identity.
+
+        Undated results remain evidence; a missing URL never establishes that two
+        results are the same. Failed responses do not contribute evidence, even if
+        a provider returned partial results. Raw responses are left unchanged.
+        This is a retrieval count; report rendering remains capped per dimension.
+        """
+        seen_urls = set()
+        count = 0
+        for response in intel_results.values():
+            if not response.success:
+                continue
+            for result in response.results:
+                identity = cls._intel_url_identity(result.url)
+                if identity is not None:
+                    if identity in seen_urls:
+                        continue
+                    seen_urls.add(identity)
+                count += 1
+        return count
+
+    @staticmethod
+    def _intel_attribution_url(url: str) -> Optional[str]:
+        """Display absolute HTTP(S) attribution without credentials or secrets."""
+        value = (url or "").strip()
+        if not value or "\\" in value or any(char.isspace() or ord(char) < 32 for char in value):
+            return None
+        try:
+            parsed = urlparse(value)
+            if (
+                parsed.scheme.lower() not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+            ):
+                return None
+            parsed.port
+        except ValueError:
+            return None
+        return sanitize_decision_signal_text(value)
+
     def format_intel_report(self, intel_results: Dict[str, SearchResponse], stock_name: str) -> str:
         """
         格式化情报搜索结果为报告
@@ -4765,10 +4834,15 @@ class SearchService:
         Returns:
             格式化的情报报告文本
         """
-        lines = [f"【{stock_name} 情报搜索结果】"]
+        lines = [
+            f"【{stock_name} 情报搜索结果】",
+            f"检索独立证据: {self.count_unique_intel_results(intel_results)} 条"
+            "（每维度最多展示4条，同一 URL 的重复命中不重复计数）",
+        ]
         
         # 维度展示顺序
         display_order = ['latest_news', 'announcements', 'market_analysis', 'risk_check', 'earnings', 'industry']
+        display_order += [name for name in intel_results if name not in display_order]
 
         dim_labels = {
             'latest_news': '📰 最新消息',
@@ -4779,6 +4853,8 @@ class SearchService:
             'industry': '🏭 行业分析',
         }
 
+        seen_urls: Dict[str, int] = {}
+        evidence_count = 0
         for dim_name in display_order:
             if dim_name not in intel_results:
                 continue
@@ -4789,11 +4865,31 @@ class SearchService:
             dim_desc = dim_labels.get(dim_name, dim_name)
             
             lines.append(f"\n{dim_desc} (来源: {resp.provider}):")
-            if resp.success and resp.results:
-                # 增加显示条数
+            if not resp.success:
+                error_message = sanitize_diagnostic_text(resp.error_message) or "未提供错误信息"
+                lines.append(f"  搜索失败: {error_message}；不能据此判断没有相关事件")
+            elif resp.results:
                 for i, r in enumerate(resp.results[:4], 1):
-                    date_str = f" [{r.published_date}]" if r.published_date else ""
-                    lines.append(f"  {i}. {r.title}{date_str}")
+                    identity = self._intel_url_identity(r.url)
+                    duplicate_of = seen_urls.get(identity) if identity is not None else None
+                    if duplicate_of is None:
+                        evidence_count += 1
+                        if identity is not None:
+                            seen_urls[identity] = evidence_count
+                        lines.append(f"  {i}. [证据 E{evidence_count}] {r.title}")
+                    else:
+                        lines.append(f"  {i}. 重复命中证据 E{duplicate_of}（不作为独立证据）")
+                    if self._normalize_news_publish_date(r.published_date) is None:
+                        date_str = "发布时间未知"
+                        if r.published_date:
+                            date_str += f"（原始值: {r.published_date}）"
+                    else:
+                        date_str = f"发布时间: {r.published_date}"
+                    lines.append(f"     来源: {r.source or '未知'}；{date_str}")
+                    attribution_url = self._intel_attribution_url(r.url)
+                    lines.append(f"     URL: {attribution_url or '未提供有效原文链接'}")
+                    if duplicate_of is not None:
+                        continue
                     # 如果摘要太短，可能信息量不足
                     snippet = r.snippet[:150] if len(r.snippet) > 20 else r.snippet
                     lines.append(f"     {snippet}...")
@@ -4807,7 +4903,7 @@ class SearchService:
                             relevance_parts.append(f"依据: {'；'.join(r.relevance_reasons[:3])}")
                         lines.append(f"     关联度: {'; '.join(relevance_parts)}")
             else:
-                lines.append("  未找到相关信息")
+                lines.append("  未找到符合筛选条件的信息；不能据此判断没有相关事件")
         
         return "\n".join(lines)
     

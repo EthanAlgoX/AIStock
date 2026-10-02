@@ -183,7 +183,11 @@ def test_three_production_tools_execute_through_spawned_worker(
                     redact_result=True,
                 ),
             )
-            assert result["ok"] is True
+            assert result["ok"] is True, {
+                "tool": tool_name,
+                "error_code": (result.get("error") or {}).get("code"),
+                "worker_processes": runner.snapshot(),
+            }
     finally:
         runner.close()
 

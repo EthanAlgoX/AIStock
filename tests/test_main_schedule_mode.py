@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 """Regression tests for scheduled mode stock selection behavior."""
 
+import asyncio
 import json
 import logging
 import os
 import socket
 import tempfile
+import threading
+import time
 import unittest
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -29,7 +33,7 @@ _MAIN_IMPORT_ENV_OVERRIDES = {
 }
 
 
-def _api_app_stub_modules():
+def _api_app_stub_modules(app=None):
     """sys.modules entries so ``start_api_server`` can ``from api.app import app``
     without importing the real (heavy) app tree in these isolated unit tests.
 
@@ -41,7 +45,7 @@ def _api_app_stub_modules():
 
     api_pkg = types.ModuleType("api")
     api_app_mod = types.ModuleType("api.app")
-    api_app_mod.app = SimpleNamespace()
+    api_app_mod.app = app if app is not None else SimpleNamespace()
     api_pkg.app = api_app_mod
     return {"api": api_pkg, "api.app": api_app_mod}
 
@@ -329,7 +333,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             instance = None
 
             def __init__(self, config):
-                type(self).instance = self
+                _CompatServer.instance = self
                 self.config = config
                 self.started = False
                 self.install_signal_handlers = self._install_signal_handlers
@@ -2207,6 +2211,235 @@ class MainScheduleModeTestCase(unittest.TestCase):
         # Cleanup: reset state
         main._LazyPipelineDescriptor._resolved = None
         main._env_bootstrapped = False
+
+
+class MainApiReadinessIntegrationTestCase(unittest.TestCase):
+    """Exercise real uvicorn sockets and its separate ASGI lifespan task."""
+
+    def setUp(self):
+        self.servers = []
+
+    def tearDown(self):
+        for server in self.servers:
+            server.should_exit = True
+            thread = getattr(server, "test_thread", None)
+            if thread is not None:
+                thread.join(timeout=3)
+                self.assertFalse(thread.is_alive(), "API server thread leaked")
+
+    @staticmethod
+    def _available_port():
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            return probe.getsockname()[1]
+
+    def _start(self, lifespan, port, *, bind_delay=0, **kwargs):
+        import uvicorn
+        from fastapi import FastAPI
+
+        app = FastAPI(lifespan=lifespan)
+
+        @app.get("/")
+        async def health():
+            return {"ready": True}
+
+        servers = self.servers
+        original_server = uvicorn.Server
+
+        class TrackingServer(original_server):
+            def __init__(self, config):
+                super().__init__(config)
+                servers.append(self)
+
+            async def serve(self, sockets=None):
+                self.test_thread = threading.current_thread()
+                if bind_delay:
+                    loop = asyncio.get_running_loop()
+                    create_server = loop.create_server
+
+                    async def delayed_handoff(*args, **kwargs):
+                        listener = await create_server(*args, **kwargs)
+                        self.test_listener = listener
+                        await asyncio.sleep(bind_delay)
+                        return listener
+
+                    loop.create_server = delayed_handoff
+                return await super().serve(sockets=sockets)
+
+        with patch("uvicorn.Server", TrackingServer), patch.dict("sys.modules", _api_app_stub_modules(app)):
+            main.start_api_server("127.0.0.1", port, SimpleNamespace(log_level="error"), **kwargs)
+
+    def _assert_port_released(self, port):
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", port))
+
+    def test_real_uvicorn_cold_lifespan_can_exceed_old_three_second_budget(self):
+        from urllib.request import urlopen
+
+        ready = threading.Event()
+        closed = threading.Event()
+
+        @asynccontextmanager
+        async def lifespan(app):
+            await asyncio.sleep(3.1)
+            ready.set()
+            try:
+                yield
+            finally:
+                closed.set()
+
+        port = self._available_port()
+        started_at = time.monotonic()
+        self._start(lifespan, port)
+        self.assertGreater(time.monotonic() - started_at, 3.0)
+        self.assertTrue(ready.is_set())
+        with urlopen(f"http://127.0.0.1:{port}/", timeout=2) as response:
+            self.assertEqual(json.load(response), {"ready": True})
+        server = self.servers[0]
+        server.should_exit = True
+        server.test_thread.join(timeout=3)
+        self.assertTrue(closed.is_set())
+
+    def test_real_uvicorn_timeout_cancels_lifespan_future_and_releases_port(self):
+        released = threading.Event()
+        pending = []
+
+        @asynccontextmanager
+        async def lifespan(app):
+            future = asyncio.get_running_loop().create_future()
+            pending.append(future)
+            try:
+                await future
+                yield
+            finally:
+                released.set()
+
+        port = self._available_port()
+        with self.assertRaisesRegex(RuntimeError, "未完成启动"):
+            self._start(lifespan, port, _startup_timeout_seconds=0.2)
+        self.assertTrue(released.is_set())
+        self.assertEqual(len(pending), 1)
+        self.assertTrue(pending[0].cancelled())
+        self.assertFalse(self.servers[0].started)
+        self.assertFalse(self.servers[0].test_thread.is_alive())
+        self._assert_port_released(port)
+
+    def test_real_uvicorn_sync_lifespan_timeout_prevents_late_listener(self):
+        released = threading.Event()
+
+        @asynccontextmanager
+        async def lifespan(app):
+            # A cold SQLite recovery blocks the loop, so task cancellation alone
+            # cannot run until startup returns. The post-lifespan guard matters.
+            time.sleep(0.3)
+            try:
+                yield
+            finally:
+                released.set()
+
+        port = self._available_port()
+        with self.assertRaisesRegex(RuntimeError, "未完成启动"):
+            self._start(lifespan, port, _startup_timeout_seconds=0.05)
+        self.assertTrue(released.is_set())
+        self.assertFalse(self.servers[0].started)
+        self.assertFalse(self.servers[0].test_thread.is_alive())
+        self._assert_port_released(port)
+
+    def test_real_uvicorn_lifespan_failure_is_immediate_and_preserves_cause(self):
+        @asynccontextmanager
+        async def lifespan(app):
+            raise RuntimeError("lifespan regression failure")
+            yield  # pragma: no cover - required to define the context manager
+
+        port = self._available_port()
+        started_at = time.monotonic()
+        with self.assertRaisesRegex(RuntimeError, "failed to start") as caught:
+            self._start(lifespan, port, _startup_timeout_seconds=5)
+        self.assertIsInstance(caught.exception.__cause__, SystemExit)
+        self.assertLess(time.monotonic() - started_at, 2)
+        self._assert_port_released(port)
+
+    def test_real_uvicorn_timeout_during_listener_handoff_closes_bound_socket(self):
+        released = threading.Event()
+
+        @asynccontextmanager
+        async def lifespan(app):
+            try:
+                yield
+            finally:
+                released.set()
+
+        port = self._available_port()
+        with self.assertRaisesRegex(RuntimeError, "未完成启动"):
+            self._start(lifespan, port, bind_delay=0.3, _startup_timeout_seconds=0.05)
+        self.assertTrue(released.is_set())
+        self.assertFalse(self.servers[0].test_listener.sockets)
+        self.assertFalse(self.servers[0].test_thread.is_alive())
+        self._assert_port_released(port)
+
+    def test_real_api_lifespan_cleans_partially_initialized_services(self):
+        from api import app as app_module
+        from fastapi import FastAPI
+
+        for failing_stage in ("runtime", "member", "alert"):
+            with self.subTest(failing_stage=failing_stage):
+                stopped = []
+                runtime = MagicMock()
+                workspace = MagicMock()
+                controller = MagicMock()
+                alert = MagicMock()
+                runtime.stop.side_effect = lambda: stopped.append("runtime")
+                workspace.stop.side_effect = lambda: stopped.append("workspace")
+                alert.stop.side_effect = lambda: stopped.append("alert")
+                failure = RuntimeError(f"{failing_stage} startup failed")
+                if failing_stage == "runtime":
+                    runtime.reconcile_from_config.side_effect = failure
+                if failing_stage == "alert":
+                    alert.start.side_effect = failure
+
+                def refresh(app, reason):
+                    app.state.stock_index_refresh_task = asyncio.create_task(asyncio.sleep(60))
+
+                def stop_controllers():
+                    self.assertIn("runtime", stopped)
+                    if failing_stage != "runtime":
+                        self.assertIn("workspace", stopped)
+                    stopped.append("controllers")
+
+                controller_factory = MagicMock(return_value=controller)
+                controller_factory.stop_all_workers.side_effect = stop_controllers
+                app = FastAPI(lifespan=app_module.app_lifespan)
+
+                async def attempt():
+                    with self.assertRaisesRegex(RuntimeError, f"{failing_stage} startup failed"):
+                        async with app_module.app_lifespan(app):
+                            self.fail("failed startup yielded")
+                    refresh_task = getattr(app.state, "stock_index_refresh_task", None)
+                    if refresh_task is not None:
+                        self.assertTrue(refresh_task.cancelled())
+
+                with (
+                    patch.dict(os.environ, {
+                        app_module.CLI_SCHEDULER_OWNER_ENV: "false",
+                        app_module.RUNTIME_SCHEDULER_RUN_IMMEDIATELY_ENV: "false",
+                        app_module.RUNTIME_SCHEDULER_SUPPRESS_START_ENV: "false",
+                    }),
+                    patch.object(app_module, "RuntimeSchedulerService", return_value=runtime),
+                    patch.object(app_module, "SystemConfigService"),
+                    patch.object(app_module, "_schedule_stock_index_background_refresh", side_effect=refresh),
+                    patch("src.services.strategy_definition_service.StrategyDefinitionService"),
+                    patch("src.services.strategy_continuous_run_service.StrategyContinuousRunService", controller_factory),
+                    patch("src.services.simulation_portfolio_service.SimulationPortfolioService"),
+                    patch("src.services.workspace_service.WorkspaceService"),
+                    patch("src.services.workspace_service.WorkspaceSchedulerService", return_value=workspace),
+                    patch("src.services.member_service.run_member_maintenance", side_effect=failure if failing_stage == "member" else None),
+                    patch("src.services.alert_polling.AlertPollingService", return_value=alert),
+                ):
+                    asyncio.run(attempt())
+                self.assertEqual(stopped[-1], "controllers")
+                self.assertFalse(hasattr(app.state, "runtime_scheduler_service"))
+                self.assertFalse(hasattr(app.state, "workspace_scheduler"))
+                self.assertFalse(hasattr(app.state, "strategy_continuous_runs"))
 
 
 if __name__ == "__main__":

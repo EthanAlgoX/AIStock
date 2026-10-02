@@ -416,6 +416,82 @@ def test_news_block_treats_blank_as_missing_and_records_pack_metadata() -> None:
     assert available.metadata["news_result_count"] == 5
 
 
+def test_news_diagnostics_and_social_activity_do_not_count_as_news_evidence() -> None:
+    empty_search = AnalysisContextBuilder.build(_artifacts(
+        news_context="情报搜索结果：未找到相关信息", news_result_count=0,
+    ))
+    assert empty_search.blocks["news"].status == ContextFieldStatus.MISSING
+    assert empty_search.data_quality.block_scores["news"] == 35
+    assert empty_search.blocks["news"].items["content"].value is None
+
+    social_only = AnalysisContextBuilder.build(_artifacts(
+        news_context="Social sentiment", news_result_count=0,
+        news_evidence_context=None, social_context="Social sentiment",
+        metadata={"news_channels_separated": True, "news_search_status": "missing"},
+    ))
+    assert social_only.blocks["news"].status == ContextFieldStatus.MISSING
+    assert social_only.blocks["social"].status == ContextFieldStatus.AVAILABLE
+    assert social_only.blocks["social"].metadata["quality_weighted"] is False
+    assert social_only.data_quality.overall_score == empty_search.data_quality.overall_score
+    assert "social" not in social_only.data_quality.block_scores
+
+
+@pytest.mark.parametrize("local_content,expected", [
+    (None, ContextFieldStatus.FETCH_FAILED),
+    ("公告原文链接", ContextFieldStatus.PARTIAL),
+])
+def test_failed_search_keeps_local_news_without_claiming_full_coverage(local_content, expected) -> None:
+    pack = AnalysisContextBuilder.build(_artifacts(
+        news_context="搜索失败" + (local_content or ""), news_result_count=0,
+        news_evidence_context=local_content,
+        metadata={"news_channels_separated": True, "news_search_status": "fetch_failed"},
+    ))
+    assert pack.blocks["news"].status == expected
+    assert pack.blocks["news"].items["content"].value == local_content
+    if local_content:
+        assert "news_search_partial" in pack.blocks["news"].warnings
+    else:
+        assert pack.blocks["news"].items["content"].missing_reason == "news_search_failed"
+
+
+def test_local_news_remains_available_when_search_is_empty_and_blank_social_is_ignored() -> None:
+    pack = AnalysisContextBuilder.build(_artifacts(
+        news_context="空搜索提示 + 本地新闻", news_result_count=0,
+        news_evidence_context="本地新闻", social_context="  ",
+        metadata={"news_channels_separated": True, "news_search_status": "missing"},
+    ))
+    assert pack.blocks["news"].status == ContextFieldStatus.AVAILABLE
+    assert pack.blocks["news"].items["content"].value == "本地新闻"
+    assert pack.metadata["news_result_count"] == 0
+    assert "social" not in pack.blocks
+
+
+def test_unready_technical_indicators_are_partial_even_with_nonempty_trend_result() -> None:
+    pack = AnalysisContextBuilder.build(_artifacts(trend_result=_FakeTrend({
+        "ma20": 10.0, "ma60": None,
+        "analysis_source": "daily_provider",
+        "indicator_availability": {"ma20": True, "ma60": False},
+        "analysis_warnings": ["ma60_insufficient_history"],
+    })))
+    assert pack.blocks["technical"].status == ContextFieldStatus.PARTIAL
+    assert pack.blocks["technical"].source == "daily_provider"
+    assert "technical_input_limited" in pack.blocks["technical"].warnings
+    assert pack.blocks["technical"].items["trend_result"].value["analysis_warnings"] == [
+        "ma60_insufficient_history"
+    ]
+    assert pack.data_quality.block_scores["technical"] == 75
+
+
+def test_no_valid_trend_history_is_missing_rather_than_partially_available() -> None:
+    pack = AnalysisContextBuilder.build(_artifacts(trend_result=_FakeTrend({
+        "ma20": 0.0, "valid_bars": 0,
+        "indicator_availability": {"ma20": False},
+    })))
+    assert pack.blocks["technical"].status == ContextFieldStatus.MISSING
+    assert pack.data_quality.block_scores["technical"] == 35
+    assert pack.blocks["technical"].items["trend_result"].missing_reason == "technical_history_insufficient"
+
+
 def test_data_quality_scores_fixed_blocks_and_limits_auxiliary_missing() -> None:
     pack = AnalysisContextBuilder.build(_artifacts())
 

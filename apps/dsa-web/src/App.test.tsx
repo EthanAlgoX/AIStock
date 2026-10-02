@@ -296,6 +296,20 @@ describe("App routing behavior", () => {
     expect(screen.queryByTestId("login-page")).not.toBeInTheDocument();
   });
 
+  it.each([
+    ['/stock-research?run=stored-report', '/stock-research', '?run=stored-report'],
+    ['//external.example/path', '/overview', ''],
+    ['/\\external.example/path', '/overview', ''],
+    ['/login?redirect=/settings', '/overview', ''],
+  ])('preserves safe authenticated login redirect %s', async (redirect, pathname, search) => {
+    vi.mocked(AuthContext.useAuth).mockReturnValue(makeAuthState({ authEnabled: true, loggedIn: true }));
+    window.history.pushState({}, '', `/login?redirect=${encodeURIComponent(redirect)}`);
+    render(<App />);
+    await screen.findByTestId(pathname === '/stock-research' ? 'stock-analysis-page' : 'chat-page');
+    expect(window.location.pathname).toBe(pathname);
+    expect(window.location.search).toBe(search);
+  });
+
   it("keeps the shell mounted and resets the route boundary after page render errors", async () => {
     const consoleError = vi
       .spyOn(console, "error")

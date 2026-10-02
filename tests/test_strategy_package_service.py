@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import io
+import builtins
+import importlib.util
 import json
 import os
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -12,7 +15,7 @@ import yaml
 
 from src.services.strategy_definition_service import StrategyDefinitionError, StrategyDefinitionService
 from src.services.strategy_package_service import StrategyPackageService
-from src.services.strategy_kernel_executor_service import StrategyKernelExecutorService
+from src.services.strategy_kernel_executor_service import StrategyKernelExecutionError, StrategyKernelExecutorService
 from src.strategy_kernels import research_decision
 from src.storage import DatabaseManager
 
@@ -126,6 +129,35 @@ class StrategyPackageServiceTest(unittest.TestCase):
         })
         self.assertEqual(executed["status"], "success")
         self.assertEqual(executed["contract"], "DecisionProposal")
+
+    def test_frozen_uploaded_execution_reports_runtime_boundary_without_spawning(self):
+        result = self.service.intake("mean-reversion.zip", package_bytes())
+        with patch.object(sys, "frozen", True, create=True), patch("subprocess.run") as spawn:
+            with self.assertRaises(StrategyKernelExecutionError) as rejected:
+                StrategyKernelExecutorService(self.service.definition).execute(result["draft"]["id"], {
+                    "inputs": {},
+                    "data": {"primary_ohlcv": [{"date": "2026-01-01", "close": 10.0}]},
+                })
+        self.assertEqual(rejected.exception.code, "STRATEGY_KERNEL_RUNTIME_UNSUPPORTED")
+        spawn.assert_not_called()
+
+    def test_executor_module_loads_without_posix_resource_module(self):
+        from src.services import strategy_kernel_executor_service
+
+        import_module = builtins.__import__
+
+        def no_resource(name, *args, **kwargs):
+            if name == "resource":
+                raise ModuleNotFoundError("No module named 'resource'")
+            return import_module(name, *args, **kwargs)
+
+        spec = importlib.util.spec_from_file_location(
+            "executor_without_posix_resource", strategy_kernel_executor_service.__file__,
+        )
+        module = importlib.util.module_from_spec(spec)
+        with patch("builtins.__import__", side_effect=no_resource):
+            spec.loader.exec_module(module)
+        self.assertTrue(callable(module.StrategyKernelExecutorService.execute))
 
     def test_intake_rejects_path_traversal(self):
         buffer = io.BytesIO()

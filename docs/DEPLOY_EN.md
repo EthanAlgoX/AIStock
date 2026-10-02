@@ -256,6 +256,10 @@ tail -f /opt/stock-analyzer/logs/stock_analysis_*.log
 
 ### Health Check
 
+When started with `main.py --serve` or `--serve-only`, the application is imported first, then initialization and listening may take up to 60 seconds instead of the former three-second limit. Startup failures preserve their cause. A timeout requests cancellation, cleans up initialized services and prevents a late listener. Synchronous blocking code cannot be forcibly stopped in a thread; unfinished cleanup is logged. This budget excludes module imports and does not change direct `uvicorn server:app` startup.
+
+The Compose `server` service probes `/api/health` on its actual `API_PORT`; connection and HTTP failures return nonzero. The default scheduled `analyzer` has no HTTP server, so the image uses `HEALTHCHECK NONE` and only the Web service enables the HTTP probe. A process or recent report does not establish current API health. Compose explicitly passes the same resolved `API_PORT` into the container so shell overrides, startup arguments, port mappings and the probe agree.
+
 ```bash
 # Check process
 ps aux | grep main.py

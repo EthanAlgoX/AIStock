@@ -188,4 +188,18 @@ class TestTushareFetcherFollowUps(unittest.TestCase):
         self.assertIsNotNone(quote)
         self.assertEqual(quote.code, "000001")
         self.assertEqual(quote.name, "平安银行")
+        self.assertEqual(quote.volume, 1000, "统一报价必须保留接口的股单位，不能转换为手")
         tushare_module.get_realtime_quotes.assert_called_once_with("000001")
+
+    @patch.dict(sys.modules, {"tushare": MagicMock()})
+    def test_legacy_realtime_missing_volume_preserves_available_price(self) -> None:
+        fetcher = self._make_fetcher()
+        fetcher._api.quotation.side_effect = Exception("quota")
+        sys.modules["tushare"].get_realtime_quotes.return_value = pd.DataFrame([{
+            "name": "平安银行", "price": "10.94", "pre_close": "10.88",
+            "volume": "--", "amount": "--", "high": "11.00", "low": "10.80", "open": "10.90",
+        }])
+        quote = fetcher.get_realtime_quote("000001")
+        self.assertIsNotNone(quote)
+        self.assertEqual(quote.price, 10.94)
+        self.assertIsNone(quote.volume)

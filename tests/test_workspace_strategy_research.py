@@ -115,16 +115,22 @@ def test_candidate_depth_requires_explicit_tool_and_workflows():
         }, {"toolIds": ["run_stock_screening"]})
 
 
-def test_deep_research_preserves_rank_deduplicates_caps_calls_and_keeps_failures():
+@pytest.mark.parametrize("report_language", [None, "en", "ja"])
+def test_deep_research_preserves_rank_deduplicates_caps_calls_and_keeps_failures(report_language):
     service = WorkspaceService.__new__(WorkspaceService)
     service._set_run_stage = Mock()
     service._store_artifact = Mock()
     rows = [{"code": "000001", "rank": 1}, {"code": "000001", "rank": 1}, {"code": "600519", "rank": 2}, {"code": "600036", "rank": 3}]
     task = {"market": "CN", "config": {"deepResearchCount": 2, "deepResearchVersionId": 12}, "workflowResult": {"result": {"candidates": rows}}}
+    if report_language is not None:
+        task["config"]["reportLanguage"] = report_language
     with patch("src.agent.tools.workflow_tools.execute_research_workflow", side_effect=[{"status": "success", "result": {"report": {}}}, ValueError("新闻不可用")]) as execute:
         result = service._research_screening_candidates("run", task, Event(), ["growth_quality"])
     assert execute.call_count == 2
-    assert execute.call_args.args[2] == {"symbol": "600519", "skills": ["growth_quality"]}
+    assert [call.args[2] for call in execute.call_args_list] == [
+        {"symbol": symbol, "skills": ["growth_quality"], "reportLanguage": report_language or "zh"}
+        for symbol in ("000001", "600519")
+    ]
     assert result["workflowResult"]["result"]["candidates"] == rows
     assert [entry["screeningRank"] for entry in result["candidateResearch"]] == [1, 2]
     assert result["candidateResearch"][1]["report"]["status"] == "failed"

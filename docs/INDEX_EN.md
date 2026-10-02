@@ -63,6 +63,9 @@ This is the entry point for project documentation. The README covers the project
 
 | Document | Contents |
 | --- | --- |
+| [Website workflows](website-functional-logic.md) | Current routes, data/research/simulation execution, module ownership and recovery (bilingual) |
+| [Signal evidence](signal-evidence_EN.md) | News attribution, auxiliary social input, technical readiness and rule observations |
+| [Testing and acceptance](testing.md) (Chinese) | Current backend/Web/browser/desktop/container commands and coverage limits |
 | [API Spec](architecture/api_spec.json) | FastAPI OpenAPI artifact |
 | [Contributing Guide (EN)](CONTRIBUTING_EN.md) | Issues, pull requests, tests, documentation sync, and collaboration expectations |
 

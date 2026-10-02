@@ -186,9 +186,23 @@ def load_history_df(
             stock_code,
             days=days,
             preferred_fetcher=provider_by_connection.get(connection),
+            start_date=start.isoformat(),
+            end_date=end.isoformat(),
         )
         if df is not None and not df.empty:
-            return df, source
+            # Provider APIs may ignore date bounds and return their latest window.
+            # Apply the same cutoff as the DB path before tools can use or save it.
+            if "date" not in df.columns:
+                raise ValueError("Daily history has no date column; cannot verify its target window")
+            dates = pd.to_datetime(df["date"], errors="coerce")
+            if dates.isna().any():
+                raise ValueError("Daily history contains invalid dates; cannot verify its target window")
+            in_window = dates.dt.date.between(start, end)
+            if not in_window.all():
+                df = df.loc[in_window].copy()
+                logger.warning("load_history_df(%s): excluded bars outside %s ~ %s", stock_code, start, end)
+            if not df.empty:
+                return df, source
     except Exception as e:
         logger.warning("load_history_df(%s): DataFetcherManager failed: %s", stock_code, e)
 

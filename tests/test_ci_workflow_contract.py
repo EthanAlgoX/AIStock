@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from fnmatch import fnmatchcase
 from pathlib import Path
+import re
 
 import yaml
 
@@ -137,3 +138,21 @@ def test_backend_filter_covers_mixed_changes_and_shared_web_assets() -> None:
     assert backend_output(["apps/dsa-web/src/App.tsx", "docs/CHANGELOG.md"]) is True
     assert backend_output(["apps/dsa-web/public/stocks.index.json"]) is True
     assert backend_output(["apps/dsa-web/public/runtime/new-asset.json"]) is True
+
+
+def test_manual_acceptance_uses_existing_entrypoints_and_fails_on_check_errors() -> None:
+    workflow = _workflow(".github/workflows/strategy-definition-acceptance.yml")
+    steps = workflow["jobs"]["acceptance"]["steps"]
+    runs = [str(step.get("run", "")) for step in steps]
+    entrypoints = re.findall(r"(?:python|bash) (scripts/[\w./-]+\.py|scripts/[\w./-]+\.sh)", "\n".join(runs))
+    assert entrypoints
+    assert all((REPO_ROOT / path).is_file() for path in entrypoints)
+    assert any("./scripts/ci_gate.sh" in run for run in runs)
+    browser = next(step for step in steps if "npm run test:smoke" in str(step.get("run", "")))
+    assert browser["env"]["DSA_STRATEGY_E2E"] == "1"
+    assert "DSA_WEB_SMOKE_PASSWORD" in browser["run"]
+    assert "--retries=0" in browser["run"]
+    for step in steps:
+        if "| tee " in str(step.get("run", "")):
+            assert "set -o pipefail" in step["run"]
+            assert step.get("continue-on-error") != "true"

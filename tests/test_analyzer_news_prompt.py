@@ -22,6 +22,23 @@ from src.analyzer import (
 
 
 class AnalyzerNewsPromptTestCase(unittest.TestCase):
+    def test_prompt_consumes_programmatic_technical_evidence_with_readiness(self) -> None:
+        with patch.object(GeminiAnalyzer, "_init_litellm", return_value=None):
+            analyzer = GeminiAnalyzer()
+        prompt = analyzer._format_prompt({
+            "code": "600519", "today": {"close": 102.0},
+            "trend_analysis": {
+                "indicator_availability": {"ma60": False},
+                "analysis_warnings": ["MA60 有效样本不足"],
+                "rule_events": [{"rule_id": "range20", "bar_date": "2026-10-02",
+                                 "evidence": {"close": 102.0, "reference_high": 101.0}}],
+            },
+        }, "贵州茅台")
+        self.assertIn("技术证据与预热状态", prompt)
+        self.assertIn('"ma60": false', prompt)
+        self.assertIn('"reference_high": 101.0', prompt)
+        self.assertIn("不证明新闻导致价格变化", prompt)
+
     def test_formal_report_prompt_includes_frozen_method(self) -> None:
         with patch.object(GeminiAnalyzer, "_init_litellm", return_value=None):
             analyzer = GeminiAnalyzer()

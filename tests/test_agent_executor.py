@@ -1856,6 +1856,18 @@ class TestBuildUserMessage(unittest.TestCase):
         self.assertIn("Analyze 600519", msg)
         self.assertIn("决策仪表盘", msg)
 
+    def test_prefetched_technical_evidence_reaches_agent_with_readiness(self):
+        msg = self.executor._build_user_message("Analyze", context={
+            "trend_result": {
+                "ma60": None, "indicator_availability": {"ma60": False},
+                "rule_events": [{"rule_id": "range20", "evidence": {"close": 102.0}}],
+            },
+        })
+        self.assertIn("系统已获取的技术证据", msg)
+        self.assertIn('"ma60": null', msg)
+        self.assertIn('"rule_id": "range20"', msg)
+        self.assertIn("估算K线不构成确认事件", msg)
+
     def test_message_with_context(self):
         msg = self.executor._build_user_message(
             "Analyze",

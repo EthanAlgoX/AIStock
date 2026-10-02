@@ -618,6 +618,9 @@ class StockAnalysisPipeline:
                 market=market or "cn",
             )
             news_result_count: Optional[int] = None
+            news_search_status = "missing"
+            news_evidence_context = None
+            social_context = None
             self._emit_progress(46, f"{stock_name}：正在检索新闻与舆情")
             if self.search_service is not None and self.search_service.is_available:
                 logger.info(f"{stock_name}({code}) 开始多维度情报搜索...")
@@ -632,10 +635,16 @@ class StockAnalysisPipeline:
                 # 格式化情报报告
                 if intel_results:
                     news_context = self.search_service.format_intel_report(intel_results, stock_name)
-                    total_results = sum(
-                        len(r.results) for r in intel_results.values() if r.success
-                    )
+                    total_results = SearchService.count_unique_intel_results(intel_results)
                     news_result_count = total_results
+                    search_failed = any(not r.success for r in intel_results.values())
+                    news_search_status = (
+                        "partial" if search_failed and total_results else
+                        "fetch_failed" if search_failed else
+                        "available" if total_results else "missing"
+                    )
+                    if total_results:
+                        news_evidence_context = news_context
                     logger.info(f"{stock_name}({code}) 情报搜索完成: 共 {total_results} 条结果")
                     logger.debug(f"{stock_name}({code}) 情报搜索结果:\n{news_context}")
 
@@ -671,6 +680,10 @@ class StockAnalysisPipeline:
                     logger.warning(f"{stock_name}({code}) Social sentiment fetch failed: {e}")
 
             if persisted_intelligence_context:
+                news_evidence_context = (
+                    f"{news_evidence_context}\n\n{persisted_intelligence_context}"
+                    if news_evidence_context else persisted_intelligence_context
+                )
                 news_context = (
                     f"{news_context}\n\n{persisted_intelligence_context}"
                     if news_context
@@ -737,6 +750,14 @@ class StockAnalysisPipeline:
                 news_result_count=news_result_count,
                 query_id=query_id,
                 portfolio_context=portfolio_context,
+                news_evidence_context=news_evidence_context,
+                social_context=social_context,
+                news_search_status=news_search_status,
+                news_channels_separated=True,
+                news_sources="/".join(source for source, present in (
+                    ("news_search", bool(news_result_count)),
+                    ("local_intelligence", bool(persisted_intelligence_context)),
+                ) if present) or None,
             )
             if getattr(self, "context_only", False):
                 return artifacts
@@ -857,7 +878,7 @@ class StockAnalysisPipeline:
 
             if result:
                 from src.report_quality import disclose_missing_news
-                disclose_missing_news(result, news_result_count)
+                disclose_missing_news(result, 1 if news_evidence_context else 0)
 
             # Step 8: 保存分析历史记录
             if result and result.success:
@@ -1006,12 +1027,22 @@ class StockAnalysisPipeline:
                 'trend_strength': trend_result.trend_strength,
                 'bias_ma5': trend_result.bias_ma5,
                 'bias_ma10': trend_result.bias_ma10,
-                'volume_status': trend_result.volume_status.value,
+                'volume_status': (
+                    trend_result.volume_status.value
+                    if getattr(trend_result, 'indicator_availability', {}).get('volume_ratio_5d') is not False
+                    else None
+                ),
                 'volume_trend': trend_result.volume_trend,
                 'buy_signal': trend_result.buy_signal.value,
                 'signal_score': trend_result.signal_score,
                 'signal_reasons': trend_result.signal_reasons,
                 'risk_factors': trend_result.risk_factors,
+                'indicator_availability': getattr(trend_result, 'indicator_availability', {}),
+                'analysis_warnings': getattr(trend_result, 'analysis_warnings', []),
+                'rule_events': getattr(trend_result, 'rule_events', []),
+                'analysis_date': getattr(trend_result, 'analysis_date', None),
+                'analysis_source': getattr(trend_result, 'analysis_source', None),
+                'valid_bars': getattr(trend_result, 'valid_bars', None),
             }
 
         # Issue #234：盘中分析使用实时 OHLC 与趋势 MA 覆盖 today。
@@ -1370,6 +1401,8 @@ class StockAnalysisPipeline:
                 "report_type": report_type.value,
                 "report_language": report_language,
                 "fundamental_context": fundamental_context,
+                "news_channels_separated": True,
+                "news_search_status": "missing",
             }
             if isinstance(portfolio_context, dict):
                 initial_context["portfolio_context"] = dict(portfolio_context)
@@ -1399,6 +1432,7 @@ class StockAnalysisPipeline:
                 try:
                     social_context = self.social_sentiment_service.get_social_context(code)
                     if social_context:
+                        initial_context["social_context"] = social_context
                         existing = initial_context.get("news_context")
                         if existing:
                             initial_context["news_context"] = existing + "\n\n" + social_context
@@ -1414,6 +1448,7 @@ class StockAnalysisPipeline:
                 market=get_market_for_stock(normalize_stock_code(code)) or "cn",
             )
             if persisted_intelligence_context:
+                initial_context["news_evidence_context"] = persisted_intelligence_context
                 existing = initial_context.get("news_context")
                 initial_context["news_context"] = (
                     f"{existing}\n\n{persisted_intelligence_context}"
@@ -2545,6 +2580,9 @@ class StockAnalysisPipeline:
         vol = getattr(realtime_quote, 'volume', None) or 0
         amt = getattr(realtime_quote, 'amount', None)
         pct = getattr(realtime_quote, 'change_pct', None)
+        quote_source = getattr(realtime_quote, 'source', None)
+        quote_source = getattr(quote_source, 'value', quote_source)
+        realtime_source = quote_source if isinstance(quote_source, str) else None
 
         if last_date >= market_today:
             # 使用实时收盘价更新最后一行；先复制，避免修改调用方传入的 df。
@@ -2563,6 +2601,9 @@ class StockAnalysisPipeline:
                 df.loc[idx, 'amount'] = amt
             if pct is not None:
                 df.loc[idx, 'pct_chg'] = pct
+            df.loc[idx, 'is_partial_bar'] = True
+            df.loc[idx, 'is_estimated'] = True
+            df.loc[idx, 'realtime_source'] = realtime_source
         else:
             # 追加一行虚拟的当日实时 K 线。
             new_row = {
@@ -2575,6 +2616,9 @@ class StockAnalysisPipeline:
                 'volume': vol,
                 'amount': amt if amt is not None else 0,
                 'pct_chg': pct if pct is not None else 0,
+                'is_partial_bar': True,
+                'is_estimated': True,
+                'realtime_source': realtime_source,
             }
             new_df = pd.DataFrame([new_row])
             df = pd.concat([df, new_df], ignore_index=True)
@@ -2847,6 +2891,11 @@ class StockAnalysisPipeline:
         news_result_count: Optional[int],
         query_id: str,
         portfolio_context: Optional[Dict[str, Any]] = None,
+        news_evidence_context: Optional[str] = None,
+        social_context: Optional[str] = None,
+        news_search_status: Optional[str] = None,
+        news_channels_separated: bool = False,
+        news_sources: Optional[str] = None,
     ) -> PipelineAnalysisArtifacts:
         return PipelineAnalysisArtifacts(
             code=code,
@@ -2864,8 +2913,15 @@ class StockAnalysisPipeline:
             metadata={
                 "query_id": query_id,
                 "trigger_source": self.query_source,
+                **({
+                    "news_channels_separated": True,
+                    "news_search_status": news_search_status,
+                    "news_sources": news_sources,
+                } if news_channels_separated else {}),
             },
             portfolio_context=dict(portfolio_context) if isinstance(portfolio_context, dict) else None,
+            news_evidence_context=news_evidence_context,
+            social_context=social_context,
         )
 
     def _build_agent_analysis_artifacts(
@@ -2914,8 +2970,15 @@ class StockAnalysisPipeline:
             metadata={
                 "query_id": query_id,
                 "trigger_source": self.query_source,
+                **({
+                    "news_channels_separated": True,
+                    "news_search_status": initial_context.get("news_search_status"),
+                    "news_sources": "local_intelligence" if initial_context.get("news_evidence_context") else None,
+                } if initial_context.get("news_channels_separated") else {}),
             },
             portfolio_context=dict(portfolio_context) if isinstance(portfolio_context, dict) else None,
+            news_evidence_context=initial_context.get("news_evidence_context"),
+            social_context=initial_context.get("social_context"),
         )
 
     def _build_analysis_context_pack_outputs(
@@ -2960,6 +3023,8 @@ class StockAnalysisPipeline:
         sanitized.pop("analysis_context_pack", None)
         sanitized.pop("analysis_context_pack_summary", None)
         sanitized.pop("daily_market_context_summary", None)
+        for key in ("social_context", "news_evidence_context", "news_channels_separated", "news_search_status"):
+            sanitized.pop(key, None)
         enhanced_context = sanitized.get("enhanced_context")
         if isinstance(enhanced_context, dict):
             enhanced_context = dict(enhanced_context)

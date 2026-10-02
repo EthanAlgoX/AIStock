@@ -38,6 +38,18 @@ Reuters Business、Business Wire、GlobeNewswire、SEC 和 Federal Reserve 可�
 `intelligence_items`。RSS 内容和链接仍受各发布方条款约束，使用时应保留来源
 署名和原文链接。
 
+## 分析输入的独立证据与社交边界
+
+按需检索在 `SearchService.count_unique_intel_results()` 与 `format_intel_report()` 中共享保守 URL 身份：仅去除普通 fragment 锚点与主 URL 查询中的 `utm_*`、`fbclid`、`gclid`、`mc_cid`、`mc_eid`；`/` 或 `!` 开头的 hash 路由和内部查询原样保留。业务查询参数的值、顺序、编码及路径大小写保持原样。无 URL 的结果不按相似标题合并。计数仅覆盖成功检索响应，跨检索维度重复命中不增加独立证据数；不改变本页所述 `intelligence_items` 的持久化去重键，也不自动合并按需检索与本地资讯池。
+
+报告保留每次展示命中的发布方、合法原文 URL 与发布时间；链接仅接受不含凭据的绝对 HTTP(S) 地址，敏感链接和失败诊断复用既有脱敏。重复命中引用已有证据，不重复输出摘要。报告每维度最多展示 4 条；计数是全部已取得检索结果的独立数量，不能解释为全部进入模型。发布时间缺失或不可解析时明确未知；检索失败与成功但筛选后为空分别说明，都不代表没有相关事件。
+
+传统分析与 Agent 初始输入继续保留合并的 `news_context`，并增加可选 `news_evidence_context` / `social_context` 供上下文包区分新闻证据和社交辅助输入。本地资讯仍 best-effort 追加到新闻证据；社交热度不计入新闻条数，不把仅有社交输入的 `news` 块标为可用。Agent 的 overview 只描述初始输入，不包含其后续工具结果。
+
+现有社交聚合服务在帖子字段提供时保留作者、合法原文链接与上游发布时间；时间缺失明确未知，不自行补造近期时间。社区评论未经核实，热度、提及数、投票和跨平台情绪分不代表新闻事实或交易方向置信度，也不直接相加。`social` 是辅助块，不参与上下文包固定六块的数据质量分。本次没有新增平台登录、OAuth 或社交抓取连接器。
+
+与 `market-radar` 的借鉴取舍、技术规则证据、测试命令与回滚范围见 [信号证据说明](signal-evidence.md) / [English](signal-evidence_EN.md)。
+
 ## 安全边界
 
 自定义 URL 会做基础校验：

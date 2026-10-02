@@ -49,6 +49,7 @@ let activeTaskRequestSeq = 0;
 let activeTaskLocalRevision = 0;
 let manualSelectionRequestSeq = 0;
 let manualSelectionRequestId = 0;
+let dashboardRevision = 0;
 const dismissedTaskIds = new Set<string>();
 const pendingCompletedTaskSelectionKeys = new Map<string, CompletedTaskSelectionIntent>();
 
@@ -772,6 +773,7 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
 
   deleteSelectedHistory: async () => {
     const state = get();
+    const revision = dashboardRevision;
     const recordIds = Array.from(new Set(state.selectedHistoryIds));
     if (recordIds.length === 0 || state.isDeletingHistory) {
       return;
@@ -780,6 +782,7 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
     set({ isDeletingHistory: true });
     try {
       await historyApi.deleteRecords(recordIds);
+      if (revision !== dashboardRevision) return;
 
       const deletedIds = new Set(recordIds);
       const selectedWasDeleted = state.selectedReport?.meta.id !== undefined
@@ -788,6 +791,7 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
       set({ selectedHistoryIds: [] });
 
       const freshPage = await fetchHistory(get, set, { reset: true });
+      if (revision !== dashboardRevision) return;
 
       if (selectedWasDeleted) {
         const nextItem = freshPage?.items?.[0];
@@ -803,9 +807,9 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
         }
       }
     } catch (error) {
-      set({ error: getParsedApiError(error) });
+      if (revision === dashboardRevision) set({ error: getParsedApiError(error) });
     } finally {
-      set({ isDeletingHistory: false });
+      if (revision === dashboardRevision) set({ isDeletingHistory: false });
     }
   },
 
@@ -835,6 +839,7 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
 
   deleteSelectedMarketReviewHistory: async () => {
     const state = get();
+    const revision = dashboardRevision;
     const recordIds = Array.from(new Set(state.selectedMarketReviewHistoryIds));
     if (recordIds.length === 0 || state.isDeletingMarketReviewHistory) {
       return;
@@ -843,6 +848,7 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
     set({ isDeletingMarketReviewHistory: true });
     try {
       await historyApi.deleteRecords(recordIds);
+      if (revision !== dashboardRevision) return;
 
       const deletedIds = new Set(recordIds);
       const selectedWasDeleted = state.selectedReport?.meta.id !== undefined
@@ -852,6 +858,7 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
       set({ selectedMarketReviewHistoryIds: [] });
 
       const freshPage = await fetchMarketReviewHistory(get, set, { reset: true });
+      if (revision !== dashboardRevision) return;
 
       if (selectedWasDeleted) {
         const nextItem = freshPage?.items?.[0];
@@ -862,9 +869,9 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
         }
       }
     } catch (error) {
-      set({ error: getParsedApiError(error) });
+      if (revision === dashboardRevision) set({ error: getParsedApiError(error) });
     } finally {
-      set({ isDeletingMarketReviewHistory: false });
+      if (revision === dashboardRevision) set({ isDeletingMarketReviewHistory: false });
     }
   },
 
@@ -1038,12 +1045,13 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
   },
 
   resetDashboardState: () => {
+    dashboardRevision += 1;
     historyRequestSeq += 1;
     marketReviewHistoryRequestSeq += 1;
     stockHistoryRequestSeq += 1;
-    reportRequestSeq = 0;
-    analyzeRequestSeq = 0;
-    manualSelectionRequestSeq = 0;
+    reportRequestSeq += 1;
+    analyzeRequestSeq += 1;
+    manualSelectionRequestSeq += 1;
     manualSelectionRequestId = 0;
     stockBarRequestSeq += 1;
     activeTaskRequestSeq += 1;

@@ -222,7 +222,9 @@ async function startStaticServer(rootDir: string): Promise<{
 async function renderMarketStructureCard(distIndexPath: string, testInfo: TestInfo): Promise<void> {
   let browser: { close: () => Promise<void> } | null = null;
   try {
-    browser = await chromium.launch();
+    browser = await chromium.launch(process.env.DSA_PLAYWRIGHT_CHANNEL
+      ? { channel: process.env.DSA_PLAYWRIGHT_CHANNEL }
+      : {});
   } catch (error) {
     if (!isMissingPlaywrightBrowser(error)) {
       throw error;
@@ -354,6 +356,8 @@ async function renderMarketStructureCard(distIndexPath: string, testInfo: TestIn
 
 test.describe('MarketStructureCard visual smoke', () => {
   test('renders MarketStructureCard with expected sections', async ({ baseURL: _baseURL }, testInfo) => {
+    // This test builds the production component fixture before browser checks.
+    test.setTimeout(120_000);
     void _baseURL;
     const { distIndexPath } = await buildRealComponentFixture();
     expect(fs.existsSync(distIndexPath)).toBe(true);

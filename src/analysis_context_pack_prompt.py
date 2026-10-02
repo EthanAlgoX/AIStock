@@ -14,6 +14,7 @@ BLOCK_LABELS_ZH = {
     "chip": "筹码",
     "fundamentals": "基本面",
     "news": "新闻",
+    "social": "社交舆情",
 }
 
 BLOCK_LABELS_EN = {
@@ -23,6 +24,7 @@ BLOCK_LABELS_EN = {
     "chip": "chip",
     "fundamentals": "fundamentals",
     "news": "news",
+    "social": "social sentiment",
 }
 
 STATUS_LABELS_ZH = {
@@ -331,6 +333,11 @@ def _data_limitation_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
 
     if lang == "en":
         lines.append(
+            "- Evidence rule: duplicated links are one source, unknown publication times cannot "
+            "establish a current catalyst, and social buzz or votes do not establish verified news "
+            "or directional confidence. Price-volume events describe observations, not news causation."
+        )
+        lines.append(
             "- Analysis rule: missing auxiliary blocks only limit their matching "
             "analysis sections; do not treat missing data itself as bullish or bearish."
         )
@@ -340,6 +347,10 @@ def _data_limitation_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
             "raw trend values, secrets, tokens, or webhooks."
         )
     else:
+        lines.append(
+            "- 证据规则：重复链接只算一份来源；发布时间未知不能证明当前催化；社交热度或投票"
+            "不等于可核实新闻或方向性置信度。量价事件仅描述观察结果，不证明新闻导致价格变化。"
+        )
         lines.append(
             "- 分析规则：辅助数据块缺失只限制对应分析段落，不要把缺失本身解释为利好或利空。"
         )

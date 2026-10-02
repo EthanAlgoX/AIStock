@@ -5,10 +5,31 @@ import threading
 import time
 import unittest
 
-from data_provider.realtime_types import CircuitBreaker, RealtimeSource, UnifiedRealtimeQuote
+from data_provider.realtime_types import CircuitBreaker, RealtimeSource, UnifiedRealtimeQuote, safe_float, safe_int
+
+
+class RealtimeNumberConversionTestCase(unittest.TestCase):
+    def test_nonfinite_values_are_unavailable_for_float_and_integer_fields(self):
+        for value in (float('inf'), float('-inf'), float('nan'), 'inf', '-inf', 'NaN'):
+            with self.subTest(value=value):
+                self.assertIsNone(safe_float(value))
+                self.assertIsNone(safe_int(value))
+                self.assertEqual(safe_float(value, default=0.0), 0.0)
+                self.assertEqual(safe_int(value, default=0), 0)
+
+    def test_valid_zero_and_numeric_strings_preserve_their_values(self):
+        self.assertEqual(safe_float('0'), 0.0)
+        self.assertEqual(safe_int('1234.0'), 1234)
+        self.assertEqual(safe_float('-1.5'), -1.5)
 
 
 class UnifiedRealtimeQuoteMetadataTestCase(unittest.TestCase):
+    def test_basic_quote_requires_a_finite_positive_price(self):
+        for price in (float('inf'), float('-inf'), float('nan'), 0, -1, None):
+            with self.subTest(price=price):
+                self.assertFalse(UnifiedRealtimeQuote(code='600519', price=price).has_basic_data())
+        self.assertTrue(UnifiedRealtimeQuote(code='600519', price=12.0).has_basic_data())
+
     def test_metadata_defaults_are_filtered_from_to_dict(self):
         quote = UnifiedRealtimeQuote(code="600519", source=RealtimeSource.AKSHARE_EM)
 

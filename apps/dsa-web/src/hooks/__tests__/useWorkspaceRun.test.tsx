@@ -138,4 +138,66 @@ describe("durable workspace runs", () => {
     expect(view.result.current.activeRun).toBeNull();
     expect(view.result.current.busy).toBe(false);
   });
+
+  it("discards a previous identity's poll after the private store is reset", async () => {
+    const old = workspaceRunFixture(workspaceTaskFixture({ kind: "research" }), { id: "previous-user-run" });
+    const current = { ...old, id: "current-user-run" };
+    let resolveOld!: (runs: typeof old[]) => void;
+    api.listRuns.mockImplementationOnce(() => new Promise<typeof old[]>((resolve) => { resolveOld = resolve; }));
+    api.getRun.mockImplementation(async (id: string) => id === old.id ? old : current);
+    const pending = useWorkspaceRunStore.getState().refresh("research");
+
+    // AuthProvider resets this store when the authenticated identity changes.
+    useWorkspaceRunStore.setState(useWorkspaceRunStore.getInitialState());
+    api.listRuns.mockResolvedValue([current]);
+    await useWorkspaceRunStore.getState().refresh("research");
+    resolveOld([old]);
+    await pending;
+
+    expect(useWorkspaceRunStore.getState().runs.research?.run).toEqual(current);
+  });
+
+  it.each(["success", "failure"])("discards a previous identity's submission %s after the private store is reset", async (outcome) => {
+    const old = workspaceRunFixture(workspaceTaskFixture({ kind: "research" }), { id: "previous-user-run" });
+    const current = { ...old, id: "current-user-run" };
+    await useWorkspaceRunStore.getState().refresh("research");
+    let resolveOld!: (run: typeof old) => void;
+    let rejectOld!: (error: Error) => void;
+    const submit = () => new Promise<typeof old>((resolve, reject) => { resolveOld = resolve; rejectOld = reject; });
+    const pending = useWorkspaceRunStore.getState().start("research", submit, "Previous user's submission failed");
+
+    useWorkspaceRunStore.setState(useWorkspaceRunStore.getInitialState());
+    api.listRuns.mockResolvedValue([current]);
+    api.getRun.mockResolvedValue(current);
+    await useWorkspaceRunStore.getState().refresh("research");
+    const calls = api.listRuns.mock.calls.length;
+    if (outcome === "success") resolveOld(old);
+    else rejectOld(new Error("offline"));
+    await pending;
+
+    expect(useWorkspaceRunStore.getState().runs.research?.run).toEqual(current);
+    expect(useWorkspaceRunStore.getState().runs.research?.startError).toBe("");
+    expect(api.listRuns).toHaveBeenCalledTimes(calls);
+  });
+
+  it("discards a previous identity's cancellation response after the private store is reset", async () => {
+    const old = workspaceRunFixture(workspaceTaskFixture({ kind: "research" }), { id: "previous-user-run", status: "running" });
+    const current = { ...old, id: "current-user-run" };
+    api.listRuns.mockResolvedValue([old]);
+    api.getRun.mockResolvedValue(old);
+    await useWorkspaceRunStore.getState().refresh("research");
+    let rejectOld!: (error: Error) => void;
+    api.cancelRun.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOld = reject; }));
+    const pending = useWorkspaceRunStore.getState().cancel("research");
+
+    useWorkspaceRunStore.setState(useWorkspaceRunStore.getInitialState());
+    api.listRuns.mockResolvedValue([current]);
+    api.getRun.mockResolvedValue(current);
+    await useWorkspaceRunStore.getState().refresh("research");
+    rejectOld(new Error("offline"));
+    await pending;
+
+    expect(useWorkspaceRunStore.getState().runs.research?.run).toEqual(current);
+    expect(useWorkspaceRunStore.getState().runs.research?.error).toBe("");
+  });
 });

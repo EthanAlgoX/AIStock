@@ -1,5 +1,5 @@
 import type React from 'react';
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { createParsedApiError, getParsedApiError, type ParsedApiError } from '../api/error';
 import { authApi } from '../api/auth';
 import { useStockPoolStore } from '../stores';
@@ -67,12 +67,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [setupState, setSetupState] = useState<'enabled' | 'password_retained' | 'no_password'>('no_password');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<ParsedApiError | null>(null);
+  const statusRevision = useRef(0);
 
   const fetchStatus = useCallback(async () => {
+    const revision = ++statusRevision.current;
     setIsLoading(true);
     setLoadError(null);
     try {
       const status = await authApi.getStatus();
+      if (revision !== statusRevision.current) return;
       setDeploymentMode(status.deploymentMode);
       setRole(status.role || null);
       setMultiUserEnabled(Boolean(status.multiUserEnabled));
@@ -101,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         useStockPoolStore.getState().resetDashboardState();
       }
     } catch (err) {
+      if (revision !== statusRevision.current) return;
       setRole(null);
       setQuota(null);
       setLoadError(getParsedApiError(err));
@@ -111,12 +115,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSetupState('no_password');
       useStockPoolStore.getState().resetDashboardState();
     } finally {
-      setIsLoading(false);
+      if (revision === statusRevision.current) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void fetchStatus();
+    return () => { statusRevision.current += 1; };
   }, [fetchStatus]);
 
   useEffect(() => {
