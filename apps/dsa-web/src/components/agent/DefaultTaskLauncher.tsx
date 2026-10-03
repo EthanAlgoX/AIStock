@@ -4,11 +4,12 @@ import { Play, RefreshCw } from "lucide-react";
 import { workspaceApi, type DefaultTaskPlan, type WorkspaceRun } from "../../api/workspace";
 import { useWorkspaceRun } from "../../hooks/useWorkspaceRun";
 
-export default function DefaultTaskLauncher({ kind, market = "CN", stock, onRunStarted }: {
+export default function DefaultTaskLauncher({ kind, market = "CN", stock, onRunStarted, presentation = "card" }: {
   kind: "research" | "screening" | "trading";
   market?: string;
   stock?: string;
   onRunStarted?: (run: WorkspaceRun) => void;
+  presentation?: "card" | "disclosure";
 }) {
   const { translate: tx, language } = useUiLanguage();
   const key = JSON.stringify([kind, market, stock]);
@@ -37,13 +38,13 @@ export default function DefaultTaskLauncher({ kind, market = "CN", stock, onRunS
       return started;
     }, "默认方案启动未确认，请查看运行记录与 Agent 状态。");
   };
-  return <section aria-label={tx("一键默认方案")} className="rounded-xl border border-border bg-card px-4 py-4 md:px-5">
+  const content = <>
     <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
       <div className="min-w-0 flex-1">
         <h2 className="text-base font-semibold text-foreground">{stock ? tx("为当前股票匹配的默认方案") : tx("无需填写，直接试用")}</h2>
         <p className="mt-1 text-sm leading-6 text-secondary-text">{plan ? `${String(!["zh", "zh-TW"].includes(language) ? plan.task.subject.stock || plan.task.market : plan.task.subject.stockName || plan.task.subject.stock || plan.task.market)} · ${tx(plan.strategyName)} · ${plan.teamName.split("、").map(name => tx(name)).join(language === "en" ? ", " : "、")}` : (error ? tx(error) : "") || tx("正在匹配策略与可用能力…")}</p>
       </div>
-      <button type="button" disabled={!plan || busy} onClick={() => void run()} className="btn-primary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45"><Play className="h-4 w-4" />{tx("运行默认方案")}</button>
+      <button type="button" disabled={!plan || busy} onClick={() => void run()} className={`${presentation === "disclosure" ? "btn-secondary" : "btn-primary"} inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45`}><Play className="h-4 w-4" />{tx("运行默认方案")}</button>
     </div>
     {error && <p role="alert" className="mt-2 text-sm text-warning">{tx(error)}<button type="button" aria-label={tx("重试默认方案")} className="ml-2 inline-flex items-center gap-1 text-primary" onClick={() => { setResult(undefined); setRetry((value) => value + 1); }}><RefreshCw className="h-3.5 w-3.5" />{tx("重试")}</button></p>}
     {plan && <>
@@ -55,5 +56,12 @@ export default function DefaultTaskLauncher({ kind, market = "CN", stock, onRunS
         <p className="mt-3 text-xs leading-5">{tx(plan.notice)}</p>
       </details>
     </>}
-  </section>;
+  </>;
+  return presentation === "disclosure" ? <details className="border-b border-border py-3" aria-label={tx("一键默认方案")}>
+    <summary className="cursor-pointer py-2 text-sm font-medium text-secondary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">{tx("快速试用默认方案")}</summary>
+    <div className="pb-2 pt-3">
+      <p className="mb-3 max-w-2xl text-xs leading-5 text-secondary-text">{tx("这是独立的试用入口，不采用手动填写的关注问题与协作配置。")}</p>
+      {content}
+    </div>
+  </details> : <section aria-label={tx("一键默认方案")} className="rounded-xl border border-border bg-card px-4 py-4 md:px-5">{content}</section>;
 }

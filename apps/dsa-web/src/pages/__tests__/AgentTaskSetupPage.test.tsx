@@ -1,10 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { workspaceCatalogFixture, workspaceRunFixture, workspaceTaskFixture } from "../../testWorkspaceFixtures";
 import AgentTaskSetupPage from "../AgentTaskSetupPage";
 import { useWorkspaceRunStore } from "../../stores/workspaceRunStore";
+import { RESEARCH_MARKETS } from "../../utils/markets";
 
 const ScheduleDestination = () => {
   const location = useLocation();
@@ -157,10 +158,10 @@ describe("AgentTaskSetupPage", () => {
     expect(screen.getByRole("heading", { name: "策略选股" })).toBeInTheDocument();
     const runButton = await screen.findByRole("button", { name: "运行选股任务" });
     expect(runButton).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: /港股/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: "选择市场" }), { target: { value: "HK" } });
     fireEvent.change(screen.getByRole("textbox", { name: "分析关注点（不会自动变为筛选规则）" }), { target: { value: "高股息低估值" } });
     fireEvent.change(screen.getByRole("textbox", { name: "行业关注点（仅用于解读）" }), { target: { value: "金融" } });
-    await screen.findByText(/当前市场尚无已发布的选股流程/);
+    await screen.findByText("当前市场暂无可用方法。请切换市场，或前往投研助理讨论。");
     expect(runButton).toBeDisabled();
     fireEvent.click(runButton);
 
@@ -222,16 +223,31 @@ describe("AgentTaskSetupPage", () => {
 
   it("restores a screening workspace after returning from the scheduler", () => {
     const first = render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: /港股/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: "选择市场" }), { target: { value: "HK" } });
     fireEvent.change(screen.getByRole("textbox", { name: "分析关注点（不会自动变为筛选规则）" }), { target: { value: "高股息低估值" } });
     fireEvent.change(screen.getByRole("textbox", { name: "行业关注点（仅用于解读）" }), { target: { value: "金融" } });
     fireEvent.click(screen.getByRole("button", { name: "定时更新" }));
     first.unmount();
 
     render(<MemoryRouter><AgentTaskSetupPage mode="screening" /></MemoryRouter>);
-    expect(screen.getByRole("button", { name: /港股/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("combobox", { name: "选择市场" })).toHaveValue("HK");
     expect(screen.getByRole("textbox", { name: "分析关注点（不会自动变为筛选规则）" })).toHaveValue("高股息低估值");
     expect(screen.getByRole("textbox", { name: "行业关注点（仅用于解读）" })).toHaveValue("金融");
+  });
+
+  it("keeps every market accessible in a compact selector and clears the previous stock", async () => {
+    render(<MemoryRouter><AgentTaskSetupPage mode="research" /></MemoryRouter>);
+    const selector = screen.getByRole("combobox", { name: "选择市场" });
+    expect(within(selector).getAllByRole("option").map((item) => (item as HTMLOptionElement).value)).toEqual(RESEARCH_MARKETS.map((item) => item.id));
+    fireEvent.click(screen.getByRole("option", { name: /贵州茅台/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "运行单股分析" })).toBeEnabled());
+    fireEvent.change(selector, { target: { value: "US" } });
+    expect(screen.getByRole("textbox", { name: "搜索股票" })).toHaveValue("");
+    expect(screen.queryByText("600519.SH")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "运行单股分析" })).toBeDisabled();
+    expect(screen.getByRole("option", { name: /苹果/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /腾讯控股/ })).not.toBeInTheDocument();
+    expect(api.createTask).not.toHaveBeenCalled();
   });
 
   it("shows preset contents instead of a second Skill selector", async () => {

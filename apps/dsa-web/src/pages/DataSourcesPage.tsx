@@ -1,7 +1,7 @@
 import { uiLocale } from "../utils/uiLanguage";
 import { useUiLiteral } from '../hooks/useUiLiteral';
 import type React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity,
   ArrowRight,
@@ -48,7 +48,11 @@ const DataSourcesPage: React.FC = () => {
   const [sources, setSources] = useState<WorkspaceDataSource[]>([]);
   const [spotPairs, setSpotPairs] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [catalogError, setCatalogError] = useState("");
   const [saving, setSaving] = useState(false);
+  const loadRequest = useRef(0);
+  const createInFlight = useRef(false);
   const [probingSourceIds, setProbingSourceIds] = useState<string[]>([]);
   const [configuringSourceId, setConfiguringSourceId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -61,12 +65,17 @@ const DataSourcesPage: React.FC = () => {
   const [markets, setMarkets] = useState<string[]>(["cn"]);
 
   const load = useCallback(async () => {
+    const request = ++loadRequest.current;
     setLoading(true);
-    setError("");
+    setCatalogError("");
     try {
-      setSources(await workspaceApi.listDataSources());
+      const result = await workspaceApi.listDataSources();
+      if (request !== loadRequest.current) return;
+      setSources(result);
+      setLoaded(true);
     } catch (error) {
-      setError(
+      if (request !== loadRequest.current) return;
+      setCatalogError(
         toApiErrorMessage(
           error,
           localize(
@@ -76,11 +85,12 @@ const DataSourcesPage: React.FC = () => {
         ),
       );
     } finally {
-      setLoading(false);
+      if (request === loadRequest.current) setLoading(false);
     }
   }, [localize]);
   useEffect(() => {
     void load();
+    return () => { loadRequest.current += 1; };
   }, [load]);
   useEffect(() => {
     let active = true;
@@ -89,7 +99,8 @@ const DataSourcesPage: React.FC = () => {
   }, []);
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!name.trim() || !connectionKey.trim() || !setupUrl.trim() || markets.length === 0) return;
+    if (createInFlight.current || !loaded || loading || !name.trim() || !connectionKey.trim() || !setupUrl.trim() || markets.length === 0) return;
+    createInFlight.current = true;
     setSaving(true);
     setError("");
     try {
@@ -118,6 +129,7 @@ const DataSourcesPage: React.FC = () => {
         ),
       );
     } finally {
+      createInFlight.current = false;
       setSaving(false);
     }
   };
@@ -334,7 +346,7 @@ const DataSourcesPage: React.FC = () => {
       <button
         type="button"
         onClick={() => void probe(source)}
-        disabled={probing}
+        disabled={probing || loading || saving}
         className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-base px-3 text-xs font-medium text-secondary-text transition-colors hover:border-cyan/40 hover:text-foreground disabled:cursor-wait disabled:opacity-60"
         aria-label={localize(`检测 ${source.name}`, `Test ${source.name}`)}
       >
@@ -353,6 +365,7 @@ const DataSourcesPage: React.FC = () => {
       <button
         type="button"
         onClick={() => setConfiguringSourceId(source.sourceId)}
+        disabled={loading || saving}
         className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-base px-3 text-xs font-medium text-secondary-text transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         aria-label={localize(`配置 ${source.name}`, `Configure ${source.name}`)}
       >
@@ -372,12 +385,15 @@ const DataSourcesPage: React.FC = () => {
           "Manage the data connections, supported markets, configuration state, and tested availability for Primary Agent research, screening, and trading tasks. Sensitive credentials are saved through protected configuration fields.",
         )}
         actions={
-          <Link
-            to="/overview"
-            className="btn-primary inline-flex items-center gap-2"
-          >
-            {localize("返回主 Agent", "Back to Primary Agent")}
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className="btn-secondary inline-flex items-center gap-2" disabled={loading || saving} onClick={() => void load()}>
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
+              {uiLiteral("重新读取")}
+            </button>
+            <Link to="/overview" className="btn-primary inline-flex items-center gap-2">
+              {localize("返回主 Agent", "Back to Primary Agent")}
+            </Link>
+          </div>
         }
       />
       <CapabilityCenterNav />
@@ -394,6 +410,18 @@ const DataSourcesPage: React.FC = () => {
           )}
         </p>
       </div>
+      {catalogError ? (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
+          <CircleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <p>{catalogError}</p>
+            {loaded ? <p className="mt-1 text-secondary-text">{uiLiteral("显示上次成功读取的目录。")}</p> : null}
+          </div>
+          <button type="button" className="btn-secondary shrink-0" disabled={loading || saving} onClick={() => void load()}>{uiLiteral("重新读取")}</button>
+        </div>
+      ) : loaded && loading ? (
+        <p role="status" className="text-sm text-secondary-text">{uiLiteral("正在更新，暂时保留上次数据。")}</p>
+      ) : null}
       {error ? (
         <div
           role="alert"
@@ -410,23 +438,23 @@ const DataSourcesPage: React.FC = () => {
         {[
           [
             localize("已配置提供方", "Configured providers"),
-            loading ? "—" : configuredProviders,
+            loaded ? configuredProviders : "—",
             localize("具备发起请求的配置", "Configured to make requests"),
           ],
           [
             localize("实测可用", "Verified available"),
-            loading ? "—" : checkedAvailable,
+            loaded ? checkedAvailable : "—",
             localize("最近检测返回有效数据", "Returned valid data in latest test"),
           ],
           [
             localize("检测异常", "Test issues"),
-            loading ? "—" : checkedWithIssues,
+            loaded ? checkedWithIssues : "—",
             localize("部分可用或不可用", "Degraded or unavailable"),
           ],
           [
             localize("等待检测", "Awaiting test"),
-            loading ? "—" : notTested,
-            localize(`${unconfiguredProviders} 个仍待配置`, `${unconfiguredProviders} still need configuration`),
+            loaded ? notTested : "—",
+            loaded ? localize(`${unconfiguredProviders} 个仍待配置`, `${unconfiguredProviders} still need configuration`) : uiLiteral("目录尚未读取"),
           ],
         ].map(([label, value, hint]) => (
           <div key={label} className="bg-card px-4 py-4">
@@ -445,22 +473,24 @@ const DataSourcesPage: React.FC = () => {
               <h2 className="text-xl font-semibold text-foreground">
                 {localize("系统默认来源", "System default sources")}
               </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-secondary-text">
+              {loaded && defaults.length > 0 ? <p className="mt-2 max-w-2xl text-sm leading-6 text-secondary-text">
                 {localize(
                   "K 线、新闻、基本面和宏观数据已作为新 Agent 任务的默认输入。系统会沿用设置中的提供方优先级和失败降级，不要求每个任务重复配置。",
                   "Market data, news, fundamentals, and macro observations are default inputs for new Agent tasks. Provider priority and fallback settings are reused so every task does not need duplicate configuration.",
                 )}
-              </p>
+              </p> : null}
             </div>
-            <span className="shrink-0 rounded-full bg-cyan/10 px-3 py-1 text-xs font-medium text-cyan">
+            {loaded && defaults.length > 0 ? <span className="shrink-0 rounded-full bg-cyan/10 px-3 py-1 text-xs font-medium text-cyan">
               {localize("默认绑定", "Bound by default")}
-            </span>
+            </span> : null}
           </div>
-          {loading ? (
+          {loading && !loaded ? (
             <p className="mt-6 flex items-center gap-2 text-sm text-secondary-text">
               <LoaderCircle className="h-4 w-4 animate-spin" />
               {localize("正在读取数据源目录…", "Loading data source catalog…")}
             </p>
+          ) : !loaded || defaults.length === 0 ? (
+            <p className="mt-5 text-sm text-secondary-text">{uiLiteral(loaded ? "目录为空" : "目录尚未读取")}</p>
           ) : (
             <div className="mt-5 divide-y divide-border/70">
               {defaults.map((source) => (
@@ -530,6 +560,7 @@ const DataSourcesPage: React.FC = () => {
             className="mt-5 space-y-4"
             onSubmit={(event) => void create(event)}
           >
+            <fieldset disabled={saving || !loaded || loading} className="space-y-4">
             <label className="block text-sm text-secondary-text">
               {localize("数据源名称", "Data source name")}
               <input
@@ -687,6 +718,8 @@ const DataSourcesPage: React.FC = () => {
               className="btn-primary inline-flex w-full items-center justify-center gap-2"
               disabled={
                 saving ||
+                !loaded ||
+                loading ||
                 !name.trim() ||
                 !connectionKey.trim() ||
                 !setupUrl.trim() ||
@@ -702,6 +735,7 @@ const DataSourcesPage: React.FC = () => {
                 ? localize("正在登记…", "Registering…")
                 : localize("登记到数据源目录", "Add to data source catalog")}
             </button>
+            </fieldset>
           </form>
         </Card>
       </section>
@@ -804,7 +838,7 @@ const DataSourcesPage: React.FC = () => {
             )}
           </p>
         </div>
-        {loading ? (
+        {loading && !loaded ? (
           <Card variant="bordered" padding="lg">
             <p className="text-sm text-secondary-text">
               {localize(
@@ -812,6 +846,10 @@ const DataSourcesPage: React.FC = () => {
                 "Checking provider configuration…",
               )}
             </p>
+          </Card>
+        ) : !loaded ? (
+          <Card variant="bordered" padding="lg">
+            <p className="text-sm text-secondary-text">{uiLiteral("目录尚未读取")}</p>
           </Card>
         ) : (
           <div className="grid gap-4 lg:grid-cols-3">
@@ -902,11 +940,15 @@ const DataSourcesPage: React.FC = () => {
             )}
           </p>
         </div>
-        {loading ? (
+        {loading && !loaded ? (
           <Card variant="bordered" padding="lg">
             <p className="text-sm text-secondary-text">
               {localize("正在读取目录…", "Loading catalog…")}
             </p>
+          </Card>
+        ) : !loaded ? (
+          <Card variant="bordered" padding="lg">
+            <p className="text-sm text-secondary-text">{uiLiteral("目录尚未读取")}</p>
           </Card>
         ) : customSources.length ? (
           <div className="divide-y divide-border/70 rounded-2xl border border-border/70 bg-card px-5">
@@ -951,6 +993,7 @@ const DataSourcesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => void archive(source)}
+                  disabled={loading || saving}
                   className="inline-flex shrink-0 items-center gap-1 text-sm text-danger"
                 >
                   <Trash2 className="h-4 w-4" />

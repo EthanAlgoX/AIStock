@@ -22,6 +22,7 @@ import {
 } from "./contexts/UiLanguageContext";
 import { useAgentChatStore } from "./stores/agentChatStore";
 import { getLoginRedirect } from './utils/loginRedirect';
+import { CapabilityCenterNav } from './components/capability/CapabilityCenterNav';
 import "./App.css";
 
 const SettingsPage = lazy(() => import("./pages/PlatformSettingsPage"));
@@ -54,6 +55,7 @@ function ManagedCapabilitiesPage() {
   const { localize: l } = useUiLanguage();
   return <AppPage>
     <PageHeader title={l('平台托管能力', 'Platform-managed capabilities')} description={l('公共数据源和运行工具由平台管理员维护。你可以在研究页面选择可用的 Skill 与专家；持仓、报告和个人配置仍只属于你。', 'Public data sources and runtime tools are maintained by the platform administrator. Choose available Skills and experts on your research pages; your holdings, reports and personal settings remain private.')} />
+    <CapabilityCenterNav />
     <Link className="btn-secondary mt-6 inline-flex min-h-11 items-center" to="/overview">{l('返回投研助理', 'Back to research assistant')}</Link>
   </AppPage>;
 }

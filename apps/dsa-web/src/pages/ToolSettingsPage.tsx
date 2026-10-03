@@ -1,6 +1,6 @@
 import { useUiLiteral } from '../hooks/useUiLiteral';
 import { UiLiteral } from '../components/i18n/UiLiteral';
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   Braces,
@@ -34,9 +34,16 @@ export default function ToolSettingsPage() {
   const uiLiteral = useUiLiteral();
   const [tools, setTools] = useState<WorkspaceTool[]>([]);
   const [enabledIds, setEnabledIds] = useState<string[]>([]);
+  const [savedIds, setSavedIds] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const saveInFlight = useRef(false);
+  const dirty = enabledIds.length !== savedIds.length || enabledIds.some((id) => !savedIds.includes(id));
+  const retry = () => { setError(''); setLoaded(false); setLoading(true); setRevision((value) => value + 1); };
   const enabledSet = useMemo(() => new Set(enabledIds), [enabledIds]);
   const categoryOrder = useMemo(() => [...new Set(tools.map((tool) => tool.category))], [tools]);
 
@@ -46,12 +53,15 @@ export default function ToolSettingsPage() {
       .then((result) => {
         if (!active) return;
         setTools(result);
-        setEnabledIds(result.filter((tool) => tool.enabled).map((tool) => tool.id));
+        const ids = result.filter((tool) => tool.enabled).map((tool) => tool.id);
+        setEnabledIds(ids);
+        setSavedIds(ids);
+        setLoaded(true);
       })
       .catch(() => active && setError("内置工具目录读取失败，请稍后重试。"))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, []);
+  }, [revision]);
 
   const toggle = (toolId: string) => {
     setSaved(false);
@@ -61,13 +71,18 @@ export default function ToolSettingsPage() {
   };
 
   const save = async () => {
+    if (!loaded || loading || !dirty || saveInFlight.current) return;
+    const snapshot = [...enabledIds];
+    saveInFlight.current = true;
+    setSaving(true);
     setError("");
     try {
-      await workspaceApi.setPreferences("tool", enabledIds);
+      await workspaceApi.setPreferences("tool", snapshot);
+      setSavedIds(snapshot);
       setSaved(true);
     } catch {
       setError("工具白名单保存失败，请稍后重试。");
-    }
+    } finally { saveInFlight.current = false; setSaving(false); }
   };
 
   return (
@@ -83,12 +98,14 @@ export default function ToolSettingsPage() {
       <PageHeader
         eyebrow={uiLiteral("能力注册表")}
         title={uiLiteral("内置工具")}
-        description={uiLiteral("管理平台自带的金融 Tool Surface。Tool 是 Agent 可直接执行的函数；MCP 服务是外部能力的连接协议，两者分别治理。")}
+        description={uiLiteral("选择研究、选股和风险检查需要的内置工具。启用后，可在任务中按需使用。")}
         actions={<Link to="/overview" className="btn-primary"><UiLiteral text={"返回投研助理"} /></Link>}
       />
       <CapabilityCenterNav />
 
-      <section className="grid overflow-hidden rounded-[12px] border border-border bg-card lg:grid-cols-[1fr_1fr]" aria-label={uiLiteral("Tool 与 MCP 的边界")}>
+      <details className="border-b border-border pb-4">
+      <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-secondary-text"><UiLiteral text="Tool 与 MCP 的边界" /></summary>
+      <section className="mt-3 grid overflow-hidden rounded-[12px] border border-border bg-card lg:grid-cols-[1fr_1fr]" aria-label={uiLiteral("Tool 与 MCP 的边界")}>
         <div className="border-b border-border p-5 lg:border-b-0 lg:border-r">
           <div className="flex items-center gap-2 text-primary"><Wrench className="h-4 w-4" /><p className="text-xs font-semibold"><UiLiteral text={"Tool · 可执行能力"} /></p></div>
           <p className="mt-2 text-sm leading-6 text-secondary-text"><UiLiteral text={"有明确输入 Schema、权限、作用域和执行结果，例如读取行情、计算均线或搜索新闻。"} /></p>
@@ -104,12 +121,14 @@ export default function ToolSettingsPage() {
         <Info className="mt-1 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
         <p><span className="font-medium text-warning"><UiLiteral text={"运行边界。"} /></span> <UiLiteral text={" 下列站内工具已通过网站的金融 MCP Endpoint 发布给外部 Runtime；独立 Agent 引擎 仍需在自身配置中连接该 Endpoint。工作区白名单会同时限制站内 Agent 和 MCP 暴露面。"} /></p>
       </div>
+      </details>
 
-      {error ? <p role="alert" className="rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">{uiLiteral(error)}</p> : null}
+      {loading && <p role="status" className="text-sm text-secondary-text"><UiLiteral text="正在读取工具目录…" /></p>}
+      {error ? <div role="alert" className="rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger"><p>{uiLiteral(error)}</p>{!loaded && <button type="button" className="btn-secondary mt-3" disabled={loading} onClick={retry}><UiLiteral text="重新读取" /></button>}</div> : null}
 
       <section className="grid gap-px overflow-hidden rounded-[12px] border border-border bg-border sm:grid-cols-3" aria-label={uiLiteral("工具目录摘要")}>
-        <div className="bg-card px-5 py-4"><p className="text-xs text-secondary-text"><UiLiteral text={"平台金融工具"} /></p><p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">{loading ? "—" : tools.length}</p><p className="mt-1 text-xs text-muted-text">DSA Tool Surface</p></div>
-        <div className="bg-card px-5 py-4"><p className="text-xs text-secondary-text"><UiLiteral text={"工作区白名单"} /></p><p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">{enabledIds.length}</p><p className="mt-1 text-xs text-muted-text"><UiLiteral text={"启用但尚未按任务绑定"} /></p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-secondary-text"><UiLiteral text={"平台金融工具"} /></p><p className="mt-2 text-lg font-semibold tabular-nums text-foreground">{loaded ? tools.length : '—'}</p></div>
+        <div className="bg-card px-5 py-4"><p className="text-xs text-secondary-text"><UiLiteral text={"工作区白名单"} /></p><p className="mt-2 text-lg font-semibold tabular-nums text-foreground">{loaded ? enabledIds.length : '—'}</p><p className="mt-1 text-xs text-muted-text"><UiLiteral text={"启用但尚未按任务绑定"} /></p></div>
         <div className="bg-card px-5 py-4"><p className="text-xs text-secondary-text"><UiLiteral text={"运行权限"} /></p><p className="mt-2 text-base font-semibold text-foreground">READ · COMPUTE</p><p className="mt-1 text-xs text-muted-text"><UiLiteral text={"不包含审批和交易执行"} /></p></div>
       </section>
 
@@ -131,7 +150,7 @@ export default function ToolSettingsPage() {
                     const policy = tool.policy || {};
                     return (
                       <label key={tool.id} className="flex cursor-pointer items-start gap-4 px-5 py-4 transition-colors hover:bg-hover/35">
-                        <input type="checkbox" checked={enabled} onChange={() => toggle(tool.id)} aria-label={uiLiteral(`${tool.name} 工具`)} className="mt-1" />
+                        <input type="checkbox" checked={enabled} disabled={saving} onChange={() => toggle(tool.id)} aria-label={uiLiteral(`${tool.name} 工具`)} className="mt-1" />
                         <span className="min-w-0 flex-1">
                           <span className="flex flex-wrap items-center gap-2"><span className="font-medium text-foreground">{uiLiteral(copy?.name || tool.name)}</span><code className="text-[11px] text-muted-text">{tool.id}</code></span>
                           <span className="mt-1 block text-sm leading-6 text-secondary-text">{uiLiteral(copy?.description || tool.description)}</span>
@@ -150,7 +169,7 @@ export default function ToolSettingsPage() {
           <div className="rounded-[14px] border border-border bg-background p-5">
             <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /><h2 className="font-semibold text-foreground"><UiLiteral text={"金融工具白名单"} /></h2></div>
             <p className="mt-3 text-sm leading-6 text-secondary-text"><UiLiteral text={"只保留研究、选股、组合和策略验证需要的能力。Shell、文件写入、自我修改和远程安装不属于默认金融工具。"} /></p>
-            <button type="button" onClick={() => void save()} className="btn-primary mt-5 inline-flex w-full items-center justify-center gap-2"><Save className="h-4 w-4" /><UiLiteral text={"保存工具白名单"} /></button>
+            <button type="button" onClick={() => void save()} disabled={!loaded || loading || saving || !dirty} className="btn-primary mt-5 inline-flex w-full items-center justify-center gap-2 disabled:opacity-45"><Save className="h-4 w-4" /><UiLiteral text={saving ? '正在保存…' : '保存工具白名单'} /></button>
             {saved ? <p role="status" className="mt-3 flex items-center gap-2 text-xs text-success"><CheckCircle2 className="h-4 w-4" /><UiLiteral text={"已保存到后端工作区注册表。"} /></p> : null}
           </div>
           <div className="rounded-[12px] border border-border bg-background p-4">

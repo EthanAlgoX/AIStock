@@ -16,13 +16,18 @@ export const Shell: React.FC<ShellProps> = ({ children }) => {
   const { localize } = useUiLanguage();
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
+    <div className="app-shell">
       <a href="#workspace-content" className="skip-to-content">{localize("跳至主要内容", "Skip to content")}</a>
       <ShellHeader onOpenMenu={() => setMenuOpen(true)} />
 
-      <main id="workspace-content" tabIndex={-1} className="min-h-0 min-w-0 flex-1 touch-pan-y pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
-        {children ?? <Outlet />}
-      </main>
+      <div className="app-shell-body">
+        <aside className="app-navigation hidden lg:flex">
+          <SidebarNav />
+        </aside>
+        <main id="workspace-content" tabIndex={-1} className="app-main">
+          {children ?? <Outlet />}
+        </main>
+      </div>
 
       <MobilePrimaryNav />
 
@@ -34,7 +39,7 @@ export const Shell: React.FC<ShellProps> = ({ children }) => {
         zIndex={90}
         side="right"
       >
-        <SidebarNav onNavigate={() => setMenuOpen(false)} />
+        <SidebarNav onNavigate={() => setMenuOpen(false)} navigationLabel={localize("工作区导航", "Workspace navigation")} />
       </Drawer>
     </div>
   );

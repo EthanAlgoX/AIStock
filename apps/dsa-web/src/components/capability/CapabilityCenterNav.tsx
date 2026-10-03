@@ -30,7 +30,7 @@ export function CapabilityCenterNav() {
             )}
           >
             <Icon className="h-4 w-4" aria-hidden="true" />
-            {label}
+            {uiLiteral(label)}
           </NavLink>
         ))}
       </nav>

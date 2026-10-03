@@ -14,6 +14,53 @@ This map describes the routed Web application. A saved configuration, a complete
 | Portfolio / 持仓管理 | Holdings or watch stocks, optional schedules / 持仓或关注股、可选跟踪计划 | Current briefs and independent daily score history / 当前简报与独立的每日评分历史 |
 | Market radar / 市场雷达 | Market and news sources / 市场与资讯来源 | Research inputs / 研究输入 |
 
+## Navigation and complete user journeys / 导航与完整用户旅程
+
+Desktop navigation groups the existing pages by purpose: research (radar, assistant, roundtable, stock research), validation and tracking (screening, trade simulation, holdings, alerts), and workspace controls (runs, schedules, capabilities, usage, settings). On mobile, the bottom navigation keeps the assistant, roundtable, stock research, screening and simulation; the menu exposes every other destination. These groups change how pages are found, not API authorization or data ownership. The public homepage `/` and guided trial `/try` remain separate from the authenticated workspace; `/login` preserves a safe internal return path.
+
+桌面导航按任务分为研究（雷达、助理、圆桌、个股研究）、验证与跟踪（选股、交易推演、持仓、告警）、工作区管理（运行、定时、能力、用量、设置）。移动端底部保留助理、圆桌、个股研究、选股、交易推演，其余入口通过菜单完整访问。分组只改变页面查找方式，不改变 API 权限与数据归属。公共首页 `/` 和引导试用 `/try` 独立于登录后的工作区；`/login` 保留安全的站内返回路径。
+
+| User task / 用户任务 | Entry and action / 入口与操作 | Saved result and next action / 成果与后续动作 |
+| --- | --- | --- |
+| Find a research question / 寻找研究问题 | `/market-intelligence`: select the market, inspect news and available recaps / 选择市场，查看资讯与可用复盘 | Use the evidence in assistant discussion or stock research; loading/failure is not a fresh recap / 将证据用于助理讨论或个股研究；读取中或失败不代表已有新复盘 |
+| Ask or develop a method / 提问或形成方法 | `/overview`: choose methods and optional experts, enter a question; use the separate strategy conversation to save a Skill / 选择方法和可选专家后提问；独立策略会话可保存 Skill | Continue the saved conversation, inspect linked runs, or bring the saved method into a structured task / 继续保存的会话、查看关联运行，或将方法带入结构化任务 |
+| Compare expert views / 比较专家观点 | `/expert-review`: choose experts and pipeline, debate or voting, then send a topic; report links can supply `sourceRun` / 选择专家及流水线、辩论或投票方式，提交主题；报告入口可携带 `sourceRun` | Saved contributions, synthesis and run evidence; ask a follow-up without rewriting earlier rounds / 保存发言、汇总及运行证据；继续追问，不改写历史讨论 |
+| Research a specific stock / 研究一只股票 | `/stock-research`: open new research, select a market and a stock search result, choose a method and optional focus question, then run / 新建研究，选市场并点击股票结果，选择方法与可选关注问题后运行 | A saved report in the report directory; continue with the assistant, invite experts, inspect run details or schedule future research / 报告存入目录；可继续问助理、邀请专家、查看运行详情或设置后续研究计划 |
+| Screen and study candidates / 筛选并研究候选 | `/screening`: select the screening strategy, enter interpretation goals and optionally research the top candidates, then run / 选择筛选策略，填写解读关注点，按需深研前列候选后运行 | A candidate list and optional stock reports; inspect a stock archive or generate a research-only trading proposal / 候选名单及可选个股报告；可查看股票档案，或生成仅供研究的交易提案 |
+| Validate a saved strategy / 验证已保存策略 | `/trading`: configure Skill, market, confirmed scope and account limits, save, then explicitly choose and confirm a run mode / 配置 Skill、市场、已确认范围和账户约束，保存后明确选择并确认运行模式 | A simulation account with decisions, eligible fills and equity history; inspect, pause, stop or create a separate replay / 模拟账户记录决策、符合约束的成交与净值；可查看、暂停、停止或另建回放 |
+| Record and track holdings / 记录并跟踪持仓 | `/portfolio`: record holdings or add a watch stock; `/portfolio/ledger` manages recorded accounts and transactions / 录入持仓或添加关注股；持仓账本管理记账账户与交易流水 | User-recorded positions, briefs and daily research score history; run research manually or save future tracking / 用户记账仓位、简报及每日研究评分；可手动研究或保存后续跟踪计划 |
+| Receive a price alert / 接收价格告警 | `/alerts`: choose a symbol, threshold, cooldown and available delivery channel, then save and enable the rule / 选择标的、阈值、冷却时间及可用渠道，保存并启用规则 | An enabled monitoring rule and observable delivery status; review or disable it, without placing an order / 启用监控规则并观察投递状态；可查看或停用，不产生订单 |
+| Automate future work / 安排后续工作 | `/schedules`: configure stock research or screening, or bind a saved trading-proposal task, then register a schedule / 配置个股研究、选股，或绑定已保存的交易提案任务后注册计划 | Next execution time and future runs; toggle/delete the plan and inspect executions in `/runs` / 下次执行时间与后续运行；可启停或删除计划，并在运行页查看执行 |
+| Inspect an outcome or failure / 核对结果或失败 | `/runs`: filter by task, status, market or date; open `/runs/:runId` / 按任务、状态、市场或日期筛选后打开运行详情 | Saved artifacts, input/configuration and provenance; continue discussion, inspect the linked account/report, stop supported work or explicitly rerun / 成果、输入配置及溯源；可继续讨论、查看关联账户或报告、停止支持的任务或明确重跑 |
+| Prepare capabilities / 准备可用能力 | `/capabilities`, `/capabilities/skills`, `/capabilities/tools`, `/capabilities/mcp`, `/capabilities/data`, `/capabilities/experts`: inspect or configure the relevant method, tool, connection, source or expert / 查看或配置方法、工具、连接、数据源及专家 | Registry choices available to later tasks; configuration alone does not execute a task, and members see managed MCP/data information / 注册能力供后续任务选择；配置不会启动任务，成员查看平台托管 MCP／数据源说明 |
+| Configure access and check consumption / 配置访问并检查消耗 | `/settings`: platform settings for administrators, My account and personal API for members; `/usage`: inspect actual model usage / 管理员使用平台设置，成员使用我的账户及个人 API；用量页查看真实模型消耗 | Saved settings and usage records; verify the model through an explicit task, keeping credentials and workspace ownership isolated / 保存设置与用量记录；需明确发起任务验证模型，密钥与工作区归属保持隔离 |
+
+The holding ledger, run details and individual capability pages are contextual destinations rather than extra primary workspaces. Legacy `/chat`, `/research`, `/simulation` and editor URLs keep their existing compatibility redirects; they are not separate workflows.
+
+持仓账本、运行详情和各能力配置页是上下文入口，不额外扩张主工作台。旧 `/chat`、`/research`、`/simulation` 及编辑器 URL 保留原兼容跳转，不作为独立流程。
+
+## Configure, run and read / 配置、运行与阅读
+
+The stock-research and screening workspaces prioritize the report directory and conclusions. Opening configuration retains the last draft; collapsing it does not submit a task. The market selector keeps every existing market option while stock search remains scoped to the chosen market. Select a search result before running stock research. The manual run uses the selected method, question and capability bindings; optional expert controls and method explanations can be expanded when needed. Run details retain the frozen configuration and data sources without requiring users to understand published graph identifiers.
+
+个股研究与选股优先展示报告目录和结论。展开配置会保留上次草稿，收起不会提交任务。市场下拉保留全部已有市场，股票搜索仍限定当前市场，个股研究须先点击搜索结果。正式运行使用所选方法、关注问题与能力绑定；专家控件和方法说明按需展开。运行详情保留冻结配置与数据来源，不要求用户理解发布图标识。
+
+Crypto research selects spot USDT pairs and freezes the `CRYPTO` market with the canonical pair in the task. The stock archive uses the URL stock context, canonical catalog identities and recognized suffixes to select the market for new research. A later catalog response preserves an explicit manual choice; changing the stock resets that choice. Bare numeric codes are not guessed as foreign listings from display codes: `006208` remains a CN-format input, while `006208.TW` identifies Taiwan. History filters, default-plan preparation and the subsequent task use the same normalized subject. A market/subject mismatch is still validated by the backend.
+
+加密研究选择现货 USDT 交易对，任务同时冻结 `CRYPTO` 市场与标准交易对。股票档案根据 URL 股票上下文、目录标准身份及已识别后缀选择新研究市场。晚到的目录结果保留用户显式手动选择，股票变化则重置该选择。裸数字不会按目录显示代码猜成海外标的：`006208` 保持 CN 格式输入，`006208.TW` 才识别为台湾。历史筛选、默认方案准备和后续任务使用同一标准标的，市场与标的不匹配仍由后端校验。
+
+“Try a ready-to-run plan” is a separate, collapsed secondary entry. Expanding it only reveals the plan; only its run button submits work. The backend supplies its stock, method and experts, using the currently selected stock where provided. It does not use manually entered focus questions or collaboration settings, and does not replace the manual draft. It uses real data and models, so an explicit run can incur charges.
+
+“快速试用默认方案”是独立、默认折叠的次级入口。展开只显示方案，点击其中的运行按钮才提交任务。方案由后端提供股票、方法与专家，传入已选股票时使用该股票，不采用手填关注问题或协作配置，也不覆盖手动草稿。它使用真实数据与模型，明确运行后可能产生调用费用。
+
+Research/screening run buttons create and execute a task now; their scheduling buttons only open the scheduler with the current configuration. Registering a plan schedules future work without executing immediately. A saved simulation strategy is a different object: it creates no simulation account until a run mode is confirmed. Historical `/trading?view=reports` saves research proposals without account fills, and its saved tasks can be scheduled. Continuous account simulation is controlled from the main trading workspace; the generic trading-proposal schedule does not activate it.
+
+研究／选股的运行按钮立即创建并执行任务，定时按钮只携带当前配置打开计划页。注册计划只安排未来工作，不立即执行。保存模拟策略是另一类对象，确认运行模式前不会创建模拟账户。历史 `/trading?view=reports` 保存不产生成交的研究提案，其任务可用于定时计划。账户持续模拟由交易主工作台控制，通用交易提案计划不会启用它。
+
+Enabling or pausing a plan controls future scheduling. A cycle already claimed or started may continue; cancellation of a run is a separate action. Deleting a plan requires confirmation and removes only the schedule, preserving its task and run history. Creation blocks repeated clicks while a request is pending and reuses a confirmed task if schedule creation fails; it does not promise server idempotency after an uncertain network response.
+
+启用或暂停计划控制后续调度，已经领取或启动的本轮可能继续，停止某次运行是独立操作。删除计划须确认，仅移除计划，保留任务与运行历史。创建时阻止请求在途重复点击；计划创建失败后复用已确认保存的任务，但不承诺网络响应不确定时的服务端幂等。
+
 ## Research and tracking / 研究与跟踪
 
 - Holding research reads the actual holding context. Watch research does not infer positions or produce holding actions. Completed scores are assembled into a curve after independent research; previous report conclusions are not injected into the next analysis.

@@ -1,244 +1,45 @@
 import type React from "react";
 import { useEffect } from "react";
-import {
-  BarChart3,
-  Boxes,
-  CalendarClock,
-  CandlestickChart,
-  History,
-  Menu,
-  Newspaper,
-  SearchCode,
-  Target,
-  UsersRound,
-  Wallet,
-} from "lucide-react";
+import { BarChart3, Menu } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
-
-import { useAgentChatStore } from "../../stores/agentChatStore";
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
 import { useAuth } from "../../contexts/AuthContext";
-import type { UiTextKey } from "../../i18n/uiText";
-import { cn } from "../../utils/cn";
-import { StatusDot } from "../common/StatusDot";
 import { Tooltip } from "../common/Tooltip";
 import { UiLanguageToggle } from "../i18n/UiLanguageToggle";
+import { ThemeToggle } from "../theme/ThemeToggle";
+import { WorkspaceNavLink } from "./SidebarNav";
+import { WORKSPACE_NAV_ITEMS } from "./workspaceNavigation";
 
-type ShellHeaderProps = {
-  onOpenMenu: () => void;
-};
-
-type HeaderNavItem = {
-  key: string;
-  labelKey: UiTextKey;
-  to: string;
-  icon: React.ComponentType<{ className?: string }>;
-  matchPrefix?: string;
-  badge?: "completion";
-};
-
-const PRIMARY_NAV_ITEMS: HeaderNavItem[] = [
-  {
-    key: "market",
-    labelKey: "layout.nav.marketIntelligence",
-    to: "/market-intelligence",
-    icon: Newspaper,
-  },
-  {
-    key: "agent",
-    labelKey: "layout.nav.home",
-    to: "/overview",
-    icon: BarChart3,
-    badge: "completion",
-  },
-  {
-    key: "expert-review",
-    labelKey: "layout.nav.expertReview",
-    to: "/expert-review",
-    icon: UsersRound,
-  },
-  {
-    key: "research",
-    labelKey: "layout.nav.stockResearch",
-    to: "/stock-research",
-    icon: SearchCode,
-  },
-  {
-    key: "screening",
-    labelKey: "layout.nav.screeningTool",
-    to: "/screening",
-    icon: Target,
-  },
-  {
-    key: "trading",
-    labelKey: "layout.nav.trading",
-    to: "/trading",
-    icon: CandlestickChart,
-  },
-];
-
-const DESKTOP_UTILITY_ITEMS: HeaderNavItem[] = [
-  { key: "portfolio", labelKey: "layout.nav.portfolio", to: "/portfolio", icon: Wallet, matchPrefix: "/portfolio" },
-  {
-    key: "schedules",
-    labelKey: "layout.nav.scheduledTasks",
-    to: "/schedules",
-    icon: CalendarClock,
-  },
-  {
-    key: "runs",
-    labelKey: "layout.nav.runs",
-    to: "/runs",
-    icon: History,
-    matchPrefix: "/runs",
-  },
-  {
-    key: "capabilities",
-    labelKey: "layout.nav.capabilities",
-    to: "/capabilities",
-    icon: Boxes,
-    matchPrefix: "/capabilities",
-  },
-];
-
-const ROUTE_TITLES: Array<{ prefix: string; labelKey: UiTextKey }> = [
-  { prefix: "/portfolio", labelKey: "layout.nav.portfolio" },
-  { prefix: "/alerts", labelKey: "layout.nav.alerts" },
-  { prefix: "/market-intelligence", labelKey: "layout.nav.marketIntelligence" },
-  { prefix: "/stock-research", labelKey: "layout.nav.stockResearch" },
-  { prefix: "/screening", labelKey: "layout.nav.screeningTool" },
-  { prefix: "/trading", labelKey: "layout.nav.trading" },
-  { prefix: "/expert-review", labelKey: "layout.nav.expertReview" },
-  { prefix: "/schedules", labelKey: "layout.nav.scheduledTasks" },
-  { prefix: "/runs", labelKey: "layout.nav.runs" },
-  { prefix: "/capabilities", labelKey: "layout.nav.capabilities" },
-  { prefix: "/usage", labelKey: "layout.nav.usage" },
-  { prefix: "/settings", labelKey: "layout.nav.settings" },
-  { prefix: "/overview", labelKey: "layout.nav.home" },
-];
-
-function itemIsActive(pathname: string, item: HeaderNavItem) {
-  if (item.matchPrefix) {
-    return pathname === item.to || pathname.startsWith(`${item.matchPrefix}/`);
-  }
-  return pathname === item.to;
-}
-
-function PrimaryNavLink({ item, mobile = false }: { item: HeaderNavItem; mobile?: boolean }) {
-  const location = useLocation();
-  const { t } = useUiLanguage();
-  const completionBadge = useAgentChatStore((state) => state.completionBadge);
-  const active = itemIsActive(location.pathname, item);
-  const Icon = item.icon;
-
-  return (
-    <NavLink
-      to={item.to}
-      aria-label={t(item.labelKey)}
-      className={cn(
-        "group relative flex items-center justify-center text-secondary-text transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45",
-        mobile
-          ? "min-w-0 flex-1 flex-col gap-1 px-1 py-2 text-[10px]"
-          : "h-11 gap-2 rounded-[10px] px-3 text-[13px] font-medium",
-        active
-          ? mobile
-            ? "text-primary"
-            : "bg-primary/10 text-primary"
-          : "hover:bg-hover/70 hover:text-foreground",
-      )}
-    >
-      <span className="relative inline-flex">
-        <Icon className={mobile ? "h-5 w-5" : "h-[18px] w-[18px]"} aria-hidden="true" />
-        {item.badge === "completion" && completionBadge ? (
-          <StatusDot
-            tone="info"
-            data-testid={mobile ? "mobile-chat-completion-badge" : "chat-completion-badge"}
-            className="absolute -right-1.5 -top-1.5 border-2 border-card"
-            aria-label={t("layout.newChatMessage")}
-          />
-        ) : null}
-      </span>
-      <span className={cn("truncate", mobile ? "w-full text-center" : "")}>{t(item.labelKey)}</span>
-      {mobile && active ? <span className="absolute inset-x-3 top-0 h-0.5 rounded-b bg-primary" /> : null}
-    </NavLink>
-  );
-}
-
-export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
+export const ShellHeader: React.FC<{ onOpenMenu: () => void }> = ({ onOpenMenu }) => {
   const location = useLocation();
   const { role } = useAuth();
   const { t, localize } = useUiLanguage();
-  const currentTitle = ROUTE_TITLES.find(({ prefix }) => location.pathname.startsWith(prefix));
-  const pageTitle = role === 'member' && location.pathname === '/settings'
-    ? localize('我的账户', 'My account') : currentTitle ? t(currentTitle.labelKey) : "AI Stock";
-  useEffect(() => { document.title = `${pageTitle} - AI Stock`; }, [pageTitle]);
+  const current = WORKSPACE_NAV_ITEMS.find(item =>
+    location.pathname === item.to || location.pathname.startsWith(item.to + "/"));
+  const pageTitle = role === "member" && location.pathname === "/settings"
+    ? localize("我的账户", "My account") : current ? t(current.labelKey) : "AI Stock";
+  useEffect(() => { document.title = pageTitle + " - AI Stock"; }, [pageTitle]);
 
   return (
-    <header className="sticky top-0 z-40 shrink-0 border-b border-border/75 bg-card">
-      <div className="mx-auto flex h-14 w-full items-center gap-3 px-3 lg:h-16 lg:px-4 xl:px-6">
-        <NavLink
-          to="/overview"
-          className="flex min-w-0 shrink-0 items-center gap-2.5 rounded-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45"
-          aria-label="AI Stock"
-        >
-          <span className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-primary/25 bg-primary text-primary-foreground shadow-[0_6px_16px_hsl(var(--primary)/0.16)]">
-            <BarChart3 className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <span className="hidden text-sm font-semibold tracking-[-0.01em] text-foreground 2xl:block">
-            AI Stock
-          </span>
-        </NavLink>
-
-        <div className="min-w-0 flex-1 lg:hidden">
-          <p className="truncate text-sm font-semibold text-foreground">
-            {pageTitle}
-          </p>
-          <p className="truncate text-[11px] text-muted-text">
-            {localize("Agent 驱动的投资决策工作台", "Agent-driven investment workspace")}
-          </p>
-        </div>
-
-        <nav className="hidden min-w-0 flex-1 items-center justify-start gap-1 overflow-x-auto lg:flex 2xl:justify-center" aria-label={t("layout.mainNav")}>
-          {PRIMARY_NAV_ITEMS.map((item) => (
-            <PrimaryNavLink key={item.key} item={item} />
-          ))}
-        </nav>
-
-        <nav className="hidden shrink-0 items-center gap-1 border-l border-border pl-3 lg:flex" aria-label={localize("辅助导航", "Utility navigation")}>
-          {DESKTOP_UTILITY_ITEMS.map((item) => {
-            const active = itemIsActive(location.pathname, item);
-            const Icon = item.icon;
-            return (
-              <Tooltip key={item.key} content={t(item.labelKey)} side="bottom">
-                <NavLink
-                  to={item.to}
-                  aria-label={t(item.labelKey)}
-                  className={cn(
-                    "inline-flex h-11 w-11 items-center justify-center gap-2 rounded-[10px] text-secondary-text transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 xl:w-auto xl:px-2.5",
-                    active ? "bg-primary/10 text-primary" : "hover:bg-hover/70 hover:text-foreground",
-                  )}
-                >
-                  <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-                  <span className={cn("hidden text-xs font-medium", item.key === "portfolio" ? "xl:inline" : "min-[1800px]:inline")}>{t(item.labelKey)}</span>
-                </NavLink>
-              </Tooltip>
-            );
-          })}
-        </nav>
-
-        <UiLanguageToggle
-          wrapperClassName="shrink-0"
-          triggerClassName="inline-flex h-11 items-center gap-1.5 rounded-[10px] border border-border bg-background px-2.5 text-xs text-secondary-text transition-colors hover:border-primary/35 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45"
-          iconClassName="h-4 w-4"
-        />
-
+    <header className="workspace-command-bar">
+      <NavLink to="/overview" className="workspace-brand" aria-label="AI Stock">
+        <span className="workspace-brand-mark"><BarChart3 className="h-[18px] w-[18px]" aria-hidden="true" /></span>
+        <span className="hidden font-semibold tracking-[-0.02em] lg:block">AI Stock</span>
+      </NavLink>
+      <div className="min-w-0 flex-1 border-l border-border pl-3 lg:pl-5">
+        <p className="truncate text-sm font-semibold text-foreground">{pageTitle}</p>
+        <p className="hidden text-xs text-secondary-text sm:block">
+          {localize("研究、验证与跟踪", "Research, validate and track")}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <ThemeToggle wrapperClassName="shrink-0"
+          triggerClassName="workspace-toolbar-button" iconClassName="h-4 w-4" />
+        <UiLanguageToggle wrapperClassName="workspace-language"
+          triggerClassName="workspace-toolbar-button" iconClassName="h-4 w-4" />
         <Tooltip content={localize("工作区与设置", "Workspace and settings")} side="bottom">
-          <button
-            type="button"
-            onClick={onOpenMenu}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] border border-border bg-background text-secondary-text transition-colors hover:border-primary/35 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45"
-            aria-label={localize("打开工作区与设置", "Open workspace and settings")}
-          >
+          <button type="button" onClick={onOpenMenu} className="workspace-toolbar-button !w-11 !px-0"
+            aria-label={localize("打开工作区与设置", "Open workspace and settings")}>
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
         </Tooltip>
@@ -249,14 +50,11 @@ export const ShellHeader: React.FC<ShellHeaderProps> = ({ onOpenMenu }) => {
 
 export function MobilePrimaryNav() {
   const { localize } = useUiLanguage();
-
+  const keys = ["agent", "expert-review", "research", "screening", "trading"];
   return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-40 flex min-h-16 border-t border-border/80 bg-card/97 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_28px_rgba(3,8,20,0.08)] backdrop-blur-xl lg:hidden"
-      aria-label={localize("移动端主导航", "Mobile primary navigation")}
-    >
-      {PRIMARY_NAV_ITEMS.filter((item) => item.key !== "market").map((item) => (
-        <PrimaryNavLink key={item.key} item={item} mobile />
+    <nav className="mobile-workspace-nav lg:hidden" aria-label={localize("移动端主导航", "Mobile primary navigation")}>
+      {WORKSPACE_NAV_ITEMS.filter(item => keys.includes(item.key)).map(item => (
+        <WorkspaceNavLink key={item.key} item={item} mobile />
       ))}
     </nav>
   );

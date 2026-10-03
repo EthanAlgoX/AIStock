@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UiLanguageProvider } from '../../contexts/UiLanguageContext';
 import TokenUsagePage from '../TokenUsagePage';
@@ -198,14 +198,14 @@ describe('TokenUsagePage', () => {
       todayRequest.resolve({ data: todayResponse });
     });
 
-    expect(await screen.findByText('900')).toBeInTheDocument();
+    expect(await screen.findAllByText('900')).toHaveLength(2);
 
     await act(async () => {
       monthRequest.resolve({ data: dashboardResponse });
     });
 
     await waitFor(() => {
-      expect(screen.getByText('900')).toBeInTheDocument();
+      expect(screen.getAllByText('900')).toHaveLength(2);
     });
     expect(screen.queryByText('400')).not.toBeInTheDocument();
   });
@@ -221,5 +221,22 @@ describe('TokenUsagePage', () => {
         params: { period: 'today', limit: 50 },
       });
     });
+  });
+
+  it('keeps every model figure in a divided ledger and announces an in-flight period refresh', async () => {
+    window.localStorage.setItem('dsa.uiLanguage', 'en');
+    const next = createDeferred<{ data: typeof dashboardResponse }>();
+    get.mockImplementation((_url, config) => config?.params?.period === 'today' ? next.promise : Promise.resolve({ data: dashboardResponse }));
+    renderPage();
+    await screen.findByText('400');
+    const models = screen.getByRole('list', { name: 'Model usage' });
+    const model = within(models).getAllByRole('listitem')[0];
+    for (const number of ['300', '100', '200', '240']) expect(within(model).getByText(number)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Today' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Updating; previous data remains visible.');
+    expect(screen.getByText('400')).toBeVisible();
+    await act(async () => next.resolve({ data: makeDashboardResponse({ period: 'today', total_tokens: 500 }) }));
+    expect(screen.getByText('500')).toBeVisible();
+    expect(screen.queryByText('Updating; previous data remains visible.')).not.toBeInTheDocument();
   });
 });

@@ -58,7 +58,7 @@ export default function TrialPage() {
     <div className="mx-auto max-w-6xl">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
         <Link to="/" className="text-xl font-semibold tracking-tight">AI Stock</Link>
-        <div className="flex items-center gap-4"><Link className="text-sm text-secondary-text hover:text-primary" to="/login">{l('管理员登录', 'Admin sign in')}</Link><UiLanguageToggle /></div>
+        <div className="flex items-center gap-4"><Link className="inline-flex min-h-11 items-center text-sm text-secondary-text hover:text-primary" to="/login">{l('登录工作区', 'Sign in to workspace')}</Link><UiLanguageToggle /></div>
       </header>
       <div className="py-10 md:py-14">
         <div className="mb-3 flex items-center gap-2 text-sm text-primary"><FlaskConical size={18} aria-hidden />{l('无需注册的产品体验', 'Explore without signing up')}</div>

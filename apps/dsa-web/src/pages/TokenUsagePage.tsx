@@ -1,12 +1,13 @@
 import { uiLocale } from '../utils/uiLanguage';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, Clock3, Cpu, Database, Gauge, RefreshCw } from 'lucide-react';
+import { Clock3, RefreshCw } from 'lucide-react';
 import { usageApi, type UsageDashboard, type UsageModelBreakdown, type UsagePeriod } from '../api/usage';
 import type { ParsedApiError } from '../api/error';
-import { ApiErrorAlert, AppPage, Card, EmptyState, InlineAlert, PageHeader, StatCard } from '../components/common';
+import { ApiErrorAlert, AppPage, EmptyState, PageHeader } from '../components/common';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import type { UiLanguage, UiTextKey, UiTextParams } from '../i18n/uiText';
 import { cn } from '../utils/cn';
+import { useUiLiteral } from '../hooks/useUiLiteral';
 
 type Translate = (key: UiTextKey, params?: UiTextParams) => string;
 
@@ -71,38 +72,23 @@ function buildParsedError(error: unknown, t: Translate): ParsedApiError {
   };
 }
 
-const ModelUsageCard: React.FC<{ model: UsageModelBreakdown; language: UiLanguage; t: Translate }> = ({ model, language, t }) => {
+const ModelUsageRow: React.FC<{ model: UsageModelBreakdown; language: UiLanguage; t: Translate }> = ({ model, language, t }) => {
   return (
-    <Card padding="sm" className="rounded-lg">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold text-foreground">{model.model}</h3>
-          <p className="mt-1 text-xs text-secondary-text">{t('usage.calls', { count: formatNumber(model.calls, language) })}</p>
-        </div>
-        <span className="rounded-full border border-cyan/20 bg-cyan/10 px-2 py-1 text-xs text-cyan">
-          {formatNumber(model.totalTokens, language)} tokens
-        </span>
+    <li className="min-w-0 border-b border-border py-4 last:border-0">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="min-w-0 break-words text-sm font-semibold text-foreground [overflow-wrap:anywhere]">{model.model}</h3>
+        <p className="text-xs text-secondary-text">{t('usage.calls', { count: formatNumber(model.calls, language) })}</p>
       </div>
-      <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-        <div>
-          <p className="text-xs text-secondary-text">Prompt</p>
-          <p className="mt-1 font-medium text-foreground">{formatNumber(model.promptTokens, language)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-secondary-text">Completion</p>
-          <p className="mt-1 font-medium text-foreground">{formatNumber(model.completionTokens, language)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-secondary-text">{t('usage.maxSingleCall')}</p>
-          <p className="mt-1 font-medium text-foreground">{formatNumber(model.maxTotalTokens, language)}</p>
-        </div>
-      </div>
-    </Card>
+      <dl className="mt-3 grid grid-cols-2 gap-x-5 gap-y-3 text-sm sm:grid-cols-4">
+        {[[t('usage.totalTokens'), model.totalTokens], ['Prompt', model.promptTokens], ['Completion', model.completionTokens], [t('usage.maxSingleCall'), model.maxTotalTokens]].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-secondary-text">{label}</dt><dd className="mt-1 break-words font-medium tabular-nums">{formatNumber(Number(value), language)}</dd></div>)}
+      </dl>
+    </li>
   );
 };
 
 const TokenUsagePage: React.FC = () => {
   const { language, t } = useUiLanguage();
+  const tx = useUiLiteral();
   const [period, setPeriod] = useState<UsagePeriod>('month');
   const [dashboard, setDashboard] = useState<UsageDashboard | null>(null);
   const [error, setError] = useState<ParsedApiError | null>(null);
@@ -156,7 +142,7 @@ const TokenUsagePage: React.FC = () => {
           description={t('usage.description')}
           actions={(
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex rounded-xl border border-border/70 bg-card/70 p-1">
+              <div className="inline-flex flex-wrap gap-1 border-b border-border">
                 {PERIOD_OPTIONS.map((option) => (
                   <button
                     key={option}
@@ -164,10 +150,10 @@ const TokenUsagePage: React.FC = () => {
                     onClick={() => setPeriod(option)}
                     aria-pressed={period === option}
                     className={cn(
-                      'rounded-lg px-3 py-1.5 text-sm transition-colors',
+                      'min-h-11 border-b-2 px-3 py-2 text-sm transition-colors',
                       period === option
-                        ? 'bg-cyan text-background shadow-soft-card'
-                        : 'text-secondary-text hover:bg-hover hover:text-foreground'
+                        ? 'border-primary font-medium text-primary'
+                        : 'border-transparent text-secondary-text hover:text-foreground'
                     )}
                   >
                     {t(PERIOD_LABEL_KEYS[option])}
@@ -190,61 +176,45 @@ const TokenUsagePage: React.FC = () => {
         {error ? <ApiErrorAlert error={error} actionLabel={t('common.retry')} onAction={() => void loadDashboard()} /> : null}
 
         {loading && !dashboard ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="h-28 animate-pulse rounded-2xl border border-border/70 bg-card/60" />
-            ))}
-          </div>
+          <p role="status" className="border-y border-border py-10 text-sm text-secondary-text">{t('common.loading')}</p>
         ) : null}
 
         {dashboard ? (
           <>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <StatCard label={t('usage.totalTokens')} value={formatNumber(dashboard.totalTokens, language)} hint={t('usage.dateRange', { from: dashboard.fromDate, to: dashboard.toDate })} icon={<Database className="h-5 w-5" />} tone="primary" />
-              <StatCard label={t('usage.totalCalls')} value={formatNumber(dashboard.totalCalls, language)} hint={t('usage.totalCallsHint')} icon={<Activity className="h-5 w-5" />} />
-              <StatCard label={t('usage.promptTokens')} value={formatNumber(dashboard.totalPromptTokens, language)} hint={t('usage.promptTokensHint')} icon={<Cpu className="h-5 w-5" />} />
-              <StatCard label={t('usage.completionTokens')} value={formatNumber(dashboard.totalCompletionTokens, language)} hint={t('usage.completionTokensHint')} icon={<Gauge className="h-5 w-5" />} />
+            {loading && <p role="status" className="text-sm text-secondary-text">{tx('正在更新，暂时保留上次数据。')}</p>}
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border py-5 sm:grid-cols-4" aria-busy={loading}>
+              {[
+                [t('usage.totalTokens'), dashboard.totalTokens, t('usage.dateRange', { from: dashboard.fromDate, to: dashboard.toDate })],
+                [t('usage.totalCalls'), dashboard.totalCalls, t('usage.totalCallsHint')],
+                [t('usage.promptTokens'), dashboard.totalPromptTokens, t('usage.promptTokensHint')],
+                [t('usage.completionTokens'), dashboard.totalCompletionTokens, t('usage.completionTokensHint')],
+              ].map(([label, value, hint]) => <div key={label} className="min-w-0"><dt className="text-xs text-secondary-text">{label}</dt><dd className="mt-2 break-words text-xl font-semibold tabular-nums">{formatNumber(Number(value), language)}</dd><p className="mt-2 text-xs leading-5 text-secondary-text">{hint}</p></div>)}
+            </dl>
+            <div className="space-y-2 text-xs leading-6 text-secondary-text">
+              <p><strong className="font-medium">{t('usage.attributionTitle')}: </strong>{t('usage.attributionDescription', { attributed: formatNumber(dashboard.attributedCalls, language), unattributed: formatNumber(dashboard.unattributedCalls, language) })}</p>
+              {hasPartialTokenDetail && <p className="text-warning"><strong className="font-medium">{t('usage.partialCoverageTitle')}: </strong>{t('usage.partialCoverageDescription', { detailed: formatNumber(dashboard.totalPromptTokens + dashboard.totalCompletionTokens, language), total: formatNumber(dashboard.totalTokens, language) })}</p>}
             </div>
-
-            {hasPartialTokenDetail ? (
-              <InlineAlert
-                variant="warning"
-                title={t('usage.partialCoverageTitle')}
-                message={t('usage.partialCoverageDescription', {
-                  detailed: formatNumber(dashboard.totalPromptTokens + dashboard.totalCompletionTokens, language),
-                  total: formatNumber(dashboard.totalTokens, language),
-                })}
-              />
-            ) : null}
-
-            <InlineAlert
-              variant={dashboard.unattributedCalls > 0 ? 'info' : 'success'}
-              title={t('usage.attributionTitle')}
-              message={t('usage.attributionDescription', {
-                attributed: formatNumber(dashboard.attributedCalls, language),
-                unattributed: formatNumber(dashboard.unattributedCalls, language),
-              })}
-            />
 
             {dashboard.totalCalls === 0 ? (
               <EmptyState title={t('usage.emptyTitle')} description={t('usage.emptyDescription')} />
             ) : (
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
-                <section className="space-y-4">
+              <div className="grid min-w-0 gap-7 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
+                <section className="min-w-0 space-y-4">
                   <div>
                     <h2 className="text-lg font-semibold text-foreground">{t('usage.modelUsage')}</h2>
                     <p className="mt-1 text-sm text-secondary-text">{t('usage.modelUsageDescription')}</p>
                   </div>
-                  <div className="grid gap-4">
+                  <ul className="border-y border-border" aria-label={t('usage.modelUsage')}>
                     {dashboard.byModel.map((model) => (
-                      <ModelUsageCard key={model.model} model={model} language={language} t={t} />
+                      <ModelUsageRow key={model.model} model={model} language={language} t={t} />
                     ))}
-                  </div>
+                  </ul>
                 </section>
 
                 <section className="space-y-4">
-                  <Card title={t('usage.callTypeTitle')} subtitle={t('usage.breakdown')} className="rounded-lg">
-                    <div className="space-y-4">
+                  <h2 className="text-lg font-semibold text-foreground">{t('usage.callTypeTitle')}</h2>
+                  <p className="text-sm text-secondary-text">{t('usage.breakdown')}</p>
+                    <div className="space-y-4 border-y border-border py-4">
                       {dashboard.byCallType.map((item) => (
                         <div key={item.callType}>
                           <div className="flex items-center justify-between gap-3 text-sm">
@@ -253,7 +223,7 @@ const TokenUsagePage: React.FC = () => {
                           </div>
                           <div className="mt-2 h-2 overflow-hidden rounded-full bg-border/70">
                             <div
-                              className="h-full rounded-full bg-cyan"
+                              className="h-full rounded-full bg-primary"
                               style={{ width: `${Math.max(4, (item.totalTokens / largestCallTypeTotal) * 100)}%` }}
                             />
                           </div>
@@ -267,7 +237,6 @@ const TokenUsagePage: React.FC = () => {
                         </div>
                       ))}
                     </div>
-                  </Card>
                 </section>
               </div>
             )}
@@ -280,10 +249,10 @@ const TokenUsagePage: React.FC = () => {
                 </div>
                 <Clock3 className="h-5 w-5 text-secondary-text" />
               </div>
-              <div className="overflow-hidden rounded-2xl border border-border/70 bg-card/75 shadow-soft-card">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-border/70 text-sm">
-                    <thead className="bg-surface-2/70 text-left text-xs uppercase tracking-[0.16em] text-secondary-text">
+              <div className="min-w-0 border-y border-border">
+                <div className="max-w-full overflow-x-auto">
+                  <table className="min-w-full divide-y divide-border/70 text-sm" aria-label={t('usage.recentCalls')}>
+                    <thead className="text-left text-xs text-secondary-text">
                       <tr>
                         <th className="px-4 py-3 font-medium">{t('usage.table.time')}</th>
                         <th className="px-4 py-3 font-medium">{t('usage.table.type')}</th>

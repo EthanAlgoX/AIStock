@@ -14,7 +14,7 @@ import { workspaceApi } from '../api/workspace';
 import { systemConfigApi } from '../api/systemConfig';
 import apiClient from '../api';
 import { useAuth } from '../contexts/AuthContext';
-import { ApiErrorAlert, Badge, Button, ConfirmDialog, EmptyState, InlineAlert, ScrollArea, Tooltip } from '../components/common';
+import { ApiErrorAlert, Badge, Button, ConfirmDialog, Drawer, EmptyState, InlineAlert, ScrollArea, Tooltip } from '../components/common';
 import { createParsedApiError, getParsedApiError } from '../api/error';
 import type { AgentStatusResponse, SkillInfo } from '../api/agent';
 import { DashboardStateBlock } from '../components/dashboard';
@@ -63,8 +63,8 @@ const WORKSPACE_COPY: Record<AgentWorkspaceMode, Record<'zh' | 'en' | 'ko' | 'ja
   placeholder: string;
 }>> = {
   general: withUiLanguages({
-    zh: { title: '投研助理', subtitle: '统一理解目标、调用能力并沉淀决策成果', taskTypeLabel: '自然语言任务', emptyTitle: '描述目标，Agent 负责组织工作', emptyDescription: '从研究一家公司、筛选候选股票或完善策略想法开始。任务启动后，系统会绑定当前上下文，并在完成时形成可追溯成果。', placeholder: '输入目标，例如：分析 600519' },
-    en: { title: 'Research assistant', subtitle: 'Understand goals, orchestrate capabilities, and retain decision-ready outputs', taskTypeLabel: 'Natural-language task', emptyTitle: 'Describe your goal — the Agent organizes the work', emptyDescription: 'Start by researching a company, screening candidates, or developing a strategy idea. Each completed task retains its context and traceable output.', placeholder: 'Describe a goal, for example: analyze 600519' },
+    zh: { title: '投研助理', subtitle: '研究公司、比较观点，或完善你的策略想法', taskTypeLabel: '自然语言任务', emptyTitle: '从一个研究问题开始', emptyDescription: '输入公司名称、股票代码或研究目标，也可以选择下方示例。研究方法和补充工具可在会话能力中调整。', placeholder: '输入目标，例如：分析 600519' },
+    en: { title: 'Research assistant', subtitle: 'Research companies, compare perspectives, or develop a strategy idea', taskTypeLabel: 'Natural-language task', emptyTitle: 'Start with a research question', emptyDescription: 'Enter a company, symbol, or research goal, or choose an example below. Adjust research methods and supporting tools in session capabilities.', placeholder: 'Describe a goal, for example: analyze 600519' },
   }),
   trading: withUiLanguages({
     zh: { title: '投研助理 · 交易推演', subtitle: '围绕持仓、信号和风险约束形成可复核的交易提案', taskTypeLabel: '交易决策', emptyTitle: '描述你的交易目标与约束', emptyDescription: '输入账户范围、标的、持仓目标和风险边界。Agent 可以调用当前会话能力生成交易提案，但不会绕过风险检查或审批。', placeholder: '输入交易目标，例如：基于当前持仓生成 600519 的调仓提案' },
@@ -1312,24 +1312,14 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
     >
       {/* Desktop keeps conversation management in sight; mobile uses the same rail as a drawer. */}
       {!sidebarOpen ? (
-        <aside className="hidden h-full w-64 shrink-0 flex-col overflow-hidden border-r border-border/80 bg-background lg:flex">
+        <aside className="hidden h-full w-56 shrink-0 flex-col overflow-hidden border-r border-border/80 bg-background lg:flex">
           {sidebarContent}
         </aside>
       ) : null}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setSidebarOpen(false)}
-        >
-          <div className="page-drawer-overlay absolute inset-0" />
-          <div
-            className="absolute bottom-0 left-0 top-0 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col overflow-hidden border-r border-border bg-card shadow-2xl lg:hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {sidebarContent}
-          </div>
-        </div>
-      )}
+      <Drawer isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)}
+        title={localize('历史对话', 'Conversation history')} side="left" width="max-w-sm" zIndex={60}>
+        <div className="flex min-h-0 flex-col">{sidebarContent}</div>
+      </Drawer>
 
       {/* Delete confirmation dialog */}
       <ConfirmDialog
@@ -1343,10 +1333,8 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
         onCancel={() => setDeleteConfirmId(null)}
       />
 
-      {capabilityPanelOpen ? (
-        <div className="fixed inset-0 z-50" onClick={closeCapabilityPanel}>
-          <div className="page-drawer-overlay absolute inset-0" />
-          <div className="absolute inset-y-0 right-0 p-3" role="dialog" aria-modal="true" aria-label={localize('本次会话能力', 'Session capabilities')} onClick={(event) => event.stopPropagation()}>
+      <Drawer isOpen={capabilityPanelOpen} onClose={closeCapabilityPanel}
+        title={localize('本次会话能力', 'Session capabilities')} width="max-w-lg" zIndex={60}>
             <AgentCapabilityPanel
               skills={skills}
               selectedSkillIds={selectedSkillIds}
@@ -1363,12 +1351,9 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
               onToggleExpert={updateExpertPreview}
               selectedExpertTeamIds={capabilityPreview.expertTeamIds}
               onToggleExpertTeam={updateExpertTeamPreview}
-              onClose={closeCapabilityPanel}
-              className="w-[min(21rem,calc(100vw-1.5rem))]"
+              presentation="inline"
             />
-          </div>
-        </div>
-      ) : null}
+      </Drawer>
 
       {/* Main Agent workspace */}
       <div className="flex h-full min-w-0 flex-1 overflow-hidden bg-card">
@@ -1385,7 +1370,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
               </button>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="hidden shrink-0 text-base font-semibold tracking-[-0.015em] text-foreground sm:block">{workspaceCopy.title}</h1>
+                  <h1 className="sr-only shrink-0 text-base font-semibold tracking-[-0.015em] text-foreground sm:not-sr-only">{workspaceCopy.title}</h1>
                   <StrategyAuthoringPanel compact key={sessionId} sessionId={sessionId} messageCount={messages.length} loading={loading || expertChat.pending}
                     hasDiscussion={messages.length > 0 || !!input.trim()} onMode={setStrategyState}
                     onCreated={(id, carry) => {
@@ -1423,7 +1408,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                 variant="secondary"
                 size="sm"
                 onClick={() => setCapabilityPanelOpen(true)}
-                className="xl:hidden"
+                className="min-[1680px]:hidden"
                 aria-label={localize('打开本次会话能力', 'Open session capabilities')}
               >
                 <Network className="h-4 w-4" aria-hidden="true" />

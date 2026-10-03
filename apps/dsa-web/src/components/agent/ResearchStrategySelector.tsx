@@ -44,7 +44,7 @@ export default function ResearchStrategySelector({ label, options, versionId, cu
       loading={loading} disabled={!options.length} placeholder={tx("当前市场暂无可用研究策略")}
       onSelect={(value) => { if (value === "custom" && customizable) onChange(String(customizable.currentPublishedVersionId), true); else onChange(value, false); }} />
     {selected && <div className="text-sm leading-6">
-      <p className="text-secondary-text">{custom ? tx("基于「{0}」生成完整报告，仅自定义研究方法，不另建执行流程。", tx(selected.name)) : (selected.description ? tx(selected.description) : "") || tx("按已发布策略生成完整研究报告。")}</p>
+      <p className="text-secondary-text">{custom ? tx("基于「{0}」生成完整报告，仅自定义研究方法，不另建执行流程。", tx(selected.name)) : (selected.description ? tx(selected.description) : "") || tx("按所选方法生成完整研究报告。")}</p>
       {!custom && <p className="mt-2 text-foreground">{selected.fixedSkillIds.length ? tx("包含 Skill：{0}", String(selected.fixedSkillIds.map((id) => skills.find((skill) => skill.id === id)?.name || id).join("、"))) : tx("综合研究：使用策略默认分析方法，不额外挂载自选 Skill。")}</p>}
       <p className="mt-1 text-secondary-text">{custom ? tx("所选方法会随任务冻结并参与正式单股报告；行情来源与风险校验仍由工作流控制。") : tx("策略已确定研究方法，无需重复选择 Skill。")}</p>
     </div>}

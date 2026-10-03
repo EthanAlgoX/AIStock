@@ -57,15 +57,23 @@ describe("capability configuration pages", () => {
 
   it("registers an MCP connection by credential key without sending a secret value", async () => {
     render(<MemoryRouter><McpSettingsPage /></MemoryRouter>);
+    expect(await screen.findByText("还没有 MCP Server")).toBeInTheDocument();
+    expect(screen.getByLabelText("MCP 名称")).toBeEnabled();
     fireEvent.change(screen.getByLabelText("MCP 名称"), { target: { value: "公告检索" } });
     fireEvent.change(screen.getByLabelText("MCP 连接地址"), { target: { value: "https://mcp.example.com" } });
     fireEvent.change(screen.getByLabelText("MCP 凭据配置键"), { target: { value: "MCP_NEWS_TOKEN" } });
     fireEvent.click(screen.getByRole("button", { name: "保存工作区连接" }));
-    await waitFor(() => expect(api.createMcpServer).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(api.createMcpServer).toHaveBeenCalledWith({
       name: "公告检索",
+      transport: "http",
+      location: "https://mcp.example.com",
       credentialKey: "MCP_NEWS_TOKEN",
-    })));
+      enabled: true,
+    }));
+    expect(api.createMcpServer).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(api.createMcpServer.mock.calls)).not.toContain("secret-value");
+    expect(await screen.findByText("公告检索")).toBeInTheDocument();
+    expect(api.listMcpServers).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the financial Tool allowlist separate from MCP connections", async () => {
@@ -75,7 +83,15 @@ describe("capability configuration pages", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存工具白名单" }));
     await waitFor(() => expect(api.setPreferences).toHaveBeenCalledWith("tool", []));
     expect(api.createMcpServer).not.toHaveBeenCalled();
-    expect(screen.getByText(/Tool 是 Agent 可直接执行的函数/)).toBeInTheDocument();
+    expect(screen.getByText("选择研究、选股和风险检查需要的内置工具。启用后，可在任务中按需使用。")).toBeInTheDocument();
+    const boundary = screen.getByText("Tool 与 MCP 的边界");
+    expect(boundary.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(boundary);
+    expect(boundary.closest("details")).toHaveAttribute("open");
+    expect(screen.getByText("Tool · 可执行能力")).toBeVisible();
+    expect(screen.getByText("MCP · 外部连接协议")).toBeVisible();
+    expect(screen.getByText("一个 MCP Server 可以暴露多个 Tool、Resource 或 Prompt；连接地址和凭据不属于内置工具配置。")).toBeVisible();
+    expect(screen.getByRole("link", { name: "管理 MCP 服务" })).toHaveAttribute("href", "/capabilities/mcp");
   });
 
   it("creates and reloads a workspace-defined Skill", async () => {

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,8 +28,26 @@ describe("information architecture pages", () => {
     expect(screen.getByRole("heading", { name: "能力中心" })).toBeInTheDocument();
     expect(screen.getByText("工作区可用")).toBeInTheDocument();
     expect(screen.getByText("本次任务使用")).toBeInTheDocument();
-    expect(await screen.findByText("已接入能力网关")).toBeInTheDocument();
-    expect(screen.getByText("注册、发现与调用已接入")).toBeInTheDocument();
+    const inventory = screen.getByRole("region", { name: "能力目录" });
+    expect(await within(inventory).findByText(/项已启用配置；数量全部来自后端工作区注册表。/)).toBeInTheDocument();
+    for (const [label, path, count] of [
+      ["Skill", "/capabilities/skills", "2\\s*已启用"],
+      ["内置工具", "/capabilities/tools", "1\\s*已启用"],
+      ["MCP 服务", "/capabilities/mcp", "0\\s*已启用"],
+      ["数据源", "/capabilities/data", "1\\s*可选"],
+      ["专家配置", "/capabilities/experts", "5\\s*已启用"],
+    ]) {
+      const link = within(inventory).getByRole("link", { name: new RegExp(`^${label}`) });
+      expect(link).toHaveAttribute("href", path);
+      expect(link).toHaveTextContent(new RegExp(count));
+    }
+    expect(screen.queryByText("已接入能力网关")).not.toBeInTheDocument();
+    expect(screen.queryByText("注册、发现与调用已接入")).not.toBeInTheDocument();
+    const runtimeBoundary = screen.getByText("当前运行边界");
+    expect(runtimeBoundary.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(runtimeBoundary);
+    expect(runtimeBoundary.closest("details")).toHaveAttribute("open");
+    expect(screen.getByText(/网站已持久化工作区能力、校验任务绑定并冻结运行快照。/)).toBeVisible();
     expect(screen.getAllByRole("link", { name: /MCP 服务/ }).some((link) => link.getAttribute("href") === "/capabilities/mcp")).toBe(true);
   });
 

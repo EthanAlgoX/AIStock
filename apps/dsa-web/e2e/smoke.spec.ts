@@ -150,7 +150,7 @@ test.describe('web smoke', () => {
     await login(page);
 
     const drawer = await openWorkspaceDrawer(page);
-    await expect(drawer.getByRole('link', { name: '能力总览' })).toBeVisible();
+    await expect(drawer.getByRole('link', { name: '能力中心', exact: true })).toBeVisible();
     await expect(drawer.getByRole('link', { name: '任务与运行' })).toBeVisible();
 
     await captureSmokeScreenshot(page, testInfo, 'smoke-mobile-shell-nav');
@@ -213,7 +213,7 @@ test.describe('web smoke', () => {
     await login(page);
 
     const drawer = await openWorkspaceDrawer(page);
-    await drawer.getByRole('link', { name: '能力总览' }).click();
+    await drawer.getByRole('link', { name: '能力中心', exact: true }).click();
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000);
 

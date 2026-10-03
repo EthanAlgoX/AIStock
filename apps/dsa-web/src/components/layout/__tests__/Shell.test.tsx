@@ -6,10 +6,12 @@ import { ThemeProvider } from "../../theme/ThemeProvider";
 import { Shell } from "../Shell";
 
 const mockLogout = vi.fn().mockResolvedValue(undefined);
+const auth = { role: "admin" };
 
 vi.mock("../../../contexts/AuthContext", () => ({
   useAuth: () => ({
     authEnabled: true,
+    role: auth.role,
     logout: mockLogout,
   }),
 }));
@@ -43,7 +45,7 @@ describe("Shell", () => {
     expect(screen.getByRole("main")).toHaveAttribute("tabindex", "-1");
   });
 
-  it("places market intelligence immediately left of Agent and keeps the mobile workflow concise", () => {
+  it("places market intelligence immediately left of Agent and groups all workspaces and keeps mobile navigation concise", () => {
     render(
       <MemoryRouter initialEntries={["/overview"]}>
         <ThemeProvider>
@@ -60,13 +62,23 @@ describe("Shell", () => {
     const mobile = screen.getByRole("navigation", { name: "移动端主导航" });
     expect(within(mobile).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/overview", "/expert-review", "/stock-research", "/screening", "/trading"]);
     const desktop = screen.getByRole("navigation", { name: "主导航" });
-    expect(within(desktop).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/market-intelligence", "/overview", "/expert-review", "/stock-research", "/screening", "/trading"]);
+    expect(within(desktop).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/market-intelligence", "/overview", "/expert-review", "/stock-research", "/screening", "/trading", "/portfolio", "/alerts", "/runs", "/schedules", "/capabilities", "/usage", "/settings"]);
     expect(screen.getAllByRole("link", { name: "个股研究" })).toHaveLength(2);
     expect(screen.getAllByRole("link", { name: "策略选股" })).toHaveLength(2);
     expect(screen.getAllByRole("link", { name: "交易推演" })).toHaveLength(2);
     expect(screen.getByTestId("chat-completion-badge")).toBeInTheDocument();
     expect(screen.getByTestId("mobile-chat-completion-badge")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "切换界面语言" })).toBeInTheDocument();
+  });
+
+  it("marks capability child routes active and names member settings as their account", () => {
+    auth.role = 'member';
+    render(<MemoryRouter initialEntries={["/capabilities/skills"]}><ThemeProvider><Shell><div>content</div></Shell></ThemeProvider></MemoryRouter>);
+    const navigation = screen.getByRole("navigation", { name: "主导航" });
+    expect(within(navigation).getByRole("link", { name: "能力中心" })).toHaveAttribute("aria-current", "page");
+    expect(within(navigation).getByRole("link", { name: "我的账户" })).toHaveAttribute("href", "/settings");
+    expect(within(navigation).queryByRole("link", { name: "平台设置" })).not.toBeInTheDocument();
+    auth.role = 'admin';
   });
 
   it("opens the utility drawer from the header", () => {
@@ -100,7 +112,7 @@ describe("Shell", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "打开工作区与设置" }));
-    fireEvent.click(screen.getByRole("button", { name: "退出" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "工作区与设置" })).getByRole("button", { name: "退出" }));
 
     expect(await screen.findByRole("heading", { name: "退出登录" })).toBeInTheDocument();
     const confirmation = screen.getByRole("dialog", { name: "退出登录" });
@@ -109,7 +121,7 @@ describe("Shell", () => {
     fireEvent.keyDown(screen.getByRole("button", { name: "取消" }), { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "退出登录" })).not.toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "工作区与设置" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "退出" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "工作区与设置" })).getByRole("button", { name: "退出" }));
     fireEvent.click(screen.getByRole("button", { name: "确认退出" }));
     expect(mockLogout).toHaveBeenCalled();
   });

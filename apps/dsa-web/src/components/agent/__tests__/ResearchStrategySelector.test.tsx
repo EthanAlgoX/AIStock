@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import ResearchStrategySelector, { StrategySkillPicker, type ResearchStrategyOption } from "../ResearchStrategySelector";
 import { workspaceCatalogFixture } from "../../../testWorkspaceFixtures";
+import { UiLanguageProvider, useUiLanguage } from "../../../contexts/UiLanguageContext";
 
 const options = [
   { id: 1, name: "综合研究", currentPublishedVersionId: 12, currentPublishedVersionNumber: 1, fixedSkillIds: [], market: "cn" },
@@ -14,6 +15,21 @@ describe("ResearchStrategySelector", () => {
     skills: workspaceCatalogFixture.skills, selectedSkillIds: ["trend"], onToggleSkill: vi.fn(),
     loading: false, skillsLoading: false, skillsError: "",
   };
+
+  it("explains the selected method without publishing jargon and responds to language changes", () => {
+    localStorage.setItem("dsa.uiLanguage", "zh");
+    function TranslatedSelector() {
+      const { setLanguage, translate: tx } = useUiLanguage();
+      return <><button onClick={() => setLanguage("en")}>English</button><ResearchStrategySelector {...props} label={tx("研究策略")} versionId="12" /></>;
+    }
+    render(<UiLanguageProvider><TranslatedSelector /></UiLanguageProvider>);
+    expect(screen.getByText("按所选方法生成完整研究报告。")).toBeInTheDocument();
+    expect(screen.queryByText(/已发布策略/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    expect(screen.getByText("Generate a complete research report using the selected method.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Research strategy" })).toBeInTheDocument();
+    localStorage.setItem("dsa.uiLanguage", "zh");
+  });
 
   it("shows the preset method read-only and maps custom mode to a compatible unfixed version", () => {
     render(<ResearchStrategySelector {...props} />);

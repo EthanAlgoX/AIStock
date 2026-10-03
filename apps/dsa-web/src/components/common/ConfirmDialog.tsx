@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
 
@@ -35,6 +35,20 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const { t } = useUiLanguage();
   const titleId = useId();
   const messageId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const initialFocus = cancelRef.current?.disabled ? dialogRef.current : cancelRef.current;
+    initialFocus?.focus();
+    return () => { if (opener?.isConnected) opener.focus(); };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && confirmDisabled && cancelDisabled) dialogRef.current?.focus();
+  }, [isOpen, confirmDisabled, cancelDisabled]);
 
   if (!isOpen) return null;
 
@@ -51,7 +65,11 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
           const first = buttons[0];
           const last = buttons[buttons.length - 1];
-          if (event.shiftKey && document.activeElement === first) {
+          if (!first) {
+            event.preventDefault(); dialogRef.current?.focus();
+          } else if (!buttons.includes(document.activeElement as HTMLButtonElement)) {
+            event.preventDefault(); (event.shiftKey ? last : first)?.focus();
+          } else if (event.shiftKey && document.activeElement === first) {
             event.preventDefault(); last?.focus();
           } else if (!event.shiftKey && document.activeElement === last) {
             event.preventDefault(); first?.focus();
@@ -66,6 +84,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     >
       <div
         role="dialog"
+        ref={dialogRef}
+        tabIndex={-1}
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={messageId}
@@ -79,7 +99,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <div className="flex justify-end gap-3">
           <button
             type="button"
-            autoFocus
+            ref={cancelRef}
             onClick={onCancel}
             disabled={cancelDisabled}
             className="rounded-lg border border-border/70 px-4 py-2 text-sm font-medium text-secondary-text transition-colors hover:bg-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"

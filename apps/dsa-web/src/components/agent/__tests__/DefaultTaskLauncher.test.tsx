@@ -47,6 +47,10 @@ describe("default task entry", () => {
 
   it.each(["research", "screening", "trading"] as const)("starts %s from its homepage without opening or filling a form", async (kind) => {
     render(<MemoryRouter><ResearchReportsWorkspace mode={kind} /></MemoryRouter>);
+    if (kind !== "trading") {
+      expect(screen.getByRole("button", { name: "运行默认方案" })).not.toBeVisible();
+      fireEvent.click(screen.getByText("快速试用默认方案"));
+    }
     const button = screen.getByRole("button", { name: "运行默认方案" });
     await waitFor(() => expect(button).toBeEnabled());
     expect(api.createTask).not.toHaveBeenCalled();
@@ -58,6 +62,24 @@ describe("default task entry", () => {
     expect(api.createTask).toHaveBeenCalledExactlyOnceWith({
       ...plannedTask, config: { ...plannedTask.config, reportLanguage: "zh" },
     });
+  });
+
+  it("keeps the optional trial separate and submits the same approved plan after expanding it", async () => {
+    useWorkspaceRunStore.setState({ runs: { research: { ...EMPTY_RUN_STATE, restoring: false } } });
+    const onRunStarted = vi.fn();
+    render(<DefaultTaskLauncher kind="research" market="CN" stock="600519.SH" presentation="disclosure" onRunStarted={onRunStarted} />);
+    expect(screen.getByText("快速试用默认方案").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByRole("button", { name: "运行默认方案" })).not.toBeVisible();
+    expect(api.createTask).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("快速试用默认方案"));
+    expect(screen.getByText("这是独立的试用入口，不采用手动填写的关注问题与协作配置。")).toBeVisible();
+    const action = screen.getByRole("button", { name: "运行默认方案" });
+    await waitFor(() => expect(action).toBeEnabled());
+    expect(action).toHaveClass("btn-secondary");
+    fireEvent.click(action);
+    await waitFor(() => expect(onRunStarted).toHaveBeenCalledTimes(1));
+    expect(api.createTask).toHaveBeenCalledExactlyOnceWith({ ...makePlan("research").task, config: { ...makePlan("research").task.config, reportLanguage: "zh" } });
+    expect(api.getDefaultTaskPlan).toHaveBeenCalledExactlyOnceWith("research", "CN", "600519.SH");
   });
 
   it("does not apply a late plan for a previous stock", async () => {

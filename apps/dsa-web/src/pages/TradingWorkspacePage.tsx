@@ -14,7 +14,7 @@ import { useStockIndex } from "../hooks/useStockIndex";
 import { resolveStrategyPool } from "../utils/strategyStockPool";
 import { TradingAgentConfig } from "../components/agent/TradingAgentConfig";
 import ResearchReportsWorkspace from "./ResearchReportsWorkspace";
-import { AppPage, ConfirmDialog } from "../components/common";
+import { AppPage, ConfirmDialog, PageHeader } from "../components/common";
 import {
   portfoliosApi,
   type Portfolio,
@@ -292,13 +292,9 @@ export default function TradingWorkspacePage() {
     "mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
   return (
     <AppPage>
-      <header className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
-        <div>
-          <h1 className="text-2xl font-semibold"><UiLiteral text={"策略验证与运行"} /></h1>
-          <p className="mt-2 text-sm text-secondary-text">
-            <UiLiteral text={"先观察模拟收益，再展开策略进行回测与改进。"} /></p>
-        </div>
-        <div className="flex flex-wrap gap-3">
+      <PageHeader title={uiLiteral("交易推演")}
+        description={uiLiteral("配置策略与股票范围，预览后保存，再选择单次模拟、持续模拟或历史回放。")}
+        actions={<>
           {!id && !definitionId && !creating && params.get('view')!=='manage' && <Link className="btn-secondary" to="/trading?view=manage"><UiLiteral text="管理策略" /></Link>}
           {(id || definitionId || creating || params.get("view")==="manage") && <Link className="btn-secondary" to="/trading?view=reports">
             <UiLiteral text={"历史研究提案"} /></Link>}
@@ -318,8 +314,8 @@ export default function TradingWorkspacePage() {
             }}
           >
             <UiLiteral text={"配置策略"} /></button>
-        </div>
-      </header>
+        </>}
+      />
       {(error || loadError) && (
         <p
           role="alert"

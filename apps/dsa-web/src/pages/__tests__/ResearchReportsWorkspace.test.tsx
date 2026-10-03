@@ -81,6 +81,8 @@ describe("report-first research workspace", () => {
     expect(screen.queryByRole("button", { name: /贵州茅台.*成果待核实/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "新建个股研究" }));
     expect(screen.getByText("市场与股票配置")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "收起分析配置" })).toHaveClass("btn-secondary");
+    expect(screen.getByRole("button", { name: "收起分析配置" })).not.toHaveClass("btn-primary");
     expect(screen.getByRole("heading", { name: "平安银行结论" })).toBeInTheDocument();
     api.getRun.mockResolvedValue(run("new", "新分析"));
     fireEvent.click(screen.getByRole("button", { name: "提交测试分析" }));

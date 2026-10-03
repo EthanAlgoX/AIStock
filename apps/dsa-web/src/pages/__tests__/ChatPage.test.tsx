@@ -495,7 +495,7 @@ describe('ChatPage', () => {
     expect(await screen.findByText('Codex Agent · 实验')).toBeInTheDocument();
     expect(screen.getByText('Codex 当前可用范围')).toBeInTheDocument();
     expect(screen.getByText(/实时行情、新闻、市场热点/)).toBeInTheDocument();
-    expect(screen.getByText('统一理解目标、调用能力并沉淀决策成果')).toBeInTheDocument();
+    expect(screen.getByText('研究公司、比较观点，或完善你的策略想法')).toBeInTheDocument();
     expect(screen.queryByText(/AI 将调用实时数据工具/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '切换问股方式' })).toBeInTheDocument();
     expect(mockGetStatus).toHaveBeenCalledTimes(1);
@@ -519,8 +519,8 @@ describe('ChatPage', () => {
     );
 
     expect(await screen.findByRole('heading', { name: '投研助理' })).toBeInTheDocument();
-    expect(screen.getByText('统一理解目标、调用能力并沉淀决策成果')).toBeInTheDocument();
-    expect(screen.getByText(/从研究一家公司、筛选候选股票或完善策略想法开始/)).toBeInTheDocument();
+    expect(screen.getByText('研究公司、比较观点，或完善你的策略想法')).toBeInTheDocument();
+    expect(screen.getByText(/输入公司名称、股票代码或研究目标/)).toBeInTheDocument();
     expect(screen.queryByText(/Independent Agent Engine/i)).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText(/分析 600519/)).toBeEnabled();
   });

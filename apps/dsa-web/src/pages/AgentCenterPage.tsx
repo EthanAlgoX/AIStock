@@ -9,7 +9,7 @@ import {
   Save,
   Trash2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import {
@@ -17,7 +17,7 @@ import {
   type WorkspaceExpert,
 } from "../api/workspace";
 import { CapabilityCenterNav } from "../components/capability/CapabilityCenterNav";
-import { AppPage, PageHeader } from "../components/common";
+import { AppPage, ConfirmDialog, PageHeader } from "../components/common";
 import { ExpertAvatar } from "../components/common/ExpertAvatar";
 import { ExpertAvatarPicker } from "../components/common/ExpertAvatarPicker";
 import { useUiLanguage } from "../contexts/UiLanguageContext";
@@ -38,6 +38,16 @@ export default function AgentCenterPage() {
   const [processingAvatar, setProcessingAvatar] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<WorkspaceExpert | null>(null);
+  const mutationInFlight = useRef(false);
+  const beginMutation = () => {
+    if (!loaded || mutationInFlight.current) return false;
+    mutationInFlight.current = true; setBusy(true); setError(''); return true;
+  };
+  const endMutation = () => { mutationInFlight.current = false; setBusy(false); };
+  const retry = () => { setError(''); setLoading(true); setLoaded(false); setRevision((value) => value + 1); };
 
 
   const loadCatalog = async () => {
@@ -50,11 +60,12 @@ export default function AgentCenterPage() {
       .then((nextExperts) => {
         if (!active) return;
         setExperts(nextExperts);
+        setLoaded(true);
       })
       .catch(() => active && setError("专家目录读取失败，请稍后重试。"))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, []);
+  }, [revision]);
 
   const openPromptEditor = (expert: WorkspaceExpert) => {
     if (editingExpertId === expert.id) {
@@ -68,8 +79,7 @@ export default function AgentCenterPage() {
 
   const savePrompt = async (expert: WorkspaceExpert, prompt = promptDraft) => {
     if (!prompt.trim()) return;
-    setBusy(true);
-    setError("");
+    if (!beginMutation()) return;
     try {
       await workspaceApi.updateExpert(expert.id, { prompt: prompt.trim() });
       await loadCatalog();
@@ -77,7 +87,7 @@ export default function AgentCenterPage() {
       setNotice(`${expert.name} 的 Prompt 已发布为新版本。`);
     } catch {
       setError("专家 Prompt 保存失败。");
-    } finally { setBusy(false); }
+    } finally { endMutation(); }
   };
 
   const resetPrompt = async (expert: WorkspaceExpert) => {
@@ -88,8 +98,7 @@ export default function AgentCenterPage() {
 
   const createExpert = async () => {
     if (!newExpert.name.trim() || !newExpert.style.trim() || !newExpert.prompt.trim()) return;
-    setBusy(true);
-    setError("");
+    if (!beginMutation()) return;
     try {
       await workspaceApi.createExpert({
         name: newExpert.name.trim(),
@@ -106,29 +115,30 @@ export default function AgentCenterPage() {
       setNotice("自定义专家已保存到工作区。 ");
     } catch {
       setError("专家保存失败，请检查名称是否重复。");
-    } finally { setBusy(false); }
+    } finally { endMutation(); }
   };
 
   const removeExpert = async (expert: WorkspaceExpert) => {
-    setBusy(true);
+    if (!beginMutation()) return;
     try {
       await workspaceApi.deleteExpert(expert.id);
       await loadCatalog();
+      setDeleteTarget(null);
       setNotice("自定义专家已移除。");
-    } catch { setError("专家删除失败。"); }
-    finally { setBusy(false); }
+    } catch { setError("专家删除失败。"); setDeleteTarget(null); }
+    finally { endMutation(); }
   };
 
   const customExperts = experts.filter((expert) => !expert.builtIn);
   const saveAvatar = async (expert: WorkspaceExpert) => {
-    setBusy(true); setError('');
+    if (!beginMutation()) return;
     try {
       await workspaceApi.updateExpert(expert.id, { avatar: avatarDrafts[expert.id] });
       await loadCatalog();
       setAvatarDrafts((drafts) => { const next = { ...drafts }; delete next[expert.id]; return next; });
       setNotice(l('头像已保存。', 'Avatar saved.'));
     } catch { setError(l('头像保存失败，请重试。', 'Could not save the avatar. Please retry.')); }
-    finally { setBusy(false); }
+    finally { endMutation(); }
   };
   const builtInExperts = experts.filter((expert) => expert.builtIn);
 
@@ -137,38 +147,38 @@ export default function AgentCenterPage() {
       <PageHeader
         eyebrow={uiLiteral("能力注册表")}
         title={uiLiteral("专家配置")}
-        description={uiLiteral("管理平台预置和工作区自定义的投资 Persona。专家共享同一 Agent Runtime，通过版本化 Prompt 独立分析，再由主 Agent 汇总。")}
+        description={uiLiteral("选择不同投资视角，或创建自己的研究专家。分析时可邀请专家独立评审，再由投研助理汇总。")}
         actions={<Link to="/expert-review" className="btn-primary"><UiLiteral text={"进入专家圆桌"} /></Link>}
       />
       <CapabilityCenterNav />
 
       {loading ? <p className="flex items-center gap-2 text-sm text-secondary-text"><LoaderCircle className="h-4 w-4 animate-spin" /><UiLiteral text={"正在读取专家目录…"} /></p> : null}
-      {error ? <p role="alert" className="rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">{uiLiteral(error)}</p> : null}
+      {error ? <div role="alert" className="rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger"><p>{uiLiteral(error)}</p>{!loaded && <button type="button" className="btn-secondary mt-3" disabled={loading} onClick={retry}><UiLiteral text="重新读取" /></button>}</div> : null}
       {notice ? <p role="status" className="rounded-[12px] border border-success/25 bg-success/5 px-4 py-3 text-sm text-success">{uiLiteral(notice)}</p> : null}
 
       <section className="overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card" aria-labelledby="create-expert-heading">
         <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary"><UiLiteral text={"工作区自定义"} /></p><h2 id="create-expert-heading" className="mt-1 font-semibold text-foreground"><UiLiteral text={"自定义专家 Persona"} /></h2><p className="mt-1 text-xs leading-5 text-secondary-text"><UiLiteral text={"Prompt 定义投资方法；任务运行时再挂载 Skill、Tool、MCP 和数据源。"} /></p></div>
-          <button type="button" className="btn-secondary inline-flex items-center justify-center gap-2" aria-expanded={showCreateExpert} onClick={() => setShowCreateExpert((current) => !current)}><Plus className="h-4 w-4" /><UiLiteral text={"添加专家"} /></button>
+          <button type="button" disabled={!loaded || busy} className="btn-secondary inline-flex items-center justify-center gap-2" aria-expanded={showCreateExpert} onClick={() => setShowCreateExpert((current) => !current)}><Plus className="h-4 w-4" /><UiLiteral text={"添加专家"} /></button>
         </div>
-        {showCreateExpert ? <div className="border-t border-border/70 px-5 py-5">
+        {showCreateExpert ? <fieldset disabled={busy} className="border-t border-border/70 px-5 py-5">
           <ExpertAvatarPicker onProcessingChange={setProcessingAvatar} name={newExpert.name} value={newExpert.avatar} disabled={busy} onChange={(avatar) => setNewExpert((current) => ({ ...current, avatar }))} />
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium text-foreground"><UiLiteral text={"专家名称"} /><input aria-label={uiLiteral("自定义专家名称")} value={newExpert.name} onChange={(event) => setNewExpert({ ...newExpert, name: event.target.value })} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 outline-none focus:border-primary" /></label>
-            <label className="text-sm font-medium text-foreground"><UiLiteral text={"投资风格"} /><input aria-label={uiLiteral("自定义专家投资风格")} value={newExpert.style} onChange={(event) => setNewExpert({ ...newExpert, style: event.target.value })} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 outline-none focus:border-primary" /></label>
+            <label className="text-sm font-medium text-foreground"><UiLiteral text={"专家名称"} /><input aria-label={uiLiteral("自定义专家名称")} value={newExpert.name} onChange={(event) => setNewExpert({ ...newExpert, name: event.target.value })} className="mt-2 h-11 w-full rounded-[9px] border border-border bg-background px-3 outline-none focus:border-primary" /></label>
+            <label className="text-sm font-medium text-foreground"><UiLiteral text={"投资风格"} /><input aria-label={uiLiteral("自定义专家投资风格")} value={newExpert.style} onChange={(event) => setNewExpert({ ...newExpert, style: event.target.value })} className="mt-2 h-11 w-full rounded-[9px] border border-border bg-background px-3 outline-none focus:border-primary" /></label>
           </div>
-          <label className="mt-4 block text-sm font-medium text-foreground"><UiLiteral text={"职责说明"} /><input aria-label={uiLiteral("自定义专家职责说明")} value={newExpert.description} onChange={(event) => setNewExpert({ ...newExpert, description: event.target.value })} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 outline-none focus:border-primary" /></label>
+          <label className="mt-4 block text-sm font-medium text-foreground"><UiLiteral text={"职责说明"} /><input aria-label={uiLiteral("自定义专家职责说明")} value={newExpert.description} onChange={(event) => setNewExpert({ ...newExpert, description: event.target.value })} className="mt-2 h-11 w-full rounded-[9px] border border-border bg-background px-3 outline-none focus:border-primary" /></label>
           <label className="mt-4 block text-sm font-medium text-foreground">System Prompt<textarea aria-label={uiLiteral("自定义专家 System Prompt")} value={newExpert.prompt} onChange={(event) => setNewExpert({ ...newExpert, prompt: event.target.value })} className="mt-2 min-h-40 w-full resize-y rounded-[10px] border border-border bg-background px-3 py-3 text-sm leading-6 outline-none focus:border-primary" /></label>
           <div className="mt-4 flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setShowCreateExpert(false)}><UiLiteral text={"取消"} /></button><button type="button" className="btn-primary" disabled={busy || processingAvatar || !newExpert.name.trim() || !newExpert.style.trim() || !newExpert.prompt.trim()} onClick={() => void createExpert()}><UiLiteral text={"保存专家"} /></button></div>
-        </div> : null}
-        {customExperts.length ? <div className="divide-y divide-border/60 border-t border-border/70">{customExperts.map((expert) => <article key={expert.id} className="flex items-start gap-4 px-5 py-4"><ExpertAvatar id={expert.id} name={expert.name} avatar={expert.avatar} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-medium text-foreground">{expert.name}</h3><span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-text">{expert.style}</span><span className="text-[10px] text-success">v{expert.version}</span></div><p className="mt-1 text-sm leading-6 text-secondary-text">{expert.description}</p><p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-text">{expert.prompt}</p><details className="mt-3"><summary className="cursor-pointer py-2 text-sm text-primary">{l("设置头像", "Edit avatar")}</summary><ExpertAvatarPicker onProcessingChange={setProcessingAvatar} id={expert.id} name={expert.name} value={expert.id in avatarDrafts ? avatarDrafts[expert.id] : expert.avatar} disabled={busy} onChange={(avatar) => setAvatarDrafts((drafts) => ({ ...drafts, [expert.id]: avatar }))} /><button type="button" className="btn-secondary" disabled={busy || processingAvatar || !(expert.id in avatarDrafts)} onClick={() => void saveAvatar(expert)}>{l("保存头像", "Save avatar")}</button></details></div><button type="button" disabled={busy} onClick={() => void removeExpert(expert)} className="rounded-md p-2 text-muted-text hover:bg-danger/10 hover:text-danger" aria-label={uiLiteral(`删除自定义专家 ${expert.name}`)}><Trash2 className="h-4 w-4" /></button></article>)}</div> : <p className="border-t border-border/70 px-5 py-4 text-xs text-muted-text"><UiLiteral text={"暂无自定义专家。添加后可在投研助理、个股研究、策略选股和专家圆桌中选择。"} /></p>}
+        </fieldset> : null}
+        {loaded && (customExperts.length ? <div className="divide-y divide-border/60 border-t border-border/70">{customExperts.map((expert) => <article key={expert.id} className="flex items-start gap-4 px-5 py-4"><ExpertAvatar id={expert.id} name={expert.name} avatar={expert.avatar} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-medium text-foreground">{expert.name}</h3><span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-text">{expert.style}</span><span className="text-[10px] text-success">v{expert.version}</span></div><p className="mt-1 text-sm leading-6 text-secondary-text">{expert.description}</p><p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-text">{expert.prompt}</p><details className="mt-3"><summary className="cursor-pointer py-2 text-sm text-primary">{l("设置头像", "Edit avatar")}</summary><ExpertAvatarPicker onProcessingChange={setProcessingAvatar} id={expert.id} name={expert.name} value={expert.id in avatarDrafts ? avatarDrafts[expert.id] : expert.avatar} disabled={busy} onChange={(avatar) => setAvatarDrafts((drafts) => ({ ...drafts, [expert.id]: avatar }))} /><button type="button" className="btn-secondary" disabled={busy || processingAvatar || !(expert.id in avatarDrafts)} onClick={() => void saveAvatar(expert)}>{l("保存头像", "Save avatar")}</button></details></div><button type="button" disabled={busy} onClick={() => setDeleteTarget(expert)} className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-muted-text hover:bg-danger/10 hover:text-danger" aria-label={uiLiteral(`删除自定义专家 ${expert.name}`)}><Trash2 className="h-4 w-4" /></button></article>)}</div> : <p className="border-t border-border/70 px-5 py-4 text-xs text-muted-text"><UiLiteral text={"暂无自定义专家。添加后可在投研助理、个股研究、策略选股和专家圆桌中选择。"} /></p>)}
       </section>
 
-      <section className="grid overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card md:grid-cols-3" aria-label={uiLiteral("专家系统工作方式")}>
+      <details className="border-b border-border pb-4"><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-secondary-text">{uiLiteral("专家系统工作方式")}</summary><section className="mt-3 grid overflow-hidden rounded-[14px] border border-border bg-card md:grid-cols-3" aria-label={uiLiteral("专家系统工作方式")}>
         <div className="border-b border-border/70 px-5 py-4 md:border-b-0 md:border-r"><p className="text-xs font-semibold text-primary"><UiLiteral text={"统一运行时"} /></p><p className="mt-1 text-sm font-medium text-foreground"><UiLiteral text={"同一个主 Agent"} /></p><p className="mt-1 text-xs leading-5 text-secondary-text"><UiLiteral text={"共享冻结任务、数据快照与能力权限。"} /></p></div>
         <div className="border-b border-border/70 px-5 py-4 md:border-b-0 md:border-r"><p className="text-xs font-semibold text-primary"><UiLiteral text={"独立视角"} /></p><p className="mt-1 text-sm font-medium text-foreground"><UiLiteral text={"不同 Persona Prompt"} /></p><p className="mt-1 text-xs leading-5 text-secondary-text"><UiLiteral text={"每位专家分别产生观点、证据、反证与置信度。"} /></p></div>
         <div className="px-5 py-4"><p className="text-xs font-semibold text-primary"><UiLiteral text={"统一结论"} /></p><p className="mt-1 text-sm font-medium text-foreground"><UiLiteral text={"主 Agent 综合评审"} /></p><p className="mt-1 text-xs leading-5 text-secondary-text"><UiLiteral text={"按流水线、辩论或独立评审投票协议汇总；主持人不参与具体研究或投票。"} /></p></div>
-      </section>
+      </section></details>
 
       <div className="grid items-start gap-6 ">
         <section className="overflow-hidden rounded-[14px] border border-border bg-card shadow-soft-card" aria-labelledby="builtin-expert-heading">
@@ -181,6 +191,7 @@ export default function AgentCenterPage() {
 
 
       </div>
+      <ConfirmDialog isOpen={deleteTarget !== null} title={uiLiteral("删除自定义专家")} message={uiLiteral(`删除「${deleteTarget?.name ?? ""}」后，将无法用于新任务。已有运行记录保留。`)} confirmText={uiLiteral("删除")} isDanger confirmDisabled={busy} cancelDisabled={busy} onCancel={() => setDeleteTarget(null)} onConfirm={() => { if (deleteTarget) void removeExpert(deleteTarget); }} />
     </AppPage>
   );
 }
