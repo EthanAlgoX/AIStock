@@ -46,6 +46,8 @@ Click **Request an invitation code** to open your configured default email app w
 | Compare different investing perspectives | Expert roundtable | Independent AI contributions and a moderator's summary |
 | Find stocks that meet your conditions | Strategy screening | Candidates with rankings and selection reasons |
 | Check how a strategy behaves | Trade simulation | Daily decisions, simulated fills, and account performance |
+| Follow holdings and a watchlist | Portfolio | Accounts, positions, a transaction ledger, and saved tracking plans |
+| Revisit results and automate research | Tasks & Runs, Scheduled tasks | Saved reports, execution status, and future runs |
 | Explore crypto spot markets | Market radar, research, screening, trading, and portfolio | USDT spot prices, asset screening, persistent daily rule backtests, and simulated positions |
 
 **Example question:** “Research AAPL's recent price trend and important news. Separate bullish and bearish evidence, include the dates of the data, and tell me what information is missing.”
@@ -85,7 +87,7 @@ cd AI-Stock
 
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 # Preserve any existing configuration.
 if [ ! -f .env ]; then cp .env.example .env; fi
@@ -108,16 +110,18 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Keep this terminal running 
 
 **The website opening is only the first step.** Configure and test your model before asking it to analyze stocks.
 
+In another terminal, check `curl --fail http://127.0.0.1:8000/api/health`. A successful response verifies the local API; model and data-source connections need their own checks.
+
 ## Your first report
 
-Using the hosted website? After registration and login, go straight to **Stock research** or **Research assistant**; steps 3–4 below explain how to start and read a report. Steps 1–2 cover model and data setup for your own instance.
+Using the hosted website? Invited accounts can use their available platform allowance. Accounts registered without an invitation must first save a personal LLM API in **My account** and verify it with a short assistant question. Then follow steps 3–4. Instance-wide Settings and data-source administration are for the instance owner.
 
 <a href="docs/assets/readme/first-report-en.svg"><img src="docs/assets/readme/first-report-en.svg" alt="First-run checklist: connect a model, check capabilities, submit a stock, read the report" width="560"></a>
 
 1. **Connect AI.** In **Settings → Models & runtime**, choose your provider, enter its API key and model details, save, and test the connection. You can also configure the provider in `.env`; see the [model guide](docs/LLM_CONFIG_GUIDE_EN.md).
 2. **Check available capabilities.** In the **Capability Center**, check enabled Skills, tools, and data sources. Configure a news source if your question needs recent news. A configured source is not necessarily reachable: use its availability check.
-3. **Run one stock.** Open **Stock research**, choose a market, and enter a code: `600519` for an A-share, `hk00700` for a Hong Kong stock, or `AAPL` for a US stock. Review the default plan, adjust your research goal, and start. The plan needs its model, published strategy, and tools to be available.
-4. **Read the saved report.** Check the conclusion, supporting evidence, data dates, and risks. Missing data or partial results matter. Use **Research assistant** for follow-up questions, or **Expert roundtable** to compare views.
+3. **Run one stock.** Open **Stock research**, click **New stock research**, choose a market, and enter a code: `600519` for an A-share, `hk00700` for a Hong Kong stock, or `AAPL` for a US stock, then select the matching stock from the results. Review the selected research method, enter your research goal, and click **Run stock research**. The system supplies the built-in research configuration; keep its required Skills and tools enabled.
+4. **Read the saved report.** Check the conclusion, supporting evidence, data dates, and risks. Missing data or partial results matter. Reopen the result from research history or **Tasks & Runs**. Use **Research assistant** for follow-up questions, or **Expert roundtable** to compare views.
 
 For a first goal, try: “Explain this stock's recent trend and key risks. Show the evidence and flag anything you cannot verify.” Stock codes here are input examples, not recommendations.
 
@@ -128,7 +132,8 @@ The header lets you switch between English, Simplified Chinese, Traditional Chin
 | What you see | What to check |
 | --- | --- |
 | Website opens, but analysis fails | Save and test the model settings; check API access, credits, and tool-calling support |
-| A default plan cannot run | Check that its published strategy and required capabilities are enabled |
+| A default plan cannot run | Check the market, built-in research configuration, and required Skills and tools in Capability Center |
+| A hosted account has no platform allowance | Save your personal LLM API in My account and check a short assistant request; a personal API failure does not fall back to platform credits |
 | News or prices are missing | Check source configuration and availability; review the run's error or partial-result details |
 | A background task stops after closing the terminal | The server must remain running; closing a browser tab is different from stopping the server |
 
@@ -138,6 +143,7 @@ The header lets you switch between English, Simplified Chinese, Traditional Chin
 - **Test a strategy:** choose a Skill in Trade simulation, preview and confirm the stock scope, save, and run once or start daily simulation. Review decisions, costs, and simulated fills. [Trading guide](docs/strategy-portfolios_EN.md)
 - **Try JEV decisions (optional):** configure its separate TypeSafe API key in **Settings → Models & runtime**, then select **JEV · Decisions only** for a new trading strategy. JEV returns buy/sell/hold, probabilities, and confidence without a research report; chat and stock-scope selection still need your LLM. Start with the [official access information](https://typesafe.ai/blog/introducing-system-one-models-and-jev), [TypeSafe console](https://console.typesafe.ai/), and [JEV setup guide](docs/jev-trading-decisions.md).
 - **Run tasks on a schedule:** keep the server running, locally or on a deployed machine. Your browser can close; a local server stops when its computer is off. [Deployment guide](docs/DEPLOY_EN.md)
+- **Track holdings or a watchlist:** record holdings or followed stocks in Portfolio, save a tracking plan, and enable its schedule. Saving a plan and running research are separate actions. [Workflow guide](docs/website-functional-logic.md) (bilingual)
 
 ## Documentation and development
 
@@ -148,6 +154,7 @@ The header lets you switch between English, Simplified Chinese, Traditional Chin
 | Configuration and notifications | [Full guide](docs/full-guide_EN.md) |
 | Deployment options | [Deployment](docs/DEPLOY_EN.md) |
 | Task architecture and capability permissions | [Workspace architecture](docs/web-decision-workspace.md) |
+| All features and their execution logic | [Website workflows](docs/website-functional-logic.md) (bilingual) |
 | An optional external Agent engine | [Runtime integration](docs/agent-runtime-integration_EN.md) |
 | Checks and release history | [Testing](docs/testing.md) · [Changelog](docs/CHANGELOG.md) |
 
@@ -155,9 +162,11 @@ For frontend development, keep the backend running and run `npm run dev` in `app
 
 ```bash
 # From the repository root
+python -m pip install -r .github/requirements-ci.txt
 ./scripts/ci_gate.sh
 
 cd apps/dsa-web
+npm test -- --maxWorkers=2
 npm run lint
 npm run build
 ```

@@ -100,7 +100,7 @@ powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
 
 请按以下顺序排查：
 
-1. 只从项目的 [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) 下载附件，并确认安装包架构与 Mac 一致：Apple 芯片（M1/M2/M3/M4 等）使用 `daily-stock-analysis-macos-arm64-<tag>.dmg`，Intel 芯片使用 `daily-stock-analysis-macos-x64-<tag>.dmg`。不要对第三方转载或来源不明的安装包绕过 Gatekeeper。
+1. 只从项目的 [GitHub Releases](https://github.com/EthanAlgoX/AIStock/releases) 下载附件，并确认安装包架构与 Mac 一致：Apple 芯片（M1/M2/M3/M4 等）使用 `daily-stock-analysis-macos-arm64-<tag>.dmg`，Intel 芯片使用 `daily-stock-analysis-macos-x64-<tag>.dmg`。不要对第三方转载或来源不明的安装包绕过 Gatekeeper。
 2. 打开 DMG，将 `Daily Stock Analysis` 拖入“应用程序”后尝试启动一次。若被拦截，进入“系统设置 -> 隐私与安全性”，在安全性提示处确认应用名称，然后点击“仍要打开”，按系统提示再次确认。较旧 macOS 的对应入口为“系统偏好设置 -> 安全性与隐私 -> 通用”。
 3. 仅当安装包确认来自上述官方 Release、且“仍要打开”仍无法放行时，打开“终端”清除该应用的下载隔离属性，然后重新启动：
 
@@ -143,16 +143,16 @@ npm run lint
 npm run build
 ```
 
-2. 回到桌面端，补齐依赖、运行 preload 单测、再执行 Electron 打包
+2. 回到桌面端，补齐依赖、运行桌面单测、再执行 Electron 打包
 
 ```bash
 cd ../dsa-desktop
 npm ci
 npm test
-npm run build
+npm run build -- --publish never
 ```
 
-在 Windows 发布复核环境，还可额外执行：
+在 Windows 发布复核环境，还可在另一个位于仓库根目录的终端执行：
 
 ```powershell
 ./scripts/verify-desktop-updater-artifacts.ps1 -ReleaseTag v$(node -p "require('./apps/dsa-desktop/package.json').version")
@@ -170,26 +170,26 @@ ls -1 dist/*.yml dist/*.blockmap 2>/dev/null || true
 4. 强制对齐版本与发布附件（可在 Windows 环境或能产出 NSIS 产物的执行器上复核）
 
 ```bash
-RELEASE_TAG="v$(node -p \"require('./package.json').version\")"
-REPO="ZhuLinsen/daily_stock_analysis"
+RELEASE_TAG="v$(node -p "require('./package.json').version")"
+REPO="$(node -p "new URL(require('./package.json').repository.url).pathname.slice(1).replace(/\\.git$/, '')")"
 
 for f in dist/*latest.yml dist/*.blockmap dist/daily-stock-analysis-windows-installer-*.exe; do
-  [ -f \"$f\" ] && echo \"[FOUND] $f\"
+  [ -f "$f" ] && echo "[FOUND] $f"
 done
 
 if [ -f dist/latest.yml ]; then
-  echo \"---- latest.yml 版本片段 ----\"
-  grep -E \"^version:|^files:|^sha512:\" dist/latest.yml
+  echo "---- latest.yml 版本片段 ----"
+  grep -E "^version:|^files:|^sha512:" dist/latest.yml
 fi
 
-echo \"---- Release 清单（人工核对）----\"
-echo \"Release Tag: $RELEASE_TAG\"
-echo \"Release 地址: https://github.com/$REPO/releases/tag/$RELEASE_TAG\"
-echo \"应核对附件是否包含:\"
-echo \"- daily-stock-analysis-windows-installer-*.exe\"
-echo \"- latest.yml\"
-echo \"- *.blockmap\"
-echo \"并确保 latest.yml 中 version 与 tag 的语义化版本一致，path/url 与安装包附件名一致\"
+echo "---- Release 清单（人工核对）----"
+echo "Release Tag: $RELEASE_TAG"
+echo "Release 地址: https://github.com/$REPO/releases/tag/$RELEASE_TAG"
+echo "应核对附件是否包含:"
+echo "- daily-stock-analysis-windows-installer-*.exe"
+echo "- latest.yml"
+echo "- *.blockmap"
+echo "并确保 latest.yml 中 version 与 tag 的语义化版本一致，path/url 与安装包附件名一致"
 ```
 
 5a. 建议在 PR 描述里记录的“可复核输出”（Windows）：
@@ -326,12 +326,15 @@ win-unpacked/
 
 ### 桌面端更新提醒
 
+- 更新来源统一为 [EthanAlgoX/AIStock Releases](https://github.com/EthanAlgoX/AIStock/releases)。`apps/dsa-desktop/package.json` 的顶层 `repository.url` 是唯一仓库来源：主进程从它生成版本 API、下载页及允许打开的 Release 路径；Windows 的 `publish` 只声明 GitHub provider，由 electron-builder 从同一元数据生成 `app-update.yml`。打包后 `package.json` 的 `build` 字段会被移除，运行时使用保留的 `repository`，不依赖构建配置。原仓库 Release URL 不再允许直接打开，统一返回当前下载页；当前仓库尚无正式版或缺少更新附件时显示检查错误，不回退其他仓库。
 - 应用在主界面加载完成后会后台检查 GitHub Releases 的最新正式版，并与当前 `app.getVersion()` 做语义化版本比较
 - Windows NSIS 安装版会通过内置 GitHub 更新源自动下载新版本；下载完成后弹出一次性提醒，用户确认后静默重启并安装
 - 自动更新静默安装会复用当前安装目录；如果用户安装时选择了非默认目录或带空格目录，后续自动更新仍会覆盖同一目录
 - `系统设置 -> 版本信息` 中的“桌面端更新”区域可手动检查更新；若更新已下载，会展示“重启安装”操作
 - Windows 免安装包、开发态和 macOS DMG 仍保持“提醒 + 跳转下载页”的兼容路径，不会因为网络失败而阻断桌面端启动
 - 版本检查失败、GitHub API 超时、更新元数据缺失或下载安装异常时，会记录到 `logs/desktop.log`，设置页手动检查时会展示错误状态
+
+The update source is [EthanAlgoX/AIStock Releases](https://github.com/EthanAlgoX/AIStock/releases). The top-level `repository.url` in the desktop package metadata is the single source for the runtime release API, page links, release URL allowlist and Windows updater feed. Electron-builder retains `repository` in the packaged metadata while removing `build`; Windows declares only the GitHub provider and derives `app-update.yml` from that repository. Links to the original repository fall back to the current release page. Missing releases or update assets produce an error without switching repositories. Update state handling, runtime backups and installation behavior are unchanged.
 
 ## 常见问题
 

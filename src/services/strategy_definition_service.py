@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import Any, Optional
 from urllib.parse import urlsplit
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, select, update
 
 from src.data.default_news_sources import DEFAULT_FINANCE_NEWS_SOURCES
 from src.services.strategy_graph_validator import StrategyGraphValidator
@@ -1430,21 +1430,35 @@ class StrategyDefinitionService:
                         {"screeningPolicy": policy, "marketScope": market_scope, "dataSourceConfig": data_source_config}, request_id)
             result = self._run_batch_detail(session, batch)
             batch_id = batch.id
+            strategy_id = version.strategy_id
         if not enqueue:
             return result
         # The request only enqueues persisted work.  It does not wait on
         # K-line sources or an LLM response and therefore cannot leave a
         # half-created UI-only run behind.
         from src.services.task_queue import get_task_queue
-        get_task_queue().submit_background_task(
-            lambda: self.execute_automatic_run_batch(batch_id, request_id),
-            stock_code=f"strategy_auto_batch_{batch_id}",
-            stock_name=f"strategy-version-{version_id}",
-            report_type="strategy_auto_screening",
-            message="自动选股研究已提交",
-            task_id=f"strategy-auto-batch-{batch_id}",
-            trace_id=f"strategy-auto-batch-{batch_id}",
-        )
+        try:
+            get_task_queue().submit_background_task(
+                lambda: self.execute_automatic_run_batch(batch_id, request_id),
+                stock_code=f"strategy_auto_batch_{batch_id}",
+                stock_name=f"strategy-version-{version_id}",
+                report_type="strategy_auto_screening",
+                message="自动选股研究已提交",
+                task_id=f"strategy-auto-batch-{batch_id}",
+                trace_id=f"strategy-auto-batch-{batch_id}",
+            )
+        except Exception as exc:
+            message = "后台运行队列不可用，本次自动研究未能提交，请稍后重试。"
+            with self.db.session_scope() as session:
+                changed = session.execute(update(SimulationStrategyRunBatchRecord).where(
+                    SimulationStrategyRunBatchRecord.id == batch_id,
+                    SimulationStrategyRunBatchRecord.status == "queued",
+                ).values(status="failed", error_message=message, completed_at=utc_naive_now())).rowcount
+                if changed:
+                    self._audit(session, "AUTO_RUN_FAILED", "SimulationStrategyRunBatch", batch_id,
+                                strategy_id, version_id, None, {"status": "failed", "reason": "queue_unavailable"}, request_id)
+            raise StrategyDefinitionError("AUTO_RUN_QUEUE_UNAVAILABLE", message, 503,
+                                          {"batchId": batch_id}) from exc
         return result
 
     def execute_automatic_run_batch(self, batch_id: int, request_id: Optional[str] = None) -> dict[str, Any]:

@@ -30,6 +30,8 @@ Connection 的 `fieldMapping` 是声明式 `{sourcePath: targetPath}`；不支�
 - `GET /continuous-runs`：读取运行中、暂停和终止的持续控制记录。
 - `POST /continuous-runs/{id}/pause`、`POST /continuous-runs/{id}/terminate`：停止后续周期。已经开始的一个批次会完成并如实保留，接口不会取消或伪造其结果。
 
+后台线程提交被拒绝时，`POST /automatic-runs` 返回 HTTP 503，`detail.code=AUTO_RUN_QUEUE_UNAVAILABLE`，`detail.details.batchId` 指向已保存的批次。仍处于 `queued` 的该批次更新为 `failed`，保留完成时间、通用队列错误和 `AUTO_RUN_FAILED` 审计；已被其他操作终结的状态不覆盖。重提会创建新批次，不执行原失败记录。内部持续控制器使用的未入队批次保持原契约。
+
 自动批次从版本读取并冻结 `dataPermissionSnapshot`、`screeningPolicy` 和 `marketScope`。`marketScope.universeMode=fixed` 时，运行服务先确认 K 线来源已启用且所有固定代码都存在于输入数据，然后在任何策略 Agent 之前把候选限制为该股票池，不调用全市场选股器；自动选股模式才使用已有 K 线选股服务。候选输入随后直接交给已发布 Agent 图的根 ANALYSIS Agent；标准新图按 ANALYSIS、DECISION、REFLECTION 顺序执行，REFLECTION 使用 `POST_RUN_CONTEXT` 且不改写当次决策。包含 INPUT Agent 的旧正式版本继续按冻结图兼容运行，从旧版本创建的新草稿会移除该节点并补齐版本级数据配置。提交新批次前运行中心会检查全局 LLM 渠道是否可用；未配置时前端禁用开始按钮并显示配置指引。批次和子运行均写入数据库；数据源或模型失败会保留失败原因。该 API 不创建真实订单、模拟成交、持仓、费用、PnL 或任何“自动买入”行为。
 
 数据源目录接口位于 `/api/v1/simulation/definition/data-sources`。`GET` 返回系统内置来源和未归档的自定义目录项；`POST` 只接受名称、说明和无密钥 `connectionKey`，新条目固定归类为 `other`；`DELETE /{id}` 执行软归档，不改写已发布 StrategyVersion 中的冻结引用。新草稿和正式发布规范化为 schema v2，默认启用 K 线、新闻、基本面，并使用 `other.sourceIds` 保存扩展来源。

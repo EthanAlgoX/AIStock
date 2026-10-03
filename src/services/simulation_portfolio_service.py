@@ -550,7 +550,19 @@ class SimulationPortfolioService:
                 )
             ).rowcount
         if changed:
-            _POOL.submit(self.execute, portfolio_id, token, automatic)
+            try:
+                _POOL.submit(self.execute, portfolio_id, token, automatic)
+            except Exception:
+                # No worker owns the accepted lease when submission fails.
+                # Release only this attempt; a replacement must retain its
+                # lease and result if the queue rejected an older submission.
+                with self.db.session_scope() as session:
+                    session.execute(update(SimulationPortfolioRunRecord).where(
+                        SimulationPortfolioRunRecord.id == portfolio_id,
+                        SimulationPortfolioRunRecord.lease_token == token,
+                    ).values(lease_token=None, lease_until=None,
+                             error_message="后台运行队列不可用，请稍后重试。"))
+                raise
         return bool(changed)
 
     def recover(self):

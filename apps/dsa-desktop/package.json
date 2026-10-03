@@ -2,6 +2,10 @@
   "name": "daily-stock-analysis-desktop",
   "version": "3.21.0",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EthanAlgoX/AIStock.git"
+  },
   "main": "main.js",
   "scripts": {
     "dev": "electron .",
@@ -42,9 +46,7 @@
       "artifactName": "daily-stock-analysis-windows-installer-v${version}.${ext}",
       "publish": [
         {
-          "provider": "github",
-          "owner": "ZhuLinsen",
-          "repo": "daily_stock_analysis"
+          "provider": "github"
         }
       ]
     },

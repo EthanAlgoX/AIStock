@@ -27,8 +27,14 @@ function resolveWindowBackgroundColor() {
 const isWindows = process.platform === 'win32';
 const isMac = process.platform === 'darwin';
 const appRootDev = path.resolve(__dirname, '..', '..');
-const GITHUB_OWNER = 'ZhuLinsen';
-const GITHUB_REPO = 'daily_stock_analysis';
+const repositoryUrl = new URL(require('./package.json').repository.url);
+const repositoryPath = repositoryUrl.pathname.match(/^\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?$/);
+if (repositoryUrl.origin !== 'https://github.com' || repositoryUrl.username || repositoryUrl.password
+  || repositoryUrl.search || repositoryUrl.hash || !repositoryPath) {
+  throw new Error('Desktop repository must be a credential-free HTTPS GitHub repository URL.');
+}
+const GITHUB_OWNER = repositoryPath[1];
+const GITHUB_REPO = repositoryPath[2];
 const RELEASES_PAGE_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`;
 const LATEST_RELEASE_API_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000;

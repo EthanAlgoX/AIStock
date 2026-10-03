@@ -3368,21 +3368,27 @@ def _normalize_dsa_daily_history(raw_df: Any) -> Any:
         if source_column is not None:
             normalized[target] = df[source_column]
 
+    # Keep closure and provenance evidence through both the DSA bridge and
+    # its daily cache. Missing OHLCV is not equivalent to a flat zero-volume bar.
+    alias_columns = {column for candidates in aliases.values() for column in candidates}
+    for column in df.columns:
+        if column not in alias_columns:
+            normalized[column] = df[column]
+    normalized.attrs.update(getattr(raw_df, "attrs", {}))
+
     if "close" not in normalized.columns:
         return pd.DataFrame()
-    for column in ("open", "high", "low"):
-        if column not in normalized.columns:
-            normalized[column] = normalized["close"]
-    if "volume" not in normalized.columns:
-        normalized["volume"] = 0
 
     if "date" in normalized.columns:
         normalized["date"] = normalized["date"].map(_normalize_daily_date_value)
 
+    # Coerce numbers without removing rows: a bad close must still separate
+    # windows when the daily evidence normalizer reads this frame or its cache.
+    from src.services.screening.daily import _daily_numeric_values
+
     for column in ("open", "high", "low", "close", "volume", "amount"):
         if column in normalized.columns:
-            normalized[column] = pd.to_numeric(normalized[column], errors="coerce")
-    normalized = normalized.dropna(subset=["close"])
+            normalized[column] = _daily_numeric_values(normalized[column])
     return normalized.reset_index(drop=True)
 
 

@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import time
@@ -285,31 +286,69 @@ def test_codex_status_does_not_fail_when_optional_version_probe_times_out(monkey
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Codex App Server Agent excludes native Windows")
-def test_timed_out_codex_probe_reclaims_the_launcher_process_group(tmp_path: Path) -> None:
+def test_timed_out_codex_probe_reclaims_the_launcher_process_group(tmp_path: Path, monkeypatch) -> None:
     child_pid_path = tmp_path / "child.pid"
+    # Deterministically take longer to prepare the child than the probe budget.
     launcher = (
         "import pathlib, subprocess, sys, time; "
+        "time.sleep(0.4); "
         "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']); "
         "pathlib.Path(sys.argv[1]).write_text(str(child.pid), encoding='utf-8'); "
         "time.sleep(30)"
     )
 
-    with pytest.raises(subprocess.TimeoutExpired):
-        _run_codex_probe(
-            [sys.executable, "-c", launcher, str(child_pid_path)],
-            timeout=0.3,
-        )
+    real_popen = subprocess.Popen
+    processes: list[subprocess.Popen] = []
+    child_pid = None
 
-    child_pid = int(child_pid_path.read_text(encoding="utf-8"))
-    deadline = time.monotonic() + 2
-    while time.monotonic() < deadline:
-        try:
-            os.kill(child_pid, 0)
-        except ProcessLookupError:
-            break
-        time.sleep(0.02)
-    else:
-        pytest.fail("timed-out Codex probe left its native child running")
+    def start_ready_launcher(*args, **kwargs):
+        nonlocal child_pid
+        process = real_popen(*args, **kwargs)
+        processes.append(process)
+        # Exercise the timeout with a real descendant already present. Cold
+        # interpreter startup belongs to fixture preparation, not the probe's
+        # unchanged 0.3-second communicate budget.
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                pytest.fail("Codex test launcher exited before its child was ready")
+            if child_pid_path.exists():
+                value = child_pid_path.read_text(encoding="utf-8")
+                if value.isdigit():
+                    child_pid = int(value)
+                    os.kill(child_pid, 0)
+                    assert os.getpgid(child_pid) == process.pid
+                    return process
+            time.sleep(0.02)
+        pytest.fail("Codex test launcher did not create its child within 5 seconds")
+
+    monkeypatch.setattr("src.services.agent_backend_status_service.subprocess.Popen", start_ready_launcher)
+    try:
+        with pytest.raises(subprocess.TimeoutExpired):
+            _run_codex_probe(
+                [sys.executable, "-c", launcher, str(child_pid_path)],
+                timeout=0.3,
+            )
+        assert child_pid is not None
+        assert len(processes) == 1 and processes[0].poll() is not None
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            try:
+                os.kill(child_pid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.02)
+        else:
+            pytest.fail("timed-out Codex probe left its native child running")
+    finally:
+        # Preparation can fail before production receives the process. Never
+        # leave this test's own launcher or descendant behind on that path.
+        for process in processes:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=2)
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Codex App Server Agent excludes native Windows")

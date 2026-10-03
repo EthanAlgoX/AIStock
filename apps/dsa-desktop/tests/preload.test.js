@@ -149,9 +149,9 @@ test('createDesktopBridge delegates update actions to ipcRenderer', async (t) =>
     channel: preloadModule.DESKTOP_INSTALL_DOWNLOADED_UPDATE_CHANNEL,
     payload: undefined,
   });
-  assert.deepEqual(await desktopBridge.openReleasePage('https://github.com/ZhuLinsen/daily_stock_analysis/releases/tag/v3.13.0'), {
+  assert.deepEqual(await desktopBridge.openReleasePage('https://github.com/EthanAlgoX/AIStock/releases/tag/v3.13.0'), {
     channel: preloadModule.DESKTOP_OPEN_RELEASE_PAGE_CHANNEL,
-    payload: 'https://github.com/ZhuLinsen/daily_stock_analysis/releases/tag/v3.13.0',
+    payload: 'https://github.com/EthanAlgoX/AIStock/releases/tag/v3.13.0',
   });
   assert.deepEqual(await desktopBridge.renderShareImage(17), {
     channel: preloadModule.DESKTOP_RENDER_SHARE_IMAGE_CHANNEL,

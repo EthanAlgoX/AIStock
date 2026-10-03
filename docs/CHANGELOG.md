@@ -5,9 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-> For user-friendly release highlights, see the [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) page.
+> For user-friendly release highlights, see the [GitHub Releases](https://github.com/EthanAlgoX/AIStock/releases) page.
 
 ## [Unreleased]
+
+- [修复] 桌面版本检查、Release 外链校验和 Windows 自动更新 feed 统一从保留于安装包的仓库元数据读取 AIStock 发布源，拒绝原仓库更新链接，沿用现有备份与安装流程。
+- [测试] Codex 超时探测回归先等待真实子进程准备，再验证原 0.3 秒预算与进程组回收；准备或断言失败也清理测试进程，避免冷启动竞态。
+- [修复] 交易策略范围预览按当前输入保留成功与失败归属，修改范围清除旧预览错误，旧请求结束仍释放操作状态，保留配置与持仓读取错误。
+- [测试] 缓存参数 HTTP 捕获覆盖生产分析器默认关闭及未验证能力放行边界，不再依赖旧 LiteLLM 丢弃手工提供的 prompt_cache_key；同步中英配置说明。
+- [修复] 股票档案的新研究入口复用完整市场目录，补齐日股、加密现货等市场选项，确保默认研究方案收到正确市场。
+- [修复] Vite 开发代理保留浏览器 Host，使合法本地保存操作符合后端同源校验，继续拒绝外站及跨站请求。
+- [修复] 模拟账户后台入队失败释放本次租约并保留错误，允许立即手动重试；自动研究批次入队失败保存终态与审计并返回明确 503，避免假接受和残留 queued。
+- [修复] 筛选日线保留真实字段与收盘、质量和来源边界，缺失 OHLCV 不补造形态或量价证据，按完整窗口预热且缺证据不判中性，修正 RSI 边界并拒收旧补造缓存。
+- [文档] 同步五语言 README 的首次研究、账号模型配置、持仓与任务入口及可执行验证命令，补充按功能验收矩阵，收敛当前研究与模拟市场边界。
 
 - [修复] CLI 与桌面内置 API 等待冷启动初始化完成，启动失败及超时清理已创建服务，阻止取消后的迟到监听与端口绑定竞态泄漏。
 - [修复] 桌面打包收集并实际读取模拟模板、内置内核和报告模板资源；Windows 延后加载 POSIX 限制模块，冻结后端对上传 Python 内核返回明确运行时限制。

@@ -328,7 +328,8 @@ def test_repeated_lowering_from_shared_input_does_not_cross_pollute_results():
     assert original["messages"][0]["content"] == "stable rules"
 
 
-def test_litellm_openai_prompt_cache_key_is_not_passed_through_without_verified_capture():
+@pytest.mark.parametrize("hints_enabled", [False, True])
+def test_analyzer_openai_prompt_cache_key_is_not_sent_without_verified_capture(hints_enabled):
     sanitized_env = os.environ.copy()
     for key in (
         "OPENAI_API_KEY",
@@ -351,12 +352,23 @@ def test_litellm_openai_prompt_cache_key_is_not_passed_through_without_verified_
         sanitized_env.pop(key, None)
     sanitized_env["NO_PROXY"] = "127.0.0.1,localhost"
     sanitized_env["no_proxy"] = "127.0.0.1,localhost"
+    sanitized_env["LITELLM_LOCAL_MODEL_COST_MAP"] = "true"
+    sanitized_env["LLM_USAGE_HMAC_SECRET"] = "capture-test-secret"
 
     script = textwrap.dedent(
         """
         import json
+        import socket
+        import sys
         import threading
         from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        original_connect = socket.socket.connect
+        def loopback_only(sock, address):
+            if address[0] not in ("127.0.0.1", "localhost", "::1"):
+                raise RuntimeError("Capture test only permits loopback connections")
+            return original_connect(sock, address)
+        socket.socket.connect = loopback_only
 
         try:
             import litellm
@@ -364,19 +376,35 @@ def test_litellm_openai_prompt_cache_key_is_not_passed_through_without_verified_
             print("LITELLM_MISSING")
             raise SystemExit(77)
 
+        import src.analyzer as analyzer_module
+        from src.config import Config
+
         captured = {}
         request_seen = threading.Event()
+        decisions = []
+        real_apply_hints = analyzer_module.apply_prompt_cache_hints
+        def observe_real_hint_decision(*args, **kwargs):
+            result = real_apply_hints(*args, **kwargs)
+            decisions.append({
+                "hint_applied": result.hint_applied,
+                "disabled_reason": result.disabled_reason,
+                "verification_status": result.caps.verification_status,
+                "provider": result.caps.provider,
+            })
+            return result
+        analyzer_module.apply_prompt_cache_hints = observe_real_hint_decision
 
         class CaptureHandler(BaseHTTPRequestHandler):
             def do_POST(self):
                 length = int(self.headers.get("content-length", "0") or "0")
                 captured["body"] = json.loads(self.rfile.read(length).decode("utf-8"))
+                captured["request_count"] = captured.get("request_count", 0) + 1
                 request_seen.set()
                 payload = {
                     "id": "chatcmpl-test",
                     "object": "chat.completion",
                     "created": 0,
-                    "model": "test-model",
+                    "model": "gpt-4o",
                     "choices": [
                         {
                             "index": 0,
@@ -404,28 +432,54 @@ def test_litellm_openai_prompt_cache_key_is_not_passed_through_without_verified_
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            litellm.completion(
-                model="openai/test-model",
-                api_base=f"http://127.0.0.1:{server.server_port}/v1",
-                api_key="sk-test",
-                messages=[{"role": "user", "content": "hello"}],
-                prompt_cache_key="cache-key",
-                max_tokens=1,
-                timeout=5,
-                num_retries=0,
+            # Exercise production request assembly, capability gating and
+            # dispatch. LiteLLM's own treatment of a manually supplied cache
+            # key is version-dependent and is not this project's safety gate.
+            config = Config(
+                litellm_model="openai/gpt-4o",
+                openai_api_key="sk-capture-test",
+                openai_api_keys=["sk-capture-test"],
+                openai_base_url=f"http://127.0.0.1:{server.server_port}/v1",
+                llm_prompt_cache_hints_enabled=sys.argv[1] == "true",
+                llm_prompt_cache_diagnostics_level="basic",
             )
+            analyzer = object.__new__(analyzer_module.GeminiAnalyzer)
+            analyzer._config_override = config
+            analyzer._router = None
+            text, model, _usage = analyzer._call_litellm_impl(
+                "hello", {"max_tokens": 1, "timeout": 5}, system_prompt="capture rules",
+            )
+            assert text == "ok" and model == "openai/gpt-4o"
             if not request_seen.wait(timeout=10):
                 raise AssertionError("LiteLLM did not send request to local capture server")
         finally:
+            analyzer_module.apply_prompt_cache_hints = real_apply_hints
             server.shutdown()
             thread.join(timeout=5)
+            server.server_close()
 
-        print("CAPTURED_BODY=" + json.dumps(captured["body"], sort_keys=True))
+        body = captured["body"]
+        assert body["messages"] == [
+            {"role": "system", "content": "capture rules"},
+            {"role": "user", "content": "hello"},
+        ]
+        assert len(decisions) == 1 and captured["request_count"] == 1
+        cache_hint_keys = sorted(set(body).intersection({
+            "prompt_cache_key", "prompt_cache_retention", "cache_control", "user_id",
+        }))
+        # Only non-sensitive wire shape and real gating decisions leave this
+        # subprocess; request text, headers and credentials stay unprinted.
+        print("CAPTURED_WIRE_METADATA=" + json.dumps({
+            "message_roles": [message["role"] for message in body["messages"]],
+            "cache_hint_keys": cache_hint_keys,
+            "request_count": captured["request_count"],
+            **decisions[0],
+        }, sort_keys=True))
         """
     )
 
     completed = subprocess.run(
-        [sys.executable, "-c", script],
+        [sys.executable, "-c", script, "true" if hints_enabled else "false"],
         capture_output=True,
         env=sanitized_env,
         text=True,
@@ -439,13 +493,18 @@ def test_litellm_openai_prompt_cache_key_is_not_passed_through_without_verified_
         pytest.skip("local socket creation is not permitted in this environment")
     assert completed.returncode == 0, completed.stdout + completed.stderr
     captured_line = next(
-        (line for line in completed.stdout.splitlines() if line.startswith("CAPTURED_BODY=")),
+        (line for line in completed.stdout.splitlines() if line.startswith("CAPTURED_WIRE_METADATA=")),
         None,
     )
     assert captured_line, completed.stdout + completed.stderr
-    body = json.loads(captured_line.removeprefix("CAPTURED_BODY="))
-    assert body["messages"] == [{"role": "user", "content": "hello"}]
-    assert "prompt_cache_key" not in body
+    wire = json.loads(captured_line.removeprefix("CAPTURED_WIRE_METADATA="))
+    assert wire["message_roles"] == ["system", "user"]
+    assert wire["request_count"] == 1
+    assert wire["cache_hint_keys"] == []
+    assert not wire["hint_applied"]
+    assert wire["disabled_reason"] == ("capability_not_verified" if hints_enabled else "hints_disabled")
+    assert wire["verification_status"] == "doc_only"
+    assert wire["provider"] == "openai"
 
 
 def test_domain_hmac_separates_prompt_cache_route_and_deepseek_domains(monkeypatch):

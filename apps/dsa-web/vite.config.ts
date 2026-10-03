@@ -235,7 +235,9 @@ export default defineConfig({
         // Playwright points this at an isolated backend; normal development
         // keeps the established localhost default.
         target: process.env.DSA_WEB_API_PROXY_TARGET || 'http://127.0.0.1:8000',
-        changeOrigin: true,
+        // Keep browser Origin and Host aligned for the backend's same-origin
+        // mutation checks. This proxy is used only by the development server.
+        changeOrigin: false,
       },
     },
   },

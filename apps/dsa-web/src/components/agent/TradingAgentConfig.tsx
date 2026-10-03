@@ -50,7 +50,7 @@ export function TradingAgentConfig({
   >([]);
   const [preview, setPreview] = useState<UniversePreview | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<{ message: string; source: "preview" | "configuration" } | null>(null);
   const generation = useRef(0);
   useEffect(() => {
     let alive = true;
@@ -60,7 +60,7 @@ export function TradingAgentConfig({
         if (alive) setOptions(o);
       })
       .catch((e) => {
-        if (alive) setError(toApiErrorMessage(e));
+        if (alive) setError({ message: toApiErrorMessage(e), source: "configuration" });
       });
     return () => {
       alive = false;
@@ -70,6 +70,7 @@ export function TradingAgentConfig({
     generation.current++;
     setPreview(null);
     onPreview(null);
+    setError(current => current?.source === "preview" ? null : current);
     return () => { generation.current++; };
   }, [scope, inputText, config.market, onPreview]);
   const input =
@@ -138,7 +139,7 @@ export function TradingAgentConfig({
                   try {
                     setHoldings(await portfoliosApi.holdings(accountId));
                   } catch (e) {
-                    setError(toApiErrorMessage(e));
+                    setError({ message: toApiErrorMessage(e), source: "configuration" });
                   } finally {
                     setBusy(false);
                   }
@@ -272,22 +273,22 @@ export function TradingAgentConfig({
           className="btn-secondary"
           disabled={busy}
           onClick={async () => {
-            setError("");
+            setError(null);
             setPreview(null);
             onPreview(null);
             if (inputText.trim() && !codes) {
-              setError("请先确认上方股票识别结果。");
+              setError({ message: "请先确认上方股票识别结果。", source: "preview" });
               return;
             }
             if (inferredMarket && (inferredMarket === "CRYPTO") !== (config.market === "CRYPTO")) {
-              setError("请先将市场切换为与代码一致的市场，再预览交易对。");
+              setError({ message: "请先将市场切换为与代码一致的市场，再预览交易对。", source: "preview" });
               return;
             }
             let selectedCodes = scope.mode === "holdings" ? scope.symbols : codes || [];
             if (scope.mode === "holdings" && codes?.length) {
               selectedCodes = scope.symbols.length ? scope.symbols.filter((s) => includesStockCode(codes, s)) : codes;
               if (!selectedCodes.length) {
-                setError("填写的股票与所选持仓没有交集，请调整股票池或持仓范围。");
+                setError({ message: "填写的股票与所选持仓没有交集，请调整股票池或持仓范围。", source: "preview" });
                 return;
               }
             }
@@ -308,7 +309,9 @@ export function TradingAgentConfig({
                 onPreview(result);
               }
             } catch (e) {
-              setError(toApiErrorMessage(e));
+              if (generation.current === attempt) {
+                setError({ message: toApiErrorMessage(e), source: "preview" });
+              }
             } finally {
               setBusy(false);
             }
@@ -321,7 +324,7 @@ export function TradingAgentConfig({
       </fieldset>
       {error && (
         <p role="alert" className="text-danger">
-          {uiLiteral(error)}
+          {uiLiteral(error.message)}
         </p>
       )}
       {preview && (

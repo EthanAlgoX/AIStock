@@ -4,6 +4,7 @@ import { workspaceApi, type WorkspaceRun } from "../../api/workspace";
 import DefaultTaskLauncher from "./DefaultTaskLauncher";
 import { workspaceRunLabel } from "../../utils/workspaceOutcome";
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
+import { RESEARCH_MARKETS } from "../../utils/markets";
 
 export default function StockArchive({ onRunStarted }: { onRunStarted:(run:WorkspaceRun)=>void }) {
   const { localize: l, translate: tx } = useUiLanguage();
@@ -32,7 +33,7 @@ export default function StockArchive({ onRunStarted }: { onRunStarted:(run:Works
       <p className="text-sm">{stock} · {page ? l(`共 ${page.total} 次相关运行`, `${page.total} related runs`) : error ? l("读取失败", "Load failed") : l("正在读取…", "Loading…")}</p>
       {page?.items.map(run=><Link className="block text-sm text-primary hover:underline" key={run.id} to={`/runs/${run.id}`}>{run.taskSnapshot.name} · {new Date(run.createdAt).toLocaleDateString()} · {tx(workspaceRunLabel(run))}</Link>)}
       <Link className="inline-block text-sm text-primary hover:underline" to={`/runs?stock=${encodeURIComponent(stock)}`}>{l("查看全部关联记录与筛选", "View all related records and filters")}</Link>
-      <label className="block text-sm">{l("新研究市场", "Market for new research")}<select value={market} onChange={e=>setMarket(e.target.value)} className="min-h-10 rounded-lg border border-border bg-background px-3 py-2 text-sm ml-2"><option value="CN">{l("A 股", "China A-shares")}</option><option value="HK">{l("港股", "Hong Kong")}</option><option value="US">{l("美股", "US")}</option></select></label>
+      <label className="block text-sm">{l("新研究市场", "Market for new research")}<select value={market} onChange={e=>setMarket(e.target.value)} className="min-h-10 rounded-lg border border-border bg-background px-3 py-2 text-sm ml-2">{RESEARCH_MARKETS.map(item => <option key={item.id} value={item.id}>{tx(item.label)}</option>)}</select></label>
       <DefaultTaskLauncher kind="research" stock={stock} market={market} onRunStarted={onRunStarted} />
     </div>}
   </details>;

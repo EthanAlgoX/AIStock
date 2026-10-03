@@ -81,6 +81,9 @@ function loadMainModule(t, options = {}) {
         autoUpdater: options.electronUpdater,
       };
     }
+    if (request === './package.json' && options.packageMetadata && parent.filename === mainPath) {
+      return options.packageMetadata;
+    }
     return originalLoad.call(this, request, parent, isMain);
   };
 
@@ -663,7 +666,7 @@ test('extractReleaseMetadata ignores releases without semver tags', (t) => {
   assert.equal(
     mainModule.extractReleaseMetadata({
       tag_name: 'desktop-latest',
-      html_url: 'https://github.com/ZhuLinsen/daily_stock_analysis/releases/tag/desktop-latest',
+      html_url: 'https://github.com/EthanAlgoX/AIStock/releases/tag/desktop-latest',
     }),
     null
   );
@@ -675,7 +678,7 @@ test('evaluateReleaseUpdate reports update-available when release is newer', (t)
     currentVersion: '3.12.0',
     release: {
       tag_name: 'v3.13.0',
-      html_url: 'https://github.com/ZhuLinsen/daily_stock_analysis/releases/tag/v3.13.0',
+      html_url: 'https://github.com/EthanAlgoX/AIStock/releases/tag/v3.13.0',
       published_at: '2026-04-25T01:00:00Z',
       name: 'v3.13.0',
     },
@@ -685,7 +688,7 @@ test('evaluateReleaseUpdate reports update-available when release is newer', (t)
   assert.equal(state.status, mainModule.UPDATE_STATUS.UPDATE_AVAILABLE);
   assert.equal(state.currentVersion, '3.12.0');
   assert.equal(state.latestVersion, '3.13.0');
-  assert.equal(state.releaseUrl, 'https://github.com/ZhuLinsen/daily_stock_analysis/releases/tag/v3.13.0');
+  assert.equal(state.releaseUrl, 'https://github.com/EthanAlgoX/AIStock/releases/tag/v3.13.0');
   assert.equal(state.checkedAt, '2026-04-25T01:02:00Z');
   assert.equal(state.publishedAt, '2026-04-25T01:00:00Z');
   assert.match(state.message, /发现新版本 3\.13\.0/);
@@ -697,14 +700,14 @@ test('evaluateReleaseUpdate reports up-to-date when version is current', (t) => 
     currentVersion: '3.13.0',
     release: {
       tag_name: 'v3.13.0',
-      html_url: 'https://github.com/ZhuLinsen/daily_stock_analysis/releases/tag/v3.13.0',
+      html_url: 'https://github.com/EthanAlgoX/AIStock/releases/tag/v3.13.0',
     },
     checkedAt: '2026-04-25T01:02:00Z',
   });
 
   assert.equal(state.status, mainModule.UPDATE_STATUS.UP_TO_DATE);
   assert.equal(state.latestVersion, '3.13.0');
-  assert.equal(state.releaseUrl, 'https://github.com/ZhuLinsen/daily_stock_analysis/releases/tag/v3.13.0');
+  assert.equal(state.releaseUrl, 'https://github.com/EthanAlgoX/AIStock/releases/tag/v3.13.0');
   assert.equal(state.checkedAt, '2026-04-25T01:02:00Z');
   assert.equal(state.publishedAt, '');
 });
@@ -715,7 +718,7 @@ test('evaluateReleaseUpdate reports error when current version is invalid', (t) 
     currentVersion: 'build-20260425',
     release: {
       tag_name: 'v3.13.0',
-      html_url: 'https://github.com/ZhuLinsen/daily_stock_analysis/releases/tag/v3.13.0',
+      html_url: 'https://github.com/EthanAlgoX/AIStock/releases/tag/v3.13.0',
     },
     checkedAt: '2026-04-25T01:02:00Z',
   });
@@ -757,6 +760,74 @@ test('sanitizeReleaseUrl falls back for non-release links', (t) => {
     ),
     `https://github.com/${mainModule.GITHUB_OWNER}/${mainModule.GITHUB_REPO}/releases/tag/v3.13.0`
   );
+});
+
+test('desktop release links use the current repository and reject the original repository', (t) => {
+  const mainModule = loadMainModule(t);
+  assert.equal(mainModule.GITHUB_OWNER, 'EthanAlgoX');
+  assert.equal(mainModule.GITHUB_REPO, 'AIStock');
+  assert.equal(mainModule.RELEASES_PAGE_URL, 'https://github.com/EthanAlgoX/AIStock/releases');
+  assert.equal(mainModule.LATEST_RELEASE_API_URL, 'https://api.github.com/repos/EthanAlgoX/AIStock/releases/latest');
+  for (const url of [
+    'https://github.com/ZhuLinsen/daily_stock_analysis/releases',
+    'https://github.com/ZhuLinsen/daily_stock_analysis/releases/tag/v3.13.0',
+    'https://github.com/EthanAlgoX/AIStock/releases-other/tag/v3.13.0',
+  ]) {
+    assert.equal(mainModule.sanitizeReleaseUrl(url), mainModule.RELEASES_PAGE_URL, url);
+  }
+  assert.equal(mainModule.sanitizeReleaseUrl('https://github.com/EthanAlgoX/AIStock/releases/tag/v3.13.0'),
+    'https://github.com/EthanAlgoX/AIStock/releases/tag/v3.13.0');
+});
+
+test('the default release request targets the current repository API', async (t) => {
+  const mainModule = loadMainModule(t);
+  let requestedUrl;
+  const release = { tag_name: 'v3.13.0', html_url: 'https://github.com/EthanAlgoX/AIStock/releases/tag/v3.13.0' };
+  const request = (url, _options, onResponse) => {
+    requestedUrl = url;
+    const req = new EventEmitter();
+    req.destroyed = false;
+    req.setTimeout = () => undefined;
+    req.destroy = () => { req.destroyed = true; };
+    req.end = () => {
+      const response = new EventEmitter();
+      response.statusCode = 200;
+      response.complete = true;
+      onResponse(response);
+      response.emit('data', Buffer.from(JSON.stringify(release)));
+      response.emit('end');
+    };
+    return req;
+  };
+  assert.deepEqual(await mainModule.fetchLatestReleaseJson({ request }), release);
+  assert.equal(requestedUrl, 'https://api.github.com/repos/EthanAlgoX/AIStock/releases/latest');
+});
+
+test('builder-cleaned runtime metadata and the Windows updater feed share the repository', async (t) => {
+  const { createTransformer } = require('app-builder-lib/out/fileTransformer');
+  const { getRepositoryInfo } = require('app-builder-lib/out/util/repositoryInfo');
+  const { getAppUpdatePublishConfiguration } = require('app-builder-lib/out/publish/PublishManager');
+  const { Platform } = require('app-builder-lib');
+  const projectDir = path.resolve(__dirname, '..');
+  const sourcePackage = JSON.parse(fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8'));
+  const transform = createTransformer(projectDir, sourcePackage.build, null);
+  const packedPackage = JSON.parse(await transform(path.join(projectDir, 'package.json')));
+  assert.equal(packedPackage.build, undefined);
+  assert.deepEqual(packedPackage.repository, { type: 'git', url: 'https://github.com/EthanAlgoX/AIStock.git' });
+  assert.deepEqual(sourcePackage.build.win.publish, [{ provider: 'github' }]);
+  const mainModule = loadMainModule(t, { packageMetadata: packedPackage });
+  const repositoryInfo = await getRepositoryInfo(projectDir, packedPackage);
+  const appInfo = { version: sourcePackage.version, channel: null, updaterCacheDirName: 'desktop-test-updater' };
+  const config = sourcePackage.build;
+  const feed = await getAppUpdatePublishConfiguration({
+    config, platform: Platform.WINDOWS, platformSpecificBuildOptions: config.win, appInfo,
+    info: { config, appInfo, repositoryInfo: Promise.resolve(repositoryInfo) },
+    expandMacro: value => value,
+  }, 0, true);
+  assert.equal(feed.provider, 'github');
+  assert.equal(feed.owner, mainModule.GITHUB_OWNER);
+  assert.equal(feed.repo, mainModule.GITHUB_REPO);
+  assert.equal(mainModule.RELEASES_PAGE_URL, `https://github.com/${feed.owner}/${feed.repo}/releases`);
 });
 
 test('desktop external links accept credential-free HTTP(S) and reject other protocols', (t) => {

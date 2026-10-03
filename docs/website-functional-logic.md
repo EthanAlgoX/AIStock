@@ -23,6 +23,10 @@ This map describes the routed Web application. A saved configuration, a complete
 
 持仓研究读取实际持仓；关注股研究不推断仓位、不输出持仓操作建议。每日分析独立完成后，再汇总评分曲线。保存跟踪配置只启用计划，不立即研究；临时研究走手动入口。跟踪周期按自然日，交易推演按交易日，两者不能混用。定时研究通知还需要任务通知开关和已配置渠道，配置渠道本身不会启动研究。
 
+New stock-research plans automatically prepare the built-in published research configurations for the selected market. Users choose the available method and capabilities; they do not need to publish a legacy StrategyVersion. Disabled required tools or an archived built-in configuration still require attention.
+
+新建个股研究自动准备所选市场的内置正式研究配置，用户选择可用方法与能力即可，无需手动发布旧 StrategyVersion。必要工具被禁用或内置配置被归档时，仍需检查默认方案。
+
 ## From a strategy to daily simulation / 从策略到每日推演
 
 1. Discuss and save a Skill, or select an existing Skill.
@@ -47,9 +51,9 @@ Pausing a simulation stops automatic trading but keeps holdings valued. It does 
 
 Session history restores messages and prior methods without overwriting explicit selections made during loading, including an empty selection. A user-created new conversation resets the selection; submitted questions keep their submitted methods.
 
-Tasks & Runs records execution status and artifacts; Scheduled tasks controls future execution; Model usage records consumption. Settings configures model services and delivery channels; the Capability Center manages selectable methods and tools. Member accounts use administrator-managed platform credentials and private workspaces.
+Tasks & Runs records execution status and artifacts; Scheduled tasks controls future execution; Model usage records consumption. Settings configures model services and delivery channels; the Capability Center manages selectable methods and tools. Members have private workspaces and can configure a personal LLM API in My account. Invited accounts without a personal API use the available platform allowance; accounts without an invitation have no platform allowance. Personal API failures do not switch to platform credentials.
 
-任务与运行保存执行状态与成果；定时任务管理未来执行；模型用量记录消耗。设置管理模型服务与通知渠道，能力中心管理可选择的方法与工具。成员使用管理员维护的平台密钥，业务数据在私有工作区内保存。
+任务与运行保存执行状态与成果；定时任务管理未来执行；模型用量记录消耗。设置管理模型服务与通知渠道，能力中心管理可选择的方法与工具。成员业务数据保存在私有工作区，可在“我的账户”配置个人 LLM API。未配置个人 API 的受邀账号使用尚余的平台额度；无邀请码账号没有平台额度。个人 API 失败不会切换至平台密钥。
 
 See [holding research](holdings-research.md), [strategy execution](strategy-portfolios_EN.md) and [strategy execution in Chinese](strategy-portfolios.md) for detailed contracts.
 
@@ -99,6 +103,10 @@ The standard pipeline and Agent use the same evidence boundaries. Reports and ru
 旧 `/chat`、`/strategies/*`、`/strategy-editor`、`/backtests` 等路由仍按 `App.tsx` 跳转，不能把旧编辑器文档当作当前可访问页面。数据落库复用 `src/storage.py`、repositories 及私有工作区 SQLite；报告、任务成果、模型账本与模拟每日账本各自保留归属和日期，不能互相推断成功。
 
 Legacy routes follow `App.tsx` redirects; old editor documents do not describe current navigable screens. Storage reuses existing repositories and workspace SQLite. Reports, artifacts, model usage and simulated daily ledgers retain separate ownership, dates and success states.
+
+模拟账户线程提交失败会释放本次租约并保留错误，允许立即手动重试。历史自动研究 API 若无法入队，已创建批次记录为失败并返回 `503 / AUTO_RUN_QUEUE_UNAVAILABLE`；不能把持久化成功当成后台任务已接受。内部持续研究的未入队批次仍由原控制器执行。
+
+Rejected simulation submissions release their own lease and retain a queue error for manual retry. The legacy automatic-research API records a failed batch and returns `503 / AUTO_RUN_QUEUE_UNAVAILABLE` if submission fails. Persisting a record does not prove worker acceptance; internal unqueued continuous batches retain their existing controller contract.
 
 ## Recovery and verification / 恢复与评测
 

@@ -9,6 +9,7 @@ from src.workspace_scope import ContextThreadPoolExecutor as ThreadPoolExecutor
 from datetime import datetime, timedelta
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import threading
@@ -16,6 +17,7 @@ import time
 from typing import Callable
 
 import pandas as pd
+import numpy as np
 import requests
 
 from src.services.screening.source_guard import call_with_timeout, parse_source_timeout_seconds
@@ -47,8 +49,11 @@ _DAILY_FEATURE_DEFAULTS = {
     "daily_source": "",
 }
 _DAILY_ENRICH_MAX_WORKERS = 1
-_DAILY_HISTORY_CACHE_VERSION = 1
+# Version 1 may contain OHLC/zero volume synthesized by the old DSA bridge.
+# Those values cannot be distinguished from observations; fetch them afresh.
+_DAILY_HISTORY_CACHE_VERSION = 2
 _DAILY_HISTORY_CACHE_TTL_SECONDS = 24 * 60 * 60
+_DAILY_PROVENANCE_FIELDS = ("data_source", "source", "provider", "adjustment", "volume_unit", "currency")
 _SOURCE_HEALTH_FAILURE_THRESHOLD = 3
 _SOURCE_HEALTH_COOLDOWN_SECONDS = 5 * 60
 _DAILY_CALL_TIMEOUT_SECONDS = 20.0
@@ -489,6 +494,9 @@ def _read_daily_history_cache(
             for key in ("daily_source", "daily_requested_source", "daily_source_order", "daily_source_order_notes", "source_errors", "daily_source_health"):
                 if key in metadata:
                     df.attrs[key] = metadata[key]
+            for key in _DAILY_PROVENANCE_FIELDS:
+                if key in metadata:
+                    df.attrs[key] = metadata[key]
         if is_stale:
             df.attrs["daily_stale"] = True
         return df
@@ -520,6 +528,7 @@ def _write_daily_history_cache(
                 "daily_source_order_notes": list(df.attrs.get("daily_source_order_notes", [])),
                 "source_errors": list(df.attrs.get("source_errors", [])),
                 "daily_source_health": df.attrs.get("daily_source_health", {}),
+                **{key: df.attrs[key] for key in _DAILY_PROVENANCE_FIELDS if key in df.attrs},
             },
             "created_at": datetime.now().isoformat(),
             "frame": json.loads(df.to_json(orient="split", date_format="iso", force_ascii=False)),
@@ -582,7 +591,7 @@ def _fetch_daily_tencent(code: str, *, lookback_days: int) -> pd.DataFrame:
     normalized_rows: list[dict[str, object]] = []
     for row in rows:
         if not isinstance(row, list) or len(row) < 6:
-            continue
+            raise RuntimeError(f"tencent daily history malformed for {code}; continuity cannot be verified")
         normalized_rows.append({
             "date": row[0],
             "open": row[1],
@@ -599,7 +608,7 @@ def _fetch_daily_tencent(code: str, *, lookback_days: int) -> pd.DataFrame:
         columns=["date", "open", "close", "high", "low", "volume", "amount"],
     )
     for col in ("open", "close", "high", "low", "volume", "amount"):
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+        df[col] = _daily_numeric_values(df[col])
     return df.tail(count).copy()
 
 
@@ -628,7 +637,7 @@ def _fetch_daily_sina(code: str, *, lookback_days: int) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
     for row in data:
         if not isinstance(row, dict):
-            continue
+            raise RuntimeError(f"sina daily history malformed for {code}; continuity cannot be verified")
         rows.append({
             "date": row.get("day") or row.get("date"),
             "open": row.get("open"),
@@ -645,7 +654,7 @@ def _fetch_daily_sina(code: str, *, lookback_days: int) -> pd.DataFrame:
     if "date" in df.columns:
         df = df.sort_values("date")
     for col in ("open", "close", "high", "low", "volume", "amount"):
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+        df[col] = _daily_numeric_values(df[col])
     return df.tail(count).copy()
 
 
@@ -752,7 +761,7 @@ def _apply_tushare_adjustment(
         raise RuntimeError(f"tushare adj_factor invalid for {ts_code}")
     latest_factor = float(valid_factors.iloc[0])
     for col in ("open", "high", "low", "close"):
-        merged[col] = pd.to_numeric(merged[col], errors="coerce")
+        merged[col] = _daily_numeric_values(merged[col])
         if adj == "hfq":
             merged[col] = merged[col] * merged["adj_factor"]
         else:
@@ -879,9 +888,8 @@ def compute_daily_features(hist: pd.DataFrame) -> dict[str, object]:
     shape = _compute_shape_features(df, last_close=last_close, last_ma20=last_ma20)
     quality = _compute_daily_quality(hist, df)
 
-    lookback_idx = max(0, len(close) - 61)
-    base_close = float(close.iloc[lookback_idx])
-    change_60d = (last_close / base_close - 1.0) * 100 if base_close > 0 else None
+    base_close = float(close.iloc[-61]) if len(close) >= 61 else None
+    change_60d = (last_close / base_close - 1.0) * 100 if base_close is not None else None
 
     macd_status = _compute_macd_status(close)
     rsi_value = _compute_rsi(close)
@@ -926,25 +934,79 @@ def _normalize_daily_history(hist: pd.DataFrame) -> pd.DataFrame:
     }
     df = hist.rename(columns=rename_map).copy()
     if "date" in df.columns:
-        df = df.sort_values("date")
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        if df["date"].isna().any():
+            raise RuntimeError("daily history has invalid dates; continuity cannot be verified")
+        df = df.sort_values("date", kind="stable")
+    df = df.reset_index(drop=True)
     if "close" not in df.columns:
         raise RuntimeError("daily history has no close column")
+    if df.empty:
+        return df
     for col in ("open", "high", "low", "close", "volume"):
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-    df = df.dropna(subset=["close"]).copy()
-    for col in ("open", "high", "low"):
-        if col not in df.columns:
-            df[col] = df["close"]
+            df[col] = _daily_numeric_values(df[col])
+
+    def explicit(value: object, expected: bool = True) -> bool:
+        return isinstance(value, (bool, np.bool_)) and bool(value) == expected
+
+    pending = df.apply(lambda row: explicit(row.get("is_partial_bar"))
+                       or explicit(row.get("is_estimated")) or explicit(row.get("closed"), False), axis=1)
+    end = len(df)
+    while end and pending.iloc[end - 1]:
+        end -= 1
+    flags: list[str] = ["partial_bar_excluded"] if pending.any() else []
+    start = 0
+    previous_date = None
+    previous_identity = None
+    for index, row in df.iloc[:end].iterrows():
+        quality = row.get("quality")
+        quality_flags = set(quality) if isinstance(quality, (list, tuple)) and all(
+            isinstance(flag, str) for flag in quality
+        ) else set()
+        quality_missing = quality is None or (isinstance(quality, float) and math.isnan(quality))
+        invalid_quality = (not quality_missing and not isinstance(quality, (list, tuple))) or bool(
+            quality_flags.difference({"gap_before", "corporate_action"})
+        ) or (isinstance(quality, (list, tuple)) and not all(isinstance(flag, str) for flag in quality))
+        current_date = row.get("date")
+        invalid = (pd.isna(row["close"]) or row["close"] <= 0 or pending.iloc[index]
+                   or invalid_quality or (previous_date is not None and current_date <= previous_date))
+        if invalid:
+            start = index + 1
+            previous_identity = None
+            flags.append("invalid_bar_excluded")
         else:
-            df[col] = df[col].fillna(df["close"])
-    return df
+            identity = tuple(
+                row.get(key) if isinstance(row.get(key), str) and row.get(key).strip()
+                else df.attrs.get(key) if isinstance(df.attrs.get(key), str) else None
+                for key in _DAILY_PROVENANCE_FIELDS
+            )
+            if (explicit(row.get("gap_before")) or quality_flags.intersection({"gap_before", "corporate_action"})
+                    or (previous_identity is not None and identity != previous_identity)):
+                start = index
+                flags.append("history_boundary")
+            previous_identity = identity
+        previous_date = current_date
+    result = df.iloc[start:end].reset_index(drop=True)
+    result.attrs["daily_evidence_flags"] = list(dict.fromkeys(flags))
+    return result
+
+
+def _daily_numeric_values(values: pd.Series) -> pd.Series:
+    """Keep invalid samples in place while coercing daily numerical fields."""
+    values = values.mask(values.map(lambda value: isinstance(value, (bool, np.bool_))))
+    values = pd.to_numeric(values, errors="coerce")
+    return values.where(np.isfinite(values))
 
 
 def _compute_daily_quality(raw: pd.DataFrame, normalized: pd.DataFrame) -> dict[str, object]:
     """Score daily-history quality and expose compact audit flags."""
     score = 100.0
     flags: list[str] = []
+    evidence_flags = list(normalized.attrs.get("daily_evidence_flags", []))
+    if evidence_flags:
+        score -= 20
+        flags.extend(evidence_flags)
     points = len(normalized)
     if points < 30:
         score -= 35
@@ -1014,8 +1076,10 @@ def _compute_shape_features(
     recent = df.tail(20)
     last = df.iloc[-1]
 
-    prev_high_20d = _series_max(previous["high"]) if "high" in previous.columns else None
-    range_20d_pct = _range_pct(recent)
+    prev_high_20d = float(previous["high"].max()) if (
+        len(previous) == 20 and _valid_shape_prices(previous, ("high", "low"))
+    ) else None
+    range_20d_pct = _range_pct(recent) if len(recent) == 20 else None
     breakout_20d_pct = (
         (last_close / prev_high_20d - 1.0) * 100
         if prev_high_20d is not None and prev_high_20d > 0
@@ -1028,8 +1092,8 @@ def _compute_shape_features(
         if last_ma20 is not None and last_ma20 > 0
         else None
     )
-    volatility_20d_pct = _volatility_20d_pct(recent["close"])
-    max_drawdown_20d_pct = _max_drawdown_pct(recent["close"])
+    volatility_20d_pct = _volatility_20d_pct(recent["close"]) if len(recent) == 20 else None
+    max_drawdown_20d_pct = _max_drawdown_pct(recent["close"]) if len(recent) == 20 else None
     atr_20_pct = _atr_20_pct(df)
 
     return {
@@ -1054,12 +1118,10 @@ def _series_max(series: pd.Series) -> float | None:
 
 
 def _range_pct(df: pd.DataFrame) -> float | None:
-    if "high" not in df.columns or "low" not in df.columns:
+    if not _valid_shape_prices(df, ("high", "low")):
         return None
-    high = pd.to_numeric(df["high"], errors="coerce").dropna()
-    low = pd.to_numeric(df["low"], errors="coerce").dropna()
-    if high.empty or low.empty:
-        return None
+    high = df["high"]
+    low = df["low"]
     low_min = float(low.min())
     if low_min <= 0:
         return None
@@ -1067,14 +1129,12 @@ def _range_pct(df: pd.DataFrame) -> float | None:
 
 
 def _volume_ratio_20d(df: pd.DataFrame) -> float | None:
-    if "volume" not in df.columns:
+    if "volume" not in df.columns or len(df) < 21:
         return None
-    volume = pd.to_numeric(df["volume"], errors="coerce")
-    if len(volume) < 2 or pd.isna(volume.iloc[-1]):
+    volume = df["volume"].tail(21)
+    if volume.isna().any() or (volume < 0).any():
         return None
-    previous = volume.iloc[:-1].tail(20).dropna()
-    if previous.empty:
-        return None
+    previous = volume.iloc[:-1]
     base = float(previous.mean())
     if base <= 0:
         return None
@@ -1099,8 +1159,9 @@ def _max_drawdown_pct(close: pd.Series) -> float | None:
 
 
 def _atr_20_pct(df: pd.DataFrame) -> float | None:
-    if not {"high", "low", "close"}.issubset(df.columns):
+    if len(df) < 21 or not _valid_shape_prices(df.tail(21), ("high", "low", "close")):
         return None
+    df = df.tail(21)
     high = pd.to_numeric(df["high"], errors="coerce")
     low = pd.to_numeric(df["low"], errors="coerce")
     close = pd.to_numeric(df["close"], errors="coerce")
@@ -1110,7 +1171,7 @@ def _atr_20_pct(df: pd.DataFrame) -> float | None:
         (high - previous_close).abs(),
         (low - previous_close).abs(),
     ], axis=1).max(axis=1)
-    atr = true_range.tail(20).dropna().mean()
+    atr = true_range.tail(20).mean()
     valid_close = close.dropna()
     if valid_close.empty:
         return None
@@ -1121,7 +1182,7 @@ def _atr_20_pct(df: pd.DataFrame) -> float | None:
 
 
 def _consolidation_days(previous: pd.DataFrame, *, max_range_pct: float = 12.0) -> int | None:
-    if previous.empty or "high" not in previous.columns or "low" not in previous.columns:
+    if not _valid_shape_prices(previous, ("high", "low")):
         return None
     for days in range(min(len(previous), 20), 1, -1):
         window = previous.tail(days)
@@ -1134,20 +1195,30 @@ def _consolidation_days(previous: pd.DataFrame, *, max_range_pct: float = 12.0) 
 def _body_pct(row: pd.Series) -> float | None:
     open_price = row.get("open")
     close_price = row.get("close")
-    if pd.isna(open_price) or pd.isna(close_price) or float(open_price) <= 0:
+    if (open_price is None or close_price is None or pd.isna(open_price) or pd.isna(close_price)
+            or float(open_price) <= 0):
         return None
     return (float(close_price) / float(open_price) - 1.0) * 100
 
 
 def _round_or_none(value: float | None) -> float | None:
-    if value is None or pd.isna(value):
+    if value is None or not math.isfinite(float(value)):
         return None
     return round(float(value), 4)
 
 
+def _valid_shape_prices(df: pd.DataFrame, fields: tuple[str, ...]) -> bool:
+    """Require every sample needed by a shape; never skip missing observations."""
+    if df.empty or not set(fields).issubset(df.columns):
+        return False
+    if any(df[field].isna().any() or (df[field] <= 0).any() for field in fields):
+        return False
+    return not ({"high", "low"}.issubset(fields) and (df["high"] < df["low"]).any())
+
+
 def _compute_macd_status(close: pd.Series) -> str:
     if len(close) < 35:
-        return "neutral"
+        return ""
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
     diff = ema12 - ema26
@@ -1167,6 +1238,13 @@ def _compute_rsi(close: pd.Series, period: int = 14) -> float | None:
     delta = close.diff()
     gain = delta.clip(lower=0).rolling(period).mean()
     loss = (-delta.clip(upper=0)).rolling(period).mean()
+    # Keep the screening engine's existing rolling-average RSI formula.
+    # A ready window with no losses is 100; no gains and no losses is 50.
+    last_gain, last_loss = gain.iloc[-1], loss.iloc[-1]
+    if pd.isna(last_gain) or pd.isna(last_loss):
+        return None
+    if last_loss == 0:
+        return 100.0 if last_gain > 0 else 50.0
     rs = gain / loss.replace(0, pd.NA)
     rsi = 100 - (100 / (1 + rs))
     value = rsi.iloc[-1]
@@ -1177,7 +1255,7 @@ def _compute_rsi(close: pd.Series, period: int = 14) -> float | None:
 
 def _classify_rsi(value: float | None) -> str:
     if value is None:
-        return "neutral"
+        return ""
     if value <= 35:
         return "oversold"
     if value >= 70:

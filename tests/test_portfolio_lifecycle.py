@@ -83,6 +83,49 @@ def test_stop_all_disables_scheduler_revokes_queued_work_and_can_resume(workspac
     assert service.detail(item['id'])['status'] == 'running'
 
 
+@pytest.mark.parametrize('automatic', [False, True])
+def test_queue_rejection_releases_owned_lease_and_allows_immediate_retry(workspace, automatic):
+    _, service, saved, calls = setup_agent(workspace)
+    item = service.create_validation(saved['id'], dict(mode='paper', initialCash=100000))
+    action = 'start' if automatic else 'run'
+    with patch('src.services.simulation_portfolio_service._POOL.submit', side_effect=RuntimeError('executor closed')):
+        with pytest.raises(RuntimeError):
+            service.control(item['id'], action)
+    detail = service.detail(item['id'])
+    assert not detail['busy']
+    assert detail['error'] and '队列' in detail['error']
+    assert detail['status'] == ('running' if automatic else 'ready')
+    assert detail['days'] == [] and calls == []
+    with workspace.db.get_session() as session:
+        row = session.get(SimulationPortfolioRunRecord, item['id'])
+        assert row.lease_token is None and row.lease_until is None
+        assert session.scalar(select(func.count()).select_from(WorkspaceRunRecord)) == 0
+    with patch('src.services.simulation_portfolio_service._POOL.submit') as submit:
+        assert service.enqueue(item['id'], automatic=automatic)
+        submit.assert_called_once()
+    assert service.detail(item['id'])['error'] is None
+
+
+def test_rejected_queue_does_not_release_a_replacement_execution_lease(workspace):
+    _, service, saved, _ = setup_agent(workspace)
+    item = service.create_validation(saved['id'], dict(mode='paper', initialCash=100000))
+
+    def replace_then_reject(*args):
+        with workspace.db.session_scope() as session:
+            row = session.get(SimulationPortfolioRunRecord, item['id'])
+            row.lease_token = 'replacement-token'
+            row.error_message = 'replacement error'
+        raise RuntimeError('old submit failed')
+
+    with patch('src.services.simulation_portfolio_service._POOL.submit', side_effect=replace_then_reject):
+        with pytest.raises(RuntimeError):
+            service.control(item['id'], 'start')
+    with workspace.db.get_session() as session:
+        row = session.get(SimulationPortfolioRunRecord, item['id'])
+        assert row.lease_token == 'replacement-token' and row.lease_until is not None
+        assert row.error_message == 'replacement error'
+
+
 def test_removing_one_validation_does_not_remove_its_siblings(workspace):
     _, service, saved, _ = setup_agent(workspace)
     first = service.create_validation(saved['id'], OPTIONS)
