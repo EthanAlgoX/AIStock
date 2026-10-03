@@ -2,6 +2,7 @@ import { simulationTimeTicks } from "../../utils/simulationTimeAxis";
 import { InlinePortfolioDetails } from "./InlinePortfolioDetails";
 import { signalLabel } from "../../utils/portfolioTiming";
 import { useEffect, useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import {
   CartesianGrid,
   Line,
@@ -55,10 +56,15 @@ export function SimulationOverview({
   const [hidden, setHidden] = useState<number[]>([]);
   const [benchmark, setBenchmark] = useState(false);
   const [windowDays, setWindowDays] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const refreshing = loading || detailLoading;
   useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     const load = async () => {
+      setLoading(true);
       try {
         const result = await simulationOverviewApi.get();
         if (active) {
@@ -72,7 +78,10 @@ export function SimulationOverview({
       } catch (e) {
         if (active) setError(toApiErrorMessage(e));
       } finally {
-        if (active) timer = setTimeout(load, 30000);
+        if (active) {
+          setLoading(false);
+          timer = setTimeout(load, 30000);
+        }
       }
     };
     void load();
@@ -80,7 +89,7 @@ export function SimulationOverview({
       active = false;
       clearTimeout(timer);
     };
-  }, []);
+  }, [refreshKey]);
   const filtered = rows
     .filter(
       (row) =>
@@ -171,6 +180,22 @@ export function SimulationOverview({
               ))}
             </select>
           </label>
+          <button
+            type="button"
+            className="btn-secondary inline-flex items-center gap-2"
+            disabled={refreshing}
+            aria-busy={refreshing}
+            onClick={() => {
+              setLoading(true);
+              setRefreshKey((value) => value + 1);
+            }}
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${refreshing ? "motion-safe:animate-spin" : ""}`}
+              aria-hidden="true"
+            />
+            {t(refreshing ? "刷新中..." : "刷新数据")}
+          </button>
         </div>
       </div>
       {(error || unavailable) && (
@@ -427,6 +452,8 @@ export function SimulationOverview({
                     <InlinePortfolioDetails
                       key={row.id}
                       id={row.id}
+                      refreshKey={refreshKey}
+                      onLoadingChange={setDetailLoading}
                       onManage={onOpen}
                       onResearch={onResearch}
                       onAdopt={onAdopt}

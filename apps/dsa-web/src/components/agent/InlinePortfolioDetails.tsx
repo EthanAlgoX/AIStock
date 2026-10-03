@@ -7,11 +7,15 @@ import { PortfolioDetailWorkspace } from "./PortfolioDetailWorkspace";
 /** Only the expanded account loads full records; collapse cancels its refresh. */
 export function InlinePortfolioDetails({
   id,
+  refreshKey = 0,
+  onLoadingChange,
   onManage,
   onResearch,
   onAdopt,
 }: {
   id: number;
+  refreshKey?: number;
+  onLoadingChange?: (loading: boolean) => void;
   onManage: (id: number) => void;
   onResearch: (id: number) => void;
   onAdopt: (id: number) => void;
@@ -22,10 +26,13 @@ export function InlinePortfolioDetails({
   const [detail, setDetail] = useState<Portfolio | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  const [loading, setLoading] = useState(false);
   useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     const load = async () => {
+      setLoading(true);
+      onLoadingChange?.(true);
       try {
         const data = await portfoliosApi.detail(selected);
         if (active) {
@@ -35,15 +42,20 @@ export function InlinePortfolioDetails({
       } catch (e) {
         if (active) setError(toApiErrorMessage(e));
       } finally {
-        if (active) timer = setTimeout(load, 30000);
+        if (active) {
+          setLoading(false);
+          onLoadingChange?.(false);
+          timer = setTimeout(load, 30000);
+        }
       }
     };
     void load();
     return () => {
       active = false;
       clearTimeout(timer);
+      onLoadingChange?.(false);
     };
-  }, [selected, retry]);
+  }, [selected, retry, refreshKey, onLoadingChange]);
   const current = detail?.id === selected ? detail : null;
   return (
     <div className="min-w-0 pb-6 pt-2">
@@ -51,7 +63,9 @@ export function InlinePortfolioDetails({
         <div role="alert" className="mb-3 text-sm text-danger">
           {error}{" "}
           <button
+            type="button"
             className="btn-secondary"
+            disabled={loading}
             onClick={() => setRetry((x) => x + 1)}
           >
             {t("重试")}

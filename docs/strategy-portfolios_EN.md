@@ -20,6 +20,8 @@ The existing workspace scheduler checks completed exchange sessions with a 20-mi
 
 ## Detail and metric definitions
 
+The simulation overview keeps its 30-second polling and adds **Refresh Data** at the top right. It immediately reads return curves, strategy status, and the expanded account's trades, positions, and other details. The button shows **Refreshing...** and stays disabled until these reads finish. Market and curve filters, the expanded account, and the selected detail panel stay in place. Failed reads keep the previous data and show the cause so users can refresh or retry. Refresh only reads the existing simulation ledger; it does not start strategies, execute trades, or call models. New trades still come from the existing runtime.
+
 ### Fixed evaluation terms and capital checks
 
 Account details now include a `portfolio_daily_v1` evaluation record. A SHA-256 sample fingerprint covers the actual stored daily stock-bar windows, dates, and benchmark closes for every recorded session. A provider revision followed by a fresh run changes this fingerprint. The comparison key also includes market, symbols, initial capital, fees, sell-side tax, slippage, lot size, position limits, risk-free rate, and actual first and last dates. Only fixed-rule records with the same key and a completed historical backtest are marked directly comparable. Historical model replay carries pretrained-knowledge and hindsight risks; other historical or paper records remain visible for context only. The fingerprint checks inputs; it is not tamper-proof and does not remove hindsight bias from a frozen universe.
