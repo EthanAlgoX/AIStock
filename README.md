@@ -22,6 +22,10 @@ Research assistant · Expert roundtable · Stock research · Strategy screening 
 
 AI Stock brings market data, news, calculations, and AI analysis into one website. Ask about a stock, read the evidence and risks, compare different investing perspectives, and test a strategy through paper trading. Research supports **mainland China, Hong Kong, the US, Taiwan, Japan, Korea, the UK, Canada, Australia, India, Germany and France**. Paper simulation supports the first six markets. Data availability and bounded screening coverage depend on the provider and configuration; see the [market guide](docs/international-markets_EN.md).
 
+<a href="docs/assets/readme/website-overview.jpg"><img src="docs/assets/readme/website-overview.jpg" alt="AI Stock website homepage showing market radar, stock research, screening, trade simulation and review" width="1000"></a>
+
+**Website preview.** Market radar, stock research, screening, trade simulation and review are visible at a glance. The backtest, paper simulation and decision records shown use scripted demo data. [Explore without registering](https://myaistock.top/try).
+
 ## Try it online (recommended)
 
 The easiest way to try AI Stock is the hosted website. **Register with an invitation code for a daily platform allowance, or register without one and configure your own LLM API in My account. No local deployment needed.**
