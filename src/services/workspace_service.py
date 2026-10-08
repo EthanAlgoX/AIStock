@@ -2681,6 +2681,8 @@ class WorkspaceSchedulerService:
                 SimulationPortfolioService().due()
                 from src.services.member_service import run_member_maintenance
                 run_member_maintenance()
+                from src.services.runtime_research_plan_service import RuntimeResearchPlanService
+                RuntimeResearchPlanService().tick()
             except Exception:  # noqa: BLE001 - scheduler must survive one database failure.
                 logger.exception("Workspace scheduler tick failed")
 

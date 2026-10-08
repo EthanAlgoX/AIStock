@@ -2,6 +2,7 @@ import { recordTime } from "../utils/portfolioTiming";
 import { localizedStockName } from "../utils/markets";
 import { PortfolioDetailWorkspace } from "../components/agent/PortfolioDetailWorkspace";
 import { SimulationOverview } from "../components/agent/SimulationOverview";
+import { SourceRuntimeWorkspace } from "../components/agent/SourceRuntimeWorkspace";
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import { useUiLiteral } from '../hooks/useUiLiteral';
 import { UiLiteral } from '../components/i18n/UiLiteral';
@@ -77,9 +78,9 @@ export default function TradingWorkspacePage() {
     params.has("run");
   const id = Number(params.get("portfolio")) || null;
   const definitionId = Number(params.get("strategy")) || null;
+  const sourceView = params.get('view') === 'source';
   const [marketFilter, setMarketFilter] = useState("ALL");
   const [definitions, setDefinitions] = useState<StrategyDefinition[]>([]);
-  const definition = definitions.find((d) => d.id === definitionId);
   const [launch, setLaunch] = useState<"run" | "start" | "backtest" | null>(
     null,
   );
@@ -88,6 +89,7 @@ export default function TradingWorkspacePage() {
   const [validationEnd, setValidationEnd] = useState("");
   const [items, setItems] = useState<Portfolio[]>([]);
   const [detail, setDetail] = useState<Portfolio | null>(null);
+  const definition = definitions.find((d) => d.id === (definitionId ?? (detail?.id === id ? detail.definitionId : null)));
   const [universePreview, setUniversePreview] =
     useState<UniversePreview | null>(null);
   const [universeHistory, setUniverseHistory] = useState<"frozen" | "recorded">(
@@ -103,8 +105,9 @@ export default function TradingWorkspacePage() {
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [runtimeUnavailable, setRuntimeUnavailable] = useState(false);
+  const [sourceConfigured, setSourceConfigured] = useState(false);
   const [sending, setSending] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{kind: 'definition' | 'portfolio'; id: number; name: string} | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{kind: 'definition' | 'portfolio'; id: number; name: string; sourceBacktest?: boolean} | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [refresh, setRefresh] = useState(0);
   const stockIndex = useStockIndex(creating, draft.market);
@@ -136,6 +139,7 @@ export default function TradingWorkspacePage() {
         ]);
         if (alive) {
           setRuntimeUnavailable(Boolean(runtime?.configured && !runtime.available));
+          setSourceConfigured(Boolean(runtime?.configured));
           setItems(list);
           setDefinitions(saved);
           setDetail(selected);
@@ -198,7 +202,7 @@ export default function TradingWorkspacePage() {
   };
   const days = detail?.id === id ? detail.days || [] : [];
   const detailDefinition = definitions.find(d => d.id === detail?.definitionId);
-  const historical = !!detailDefinition && (detail?.config.definitionRevision ?? 1) !== (detailDefinition.config.definitionRevision ?? 1);
+  const historical = !detail?.config.externalRuntime && !!detailDefinition && (detail?.config.definitionRevision ?? 1) !== (detailDefinition.config.definitionRevision ?? 1);
   const editBlocked = !!definition && items.some(p => p.definitionId === definition.id &&
     (p.status === 'running' || (p.busy && p.status !== 'paused')));
   const openConfig = (config: RuleConfig, name: string) => {
@@ -295,6 +299,7 @@ export default function TradingWorkspacePage() {
       <PageHeader title={uiLiteral("交易推演")}
         description={uiLiteral("配置策略与股票范围，预览后保存，再选择单次模拟、持续模拟或历史回放。")}
         actions={<>
+          {(sourceConfigured || sourceView) && <Link className="btn-secondary" to="/trading?view=source"><UiLiteral text="来源策略研究" /></Link>}
           {!id && !definitionId && !creating && params.get('view')!=='manage' && <Link className="btn-secondary" to="/trading?view=manage"><UiLiteral text="管理策略" /></Link>}
           {(id || definitionId || creating || params.get("view")==="manage") && <Link className="btn-secondary" to="/trading?view=reports">
             <UiLiteral text={"历史研究提案"} /></Link>}
@@ -324,7 +329,15 @@ export default function TradingWorkspacePage() {
           {error || loadError}
         </p>
       )}
-      {creating ? (
+      {sourceView && !creating ? <>
+        <Link className="btn-secondary mb-5 inline-flex" to="/trading"><UiLiteral text="← 返回模拟收益总览" /></Link>
+        <SourceRuntimeWorkspace
+          strategyId={Number(params.get('sourceStrategy')) || null}
+          versionId={params.get('sourceVersion')}
+          onSelection={(strategy, version) => setParams({ view: 'source', sourceStrategy: String(strategy), ...(version ? {sourceVersion: version} : {}) })}
+          onAdopt={next => { select(next); setRefresh(value => value + 1); }}
+        />
+      </> : creating ? (
         <section>
           <div className="mb-5 flex items-center justify-between">
             <h2 className="text-xl font-semibold"><UiLiteral text={"配置策略方法与范围"} /></h2>
@@ -600,32 +613,40 @@ export default function TradingWorkspacePage() {
                 {items.some(p => p.definitionId === definition.id && p.status === 'stopped') && !items.some(p => p.definitionId === definition.id && (p.busy || ['running', 'paused'].includes(p.status))) &&
                   <p role="status" className="mt-3 text-sm text-secondary-text"><UiLiteral text="已停止运行，不再自动调用模型或更新估值，待执行计划已取消；历史记录和模拟持仓保留。" /></p>}
                 <p className="mt-2 text-sm text-secondary-text">
-                  {definition.config.engine === "agent"
-                    ? uiLiteral(definition.config.skillSnapshot?.name || "Agent 策略 Skill")
-                    : uiLiteral("已下线固定规则")}{" "}
-                  · {definition.config.symbols.join("、")} ·{" "}
-                  {definition.config.market} · {definition.config.decisionBackend === "rules" ? uiLiteral("固定规则") : definition.config.decisionBackend === "jev" ? `JEV · ${definition.config.jevModel || ""}` : "LLM"}
+                  {definition.config.externalRuntime ? <>
+                    {uiLiteral("来源策略")}
+                    {definition.config.symbols.length > 0 && <> · {definition.config.symbols.join("、")}</>}
+                    {" · "}{definition.config.market}
+                  </> : <>
+                    {definition.config.engine === "agent"
+                      ? uiLiteral(definition.config.skillSnapshot?.name || "Agent 策略 Skill")
+                      : uiLiteral("已下线固定规则")}{" "}
+                    · {definition.config.symbols.join("、")} ·{" "}
+                    {definition.config.market} · {definition.config.decisionBackend === "rules" ? uiLiteral("固定规则") : definition.config.decisionBackend === "jev" ? `JEV · ${definition.config.jevModel || ""}` : "LLM"}
+                  </>}
                 </p>
                 <p className="mt-2 text-sm text-secondary-text">
                   <UiLiteral text={definition.config.externalRuntime ? "来源版本只读。历史回测按冻结样本重新计算，模拟账户独立续跑。" : "同一版配置共用最近的模拟账户，回测独立记账。修改配置后，下次运行创建新账户，旧持仓和历史保留。"} /></p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {definition.config.engine === "agent" ? <>
+                  {definition.config.engine === "agent" || definition.config.externalRuntime ? <>
                   {(
                     [
                       ["backtest", "历史回测"],
                       ["run", "运行一次"],
                       ["start", "持续模拟"],
                     ] as const
-                  ).map(([action, label]) => (
+                  ).filter(([action]) => !definition.config.externalRuntime || action !== "run").map(([action, label]) => (
                     <button
                       key={action}
                       className="btn-secondary"
                       disabled={sending}
                       onClick={() => {
-                        const paper = items.find(
+                        const selectedSourcePaper = definition.config.externalRuntime && detail?.id === id &&
+                          detail.definitionId === definition.id && detail.mode === "paper" ? detail : null;
+                        const paper = selectedSourcePaper || items.find(
                           (p) =>
                             p.definitionId === definition.id &&
-                            (p.config.definitionRevision ?? 1) === (definition.config.definitionRevision ?? 1) &&
+                            (definition.config.externalRuntime || (p.config.definitionRevision ?? 1) === (definition.config.definitionRevision ?? 1)) &&
                             p.mode === "paper",
                         );
                         if (action !== "backtest" && paper) {
@@ -695,7 +716,7 @@ export default function TradingWorkspacePage() {
                           {
                             mode: launch === "backtest" ? "backtest" : "paper",
                             initialCash: validationCash,
-                            ...(definition.config.engine === "agent"
+                            ...(definition.config.engine === "agent" && !definition.config.externalRuntime
                               ? {
                                   historyMode: definition.config.decisionBackend === "rules" ? "rules" as const : "ai_replay" as const,
                                   universeHistory,
@@ -713,10 +734,12 @@ export default function TradingWorkspacePage() {
                         });
                         setDetail(created);
                         setLaunch(null);
-                                            await portfoliosApi.control(
-                          created.id,
-                          launch === "start" ? "start" : "run",
-                        );
+                        if (!definition.config.externalRuntime || launch !== "backtest") {
+                          await portfoliosApi.control(
+                            created.id,
+                            launch === "start" ? "start" : "run",
+                          );
+                        }
                       } catch (e) {
                         setError(
                           `${created ? "验证记录已保存，可在记录中重试运行。" : ""}${failure(e)}`,
@@ -735,9 +758,11 @@ export default function TradingWorkspacePage() {
                           : uiLiteral("单次模拟参数")}
                     </h3>
                     <p className="text-sm text-secondary-text">
-                      {launch === "backtest"
-                        ? uiLiteral("选择过去的日期区间（跨度最多两年），按历史日线验证规则。")
-                        : uiLiteral("从今天开始模拟。运行一次只检查最新已收盘行情；持续模拟会自动检查，未收盘时等待。")}
+                      {uiLiteral(definition.config.externalRuntime
+                        ? "来源版本只读。历史回测按冻结样本重新计算，模拟账户独立续跑。"
+                        : launch === "backtest"
+                          ? "选择过去的日期区间（跨度最多两年），按历史日线验证规则。"
+                          : "从今天开始模拟。运行一次只检查最新已收盘行情；持续模拟会自动检查，未收盘时等待。")}
                     </p>
                     <div className="grid gap-4 sm:grid-cols-3">
                       <label>
@@ -842,20 +867,20 @@ export default function TradingWorkspacePage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button className="btn-secondary" disabled={sending || !(detail.busy || ['running', 'paused'].includes(detail.status))} onClick={() => void control('stop')}>
+                    {(!detail.config.externalRuntime || detail.mode === "paper") && <button className="btn-secondary" disabled={sending || !(detail.busy || ['running', 'paused'].includes(detail.status))} onClick={() => void control('stop')}>
                       <UiLiteral text="停止运行" />
+                    </button>}
+                    <button className="btn-secondary text-danger" disabled={sending} onClick={() => { setDeleteError(''); setDeleteTarget({kind:'portfolio', id:detail.id, name:detail.name, sourceBacktest:Boolean(detail.config.externalRuntime && detail.mode === 'backtest')}); }}>
+                      <UiLiteral text={detail.config.externalRuntime && detail.mode === 'backtest' ? '隐藏验证记录' : '删除验证记录'} />
                     </button>
-                    <button className="btn-secondary text-danger" disabled={sending} onClick={() => { setDeleteError(''); setDeleteTarget({kind:'portfolio', id:detail.id, name:detail.name}); }}>
-                      <UiLiteral text="删除验证记录" />
-                    </button>
-                    {detail.config.engine === "agent" && <button
+                    {detail.config.engine === "agent" && !detail.config.externalRuntime && <button
                       className="btn-secondary"
                       disabled={sending || detail.busy || historical}
                       onClick={() => void control("run")}
                     >
                       {detail.mode === "backtest" ? uiLiteral("运行回测") : uiLiteral("继续运行一次")}
                     </button>}
-                    {detail.config.engine === "agent" && detail.mode === "paper" && (
+                    {(detail.config.engine === "agent" || detail.config.externalRuntime) && detail.mode === "paper" && (
                       <button
                         className="btn-primary"
                         disabled={sending || historical}
@@ -929,11 +954,13 @@ export default function TradingWorkspacePage() {
       )}
       <ConfirmDialog
         isOpen={deleteTarget !== null}
-        title={`${uiLiteral(deleteTarget?.kind === 'definition' ? '删除策略' : '删除验证记录')} · ${deleteTarget?.name || ''}`}
-        message={deleteError || uiLiteral(deleteTarget?.kind === 'definition'
-          ? '删除后将停止该策略的所有回测和模拟，并从交易推演中移除策略及验证记录。历史账本保留供审计，界面无法恢复；已发出的模型请求可能仍会计费，但不会继续记账。'
-          : '删除后将停止并移除此验证记录，不影响同策略的其他验证。历史账本保留供审计，界面无法恢复；已发出的模型请求可能仍会计费，但不会继续记账。')}
-        confirmText={uiLiteral(sending ? '处理中…' : '停止并删除')}
+        title={`${uiLiteral(deleteTarget?.sourceBacktest ? '隐藏验证记录' : deleteTarget?.kind === 'definition' ? '删除策略' : '删除验证记录')} · ${deleteTarget?.name || ''}`}
+        message={deleteError || uiLiteral(deleteTarget?.sourceBacktest
+          ? '仅隐藏此验证记录，来源任务继续执行。原始结果和历史账本保留供审计，界面无法恢复。'
+          : deleteTarget?.kind === 'definition'
+            ? '删除后将停止该策略的所有回测和模拟，并从交易推演中移除策略及验证记录。历史账本保留供审计，界面无法恢复；已发出的模型请求可能仍会计费，但不会继续记账。'
+            : '删除后将停止并移除此验证记录，不影响同策略的其他验证。历史账本保留供审计，界面无法恢复；已发出的模型请求可能仍会计费，但不会继续记账。')}
+        confirmText={uiLiteral(sending ? '处理中…' : deleteTarget?.sourceBacktest ? '隐藏验证记录' : '停止并删除')}
         confirmDisabled={sending} cancelDisabled={sending} isDanger
         onConfirm={() => void remove()} onCancel={() => { setDeleteTarget(null); setDeleteError(''); }}
       />

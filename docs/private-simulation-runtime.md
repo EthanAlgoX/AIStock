@@ -20,17 +20,17 @@
 | --- | --- |
 | `GET /health` | 健康检查 |
 | `GET /overview` | 仅模拟账户的紧凑收益曲线与完整账本指标 |
-| `GET/POST /portfolios/{id}/evolution` | 来源规则研究历史 / 有界参数实验 |
+| `GET/POST /portfolios/{id}/evolution` | 旧来源规则研究历史 / 有界参数实验；QuantEvo v1 保留读取，写入使用版本化来源入口 |
 | `GET /definitions`、`GET /portfolios` | `{items: [...]}`，每项 ID 为负整数 |
 | `GET /portfolios/{id}` | 现有组合详情格式，`config.externalRuntime=true` |
 | `POST /definitions/{id}/validations` | 冻结参数回测或取得该版模拟账户 |
-| `POST /portfolios/{id}/control` | `action=run/start/pause/stop` |
+| `POST /portfolios/{id}/control` | `action=run/start/pause/stop`；QuantEvo v1 明确拒绝单步 `run`，仅模拟账户支持显式启停 |
 | `POST /definitions/{id}/stop` | 停止该策略 |
-| `DELETE /definitions/{id}`、`DELETE /portfolios/{id}` | 停止并隐藏私有对象，保留来源审计 |
+| `DELETE /definitions/{id}`、`DELETE /portfolios/{id}` | 停止模拟并隐藏对象，保留来源审计；QuantEvo 冻结回测仅隐藏，已接受的任务继续执行 |
 
 主站另提供 `GET /api/v1/simulation/portfolios/runtime-status`。现有正整数 API 合同保持不变。HTTP 请求限时，不透传私有服务可能包含路径或密钥的错误正文。
 
-部署前分别备份主应用数据库与私有运行目录。回滚先停止私有运行服务，再清空环境 URL 并恢复主站旧镜像；私有账本不删除，避免后台继续运行或丢失观察记录。
+部署前分别备份主应用数据库与私有运行目录。主站回滚先暂停新增来源研究计划，再清空环境 URL 并恢复兼容的主站镜像；独立来源模拟服务保持原状态，不能因主站切换隐式停止或恢复账户。若需要回滚来源自身，另行确认写入进程切换及账户状态，保留新账本、对象映射与回执，不能用旧备份覆盖新写入。
 
 ## English
 
@@ -44,9 +44,11 @@ Forward JEV strategies may call the configured API. Historical model replay must
 
 The table above specifies the adapter contract. `config.externalRuntime=true` marks private portfolio responses. The main application exposes `GET /api/v1/simulation/portfolios/runtime-status`; native endpoints remain compatible. Requests are bounded and provider error bodies are not forwarded. On private-runtime failure, native strategies remain visible and the UI displays an availability warning.
 
-Back up both runtimes before deployment. To roll back, stop the private service, clear the URL and restore the prior main image. Keep private ledgers for audit and recovery.
+Back up both runtimes before deployment. For a main-site rollback, pause new source research plans, clear the URL and restore a compatible main image without implicitly stopping or resuming independently managed source accounts. A source-service rollback requires a separate writer and account-state transition; preserve new ledgers, ID mappings and receipts. QuantEvo v1 rejects single-step `run` and directs new research writes to the versioned source endpoints; the legacy evolution endpoint remains read-only.
 
 收益总览与进化语义 / Overview and evolution: see [trading-overview.md](trading-overview.md).
+
+QuantEvo 版本化来源工作区、候选模拟、有限次数规则研究与上线边界 / Versioned source workspace, candidate paper accounts, bounded rules research and rollout limits: see [quantevo-integration.md](quantevo-integration.md). 新桥接的专用策略族暂为只读，旧负整数 ID 切换须显式核对；文件正文分页证据尚未由新桥接适配。Specialized families are currently read-only; legacy ID cutover requires review, and the new bridge does not yet implement file-body audit pagination.
 
 
 ### Timing metadata / 时间口径

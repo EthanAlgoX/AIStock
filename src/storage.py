@@ -1541,6 +1541,62 @@ class WorkspaceScheduleRecord(Base):
     __table_args__ = (Index('ix_workspace_schedule_due', 'enabled', 'next_run_at'),)
 
 
+class RuntimeResearchPlanRecord(Base):
+    """Owner-only interval plan for one frozen, external rules evaluation."""
+
+    __tablename__ = 'simulation_runtime_research_plans'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    request_namespace = Column(String(36), nullable=False, unique=True)
+    source_strategy_id = Column(Integer, nullable=False)
+    source_version_id = Column(String(80), nullable=False)
+    source_backtest_id = Column(String(80), nullable=False)
+    source_fingerprint = Column(String(64), nullable=False)
+    capability_fingerprint = Column(String(64), nullable=False)
+    interval_seconds = Column(Integer, nullable=False)
+    budget = Column(Integer, nullable=False)
+    max_runs = Column(Integer, nullable=False)
+    runs_reserved = Column(Integer, nullable=False, default=0)
+    status = Column(String(16), nullable=False, default='active', index=True)
+    next_run_at = Column(DateTime, nullable=False, index=True)
+    last_error = Column(Text)
+    claim_token = Column(String(36))
+    claimed_at = Column(DateTime)
+    last_checked_at = Column(DateTime, index=True)
+    created_at = Column(DateTime, nullable=False, default=utc_naive_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_naive_now)
+
+    __table_args__ = (
+        CheckConstraint('source_strategy_id < 0'),
+        CheckConstraint('interval_seconds >= 3600'),
+        CheckConstraint('budget >= 1 AND budget <= 16'),
+        CheckConstraint('max_runs >= 1 AND max_runs <= 20'),
+        CheckConstraint('runs_reserved >= 0 AND runs_reserved <= max_runs'),
+        CheckConstraint("status IN ('active', 'paused', 'completed', 'failed')"),
+    )
+
+
+class RuntimeResearchOperationRecord(Base):
+    """Durable request reservation, committed before contacting the source."""
+
+    __tablename__ = 'simulation_runtime_research_operations'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    plan_id = Column(Integer, ForeignKey('simulation_runtime_research_plans.id'), nullable=False, index=True)
+    ordinal = Column(Integer, nullable=False)
+    request_id = Column(String(36), nullable=False, unique=True)
+    status = Column(String(16), nullable=False, default='RESERVED')
+    receipt_json = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=utc_naive_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_naive_now)
+
+    __table_args__ = (
+        UniqueConstraint('plan_id', 'ordinal', name='uix_runtime_research_plan_ordinal'),
+        CheckConstraint('ordinal >= 1 AND ordinal <= 20'),
+        CheckConstraint("status IN ('RESERVED', 'PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'UNKNOWN')"),
+    )
+
+
 class WorkspaceMarketDashboardRecord(Base):
     """Workspace-level presentation preferences for one market dashboard."""
 

@@ -1,6 +1,7 @@
 """Workspace-scoped executable rule portfolios; never accepts executable code."""
 
-from typing import Literal
+from typing import Annotated, Literal
+from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, ConfigDict
 from src.schemas.jev_task import JevTaskConfig
@@ -8,8 +9,11 @@ from src.services.simulation_portfolio_service import SimulationPortfolioService
 from src.services.simulation_portfolio_engine import BENCHMARKS, GRID_RULE_VERSION
 
 from src.services.simulation_runtime_service import SimulationRuntimeService
+from api.v1.schemas.simulation_runtime import SourceId
+from api.v1.endpoints.runtime_research_plans import router as research_plans_router
 
 router = APIRouter()
+router.include_router(research_plans_router)
 
 
 class StrategyConfig(BaseModel):
@@ -190,6 +194,69 @@ def overview():
 @router.get("/runtime-status")
 def runtime_status():
     return SimulationRuntimeService().status()
+
+
+class SourceWrite(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    requestId: UUID
+
+
+class SourceResearchWrite(SourceWrite):
+    sourceBacktestId: SourceId
+    budget: int = Field(default=12, ge=1, le=16, strict=True)
+
+
+@router.get('/runtime/capabilities')
+def source_capabilities():
+    return SimulationRuntimeService().capabilities()
+
+
+@router.get('/runtime/strategies')
+def source_strategies():
+    return SimulationRuntimeService().source_request('GET', '/strategies')
+
+
+@router.get('/runtime/strategies/{strategy_id}/{record_kind}')
+def source_strategy_records(strategy_id: Annotated[int, Field(lt=0)],
+                            record_kind: Literal['versions', 'backtests', 'research']):
+    return SimulationRuntimeService().source_request('GET', f'/strategies/{strategy_id}/{record_kind}')
+
+
+@router.get('/runtime/tasks')
+def source_tasks():
+    return SimulationRuntimeService().source_request('GET', '/tasks')
+
+
+@router.get('/runtime/tasks/{task_id}')
+def source_task(task_id: SourceId):
+    return SimulationRuntimeService().source_request('GET', f'/tasks/{task_id}')
+
+
+@router.post('/runtime/tasks/{task_id}/cancel')
+def source_task_cancel(task_id: SourceId):
+    return SimulationRuntimeService().source_request('POST', f'/tasks/{task_id}/cancel')
+
+
+@router.get('/runtime/versions/{version_id}/candidate-preview')
+def source_candidate_preview(version_id: SourceId):
+    return SimulationRuntimeService().source_request('GET', f'/versions/{version_id}/candidate-preview')
+
+
+@router.post('/runtime/versions/{version_id}/candidate-paper', status_code=202)
+def source_candidate_paper(version_id: SourceId, body: SourceWrite):
+    return SimulationRuntimeService().source_request('POST', f'/versions/{version_id}/candidate-paper',
+                                                     body.model_dump(mode='json'))
+
+
+@router.post('/runtime/versions/{version_id}/research', status_code=202)
+def source_research_create(version_id: SourceId, body: SourceResearchWrite):
+    return SimulationRuntimeService().source_request('POST', f'/versions/{version_id}/research',
+                                                     body.model_dump(mode='json'))
+
+
+@router.get('/runtime/requests/{request_id}')
+def source_request_receipt(request_id: UUID):
+    return SimulationRuntimeService().source_request('GET', f'/requests/{request_id}')
 
 
 @router.get('/runtime-records')

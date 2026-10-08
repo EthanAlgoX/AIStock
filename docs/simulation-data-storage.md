@@ -70,7 +70,7 @@ SQLite 新增 `simulation_market_versions` 和 `simulation_portfolio_lineage`，
 
 原生详情追加 `marketVersion`、`executionSessions`，逐日输出追加 `executionSessionId`、`timeContract`。分页接口 `records?kind=sessions|executions` 可读取完整轮次和关联证据（含已隐藏账户）；旧响应字段继续兼容，默认累计收益仍按账户计算，不因新轮次清零。
 
-私有适配器使用 `simulation_runtime_sessions.py` 在同一个 SQLite 中建立 `runtime_market_versions`、`runtime_execution_sessions`、`runtime_session_event_links`、`runtime_execution_batches` 和 `runtime_session_call_links`。市场由适配器明确注册，未确认市场保持空值；SQLite 触发器将启停和事件关联与原账本原子提交。行情/模型返回后，写入前必须在事务内验证轮次仍有效，错误处理也不能覆盖新轮状态。适配器负责把暂停与停止区分开。
+私有适配器使用 `simulation_runtime_sessions.py` 在同一个 SQLite 中建立 `runtime_market_versions`、`runtime_execution_sessions`、`runtime_session_event_links`、`runtime_execution_batches` 和 `runtime_session_call_links`。市场由适配器明确注册，未确认市场保持空值；SQLite 触发器将启停和事件关联与原账本原子提交。安装时已运行或已暂停且没有轮次的旧账户均接入未知起点的同一轮次；暂停状态仍拒绝执行，恢复后沿用该轮次。行情/模型返回后，写入前必须在事务内验证轮次仍有效，错误处理也不能覆盖新轮状态。适配器负责把暂停与停止区分开。
 
 迁移：先一致性备份、停止写入，再创建新增表，按旧账户创建顺序登记市场版本，对当前模拟账户接入未知开始时间的轮次。旧交易和历史 API 调用不按时间猜测轮次；继续保留原策略、账户和逐日关联。新增表不删除或改写原账本。回滚私有适配器时须同时停用新增运行轮次触发器，避免旧执行器绕过轮次校验；保留新增表供审计，不用旧备份覆盖发布后的成交。
 
@@ -78,7 +78,7 @@ SQLite 新增 `simulation_market_versions` 和 `simulation_portfolio_lineage`，
 
 Additive SQLite tables separate market-specific immutable strategy revisions, continuous accounts, execution periods and individual scheduler batches. Explicit stop/start creates a new period linked to its predecessor without resetting cash or positions. Pause/resume and process restarts retain the period; completed backtests close theirs. Newly captured model calls, days and orders link to the period, while fills and equity remain reachable through their existing order/day foreign keys. A stale batch cannot commit after its period ends.
 
-Legacy running accounts are adopted with an unknown start (`started_at=NULL`) and a separate observed-at timestamp. Historical trades are not assigned fabricated periods. Native daily execution precision remains a trading day; old midnight fill timestamps are compatibility values, not exact execution times. Additive detail fields and paginated sessions/executions endpoints expose these distinctions. Private adapters use the same SQLite-first contract with lifecycle/event triggers and guarded writes. Back up and stop writers before migration; retain evidence tables and disable private lifecycle triggers when rolling back to an executor without period guards.
+Legacy running or paused accounts are adopted with an unknown start (`started_at=NULL`) and a separate observed-at timestamp. Paused accounts cannot execute; resuming retains the adopted period. Historical trades are not assigned fabricated periods. Native daily execution precision remains a trading day; old midnight fill timestamps are compatibility values, not exact execution times. Additive detail fields and paginated sessions/executions endpoints expose these distinctions. Private adapters use the same SQLite-first contract with lifecycle/event triggers and guarded writes. Back up and stop writers before migration; retain evidence tables and disable private lifecycle triggers when rolling back to an executor without period guards.
 
 停止对应实例写入并完成备份后，原生迁移命令为 `python scripts/migrate_simulation_sessions.py /path/to/stock_analysis.db`；成员工作区应对各自 `workspace.db` 单独执行。命令可重复执行，并将迁移计数写入 SQLite 审计表。私有适配器在启动初始化时调用 `install` 并注册可信市场映射；上次进程遗留的未结束检查批次标记为 `interrupted`，账户轮次仍保持连续。
 

@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -155,6 +156,7 @@ it.each([
       target: { value: "200000" },
     });
     if (mode === "backtest") {
+      expect(screen.getByText('选择过去的日期区间（跨度最多两年），按历史日线验证规则。')).toBeVisible();
       fireEvent.change(screen.getByLabelText("回测开始"), {
         target: { value: "2025-02-10" },
       });
@@ -477,8 +479,29 @@ it('stops and removes an independent validation', async () => {
   await waitFor(() => expect(api.control).toHaveBeenCalledWith(1, 'stop'));
   await waitFor(() => expect(screen.getByRole('button', {name:'删除验证记录'})).toBeEnabled());
   fireEvent.click(screen.getByRole('button', {name:'删除验证记录'}));
+  expect(screen.getByRole('dialog')).toHaveTextContent('删除后将停止并移除此验证记录');
+  expect(screen.getByRole('dialog')).toHaveTextContent('已发出的模型请求可能仍会计费，但不会继续记账。');
+  expect(screen.queryByRole('button', {name:'隐藏验证记录'})).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', {name:'停止并删除'}));
   await waitFor(() => expect(api.deletePortfolio).toHaveBeenCalledWith(1));
+});
+
+it('hides a source backtest with explicit continuing-task audit terms instead of stopping it', async () => {
+  const sourceBacktest = {...detail,id:-44,name:'Frozen source result',mode:'backtest',status:'running',config:{...config,engine:undefined,externalRuntime:true}};
+  api.detail.mockResolvedValue(sourceBacktest);
+  api.deletePortfolio.mockResolvedValue({deleted:true});
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-44']}><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button', {name:'隐藏验证记录'}));
+  const dialog = screen.getByRole('dialog');
+  expect(within(dialog).getByRole('heading', {name:'隐藏验证记录 · Frozen source result'})).toBeVisible();
+  expect(dialog).toHaveTextContent('仅隐藏此验证记录，来源任务继续执行。原始结果和历史账本保留供审计，界面无法恢复。');
+  expect(dialog).not.toHaveTextContent('已发出的模型请求');
+  expect(dialog).not.toHaveTextContent('不会继续记账');
+  expect(within(dialog).queryByRole('button', {name:'停止并删除'})).not.toBeInTheDocument();
+  expect(api.deletePortfolio).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole('button', {name:'隐藏验证记录'}));
+  await waitFor(() => expect(api.deletePortfolio).toHaveBeenCalledWith(-44));
+  expect(api.control).not.toHaveBeenCalled();
 });
 
 it('edits all paused strategy settings in place and requires a fresh preview', async () => {
@@ -563,18 +586,121 @@ it('requires an explicit crypto market change before previewing typed pairs', as
 });
 
 it('keeps private versions out of the native editor and uses frozen replay terms', async () => {
-  const external = {...config, externalRuntime:true, sourceStartDate:'2026-08-01', sourceEndDate:'2026-08-31', initialCash:10000};
+  const external = {...config, engine:undefined, externalRuntime:true, sourceStartDate:'2026-08-01', sourceEndDate:'2026-08-31', initialCash:10000};
   api.definitions.mockResolvedValue([{id:-1,name:'Private fixture',config:external}]);
   api.list.mockResolvedValue([]);
   render(<MemoryRouter initialEntries={['/trading?strategy=-1']}><TradingWorkspacePage /></MemoryRouter>);
   await screen.findByRole('heading',{name:'Private fixture'});
   expect(screen.queryByRole('button',{name:'修改配置'})).not.toBeInTheDocument();
   expect(screen.queryByRole('button',{name:'复制策略'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'运行一次'})).not.toBeInTheDocument();
+  expect(screen.queryByText('已下线固定规则')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button',{name:'历史回测'}));
   expect(screen.getByDisplayValue('2026-08-01')).toHaveAttribute('readonly');
   expect(screen.getByDisplayValue('2026-08-31')).toHaveAttribute('readonly');
   expect(screen.getByDisplayValue('10000')).toHaveAttribute('readonly');
   expect(screen.queryByText(/每次最多处理20个交易日/)).not.toBeInTheDocument();
+  expect(screen.queryByText('选择过去的日期区间（跨度最多两年），按历史日线验证规则。')).not.toBeInTheDocument();
+  expect(screen.getAllByText('来源版本只读。历史回测按冻结样本重新计算，模拟账户独立续跑。')).toHaveLength(2);
+});
+
+it.each([
+  [[], '来源策略 · CRYPTO'],
+  [['BTCUSDT'], '来源策略 · BTCUSDT · CRYPTO'],
+])('shows only supplied source symbols and market for symbols=%j', async (symbols, summary) => {
+  const external = { ...config, engine: undefined, externalRuntime: true, decisionBackend: undefined, market: 'CRYPTO', symbols };
+  api.definitions.mockResolvedValue([{ id: -22, name: 'Source fixture', config: external }]);
+  api.list.mockResolvedValue([]);
+  render(<MemoryRouter initialEntries={['/trading?strategy=-22']}><TradingWorkspacePage /></MemoryRouter>);
+  const description = await screen.findByText(summary);
+  expect(description).toBeVisible();
+  expect(description).not.toHaveTextContent('LLM');
+  expect(description).not.toHaveTextContent(/·\s*·/);
+});
+
+it.each([
+  [undefined, 'running', '暂停交易', 'pause'],
+  [undefined, 'paused', '持续运行', 'start'],
+  ['agent', 'running', '暂停交易', 'pause'],
+  ['agent', 'paused', '持续运行', 'start'],
+])('controls source paper accounts with engine=%s and status=%s', async (engine, status, label, action) => {
+  const external = { ...config, engine, externalRuntime: true, definitionRevision: 1 };
+  const sourceAccount = { ...detail, id: -33, definitionId: -22, status, config: external };
+  api.definitions.mockResolvedValue([{ id: -22, name: 'Source strategy', config: { ...external, definitionRevision: 2 } }]);
+  api.list.mockResolvedValue([sourceAccount]);
+  api.detail.mockResolvedValue(sourceAccount);
+  api.control.mockResolvedValue({ ...sourceAccount, status: action === 'pause' ? 'paused' : 'running' });
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-33']}><TradingWorkspacePage /></MemoryRouter>);
+  const button = await screen.findByRole('button', { name: label });
+  expect(button).toBeEnabled();
+  expect(screen.queryByRole('button', { name: '继续运行一次', hidden: true })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '运行一次', hidden: true })).not.toBeInTheDocument();
+  expect(screen.queryByText('这是旧版配置的历史记录，请从策略页运行最新配置。')).not.toBeInTheDocument();
+  fireEvent.click(button);
+  await waitFor(() => expect(api.control).toHaveBeenCalledWith(-33, action));
+  expect(api.control).not.toHaveBeenCalledWith(-33, 'run');
+});
+
+it('resumes an existing source account from configuration without claiming a single-run operation', async () => {
+  const external = { ...config, engine: undefined, externalRuntime: true, definitionRevision: 1 };
+  const sourceAccount = { ...detail, id: -33, definitionId: -22, config: external };
+  api.definitions.mockResolvedValue([{ id: -22, name: 'Source strategy', config: { ...external, definitionRevision: 2 } }]);
+  api.list.mockResolvedValue([sourceAccount]);
+  api.detail.mockResolvedValue(sourceAccount);
+  api.control.mockResolvedValue({ ...sourceAccount, status: 'running' });
+  render(<MemoryRouter initialEntries={['/trading?strategy=-22']}><TradingWorkspacePage /></MemoryRouter>);
+  expect(await screen.findByRole('button', { name: '历史回测' })).toBeEnabled();
+  expect(screen.queryByRole('button', { name: '运行一次' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: '持续模拟' }));
+  await waitFor(() => expect(api.control).toHaveBeenCalledWith(-33, 'start'));
+  expect(api.createValidation).not.toHaveBeenCalled();
+});
+
+it('resumes the selected source account before its summary appears in the account list', async () => {
+  const external = { ...config, engine: undefined, externalRuntime: true };
+  const sourceAccount = { ...detail, id: -33, definitionId: -22, config: external };
+  api.definitions.mockResolvedValue([{ id: -22, name: 'Source strategy', config: external }]);
+  api.list.mockResolvedValue([]);
+  api.detail.mockResolvedValue(sourceAccount);
+  api.control.mockResolvedValue({ ...sourceAccount, status: 'running' });
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-33']}><TradingWorkspacePage /></MemoryRouter>);
+  await screen.findByText(/策略配置与验证账户/);
+  fireEvent.click(screen.getByRole('button', { name: '持续模拟', hidden: true }));
+  await waitFor(() => expect(api.control).toHaveBeenCalledWith(-33, 'start'));
+  expect(api.createValidation).not.toHaveBeenCalled();
+});
+
+it.each([undefined, 'agent'])('recomputes source backtests with engine=%s through frozen validation instead of account control', async (engine) => {
+  const external = { ...config, engine, externalRuntime: true, sourceStartDate: '2026-08-01', sourceEndDate: '2026-08-31' };
+  const sourceBacktest = { ...detail, id: -44, definitionId: -22, mode: 'backtest', status: 'completed', config: external };
+  api.definitions.mockResolvedValue([{ id: -22, name: 'Source strategy', config: external }]);
+  api.list.mockResolvedValue([sourceBacktest]);
+  api.detail.mockResolvedValue(sourceBacktest);
+  api.createValidation.mockResolvedValue({ ...sourceBacktest, id: -45 });
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-44']}><TradingWorkspacePage /></MemoryRouter>);
+  await screen.findByText(/策略配置与验证账户/);
+  expect(screen.queryByRole('button', { name: '运行回测', hidden: true })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '持续运行', hidden: true })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: '历史回测', hidden: true }));
+  expect(await screen.findByDisplayValue('2026-08-01')).toHaveAttribute('readonly');
+  expect(screen.getByDisplayValue('2026-08-31')).toHaveAttribute('readonly');
+  fireEvent.click(screen.getByRole('button', { name: '确认并开始验证' }));
+  await waitFor(() => expect(api.createValidation).toHaveBeenCalledWith(-22, {
+    mode: 'backtest', initialCash: 100000, startDate: '2026-08-01', endDate: '2026-08-31',
+  }));
+  await waitFor(() => expect(api.detail).toHaveBeenCalledWith(-45));
+  expect(api.control).not.toHaveBeenCalled();
+});
+
+it('resolves the owning private definition from a newly adopted account before the list includes it', async () => {
+  const external = { ...config, externalRuntime: true, sourceStartDate: '2026-08-01', sourceEndDate: '2026-08-31' };
+  api.definitions.mockResolvedValue([{ id: -22, name: 'Candidate source definition', config: external }]);
+  api.list.mockResolvedValue([]);
+  api.detail.mockResolvedValue({ ...detail, id: -33, definitionId: -22, config: external });
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-33']}><TradingWorkspacePage /></MemoryRouter>);
+  expect(await screen.findByText(/策略配置与验证账户/)).toHaveTextContent('Candidate source definition');
+  expect(screen.getByRole('button', { name: '历史回测', hidden: true })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '修改配置', hidden: true })).toBeNull();
 });
 
 it('never labels a live JEV account as retrospective model replay', async () => {

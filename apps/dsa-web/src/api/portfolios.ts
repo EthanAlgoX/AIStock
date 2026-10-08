@@ -383,6 +383,77 @@ export type SourceEvolution = {
   candidateVersion?: string; evaluation: Record<string, unknown>; holdout: Record<string, unknown>;
   experiments: {ordinal: number; change_json: unknown; validation_metrics_json: {sharpe?: number; total_return?: number; max_drawdown?: number}; decision: string; reason: string}[];
 };
+
+export type SourceEligibility = {
+  eligible: boolean | null; available: boolean; reason: string;
+  policyId: string | null; evidence: Record<string, unknown>;
+};
+export type SourceCapabilities = {
+  engine: string; contractVersion: string; markets: string[];
+  operations: { read: boolean; candidatePaper: boolean; research: boolean; cancelTasks: boolean };
+  families: { kind: string; backtest: boolean; researchModes: string[]; candidatePaper: boolean; reason?: string }[];
+  policy: { id: string };
+  periodicResearch: { supported: boolean; scheduler: 'main_app'; minIntervalSeconds: number; maxCycles: number; maxBudgetPerCycle: number; researchModes: string[]; modelCalls: false };
+  asyncRequests: boolean; idempotentRequests: boolean;
+};
+export type SourceRuntimeStatus = { configured: boolean; available: boolean; capabilities: SourceCapabilities | null; legacy?: boolean };
+export type SourceStrategy = {
+  id: number; sourceStrategyId: string; name: string; market: string; kind: string;
+  currentVersionId: string | null; versionCount: number; paperAccountCount: number;
+};
+export type SourceVersion = {
+  id: string; definitionId: number; strategyId: number; number: number; status: string;
+  parentId: string | null; current: boolean; iterationEligibility: SourceEligibility;
+  paperEligibility: SourceEligibility; researchSupported: boolean; executionSupported: boolean;
+};
+export type SourceBacktest = {
+  id: string; versionId: string; createdAt: string; start: string | null; end: string | null;
+  initialCash: number | null; feeBps: number | null; slippageBps: number | null;
+  metrics: Record<string, unknown>; complete: boolean | null; cohortKey: string | null; researchSupported: boolean;
+};
+export type SourceResearch = {
+  id: string; versionId: string; candidateVersionId: string | null; status: string;
+  completed: number; budget: number; createdAt: string; policyId: string | null;
+  baselineMetrics: Record<string, unknown> | null; candidateMetrics: Record<string, unknown> | null;
+  experiments: { ordinal: number; decision: string; reason: string; metrics: Record<string, unknown> }[];
+};
+export type SourceTask = {
+  id: string; type: string; status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+  progress: number | null; message: string; error: string | null; resultId: string | null;
+  createdAt: string; finishedAt: string | null;
+};
+export type SourceCandidatePreview = {
+  versionId: string; strategyId: number; iterationEligibility: SourceEligibility; paperEligibility: SourceEligibility;
+  existingPortfolioId: number | null; symbols: string[]; initialCash: number | null; policyId: string | null; reason: string;
+};
+export type SourceOperation = {
+  requestId: string; kind: 'candidate-paper' | 'research';
+  status: SourceTask['status'] | 'UNKNOWN'; taskId: string | null; portfolioId: number | null;
+  versionId: string; resultId: string | null; error: string | null; reused: boolean;
+};
+export type SourceResearchPlan = {
+  id: number; sourceStrategyId: number; sourceVersionId: string; sourceBacktestId: string;
+  intervalSeconds: number; budget: number; maxRuns: number; runsReserved: number;
+  status: 'active' | 'paused' | 'completed' | 'failed'; nextRunAt: string | null; lastError: string | null;
+  operations: Pick<SourceOperation, 'requestId' | 'kind' | 'status' | 'taskId' | 'versionId' | 'resultId' | 'error'>[];
+};
+const sourceRoot = `${root}/runtime`;
+export const sourceRuntimeApi = {
+  capabilities: async () => (await client.get<SourceRuntimeStatus>(`${sourceRoot}/capabilities`)).data,
+  strategies: async () => (await client.get<{ items: SourceStrategy[] }>(`${sourceRoot}/strategies`)).data.items,
+  versions: async (id: number) => (await client.get<{ items: SourceVersion[] }>(`${sourceRoot}/strategies/${id}/versions`)).data.items,
+  backtests: async (id: number) => (await client.get<{ items: SourceBacktest[] }>(`${sourceRoot}/strategies/${id}/backtests`)).data.items,
+  research: async (id: number) => (await client.get<{ items: SourceResearch[] }>(`${sourceRoot}/strategies/${id}/research`)).data.items,
+  tasks: async () => (await client.get<{ items: SourceTask[] }>(`${sourceRoot}/tasks`)).data.items,
+  cancelTask: async (id: string) => (await client.post<SourceTask>(`${sourceRoot}/tasks/${encodeURIComponent(id)}/cancel`)).data,
+  candidatePreview: async (id: string) => (await client.get<SourceCandidatePreview>(`${sourceRoot}/versions/${encodeURIComponent(id)}/candidate-preview`)).data,
+  candidatePaper: async (id: string, requestId: string) => (await client.post<SourceOperation>(`${sourceRoot}/versions/${encodeURIComponent(id)}/candidate-paper`, { requestId })).data,
+  startResearch: async (id: string, payload: { requestId: string; sourceBacktestId: string; budget: number }) => (await client.post<SourceOperation>(`${sourceRoot}/versions/${encodeURIComponent(id)}/research`, payload)).data,
+  request: async (id: string) => (await client.get<SourceOperation>(`${sourceRoot}/requests/${encodeURIComponent(id)}`)).data,
+  plans: async () => (await client.get<{ items: SourceResearchPlan[] }>(`${sourceRoot}/research-plans`)).data.items,
+  createPlan: async (payload: { sourceStrategyId: number; sourceVersionId: string; sourceBacktestId: string; intervalSeconds: number; budget: number; maxRuns: number }) => (await client.post<SourceResearchPlan>(`${sourceRoot}/research-plans`, payload)).data,
+  controlPlan: async (id: number, action: 'pause' | 'resume') => (await client.post<SourceResearchPlan>(`${sourceRoot}/research-plans/${id}/control`, { action })).data,
+};
 export const simulationOverviewApi = {
   get: async () => (await client.get<{items: SimulationCurve[]; runtime: {configured: boolean; available: boolean}}>(`${root}/overview`)).data,
   evolution: async (id: number) => (await client.get<{supported: boolean; items: SourceEvolution[]}>(`${root}/${id}/evolution`)).data,

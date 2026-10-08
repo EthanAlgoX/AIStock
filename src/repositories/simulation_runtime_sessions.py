@@ -74,13 +74,14 @@ def install(c):
         ORDER BY sequence DESC LIMIT 1;
     END;
     ''')
-    # Adopt only current accounts. Their pre-install events are intentionally unassigned.
+    # Paused accounts retain their period; execution still requires RUNNING below.
+    # Pre-install events remain intentionally unassigned and the start is unknown.
     c.execute('''INSERT INTO runtime_execution_sessions(paper_id,version_id,sequence,status,
       observed_at,start_kind,start_state_json)
       SELECT p.id,p.version_id,1,'open',?,'adopted_unknown_start',
         json_object('account',json(p.result_json),'state',json(l.state_json))
       FROM paper_sessions p LEFT JOIN paper_live_states l ON l.session_id=p.id
-      WHERE p.status='RUNNING' AND NOT EXISTS(
+      WHERE p.status IN ('RUNNING','PAUSED') AND NOT EXISTS(
         SELECT 1 FROM runtime_execution_sessions r WHERE r.paper_id=p.id)''', (now(),))
     c.execute("UPDATE runtime_execution_batches SET status='interrupted',ended_at=? WHERE status='running'", (now(),))
     c.commit()
