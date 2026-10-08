@@ -126,7 +126,8 @@ const report: AnalysisReport = {
 describe('MarketIntelligenceSection', () => {
   beforeEach(() => {
     window.localStorage.clear();
-  window.localStorage.setItem('dsa.uiLanguage', 'zh');
+    window.localStorage.setItem('dsa.uiLanguage', 'zh');
+    window.localStorage.setItem('dsa.market-intelligence-market.v1', 'cn');
     Object.values(api).forEach((mock) => mock.mockReset());
     api.getList.mockResolvedValue({
       total: 1,
@@ -360,7 +361,7 @@ describe('MarketIntelligenceSection', () => {
     expect(await screen.findByText(/正在生成 A 股 最新复盘/)).toBeInTheDocument();
   });
 
-  it('switches markets, loads live US data, and does not reuse an unrelated saved summary', async () => {
+  it.each(['switch', 'default', 'invalid preference'])('loads live US data via %s without reusing an unrelated saved summary', async (entry) => {
     api.getMarketSnapshot.mockImplementation((market: 'cn' | 'hk' | 'us') => Promise.resolve(market === 'us' ? {
       version: 1,
       kind: 'market_snapshot',
@@ -388,18 +389,29 @@ describe('MarketIntelligenceSection', () => {
       dataQuality: 'unavailable',
       warnings: [],
     }));
+    if (entry === 'default') window.localStorage.removeItem('dsa.market-intelligence-market.v1');
+    if (entry === 'invalid preference') window.localStorage.setItem('dsa.market-intelligence-market.v1', 'unknown');
     renderPage();
-    await screen.findByText('市场整体走强，成长板块领涨。');
-
-    fireEvent.click(screen.getByRole('button', { name: '美股' }));
+    if (entry === 'switch') {
+      await screen.findByText('市场整体走强，成长板块领涨。');
+      fireEvent.click(screen.getByRole('button', { name: '美股' }));
+    }
 
     expect(await screen.findByText('标普 500')).toBeInTheDocument();
+    expect(api.getMarketSnapshot).toHaveBeenCalledWith('us', false);
+    expect(api.getMarketDashboard).toHaveBeenCalledWith('US');
+    const marketButtons = within(screen.getByRole('group', { name: '选择市场' })).getAllByRole('button');
+    expect(marketButtons.map((button) => button.textContent)).toEqual([
+      '美股', '港股', 'A 股', '加密货币', '台股', '日股', '韩股', '英国股票',
+      '加拿大股票', '澳大利亚股票', '印度股票', '德国股票', '法国股票',
+    ]);
+    expect(screen.getByRole('button', { name: '美股' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('6,501.2')).toBeInTheDocument();
     expect(screen.getByText('实时市场快照')).toBeInTheDocument();
     expect(screen.queryByText('市场整体走强，成长板块领涨。')).not.toBeInTheDocument();
     expect(screen.getByText('通胀 → Fed → 美债实际利率 → 估值；增长 → 企业盈利 → 股价')).toBeInTheDocument();
     expect(screen.getByText('us-macro-review')).toBeInTheDocument();
-    expect(window.localStorage.getItem('dsa.market-intelligence-market.v1')).toBe('us');
+    if (entry === 'switch') expect(window.localStorage.getItem('dsa.market-intelligence-market.v1')).toBe('us');
   });
 
   it('keeps a macro-only payload visible and excludes invalid observations from snapshot coverage', async () => {

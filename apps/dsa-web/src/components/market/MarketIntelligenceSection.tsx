@@ -1,4 +1,4 @@
-import { RESEARCH_MARKETS } from "../../utils/markets";
+import { RESEARCH_MARKETS, type ResearchMarket } from "../../utils/markets";
 import { uiLocale } from '../../utils/uiLanguage';
 import { translateSource } from '../../i18n/localize';
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
@@ -74,7 +74,10 @@ type MarketDashboardLayout = {
 const MARKET_DASHBOARD_KEY = 'dsa.market-intelligence-layout.v3';
 const MARKET_SELECTION_KEY = 'dsa.market-intelligence-market.v1';
 const DEFAULT_WIDGET_IDS: WidgetId[] = ['overview', 'subscriptions', 'macro', 'indices', 'breadth', 'sectors', 'news'];
-const MARKET_OPTIONS = RESEARCH_MARKETS.map(({ id, label }) => ({ id: id.toLowerCase() as MarketSnapshotRegion, label }));
+const MARKET_PRIORITIES: Partial<Record<ResearchMarket, number>> = { US: 0, HK: 1, CN: 2, CRYPTO: 3 };
+const MARKET_OPTIONS = [...RESEARCH_MARKETS]
+  .sort((a, b) => (MARKET_PRIORITIES[a.id] ?? 4) - (MARKET_PRIORITIES[b.id] ?? 4))
+  .map(({ id, label }) => ({ id: id.toLowerCase() as MarketSnapshotRegion, label }));
 const MARKET_TIMEZONES: Record<MarketSnapshotRegion, string> = {
   cn: 'Asia/Shanghai', hk: 'Asia/Hong_Kong', us: 'America/New_York',
   tw: 'Asia/Taipei', jp: 'Asia/Tokyo', kr: 'Asia/Seoul', gb: 'Europe/London',
@@ -203,9 +206,9 @@ const dashboardLayout = (dashboard: MarketDashboard): MarketDashboardLayout => (
 });
 
 const readMarket = (): MarketSnapshotRegion => {
-  if (typeof window === 'undefined') return 'cn';
+  if (typeof window === 'undefined') return 'us';
   const value = window.localStorage.getItem(MARKET_SELECTION_KEY);
-  return MARKET_OPTIONS.some((market) => market.id === value) ? value as MarketSnapshotRegion : 'cn';
+  return MARKET_OPTIONS.some((market) => market.id === value) ? value as MarketSnapshotRegion : 'us';
 };
 
 const toggleItem = <T,>(items: T[], value: T): T[] => (

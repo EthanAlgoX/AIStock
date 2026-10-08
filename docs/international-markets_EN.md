@@ -59,7 +59,9 @@ Before reverting, stop automatic tasks for newly supported markets and back up t
 
 ## Market radar
 
-Radar shares the same 12 market choices as stock research. Switching markets updates index snapshots, news filters and saved dashboards; overseas markets never fall back to A-share indices. UK, Canadian, Australian, Indian, German and French indices use the existing Yahoo Finance provider, with symbols checked against its [world index directory](https://finance.yahoo.com/markets/world-indices/). Missing data remains unavailable rather than being replaced with sample quotes.
+The market selector starts with US, Hong Kong, China A-shares and crypto, followed by Taiwan, Japan, Korea, the UK, Canada, Australia, India, Germany and France in their existing order. First visits and invalid saved market values default to US. Valid manual selections are retained, and crypto shortcuts still open the crypto market directly.
+
+Radar shares the same 12 equity markets and crypto option as stock research. Switching markets updates index snapshots, news filters and saved dashboards; overseas markets never fall back to A-share indices. UK, Canadian, Australian, Indian, German and French indices use the existing Yahoo Finance provider, with symbols checked against its [world index directory](https://finance.yahoo.com/markets/world-indices/). Missing data remains unavailable rather than being replaced with sample quotes.
 
 All 12 markets support one-click reviews with their own indices, news queries and analysis frameworks. Missing breadth, capital flows and sector data are never substituted from another market. New reviews, analysis subscriptions and data-only reports when AI is unavailable follow the selected language. Historical news and reports retain their original language.
 
