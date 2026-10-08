@@ -193,6 +193,9 @@ class SimulationResearchService:
             if row is None:
                 raise LookupError('Research not found')
             if row.candidate_definition_id:
+                candidate = session.get(SimulationPortfolioDefinitionRecord, row.candidate_definition_id)
+                if candidate is None or candidate.deleted_at is not None:
+                    raise LookupError('Candidate strategy was deleted; the research record is retained')
                 return {'id': row.candidate_definition_id}
             result = json.loads(row.result_json)
             source = session.get(SimulationPortfolioRunRecord, row.source_id)

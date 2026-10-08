@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any, Dict, Optional
 
 from sqlalchemy import select
@@ -25,11 +25,14 @@ class SimulationPaperExecutionService:
         self.db = db_manager or DatabaseManager.get_instance()
 
     def create_account(self, name: str, initial_cash: Any, currency: str = "CNY") -> Dict[str, Any]:
+        name = str(name).strip()
+        if not name:
+            raise SimulationPaperExecutionError("paper account name is required")
         cash = self._money(initial_cash)
         if cash <= 0:
             raise SimulationPaperExecutionError("initial_cash must be positive")
         with self.db.session_scope() as session:
-            row = SimulationAccountRecord(name=str(name).strip(), currency=currency, initial_cash=float(cash), cash_balance=float(cash))
+            row = SimulationAccountRecord(name=name, currency=currency, initial_cash=float(cash), cash_balance=float(cash))
             session.add(row); session.flush()
             session.add(SimulationEquitySnapshotRecord(account_id=row.id, cash_balance=float(cash), market_value=0, equity=float(cash)))
             return self._account(row)
@@ -70,7 +73,13 @@ class SimulationPaperExecutionService:
 
     @staticmethod
     def _money(value: Any) -> Decimal:
-        return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        try:
+            cash = Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        except (InvalidOperation, ValueError) as exc:
+            raise SimulationPaperExecutionError("initial_cash must be a finite amount representable in cents") from exc
+        if not cash.is_finite():
+            raise SimulationPaperExecutionError("initial_cash must be a finite amount representable in cents")
+        return cash
 
     @staticmethod
     def _load(value: str) -> Dict[str, Any]:

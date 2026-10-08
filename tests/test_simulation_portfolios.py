@@ -75,6 +75,16 @@ def test_missing_bar_does_not_mutate_account():
     assert state == {"cash": 100000}
 
 
+@pytest.mark.parametrize('benchmark_close', [0, float('nan'), float('inf')])
+def test_invalid_benchmark_does_not_execute_pending_trade_or_mutate_state(benchmark_close):
+    state = {'cash': 100000, 'pending': {'date': '2025-02-10', 'selected': ['AAPL'],
+                                      'reasons': {'AAPL': 'Previous decision'}}}
+    before = json.dumps(state)
+    with pytest.raises(ValueError, match='基准行情无效'):
+        step(config(), state, '2025-02-11', {'AAPL': history('2025-02-11')}, benchmark_close)
+    assert json.dumps(state) == before
+
+
 def test_metrics_sample_limits_zero_and_formulas():
     assert metrics([], 100)["dailyReturn"] is None
     days = [{"equity": 100, "tradedValue": 0} for _ in range(20)]

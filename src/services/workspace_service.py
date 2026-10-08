@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 import threading
@@ -19,7 +20,7 @@ from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
-from sqlalchemy import desc, func, or_, select, update
+from sqlalchemy import and_, case, desc, func, or_, select, update
 
 from src.agent.capability_grants import (
     FINANCIAL_MCP_SERVER_NAME,
@@ -1358,6 +1359,38 @@ class WorkspaceService:
         return {"skills": items}
 
     # Task definitions and runs ----------------------------------------------------
+    @staticmethod
+    def _external_task_condition(task_id):
+        run = WorkspaceRunRecord
+        # Historical JSON can be unreadable to SQLite (including Python's NaN
+        # tokens). Match the existing reader's empty fallback without changing rows.
+        summary = case((func.json_valid(run.result_summary_json) == 1, run.result_summary_json), else_='{}')
+        snapshot = case((func.json_valid(run.task_snapshot_json) == 1, run.task_snapshot_json), else_='{}')
+        # Older standalone workflow receipts predate the explicit marker. Unlike
+        # create_run (including agent_tool triggers), they never created a data snapshot.
+        legacy_workflow = and_(
+            run.trigger_type == "agent_tool", run.status == "completed",
+            run.data_snapshot_id.is_(None),
+            func.json_type(summary, '$.parentRunId').is_not(None),
+            func.json_extract(snapshot, '$.config.strategyVersionId').is_not(None),
+            func.json_array_length(summary, '$.artifactTypes') == 1,
+            or_(
+                and_(run.task_kind == "research",
+                     func.json_extract(summary, '$.artifactTypes[0]') == "ResearchReport"),
+                and_(run.task_kind == "screening",
+                     func.json_extract(summary, '$.artifactTypes[0]') == "CandidateList"),
+            ),
+        )
+        return select(run.id).where(run.task_id == task_id, or_(
+            func.json_extract(summary, '$.externalExecutor') == 1,
+            legacy_workflow,
+        )).exists()
+
+    @classmethod
+    def _require_editable_task(cls, session, task_id):
+        if session.scalar(select(cls._external_task_condition(task_id))):
+            raise WorkspaceError("external_task_read_only", "此任务仅保存原执行器的审计记录，请从对应功能管理运行。", 409)
+
     def create_task(self, payload: dict[str, Any]) -> dict[str, Any]:
         kind = str(payload.get("kind") or "").strip().lower()
         name = str(payload.get("name") or "").strip()
@@ -1393,6 +1426,7 @@ class WorkspaceService:
             row = session.get(WorkspaceTaskRecord, task_id)
             if not row or row.archived_at:
                 raise WorkspaceError("task_not_found", "任务定义不存在。", 404)
+            self._require_editable_task(session, task_id)
             if "capabilities" in payload:
                 row.capability_bindings_json = _dump(self.validate_bindings(payload["capabilities"]))
             for key, attr in (("name", "name"), ("market", "market"), ("objective", "objective")):
@@ -1429,7 +1463,9 @@ class WorkspaceService:
 
     def list_tasks(self, kind: Optional[str] = None, include_archived: bool = False) -> list[dict[str, Any]]:
         with self.db.get_session() as session:
-            statement = select(WorkspaceTaskRecord).order_by(desc(WorkspaceTaskRecord.updated_at))
+            statement = select(WorkspaceTaskRecord).where(
+                ~self._external_task_condition(WorkspaceTaskRecord.id),
+            ).order_by(desc(WorkspaceTaskRecord.updated_at))
             if kind:
                 statement = statement.where(WorkspaceTaskRecord.task_kind == kind)
             if not include_archived:
@@ -1448,6 +1484,7 @@ class WorkspaceService:
             row = session.get(WorkspaceTaskRecord, task_id)
             if not row:
                 raise WorkspaceError("task_not_found", "任务定义不存在。", 404)
+            self._require_editable_task(session, task_id)
             row.archived_at, row.enabled = row.archived_at or utc_naive_now(), False
             schedules = session.execute(select(WorkspaceScheduleRecord).where(WorkspaceScheduleRecord.task_id == task_id)).scalars().all()
             for schedule in schedules:
@@ -1473,6 +1510,8 @@ class WorkspaceService:
                 if active >= 5:
                     raise WorkspaceError('workspace_busy', '已有任务正在运行，请稍后重试。', 429)
         task = self.get_task(task_id)
+        with self.db.get_session() as session:
+            self._require_editable_task(session, task_id)
         if not task["enabled"]:
             raise WorkspaceError("task_disabled", "任务已停用，不能运行。", 409)
         method_snapshot = (task.get("config") or {}).get("methodSnapshot")
@@ -1941,6 +1980,14 @@ class WorkspaceService:
             return
         if str(config.get("executionMode") or "paper").lower() != "paper":
             raise WorkspaceError("trading_mode_forbidden", "当前交易任务只允许模拟盘模式。", 422)
+        try:
+            capital = float(config.get("initialCapital", 1000000))
+            valid_capital = math.isfinite(capital) and capital >= 10000
+        except (TypeError, ValueError, OverflowError):
+            valid_capital = False
+        if not valid_capital:
+            raise WorkspaceError("trading_capital_invalid", "交易提案初始资金必须为至少 10000 的有限数值。",
+                                 422, {"fields": ["initialCapital"]})
         risk = config.get("riskPolicy") if isinstance(config.get("riskPolicy"), dict) else {}
         checks = {
             "maxPositions": (risk.get("maxPositions", 10), 1, 100),
@@ -1951,10 +1998,11 @@ class WorkspaceService:
         for field, (raw, minimum, maximum) in checks.items():
             try:
                 value = float(raw)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 invalid.append(field)
                 continue
-            if value < minimum or value > maximum:
+            if (not math.isfinite(value) or value < minimum or value > maximum
+                    or (field == "maxPositions" and (isinstance(raw, bool) or not value.is_integer()))):
                 invalid.append(field)
         if invalid:
             raise WorkspaceError("risk_policy_invalid", "交易任务风险边界无效。", 422, {"fields": invalid})
@@ -2134,7 +2182,8 @@ class WorkspaceService:
             session.add(WorkspaceRunRecord(
                 id=run_id, task_id=task_id, task_kind=kind, status="completed", trigger_type="agent_tool",
                 task_snapshot_json=_dump(snapshot), completed_at=now,
-                result_summary_json=_dump({"artifactTypes": [result["contract"]], "parentRunId": parent_run_id}),
+                result_summary_json=_dump({"artifactTypes": [result["contract"]], "parentRunId": parent_run_id,
+                                          "externalExecutor": True}),
             ))
             session.flush()
             session.add(WorkspaceArtifactRecord(
@@ -2476,6 +2525,8 @@ class WorkspaceService:
     def create_schedule(self, payload: dict[str, Any]) -> dict[str, Any]:
         task_id = str(payload.get("taskId") or "")
         task = self.get_task(task_id)
+        with self.db.get_session() as session:
+            self._require_editable_task(session, task_id)
         if not task["enabled"]:
             raise WorkspaceError("task_disabled", "任务已停用，不能创建定时计划。", 409)
         mode = str(payload.get("scheduleMode") or "daily")
@@ -2535,6 +2586,7 @@ class WorkspaceService:
             row = session.get(WorkspaceScheduleRecord, schedule_id)
             if not row:
                 raise WorkspaceError("schedule_not_found", "定时计划不存在。", 404)
+            self._require_editable_task(session, row.task_id)
             previous_timing = (row.run_at, row.interval_minutes, row.interval_days, row.timezone, row.enabled)
             if "intervalDays" in payload:
                 row.interval_days = self._validate_interval_days(payload["intervalDays"])
@@ -2674,17 +2726,22 @@ class WorkspaceSchedulerService:
         self._thread.start()
 
     def _loop(self) -> None:
+        from src.services.simulation_portfolio_service import SimulationPortfolioService
+        from src.services.member_service import run_member_maintenance
+        from src.services.runtime_research_plan_service import RuntimeResearchPlanService
+
+        steps = (
+            ('workspace schedules', lambda: self.service_factory().run_due_schedules()),
+            ('native simulation', lambda: SimulationPortfolioService().due()),
+            ('member maintenance', run_member_maintenance),
+            ('source rules research', lambda: RuntimeResearchPlanService().tick()),
+        )
         while not self._stop.wait(self.interval_seconds):
-            try:
-                self.service_factory().run_due_schedules()
-                from src.services.simulation_portfolio_service import SimulationPortfolioService
-                SimulationPortfolioService().due()
-                from src.services.member_service import run_member_maintenance
-                run_member_maintenance()
-                from src.services.runtime_research_plan_service import RuntimeResearchPlanService
-                RuntimeResearchPlanService().tick()
-            except Exception:  # noqa: BLE001 - scheduler must survive one database failure.
-                logger.exception("Workspace scheduler tick failed")
+            for name, run in steps:
+                try:
+                    run()
+                except Exception:  # noqa: BLE001 - one service must not starve the others.
+                    logger.exception("Workspace scheduler step failed: %s", name)
 
     def stop(self) -> None:
         self._stop.set()

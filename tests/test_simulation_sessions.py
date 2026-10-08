@@ -1,6 +1,6 @@
 """Exercise lifecycle changes with real SQLite transactions, not mocked storage."""
 import json
-from datetime import date
+from datetime import date, datetime
 from unittest.mock import patch
 from sqlalchemy import select
 from src.repositories import simulation_session_repo as sessions
@@ -53,6 +53,43 @@ def test_daily_run_model_calls_orders_and_batch_share_period(workspace):
             payload = json.loads(e['payload_json'])
             assert payload['decisionReason']
             assert payload['rejectionReason'] is None
+
+
+def test_paused_agent_marks_existing_holdings_and_manual_once_keeps_pause(workspace):
+    _, service, saved, calls = setup_agent(workspace)
+    with patch('src.services.simulation_portfolio_service.datetime', wraps=datetime) as clock:
+        clock.now.return_value = datetime(2025, 2, 10)
+        item = service.create_validation(saved['id'], dict(mode='paper', initialCash=100000))
+    for day in (10, 11):
+        with patch.object(service, '_last_closed', return_value=date(2025, 2, day)):
+            run_sync(service, item['id'])
+    before = service.detail(item['id'])
+    holding = before['days'][-1]['holdings'][0]
+    assert len(calls) == 2 and holding['quantity'] > 0
+    service.control(item['id'], 'pause')
+    with patch('src.services.simulation_portfolio_service._POOL.submit') as submit:
+        assert service.enqueue(item['id'], automatic=True)
+        token = submit.call_args.args[2]
+    with patch.object(service, '_last_closed', return_value=date(2025, 2, 12)):
+        service.execute(item['id'], token, automatic=True)
+    paused = service.detail(item['id'])
+    day = paused['days'][-1]
+    assert day['paused'] is True and day['usage'] is None and not day['trades']
+    assert len(calls) == 2 and day['cash'] == before['days'][-1]['cash']
+    assert day['holdings'][0]['quantity'] == holding['quantity']
+    assert day['holdings'][0]['averageCost'] == holding['averageCost']
+    assert day['equity'] > before['days'][-1]['equity']
+    assert paused['status'] == 'paused' and paused['executionSessions'] == before['executionSessions']
+    # A deliberately requested single execution does not enable continuous trading.
+    with patch('src.services.simulation_portfolio_service._POOL.submit') as submit:
+        service.control(item['id'], 'run')
+        token = submit.call_args.args[2]
+    with patch.object(service, '_last_closed', return_value=date(2025, 2, 13)):
+        service.execute(item['id'], token)
+    manual = service.detail(item['id'])
+    assert manual['status'] == 'paused' and len(calls) == 3
+    assert manual['days'][-1]['paused'] is False and manual['days'][-1]['usage']['tokens'] == 100
+    assert manual['executionSessions'] == before['executionSessions']
 
 
 def test_market_revision_reuse_and_unknown_legacy_start(workspace):

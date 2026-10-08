@@ -29,6 +29,12 @@ it('prioritizes running accounts and keeps empty observations unknown', async ()
   fireEvent.change(screen.getByRole('combobox',{name:'市场'}),{target:{value:'CRYPTO'}});
   expect(screen.getByText('当前筛选下没有正在模拟的策略。')).toBeVisible();
 });
+it('loads a long combined history without exceeding the JavaScript argument limit',async()=>{
+  api.get.mockResolvedValue({items:[{...row,curve:Array(140000).fill({time:'2026-09-26T00:00:00Z',value:0,benchmark:null}),observations:140000,cumulativeReturn:0}],runtime:{configured:false,available:false}});
+  render(<SimulationOverview onOpen={vi.fn()} onResearch={vi.fn()} onAdopt={vi.fn()}/>);
+  expect(await screen.findByText('Live fixture')).toBeVisible();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
 it('does not treat a candidate without final evaluation as passed', async () => {
   api.evolution.mockResolvedValue({supported:true,items:[{id:'research',status:'SUCCEEDED',completed:1,budget:1,candidateVersion:'candidate',passed:false,finalChecked:false,experiments:[]}]});
   render(<SourceEvolutionPanel id={-1004} />);

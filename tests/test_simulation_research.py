@@ -8,7 +8,7 @@ from sqlalchemy import select
 from src.services.simulation_research_service import SimulationResearchService, replay, verdict
 from src.services.simulation_portfolio_service import SimulationPortfolioService
 from src.services.trading_agent_service import TradingAgentService
-from src.storage import SimulationRunRecord, SimulationPortfolioResearchRecord
+from src.storage import SimulationRunRecord, SimulationPortfolioResearchRecord, SimulationPortfolioDefinitionRecord
 from api.v1.endpoints.simulation_portfolios import StrategyConfig, ResearchCreate
 from tests.test_workspace_service import workspace  # noqa: F401
 from tests.test_simulation_portfolios import run_sync
@@ -79,6 +79,38 @@ def test_rejects_unfinished_and_nonfinite_limits(completed):
         SimulationResearchService(service.db).create(source_id)
     with pytest.raises(ValueError):
         ResearchCreate(maxDrawdown=float('nan'))
+
+
+@pytest.mark.parametrize('completed', ['crypto_btc_hold'], indirect=True)
+@pytest.mark.parametrize('candidate_state', ['deleted', 'missing'])
+def test_deleted_adopted_candidate_is_not_returned_or_recreated(completed, candidate_state):
+    service, source_id = completed
+    research = SimulationResearchService(service.db)
+    result = research.create(source_id)
+    with service.db.session_scope() as session:
+        row = session.get(SimulationPortfolioResearchRecord, result['id'])
+        data = json.loads(row.result_json)
+        data.update(accepted=True, candidateConfig=dict(service.detail(source_id)['config'], cryptoAllocation=.3))
+        row.result_json = json.dumps(data)
+    adopted = research.adopt(result['id'])
+    before = service.detail(source_id)
+    service.control_definition(adopted['id'], remove=True)
+    if candidate_state == 'missing':
+        with service.db.session_scope() as session:
+            session.delete(session.get(SimulationPortfolioDefinitionRecord, adopted['id']))
+    with pytest.raises(LookupError, match='Candidate strategy was deleted'):
+        research.adopt(result['id'])
+    assert service.detail(source_id) == before
+    assert len(service.definitions()) == 1
+    with service.db.get_session() as session:
+        row = session.get(SimulationPortfolioResearchRecord, result['id'])
+        assert row.candidate_definition_id == adopted['id']
+        candidate = session.get(SimulationPortfolioDefinitionRecord, adopted['id'])
+        if candidate_state == 'missing':
+            assert candidate is None
+        else:
+            assert candidate.deleted_at is not None
+        assert len(session.scalars(select(SimulationPortfolioDefinitionRecord)).all()) == (1 if candidate is None else 2)
 
 
 def test_sharpe_selection_and_drawdown_gate():

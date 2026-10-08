@@ -1,4 +1,5 @@
 import { simulationTimeTicks } from "../../utils/simulationTimeAxis";
+import { simulationPercentTickFormatter } from "../../utils/simulationPercentAxis";
 import { useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -21,22 +22,29 @@ export function PortfolioPerformance({ portfolio }: { portfolio: Portfolio }) {
   const [metric, setMetric] = useState("return");
   const [period, setPeriod] = useState(0);
   const timing = portfolioTiming(portfolio);
+  const external = Boolean(portfolio.config.externalRuntime);
+  const evidence = portfolio.externalEvidence;
   const data = useMemo(() => {
     let peak = portfolio.config.initialCash;
-    const rows = [];
+    const rows: Array<{time:number;value:number|null;benchmark:number|null}> = [];
     for (const day of portfolio.days ?? []) {
-      peak = Math.max(peak, day.equity);
       if (!Number.isFinite(Date.parse(day.date))) continue;
+      if (Number.isFinite(day.equity)) peak = Math.max(peak, day.equity);
+      const sourceReturns = external && ('sourceReturn' in day || evidence?.performanceBasis === 'unit_nav');
+      const sourceDrawdowns = external && (sourceReturns || 'sourceDrawdown' in day);
+      const value = metric === 'return'
+        ? sourceReturns
+          ? day.sourceReturn != null && Number.isFinite(day.sourceReturn) ? day.sourceReturn * 100 : null
+          : portfolio.config.initialCash > 0 && Number.isFinite(day.equity) ? (day.equity / portfolio.config.initialCash - 1) * 100 : null
+        : sourceDrawdowns
+          ? day.sourceDrawdown != null && Number.isFinite(day.sourceDrawdown) ? day.sourceDrawdown * 100 : null
+          : peak > 0 && Number.isFinite(day.equity) ? (day.equity / peak - 1) * 100 : null;
+      if (day.breakBefore && rows.length) rows.push({time: rows.at(-1)!.time,value:null,benchmark:null});
       rows.push({
         time: Date.parse(day.date),
-        value:
-          metric === "return"
-            ? (day.equity / portfolio.config.initialCash - 1) * 100
-            : peak > 0
-              ? (day.equity / peak - 1) * 100
-              : null,
+        value,
         benchmark:
-          metric === "return" && day.benchmarkReturn != null
+          metric === "return" && day.benchmarkReturn != null && Number.isFinite(day.benchmarkReturn)
             ? day.benchmarkReturn * 100
             : null,
       });
@@ -44,9 +52,12 @@ export function PortfolioPerformance({ portfolio }: { portfolio: Portfolio }) {
     const cutoff =
       period && rows.length ? rows.at(-1)!.time - period * 86400000 : -Infinity;
     return rows.filter((row) => row.time >= cutoff);
-  }, [portfolio.days, portfolio.config.initialCash, metric, period]);
+  }, [portfolio.days, portfolio.config.initialCash, metric, period, external, evidence?.performanceBasis]);
+  const formatPercentTick = useMemo(() => simulationPercentTickFormatter((function* () {
+    for (const point of data) { yield point.value; yield point.benchmark; }
+  })(), language), [data, language]);
   const fmt = (n: number | null | undefined, percent = false) =>
-    n == null
+    n == null || !Number.isFinite(n)
       ? "—"
       : `${(n * (percent ? 100 : 1)).toLocaleString(language, { maximumFractionDigits: 2 })}${percent ? "%" : ""}`;
   const metrics = [
@@ -103,7 +114,7 @@ export function PortfolioPerformance({ portfolio }: { portfolio: Portfolio }) {
           </select>
         </label>
       </div>
-      {data.length ? (
+      {data.some(row => row.value != null) ? (
         <div
           className="h-80 w-full overflow-hidden sm:h-96"
           role="img"
@@ -138,7 +149,7 @@ export function PortfolioPerformance({ portfolio }: { portfolio: Portfolio }) {
               <YAxis
                 width={62}
                 tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                tickFormatter={(n) => `${n.toFixed(1)}%`}
+                tickFormatter={formatPercentTick}
               />
               <Tooltip
                 labelFormatter={(time) =>
@@ -172,7 +183,8 @@ export function PortfolioPerformance({ portfolio }: { portfolio: Portfolio }) {
                 )}
                 stroke="hsl(var(--primary))"
                 strokeWidth={2}
-                dot={data.length === 1}
+                dot={data.filter(row => row.value != null).length === 1 || data.some(row => row.value == null)}
+                connectNulls={false}
                 isAnimationActive={false}
               />
               {metric === "return" &&
@@ -183,6 +195,7 @@ export function PortfolioPerformance({ portfolio }: { portfolio: Portfolio }) {
                     stroke="#b18de0"
                     strokeDasharray="5 4"
                     dot={false}
+                    connectNulls={false}
                     isAnimationActive={false}
                   />
                 )}
@@ -196,9 +209,14 @@ export function PortfolioPerformance({ portfolio }: { portfolio: Portfolio }) {
       )}
       <p className="mt-3 text-xs leading-5 text-secondary-text">
         {t(
-          "按实际记录时间展示；筛选区间不重设收益起点。最大回撤使用完整账本高点，缺失指标不补零。",
+          external
+            ? "按来源实际记录时间展示，筛选区间不重设收益起点；缺失指标不补零。"
+            : "按实际记录时间展示；筛选区间不重设收益起点。最大回撤使用完整账本高点，缺失指标不补零。",
         )}
       </p>
+      {external && evidence?.performanceBasis === 'unit_nav' && <p className="mt-2 text-xs text-secondary-text">{t('来源收益使用单位净值，不按账户金额或外部资金流重新计算。')}</p>}
+      {external && evidence?.metricsScope === 'account_lifetime' && evidence.curveScope === 'selected_run' && <p className="mt-2 text-xs text-secondary-text">{t('指标覆盖账户累计历史；曲线仅覆盖当前运行批次。')}</p>}
+      {external && evidence?.metricsScope === 'full_backtest' && evidence.curveScope === 'full_backtest' && <p className="mt-2 text-xs text-secondary-text">{t('指标与曲线覆盖来源完整回测，下采样仅影响展示。')}</p>}
       {timing?.valuation === "live_quote" && (
         <p className="mt-2 text-xs text-secondary-text">
           {t("实时报价记录不是等间隔收益样本，不在此推算年化收益或夏普。")}

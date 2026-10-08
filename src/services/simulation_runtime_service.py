@@ -45,7 +45,11 @@ class SimulationRuntimeService:
             raise HTTPException(422 if response.status_code in {400, 404, 409, 422} else 503,
                                 'Private simulation runtime rejected the operation; inspect its run status')
         try:
-            return response.json()
+            value = response.json()
+            # Legacy detail/history bodies may be large, but invalid numbers
+            # must never break serialization of native data in a merged view.
+            self._validate_json(value, bounded=False)
+            return value
         except ValueError:
             raise HTTPException(502, 'Invalid simulation runtime response') from None
 
@@ -56,6 +60,8 @@ class SimulationRuntimeService:
             result = self.request('GET', path)['items']
             if not isinstance(result, list) or any(not isinstance(row, dict) or type(row.get('id')) is not int or row['id'] >= 0 for row in result):
                 raise ValueError('Invalid identifiers')
+            if len({row['id'] for row in result}) != len(result):
+                raise ValueError('Duplicate identifiers')
             return result
         except (HTTPException, ValueError, KeyError, TypeError):
             # Native strategies remain accessible; /runtime-status surfaces failure.
@@ -78,6 +84,8 @@ class SimulationRuntimeService:
             if not isinstance(rows, list) or any(not isinstance(row, dict) or type(row.get('id')) is not int
                                                or row['id'] >= 0 or not isinstance(row.get('curve'), list) for row in rows):
                 raise ValueError('Invalid overview response')
+            if len({row['id'] for row in rows}) != len(rows):
+                raise ValueError('Duplicate identifiers')
             return {'items': rows, 'runtime': {'configured': True, 'available': True}}
         except (HTTPException, ValueError, KeyError, TypeError):
             return {'items': [], 'runtime': {'configured': True, 'available': False}}
@@ -100,24 +108,24 @@ class SimulationRuntimeService:
             return {'configured': True, 'available': False, 'capabilities': None, 'legacy': False}
 
     @staticmethod
-    def _validate_json(value, depth=0):
+    def _validate_json(value, depth=0, *, bounded=True):
         """Reject non-JSON/non-finite evidence before passing it to a browser."""
         if depth > 20:
             raise ValueError('Evidence nesting exceeds contract')
         if type(value) is float and not math.isfinite(value):
             raise ValueError('Non-finite source value')
-        if isinstance(value, str) and len(value) > 8000:
+        if bounded and isinstance(value, str) and len(value) > 8000:
             raise ValueError('Source text exceeds contract')
         if isinstance(value, dict):
-            if len(value) > 1000 or any(not isinstance(key, str) for key in value):
+            if (bounded and len(value) > 1000) or any(not isinstance(key, str) for key in value):
                 raise ValueError('Invalid source object')
             for nested in value.values():
-                SimulationRuntimeService._validate_json(nested, depth + 1)
+                SimulationRuntimeService._validate_json(nested, depth + 1, bounded=bounded)
         elif isinstance(value, list):
-            if len(value) > 1000:
+            if bounded and len(value) > 1000:
                 raise ValueError('Source list exceeds contract')
             for nested in value:
-                SimulationRuntimeService._validate_json(nested, depth + 1)
+                SimulationRuntimeService._validate_json(nested, depth + 1, bounded=bounded)
         elif value is not None and type(value) not in (str, int, float, bool):
             raise ValueError('Invalid source value')
 

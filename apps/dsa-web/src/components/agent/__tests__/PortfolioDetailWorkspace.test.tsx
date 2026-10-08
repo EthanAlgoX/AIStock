@@ -34,3 +34,24 @@ it('keeps source round trips separate from individual timestamped fills',()=>{
  expect(screen.getByRole('columnheader',{name:'入场时间'})).toBeVisible();
  expect(screen.getByRole('columnheader',{name:'成交时间（UTC）'})).toBeVisible();
 });
+
+
+it.each(['paper','backtest'] as const)('describes the authoritative proxied source ledger for frozen-contract %s records',mode=>{
+ render(<MemoryRouter><PortfolioDetailWorkspace {...props} portfolio={{...portfolio,mode,config:{...portfolio.config,evaluationKind:'source_frozen_contract'}}} panel="evidence"/></MemoryRouter>);
+ expect(screen.getByText('由来源运行引擎维护账本，主站读取版本、资金、持仓和运行记录，不复制或替换来源账户。')).toBeVisible();
+ expect(screen.queryByText(/已导入来源账户/)).not.toBeInTheDocument();
+});
+
+it('preserves the imported-account explanation for legacy external paper records',()=>{
+ render(<MemoryRouter><PortfolioDetailWorkspace {...props} portfolio={portfolio} panel="evidence"/></MemoryRouter>);
+ expect(screen.getByText('已导入来源账户的前向记录，服务器独立续跑；与原站后续结果可能不同。')).toBeVisible();
+ expect(screen.queryByText(/由来源运行引擎维护账本/)).not.toBeInTheDocument();
+});
+
+it('keeps the native account evidence explanation independent of a source contract marker',()=>{
+ render(<MemoryRouter><PortfolioDetailWorkspace {...props} portfolio={{...portfolio,timing:undefined,config:{...portfolio.config,externalRuntime:false,evaluationKind:'source_frozen_contract'},externalEvidence:undefined}} panel="evidence"/></MemoryRouter>);
+ expect(screen.getByRole('heading',{name:'运行说明'})).toBeVisible();
+ expect(screen.getByText(/这是日线模拟/)).toBeVisible();
+ expect(screen.queryByText(/由来源运行引擎维护账本/)).not.toBeInTheDocument();
+ expect(screen.queryByText(/已导入来源账户/)).not.toBeInTheDocument();
+});

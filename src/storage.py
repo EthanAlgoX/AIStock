@@ -1587,6 +1587,7 @@ class RuntimeResearchOperationRecord(Base):
     request_id = Column(String(36), nullable=False, unique=True)
     status = Column(String(16), nullable=False, default='RESERVED')
     receipt_json = Column(Text)
+    authoritative_unknown_seen = Column(Boolean, nullable=False, default=False, server_default='0')
     created_at = Column(DateTime, nullable=False, default=utc_naive_now)
     updated_at = Column(DateTime, nullable=False, default=utc_naive_now)
 
@@ -2603,6 +2604,9 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         if not self._is_sqlite_engine:
             return
         columns = {
+            'simulation_runtime_research_operations': {
+                'authoritative_unknown_seen': 'BOOLEAN NOT NULL DEFAULT 0',
+            },
             'simulation_portfolio_definitions': {'deleted_at': 'DATETIME'},
             'workspace_schedules': {'interval_days': 'INTEGER NOT NULL DEFAULT 1'},
             'workspace_experts': {'avatar': 'TEXT'},
@@ -2658,6 +2662,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             },
         }
         inspector = inspect(self._engine)
+        legacy_research_operations = False
         with self._engine.begin() as connection:
             for table_name, definitions in columns.items():
                 if not inspector.has_table(table_name):
@@ -2666,6 +2671,16 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 for column, definition in definitions.items():
                     if column not in existing:
                         connection.exec_driver_sql(f'ALTER TABLE {table_name} ADD COLUMN {column} {definition}')
+                        if table_name == 'simulation_runtime_research_operations' and column == 'authoritative_unknown_seen':
+                            legacy_research_operations = True
+            # Older receipts overwrite their previous status. A pending/running
+            # legacy row may already have forgotten an authoritative UNKNOWN;
+            # prevent replay conservatively only on the first additive upgrade.
+            protected_statuses = "('PENDING', 'RUNNING', 'UNKNOWN')" if legacy_research_operations else "('UNKNOWN')"
+            connection.exec_driver_sql(
+                "UPDATE simulation_runtime_research_operations SET authoritative_unknown_seen = 1 "
+                f"WHERE status IN {protected_statuses} AND authoritative_unknown_seen = 0"
+            )
             connection.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS uix_simulation_strategy_published_version_number ON simulation_strategy_versions(strategy_id, version_number) WHERE version_number IS NOT NULL")
             connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_simulation_strategy_versions_status ON simulation_strategy_versions(status)")
             connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_simulation_strategy_versions_strategy_purpose ON simulation_strategy_versions(strategy_purpose)")

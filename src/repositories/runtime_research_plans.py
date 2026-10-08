@@ -63,10 +63,15 @@ class RuntimeResearchPlanRepository:
     def control(self, plan_id, action, now):
         self.guard_owner()
         with self.db.session_scope() as session:
+            # Take the SQLite write lock before reading lifecycle state. A
+            # terminal receipt must not be overwritten by a stale control read.
+            changed = session.execute(update(Plan).where(
+                Plan.id == plan_id, Plan.status.in_(('active', 'paused')),
+            ).values(id=Plan.id), execution_options={'synchronize_session': False}).rowcount
             row = session.get(Plan, plan_id)
             if row is None:
                 raise HTTPException(404, 'Source research plan not found')
-            if row.status in ('completed', 'failed'):
+            if not changed:
                 raise HTTPException(409, 'A finished source research plan cannot be resumed or paused')
             if action == 'pause':
                 row.status = 'paused'
@@ -134,13 +139,19 @@ class RuntimeResearchPlanRepository:
     def receive(self, plan_id, token, operation_id, receipt, now):
         self.guard_owner()
         with self.db.session_scope() as session:
-            row = session.execute(select(Plan).where(Plan.id == plan_id, Plan.claim_token == token)).scalar_one_or_none()
-            if row is None:
+            # Lease validation and receipt mutation share one write transaction;
+            # an expired worker cannot race a replacement after its token check.
+            changed = session.execute(update(Plan).where(
+                Plan.id == plan_id, Plan.claim_token == token,
+            ).values(id=Plan.id), execution_options={'synchronize_session': False}).rowcount
+            if not changed:
                 return
+            row = session.get(Plan, plan_id)
             operation = session.get(Operation, operation_id)
             if operation is None or operation.plan_id != plan_id:
                 return
             operation.status = receipt['status']
+            operation.authoritative_unknown_seen = operation.authoritative_unknown_seen or receipt['status'] == 'UNKNOWN'
             operation.receipt_json = json.dumps(receipt, ensure_ascii=False, allow_nan=False)
             operation.updated_at = now
             if receipt['status'] == 'UNKNOWN':

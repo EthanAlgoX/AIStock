@@ -473,7 +473,9 @@ export function PortfolioDetailWorkspace({
                 <h3 className="font-semibold">{t("来源与运行记录")}</h3>
                 <p className="mt-2 text-sm text-secondary-text">
                   {t(
-                    p.mode === "paper"
+                    external && p.config.evaluationKind === "source_frozen_contract"
+                      ? "由来源运行引擎维护账本，主站读取版本、资金、持仓和运行记录，不复制或替换来源账户。"
+                      : p.mode === "paper"
                       ? "已导入来源账户的前向记录，服务器独立续跑；与原站后续结果可能不同。"
                       : "来源仅提供期末持仓，较早观测点没有持仓快照，不代表当时空仓。交易计数可能按完整往返统计，原始记录见下方。",
                   )}

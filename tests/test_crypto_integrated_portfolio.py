@@ -11,9 +11,10 @@ from api.v1.endpoints.simulation_portfolios import StrategyConfig
 from data_provider.crypto_fetcher import daily_data, DAY_MS
 from src.services.simulation_portfolio_service import SimulationPortfolioService
 from src.services.trading_agent_service import TradingAgentService
-from src.storage import SimulationFillRecord
+from src.storage import DatabaseManager, SimulationFillRecord, SimulationPortfolioRunRecord
 from tests.test_workspace_service import workspace  # noqa: F401
 from tests.test_simulation_portfolios import run_sync
+from tests.test_member_workspaces import members, identity  # noqa: F401
 
 
 def spot_fetcher():
@@ -50,6 +51,34 @@ def test_saved_crypto_strategy_runs_weekends_and_persists_fractional_fills(works
         assert result['evaluation']['capitalMode'] == 'shared_cash_long_only_fractional'
         assert not result['days'][0]['trades']
         assert result['days'][1]['trades'][0]['signalDate'] == '2025-02-07'
+
+
+def test_fractional_native_orders_remain_readable_in_authenticated_account_api(members):
+    _, alice, bob, member_service = members
+    with member_service.scope(identity(member_service, alice)):
+        db = DatabaseManager.get_instance()
+        agent = TradingAgentService(db)
+        with patch('data_provider.crypto_fetcher.realtime_quote'):
+            preview = agent.preview('CRYPTO', dict(mode='fixed', symbols=['BTCUSDT'], maxCandidates=12))
+        payload = StrategyConfig(
+            name='Fractional account', market='CRYPTO', decisionBackend='rules', skillId='crypto_btc_hold',
+            universePreviewId=preview['id'], lotSize=1e-8, maxWeight=.5).model_dump()
+        service = SimulationPortfolioService(db, spot_fetcher(), agent)
+        saved = service.save_definition(payload)
+        portfolio = service.create_validation(saved['id'], dict(
+            mode='backtest', initialCash=10000, startDate='2025-02-07',
+            endDate='2025-02-10', historyMode='rules'))
+        with patch.object(service, '_last_closed', return_value=date(2025, 2, 10)):
+            run_sync(service, portfolio['id'])
+        with db.get_session() as session:
+            account_id = session.get(SimulationPortfolioRunRecord, portfolio['id']).account_id
+            quantity = session.scalars(select(SimulationFillRecord)).first().quantity
+    response = alice.get(f'/api/v1/simulation/accounts/{account_id}/orders')
+    assert response.status_code == 200, response.text
+    filled = [order for order in response.json()['items'] if order['status'] == 'filled']
+    assert 0 < filled[0]['quantity'] < 1
+    assert filled[0]['quantity'] == quantity
+    assert bob.get(f'/api/v1/simulation/accounts/{account_id}/orders').json()['items'] == []
 
 
 def test_crypto_daily_rejects_gaps_and_open_candles():

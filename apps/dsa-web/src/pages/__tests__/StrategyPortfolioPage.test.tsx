@@ -24,6 +24,7 @@ const api = vi.hoisted(() => ({
   agentOptions: vi.fn(),
   previewUniverse: vi.fn(),
   holdings: vi.fn(),
+  runtimeStatus: vi.fn(),
 }));
 vi.mock("../../api/portfolios", () => ({ portfoliosApi: api, simulationOverviewApi: {get: vi.fn().mockResolvedValue({items:[],runtime:{configured:false,available:false}}), evolution: vi.fn().mockResolvedValue({supported:false,items:[]})} }));
 vi.mock("../../hooks/useStockIndex", () => ({
@@ -111,6 +112,27 @@ beforeEach(() => {
   api.definitions.mockResolvedValue([]);
   api.agentOptions.mockResolvedValue({skills:[{id:"price",name:"价格策略",description:"依据日线"}],accounts:[],defaultPrompt:"交易"});
   api.detail.mockResolvedValue(detail);
+  api.runtimeStatus.mockResolvedValue({configured:false,available:false});
+});
+
+it('uses the selected account owner instead of an unrelated strategy in the URL', async () => {
+  api.definitions.mockResolvedValue([{id:7,name:'Actual account strategy',config},{id:9,name:'Unrelated URL strategy',config}]);
+  api.detail.mockResolvedValue({...detail,definitionId:7});
+  api.list.mockResolvedValue([{...detail,definitionId:7}]);
+  render(<MemoryRouter initialEntries={['/trading?portfolio=1&strategy=9']}><TradingWorkspacePage /></MemoryRouter>);
+  expect(await screen.findByText(/策略配置与验证账户/)).toHaveTextContent('Actual account strategy');
+  expect(screen.queryByRole('heading',{name:'Unrelated URL strategy',hidden:true})).not.toBeInTheDocument();
+});
+
+it('keeps the strategy catalog and runtime status available when a selected account returns 404', async () => {
+  api.definitions.mockResolvedValue([{id:7,name:'Available strategy',config}]);
+  api.runtimeStatus.mockResolvedValue({configured:true,available:true});
+  api.detail.mockRejectedValue({isAxiosError:true,response:{status:404,data:{detail:'Account not found'}}});
+  render(<MemoryRouter initialEntries={['/trading?portfolio=404']}><TradingWorkspacePage /></MemoryRouter>);
+  await screen.findByRole('alert');
+  expect(screen.getByRole('button',{name:/Available strategy/,hidden:true})).toBeInTheDocument();
+  expect(screen.getByRole('link',{name:'来源策略研究'})).toBeVisible();
+  expect(screen.queryByRole('button',{name:'持续运行'})).not.toBeInTheDocument();
 });
 it("shows real zero metrics, daily opinions and current positions without invented trades", async () => {
   render(
@@ -718,4 +740,43 @@ it('keeps the overview free of a second strategy detail section',async()=>{
  expect(screen.queryByText('我的策略')).toBeNull();
  fireEvent.click(screen.getByRole('link',{name:'管理策略'}));
  expect(await screen.findByText('我的策略')).toBeVisible();
+});
+
+
+it('hides only the managed source version and stops its paper accounts while keeping native historical tasks', async () => {
+  api.definitions.mockResolvedValue([{id:-7,name:'来源冻结版本',config:{...config,externalRuntime:true,evaluationKind:'source_frozen_contract'}}]);
+  api.list.mockResolvedValue([]);
+  api.deleteDefinition.mockResolvedValue({deleted:true});
+  render(<MemoryRouter initialEntries={['/trading?strategy=-7']}><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button',{name:'隐藏来源版本'}));
+  const dialog=screen.getByRole('dialog');
+  expect(dialog).toHaveTextContent('隐藏来源版本 · 来源冻结版本');
+  expect(dialog).toHaveTextContent('仅从管理策略隐藏此来源版本，并停止其运行或暂停中的模拟账户。来源原始版本和账本保留，历史回测与研究任务继续执行；来源工作区仍可查阅此版本。');
+  expect(dialog).not.toHaveTextContent('所有回测和模拟');
+  expect(dialog).not.toHaveTextContent('已发出的模型请求');
+  api.definitions.mockResolvedValue([]);
+  fireEvent.click(within(dialog).getByRole('button',{name:'隐藏来源版本'}));
+  await waitFor(()=>expect(api.deleteDefinition).toHaveBeenCalledWith(-7));
+});
+
+
+it('does not imply source paper stop cancels research plans or model calls', async () => {
+  api.detail.mockResolvedValue({...detail,id:-44,status:'stopped',config:{...config,externalRuntime:true}});
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-44']}><TradingWorkspacePage /></MemoryRouter>);
+  expect(await screen.findByText('来源模拟账户已停止，历史账本保留供审计。')).toBeVisible();
+  expect(screen.queryByText(/待执行计划已取消/)).not.toBeInTheDocument();
+});
+
+
+it('keeps legacy external-runtime deletion terms when no frozen-source contract is declared', async () => {
+  api.definitions.mockResolvedValue([{id:-7,name:'旧来源适配器',config:{...config,externalRuntime:true}}]);
+  api.list.mockResolvedValue([]);
+  render(<MemoryRouter initialEntries={['/trading?strategy=-7']}><TradingWorkspacePage /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button',{name:'删除策略'}));
+  const dialog=screen.getByRole('dialog');
+  expect(dialog).toHaveTextContent('删除策略 · 旧来源适配器');
+  expect(dialog).toHaveTextContent('删除后将停止该策略的所有回测和模拟');
+  expect(dialog).not.toHaveTextContent('来源工作区仍可查阅');
+  expect(within(dialog).getByRole('button',{name:'停止并删除'})).toBeVisible();
+  expect(screen.queryByRole('button',{name:'隐藏来源版本'})).not.toBeInTheDocument();
 });

@@ -153,6 +153,9 @@ def grid_rule_opinions(config, state, day, histories, candidates):
 
 def step(config, state, day, history, benchmark_close):
     """Execute yesterday's intent at today's open, then form today's close opinions."""
+    if (type(benchmark_close) not in {int, float} or not math.isfinite(benchmark_close)
+            or benchmark_close <= 0):
+        raise ValueError("基准行情无效，整日未记账，请补齐数据后重试。")
     cash = state["cash"]
     positions = {k: dict(v) for k, v in state.get("positions", {}).items()}
     trades, pending = [], state.get("pending")

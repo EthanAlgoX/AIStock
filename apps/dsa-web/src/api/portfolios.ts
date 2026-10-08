@@ -115,6 +115,9 @@ export type PaperTrade = {
 };
 export type PortfolioDay = {
   date: string;
+  sourceReturn?: number | null;
+  sourceDrawdown?: number | null;
+  breakBefore?: boolean;
   equity: number;
   cash: number;
   marketValue: number;
@@ -135,7 +138,7 @@ export type Portfolio = {
   timing?: PortfolioTiming | null;
   executionLedger?: SimulationExecution[] | null;
   executionCoverage?: {source: string; sourceCount: number | null; returnedCount: number} | null;
-  externalEvidence?: {recomputedAt?: string; sourceUpdatedAt: string; sourceBacktest: string; tradeCount?: number; fees?: number; slippage?: number; positions?: unknown; trades: unknown[]; decisions: unknown[]; lastClosedBar?: string; feedStatus?: string; modelEvaluation?: string};
+  externalEvidence?: {recomputedAt?: string; sourceUpdatedAt: string; sourceBacktest: string; tradeCount?: number; fees?: number; slippage?: number; positions?: unknown; trades: unknown[]; decisions: unknown[]; lastClosedBar?: string; feedStatus?: string; modelEvaluation?: string; performanceBasis?: 'unit_nav' | 'account_equity'; metricsScope?: 'account_lifetime' | 'full_backtest'; curveScope?: 'selected_run' | 'full_backtest'};
   id: number;
   definitionId?: number | null;
   name: string;
@@ -376,7 +379,7 @@ export type SimulationCurve = {
   id: number; definitionId?: number; name: string; market: RuleConfig['market']; status: string;
   error: boolean; externalRuntime: boolean; initialCash: number; currency: string;
   cumulativeReturn: number | null; maxDrawdown: number | null; lastDate: string | null; observations: number;
-  curve: {time: string; value: number; benchmark: number | null}[];
+  curve: {time: string; value: number; benchmark: number | null; breakBefore?: boolean}[];
 };
 export type SourceEvolution = {
   id: string; status: string; completed: number; budget: number; createdAt: string; passed: boolean; finalChecked: boolean;

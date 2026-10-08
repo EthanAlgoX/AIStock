@@ -73,13 +73,30 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
   const incomingSource = params.get("sourceRun");
   const [draft, setDraft] = useState<TradingStrategyDraft>(DEFAULT_DRAFT);
   const [sources, setSources] = useState<WorkspaceRun[]>([]);
-  useEffect(() => { let live = true; void workspaceApi.runHistory({kind:"screening",status:"completed",market:draft.market,limit:100}).then(page => {if(live) setSources(page.items);}).catch(() => {if(live) setSources([]);}); return () => {live=false;}; }, [draft.market]);
+  const [sourcesError, setSourcesError] = useState("");
+  const [selectedSource, setSelectedSource] = useState<WorkspaceRun | null>(null);
+  const [sourceError, setSourceError] = useState("");
+  const [readRevision, setReadRevision] = useState(0);
+  const [taskReadRevision, setTaskReadRevision] = useState(0);
+  useEffect(() => {
+    let live = true;
+    setSourcesError("");
+    void workspaceApi.runHistory({kind:"screening",status:"completed",market:draft.market,limit:100})
+      .then(page => { if(live) setSources(page.items.filter(run => run.kind === "screening" && run.status === "completed" && run.taskSnapshot.market === draft.market)); })
+      .catch(() => { if(live) { setSources([]); setSourcesError("报告目录读取失败，请重试。"); } });
+    return () => {live=false;};
+  }, [draft.market, readRevision]);
   const [skills, setSkills] = useState<WorkspaceSkill[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState("");
   const [capabilities, setCapabilities] = useState<AgentCapabilityBindings>(EMPTY_AGENT_CAPABILITIES);
   const [saved, setSaved] = useState(false);
-  const [savedTask, setSavedTask] = useState<WorkspaceTask | null>(null);
+  const savedTaskRef = useRef<WorkspaceTask | null>(null);
+  const [taskLoading, setTaskLoading] = useState(true);
+  const [taskError, setTaskError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const draftRevision = useRef(0);
   const { activeRun, runError, submitting, restoring, busy, startRun: submitRun } = useWorkspaceRun("trading", false);
   const [runtimeError, setRuntimeError] = useState("");
   const mountedRef = useRef(true);
@@ -90,21 +107,36 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
 
   useEffect(() => {
     let active = true;
-    void Promise.all([workspaceApi.getCapabilities(), workspaceApi.listTasks("trading"), incomingSource ? workspaceApi.getRun(incomingSource) : Promise.resolve(null)])
-      .then(([catalog, tasks, source]) => {
+    setTaskLoading(true);
+    setTaskError("");
+    setSkillsLoading(true);
+    setSkillsError("");
+    void Promise.allSettled([workspaceApi.getCapabilities(), workspaceApi.listTasks("trading"), incomingSource ? workspaceApi.getRun(incomingSource) : Promise.resolve(null)])
+      .then(([catalogResult, tasksResult, sourceResult]) => {
         if (!active) return;
-        setSkills(catalog.skills.filter((skill) => skill.enabled));
-        const task = tasks[0];
+        const catalog = catalogResult.status === "fulfilled" ? catalogResult.value : null;
+        if (catalog) setSkills(catalog.skills.filter((skill) => skill.enabled));
+        else setSkillsError("Skill 目录读取失败，可保存策略后稍后重试。");
+        if (tasksResult.status === "rejected") {
+          setTaskError("交易提案任务读取失败，请重试。");
+          return;
+        }
+        const source = sourceResult.status === "fulfilled" ? sourceResult.value : null;
+        const validSource = source?.id === incomingSource && source.kind === "screening" && source.status === "completed" && ["CN", "HK", "US"].includes(source.taskSnapshot.market) ? source : null;
+        if (incomingSource && !validSource) setSourceError("来源报告读取失败，不能引用该报告。");
+        if (validSource) setSelectedSource(validSource);
+        const task = tasksResult.value[0];
+        savedTaskRef.current = task ?? null;
+        setSaved(false);
         if (!task) {
-          setCapabilities(catalog.defaults.trading);
-          if (source?.kind === "screening") setDraft({...DEFAULT_DRAFT, sourceRunId:source.id, market:(["CN", "HK", "US"].includes(source.taskSnapshot.market) ? source.taskSnapshot.market : "CN") as MarketId});
+          if (catalog) setCapabilities(catalog.defaults.trading);
+          if (validSource) setDraft({...DEFAULT_DRAFT, sourceRunId:validSource.id, market:validSource.taskSnapshot.market as MarketId});
           return;
         }
         const config = task.config || {};
         const risk = typeof config.riskPolicy === "object" && config.riskPolicy
           ? config.riskPolicy as Record<string, unknown>
           : {};
-        setSavedTask(task);
         setCapabilities(task.capabilities);
         setDraft({
           ...DEFAULT_DRAFT,
@@ -115,34 +147,63 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
           sourceRunId: String(task.subject?.sourceRunId || ""),
           cadence: String(config.cadence || "15m") as TradingStrategyDraft["cadence"],
           evaluationWindow: String(config.evaluationWindow || "30d") as TradingStrategyDraft["evaluationWindow"],
-          initialCapital: String(config.initialCapital || "1000000"),
-          maxPositions: String(risk.maxPositions || "10"),
-          maxPositionPercent: String(risk.maxPositionPercent || "15"),
-          maxDailyLossPercent: String(risk.maxDailyLossPercent || "3"),
+          initialCapital: String(config.initialCapital ?? "1000000"),
+          maxPositions: String(risk.maxPositions ?? "10"),
+          maxPositionPercent: String(risk.maxPositionPercent ?? "15"),
+          maxDailyLossPercent: String(risk.maxDailyLossPercent ?? "3"),
           requireApproval: risk.requireApproval !== false,
-          ...(source?.kind === "screening" ? {universeMode:"screening",sourceRunId:source.id,market:(["CN", "HK", "US"].includes(source.taskSnapshot.market) ? source.taskSnapshot.market : "CN") as MarketId} as const : {}),
+          ...(validSource ? {universeMode:"screening",sourceRunId:validSource.id,market:validSource.taskSnapshot.market as MarketId} as const : {}),
         });
       })
-      .catch(() => {
-        if (active) setSkillsError("Skill 目录读取失败，可保存策略后稍后重试。");
-      })
       .finally(() => {
-        if (active) setSkillsLoading(false);
+        if (active) { setSkillsLoading(false); setTaskLoading(false); }
       });
     return () => {
       active = false;
     };
-  }, [incomingSource]);
+  }, [incomingSource, taskReadRevision]);
+
+  // A saved frozen source may be older than the recent directory page.
+  useEffect(() => {
+    let active = true;
+    if (!draft.sourceRunId) { setSelectedSource(null); return; }
+    const listed = sources.find(run => run.id === draft.sourceRunId);
+    if (listed) { setSelectedSource(listed); setSourceError(""); return; }
+    setSelectedSource(null);
+    setSourceError("");
+    void workspaceApi.getRun(draft.sourceRunId).then(run => {
+      if (!active) return;
+      if (run.id === draft.sourceRunId && run.kind === "screening" && run.status === "completed" && run.taskSnapshot.market === draft.market) setSelectedSource(run);
+      else setSourceError("来源报告读取失败，不能引用该报告。");
+    }).catch(() => { if (active) setSourceError("来源报告读取失败，不能引用该报告。"); });
+    return () => {active=false;};
+  }, [draft.sourceRunId, draft.market, sources, readRevision]);
 
   const capabilityCount = countAgentCapabilities(capabilities);
-  const strategyReady = Boolean(draft.name.trim() && draft.objective.trim() && (draft.universeMode !== "screening" || draft.sourceRunId));
+  const sourceReady = selectedSource?.id === draft.sourceRunId && selectedSource?.status === "completed" && selectedSource.taskSnapshot.market === draft.market;
+  const inRange = (raw:string, minimum:number, maximum = Infinity) => raw.trim() !== "" && Number.isFinite(Number(raw)) && Number(raw) >= minimum && Number(raw) <= maximum;
+  const numericReady = inRange(draft.initialCapital,10000) && inRange(draft.maxPositions,1,100) && Number.isInteger(Number(draft.maxPositions)) && inRange(draft.maxPositionPercent,.1,100) && inRange(draft.maxDailyLossPercent,.1,100);
+  const strategyReady = Boolean(!taskLoading && !taskError && numericReady && draft.name.trim() && draft.objective.trim() && (draft.universeMode !== "screening" || sourceReady));
+  const sourceChoices = selectedSource && sourceReady && !sources.some(run => run.id === selectedSource.id) ? [selectedSource, ...sources] : sources;
 
   const updateDraft = <K extends keyof TradingStrategyDraft>(key: K, value: TradingStrategyDraft[K]) => {
-    setDraft((current) => ({ ...current, [key]: value }));
+    setDraft((current) => ({ ...current, [key]: value, ...(key === "market" && value !== current.market ? {sourceRunId:""} : {}) }));
+    if (key === "market" || key === "sourceRunId") { setSelectedSource(null); setSourceError(""); }
+    draftRevision.current += 1;
+    setSaved(false);
+  };
+
+  const toggleCapability = <K extends keyof AgentCapabilityBindings>(key: K, value: AgentCapabilityBindings[K][number]) => {
+    setCapabilities((current) => ({...current,[key]:toggleValue(current[key] as Array<string | number>,value)}));
+    draftRevision.current += 1;
     setSaved(false);
   };
 
   const saveDraft = async () => {
+    if (!strategyReady || savingRef.current) return null;
+    savingRef.current = true;
+    setSaving(true);
+    const revision = draftRevision.current;
     const payload = {
       name: draft.name.trim(),
       market: draft.market,
@@ -163,21 +224,24 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
       capabilities,
     } as const;
     try {
-      const task = savedTask
-        ? await workspaceApi.updateTask(savedTask.id, payload)
+      const task = savedTaskRef.current
+        ? await workspaceApi.updateTask(savedTaskRef.current.id, payload)
         : await workspaceApi.createTask({ kind: "trading", ...payload });
-      setSavedTask(task);
-      setSaved(true);
+      savedTaskRef.current = task;
+      setSaved(revision === draftRevision.current);
       setRuntimeError("");
       return task;
     } catch {
       setRuntimeError("交易策略保存失败，请检查能力配置。 ");
       return null;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
   const startRun = async () => {
-    if (!strategyReady || busy) return;
+    if (!strategyReady || busy || savingRef.current) return;
     await submitRun(async () => {
       const task = await saveDraft();
       if (!task) throw new Error("交易策略未保存");
@@ -188,7 +252,7 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
   };
 
   const scheduleStrategy = async () => {
-    if (!strategyReady) return;
+    if (!strategyReady || busy || savingRef.current) return;
     const task = await saveDraft();
     if (!task) return;
     const intervalMinutes = draft.cadence === "5m" ? "5" : draft.cadence === "15m" ? "15" : draft.cadence === "1h" ? "60" : "15";
@@ -206,7 +270,7 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
         capabilities,
       },
     };
-    navigate("/schedules?type=trading", { state });
+    if (mountedRef.current) navigate("/schedules?type=trading", { state });
   };
 
   const renderCapabilityPanel = (className: string) => (
@@ -216,18 +280,18 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
       showSkills={false}
       skills={skills}
       selectedSkillIds={capabilities.skillIds}
-      onToggleSkill={(id) => setCapabilities((current) => ({ ...current, skillIds: toggleValue(current.skillIds, id) }))}
+      onToggleSkill={(id) => toggleCapability("skillIds", id)}
       skillLimitReached={capabilities.skillIds.length >= 3}
       selectedToolIds={capabilities.toolIds}
-      onToggleTool={(id) => setCapabilities((current) => ({ ...current, toolIds: toggleValue(current.toolIds, id) }))}
+      onToggleTool={(id) => toggleCapability("toolIds", id)}
       selectedDataSourceIds={capabilities.dataSourceIds}
-      onToggleDataSource={(id) => setCapabilities((current) => ({ ...current, dataSourceIds: toggleValue(current.dataSourceIds, id) }))}
+      onToggleDataSource={(id) => toggleCapability("dataSourceIds", id)}
       selectedMcpIds={capabilities.mcpIds}
-      onToggleMcp={(id) => setCapabilities((current) => ({ ...current, mcpIds: toggleValue(current.mcpIds, id) }))}
+      onToggleMcp={(id) => toggleCapability("mcpIds", id)}
       selectedExpertIds={capabilities.expertIds}
-      onToggleExpert={(id) => setCapabilities((current) => ({ ...current, expertIds: toggleValue(current.expertIds, id) }))}
+      onToggleExpert={(id) => toggleCapability("expertIds", id)}
       selectedExpertTeamIds={capabilities.expertTeamIds}
-      onToggleExpertTeam={(id) => setCapabilities((current) => ({ ...current, expertTeamIds: toggleValue(current.expertTeamIds, id) }))}
+      onToggleExpertTeam={(id) => toggleCapability("expertTeamIds", id)}
       className={className}
     />
   );
@@ -236,7 +300,7 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
     <div className="space-y-6 pb-6" data-testid="trading-strategy-workspace">
       <ol className="grid gap-px overflow-hidden rounded-[12px] border border-border bg-border sm:grid-cols-4" aria-label={tx("交易策略配置流程")}>
         {[
-          { label: tx("定义策略"), ready: Boolean(draft.name.trim() && draft.objective.trim() && (draft.universeMode !== "screening" || draft.sourceRunId)) },
+          { label: tx("定义策略"), ready: strategyReady },
           { label: tx("设置信号"), ready: true },
           { label: tx("设置研究约束"), ready: true },
           { label: tx("生成提案"), ready: Boolean(activeRun) },
@@ -259,7 +323,7 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
                 <label className="text-sm font-medium text-foreground">{tx("策略名称")}<input value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} placeholder={tx("例如：高质量趋势跟踪")} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
                 <label className="text-sm font-medium text-foreground">{tx("候选范围")}<select value={draft.universeMode} onChange={(event) => updateDraft("universeMode", event.target.value as TradingStrategyDraft["universeMode"])} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"><option value="screening">{tx("指定选股结果")}</option><option value="watchlist">{tx("我的自选股")}</option><option value="portfolio">{tx("持仓管理中的现有持仓")}</option></select></label>
               </div>
-              {draft.universeMode === "screening" && <label className="mt-4 block text-sm font-medium text-foreground"><UiLiteral text={"选股来源"} /><select className="min-h-10 rounded-lg border border-border bg-background px-3 py-2 text-sm mt-2 w-full" value={draft.sourceRunId} onChange={e => updateDraft("sourceRunId", e.target.value)}><option value=""><UiLiteral text={"请选择已完成的选股结果"} /></option>{sources.map(run => <option value={run.id} key={run.id}>{run.taskSnapshot.name} · {new Date(run.createdAt).toLocaleString()}</option>)}</select><span className="mt-1 block text-xs text-muted-text"><UiLiteral text={"启动时冻结该报告的股票与来源日期。历史候选不代表最新行情；没有结果请先完成选股。"} /></span></label>}
+              {draft.universeMode === "screening" && <label className="mt-4 block text-sm font-medium text-foreground"><UiLiteral text={"选股来源"} /><select aria-label={tx("选股来源")} className="min-h-10 rounded-lg border border-border bg-background px-3 py-2 text-sm mt-2 w-full" value={draft.sourceRunId} onChange={e => updateDraft("sourceRunId", e.target.value)}><option value=""><UiLiteral text={"请选择已完成的选股结果"} /></option>{sourceChoices.map(run => <option value={run.id} key={run.id}>{run.taskSnapshot.name} · {new Date(run.createdAt).toLocaleString()}</option>)}</select><span className="mt-1 block text-xs text-muted-text"><UiLiteral text={"启动时冻结该报告的股票与来源日期。历史候选不代表最新行情；没有结果请先完成选股。"} /></span></label>}
               <label className="mt-4 block text-sm font-medium text-foreground">{tx("交易逻辑")}<textarea value={draft.objective} onChange={(event) => updateDraft("objective", event.target.value)} placeholder={tx("例如：从高质量候选池中寻找中期趋势确认的公司；信号冲突时保持现金，并要求专家团复核重大基本面变化")} className="mt-2 min-h-28 w-full resize-y rounded-[9px] border border-border bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none focus:border-primary" /></label>
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
                 {MARKETS.map((market) => (
@@ -285,18 +349,19 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
               <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /><h2 id="trading-risk-heading" className="text-base font-semibold text-foreground">{tx("提案风险参数")}</h2></div>
               <p className="mt-1 text-sm text-secondary-text">{tx("目前仅校验参数范围并生成提案，尚未结合账户执行风控评估。")}</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <label className="text-sm font-medium text-foreground">{tx("模拟初始资金")}<input type="number" min="10000" value={draft.initialCapital} onChange={(event) => updateDraft("initialCapital", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
+                <label className="text-sm font-medium text-foreground">{tx("模拟初始资金")}<input type="number" min="10000" step="0.01" value={draft.initialCapital} onChange={(event) => updateDraft("initialCapital", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
                 <label className="text-sm font-medium text-foreground">{tx("最大持仓数")}<input type="number" min="1" max="100" value={draft.maxPositions} onChange={(event) => updateDraft("maxPositions", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
-                <label className="text-sm font-medium text-foreground">{tx("单股仓位上限（%）")}<input type="number" min="1" max="100" value={draft.maxPositionPercent} onChange={(event) => updateDraft("maxPositionPercent", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
+                <label className="text-sm font-medium text-foreground">{tx("单股仓位上限（%）")}<input type="number" min="0.1" max="100" step="0.1" value={draft.maxPositionPercent} onChange={(event) => updateDraft("maxPositionPercent", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
                 <label className="text-sm font-medium text-foreground">{tx("单日亏损上限（%）")}<input type="number" min="0.1" max="100" step="0.1" value={draft.maxDailyLossPercent} onChange={(event) => updateDraft("maxDailyLossPercent", event.target.value)} className="mt-2 h-10 w-full rounded-[9px] border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" /></label>
               </div>
+              {!numericReady && <p role="alert" className="mt-3 text-sm text-danger">{tx("初始资金至少为 10000；持仓数须为 1–100 的整数；仓位和亏损上限须为 0.1–100 的有效数字。")}</p>}
               <label className="mt-4 flex items-start gap-3 rounded-[10px] border border-border bg-background px-4 py-3 text-sm text-foreground"><input type="checkbox" checked={draft.requireApproval} onChange={(event) => updateDraft("requireApproval", event.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" /><span><span className="font-medium">{tx("要求提案注明人工复核")}</span><span className="mt-1 block text-xs leading-5 text-muted-text">{tx("这是研究约束，当前没有订单确认或成交功能。")}</span></span></label>
             </section>
 
             <section className="border-b border-border/70 px-5 py-5 sm:px-6" aria-labelledby="trading-skills-heading">
               <h2 id="trading-skills-heading" className="text-base font-semibold text-foreground">{tx("交易策略 Skill（可选）")}</h2>
               <p className="mt-1 text-sm leading-6 text-secondary-text">{tx("交易逻辑与所选 Skill 共同组成这份自定义策略，用于研究信号和生成模拟提案；不另选执行流程，也不改变上方提案风险参数。")}</p>
-              <StrategySkillPicker skills={skills} selectedIds={capabilities.skillIds} onToggle={(id) => { setCapabilities((current) => ({ ...current, skillIds: toggleValue(current.skillIds, id) })); setSaved(false); }} loading={skillsLoading} error={tx(skillsError)} />
+              <StrategySkillPicker skills={skills} selectedIds={capabilities.skillIds} onToggle={(id) => toggleCapability("skillIds", id)} loading={skillsLoading} error={tx(skillsError)} />
             </section>
             <section className="px-5 py-5 sm:px-6" aria-labelledby="trading-capability-heading">
               <div className="flex flex-col gap-4">
@@ -305,12 +370,14 @@ export default function TradingTaskSetupPage({ onRunStarted }: { onRunStarted: (
               </div>
               <div className="mt-5 flex flex-col gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
                 <p className="flex items-start gap-2 text-xs leading-5 text-muted-text"><Database className="mt-0.5 h-3.5 w-3.5 shrink-0" />{tx("策略定义和能力绑定会保存到后端；每次模拟运行都会冻结独立快照。")}</p>
-                <div className="flex flex-wrap gap-2"><button type="button" className="btn-secondary inline-flex items-center gap-2" onClick={() => void saveDraft()}><Save className="h-4 w-4" />{tx("保存交易策略")}</button><button type="button" disabled={!strategyReady} className="btn-secondary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45" onClick={() => void scheduleStrategy()}><CalendarClock className="h-4 w-4" />{tx("创建定时计划")}</button><button type="button" disabled={!strategyReady || busy} className="btn-primary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45" onClick={() => void startRun()}><Play className="h-4 w-4" />{restoring ? tx("恢复运行状态…") : submitting ? tx("正在提交…") : tx("生成交易提案")}</button></div>
+                <div className="flex flex-wrap gap-2"><button type="button" disabled={!strategyReady || saving || busy} className="btn-secondary inline-flex items-center gap-2 disabled:opacity-45" onClick={() => void saveDraft()}><Save className="h-4 w-4" />{tx("保存交易策略")}</button><button type="button" disabled={!strategyReady || saving || busy} className="btn-secondary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45" onClick={() => void scheduleStrategy()}><CalendarClock className="h-4 w-4" />{tx("创建定时计划")}</button><button type="button" disabled={!strategyReady || saving || busy} className="btn-primary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-45" onClick={() => void startRun()}><Play className="h-4 w-4" />{restoring ? tx("恢复运行状态…") : submitting ? tx("正在提交…") : tx("生成交易提案")}</button></div>
               </div>
               {saved ? <p role="status" className="mt-3 text-xs font-medium text-success">{tx("交易策略已保存到后端工作区。")}</p> : null}
             </section>
           </div>
 
+          {taskError && <p role="alert" className="flex items-center gap-3 text-sm text-danger">{tx(taskError)}<button className="btn-secondary" onClick={() => setTaskReadRevision(value => value + 1)}>{tx("重试")}</button></p>}
+          {draft.universeMode === "screening" && (sourceError || sourcesError) && <p role="alert" className="flex items-center gap-3 text-sm text-danger">{tx(sourceError || sourcesError)}<button className="btn-secondary" onClick={() => setReadRevision(value => value + 1)}>{tx("重试")}</button></p>}
           {runError || runtimeError ? <p role="alert" className="text-sm text-danger">{runError || runtimeError}</p> : null}
         </div>
 

@@ -8,7 +8,8 @@ import pytest
 from sqlalchemy import select, func
 from src.services.trading_agent_service import TradingAgentService
 from src.services.simulation_portfolio_service import SimulationPortfolioService
-from src.storage import SimulationAccountRecord, SimulationFillRecord, SimulationTradingCallRecord, SimulationUniverseSnapshotRecord
+from src.storage import (SimulationAccountRecord, SimulationFillRecord, SimulationTradingCallRecord,
+                         SimulationUniverseSnapshotRecord, SimulationPortfolioRunRecord, SimulationRunRecord)
 from tests.test_workspace_service import workspace  # noqa: F401
 from tests.test_member_workspaces import members  # noqa: F401
 from tests.test_simulation_portfolios import config, fetcher, history, run_sync
@@ -286,6 +287,51 @@ def test_invalid_agent_decision_never_writes_account_day(workspace):
         assert session.scalar(select(func.count()).select_from(SimulationFillRecord)) == 0
         assert session.get(SimulationAccountRecord, 1).cash_balance == 100000
         assert session.scalar(select(func.count()).select_from(SimulationUniverseSnapshotRecord)) == 1
+
+
+@pytest.mark.parametrize(('invalid_close', 'invalid_day'), [
+    (0, 10), (float('nan'), 10), (float('inf'), 10), (0, 11),
+])
+def test_invalid_agent_benchmark_never_writes_ledger_and_can_retry(workspace, invalid_close, invalid_day):
+    _, service, saved, calls = setup_agent(workspace)
+    account = service.create_validation(saved['id'], dict(
+        mode='backtest', historyMode='ai_replay', initialCash=100000,
+        startDate='2025-02-10', endDate='2025-02-14'))
+    valid_fetcher = service.fetcher
+
+    def invalid_benchmark(code, **kwargs):
+        frame, source = valid_fetcher.get_daily_data(code, **kwargs)
+        if code == 'SPY':
+            frame['close'] = frame['close'].astype(float)
+            frame.loc[frame['date'] == date(2025, 2, invalid_day), 'close'] = invalid_close
+        return frame, source
+
+    service.fetcher = SimpleNamespace(get_daily_data=invalid_benchmark)
+    with patch.object(service, '_last_closed', return_value=date(2025, 2, 14)):
+        run_sync(service, account['id'])
+    failed = service.detail(account['id'])
+    completed_days = invalid_day - 10
+    assert failed['error'] and not failed['busy']
+    assert len(failed['days']) == len(calls) == completed_days
+    assert all(not day['trades'] for day in failed['days'])
+    if not completed_days:
+        assert failed['metrics']['cumulativeReturn'] is None
+    with workspace.db.get_session() as session:
+        row = session.get(SimulationPortfolioRunRecord, account['id'])
+        state = json.loads(row.state_json)
+        assert row.last_date == ('2025-02-10' if completed_days else None)
+        assert state['cash'] == 100000 and not state.get('positions')
+        if completed_days:
+            assert state['pending']['weights']['AAPL'] == .2
+        assert session.get(SimulationAccountRecord, row.account_id).cash_balance == 100000
+        assert session.scalar(select(func.count()).select_from(SimulationRunRecord)) == completed_days
+        assert session.scalar(select(func.count()).select_from(SimulationFillRecord)) == 0
+    service.fetcher = valid_fetcher
+    with patch.object(service, '_last_closed', return_value=date(2025, 2, 14)):
+        run_sync(service, account['id'])
+    recovered = service.detail(account['id'])
+    assert recovered['error'] is None and recovered['status'] == 'completed'
+    assert len(recovered['days']) == len(calls) == 5
 
 
 def test_rejected_answers_remain_auditable(workspace):

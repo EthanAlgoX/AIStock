@@ -214,4 +214,128 @@ describe("TradingWorkspacePage", () => {
     await waitFor(() => expect(api.cancelRun).toHaveBeenCalledWith("active"));
     expect(api.cancelRun).not.toHaveBeenCalledWith("history");
   });
+
+  it("keeps screening selection tied to its completed report and clears it when changing market", async () => {
+    const source = workspaceRunFixture(workspaceTaskFixture({kind:"screening",market:"CN",name:"旧候选池"}),{id:"source-cn"});
+    api.runHistory.mockImplementation(async ({market}:{market:string})=>({items:market==="CN"?[source]:[],total:market==="CN"?1:0}));
+    render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button",{name:"新建交易推演"}));
+    await screen.findByText("skills:2");
+    fireEvent.change(screen.getByLabelText("策略名称"),{target:{value:"报告引用"}});
+    fireEvent.change(screen.getByLabelText("交易逻辑"),{target:{value:"使用冻结候选"}});
+    await screen.findByRole("option",{name:/旧候选池/});
+    fireEvent.change(screen.getByLabelText("选股来源"),{target:{value:source.id}});
+    expect(screen.getByRole("button",{name:"生成交易提案"})).toBeEnabled();
+    fireEvent.click(screen.getByRole("button",{name:"港股香港模拟市场"}));
+    expect(screen.getByLabelText("选股来源")).toHaveValue("");
+    expect(screen.getByRole("button",{name:"生成交易提案"})).toBeDisabled();
+    expect(screen.getByRole("button",{name:"创建定时计划"})).toBeDisabled();
+  });
+
+  it("keeps task restoration usable when the incoming source fails and reports the actual failed read", async () => {
+    task=workspaceTaskFixture({kind:"trading",name:"已保存的提案策略",objective:"冻结报告研究",subject:{universeMode:"screening",sourceRunId:"missing-source"}});
+    api.getRun.mockRejectedValue(new Error("source missing"));
+    render(<MemoryRouter initialEntries={["/trading?sourceRun=missing-source"]}><TradingWorkspacePage /></MemoryRouter>);
+    await waitFor(()=>expect(screen.getByLabelText("策略名称")).toHaveValue("已保存的提案策略"));
+    expect(screen.getByText("skills:2")).toBeVisible();
+    expect(await screen.findByText("来源报告读取失败，不能引用该报告。")).toBeVisible();
+    expect(screen.getByRole("button",{name:"生成交易提案"})).toBeDisabled();
+    expect(screen.getByRole("button",{name:"保存交易策略"})).toBeDisabled();
+    expect(api.createTask).not.toHaveBeenCalled();
+  });
+
+  it("restores a completed screening source outside the recent directory page", async () => {
+    task=workspaceTaskFixture({kind:"trading",name:"历史来源策略",subject:{universeMode:"screening",sourceRunId:"old-source"}});
+    const source=workspaceRunFixture(workspaceTaskFixture({kind:"screening",name:"早期已完成候选"}),{id:"old-source"});
+    api.getRun.mockResolvedValue(source);
+    render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button",{name:"新建交易推演"}));
+    expect(await screen.findByRole("option",{name:/早期已完成候选/})).toBeVisible();
+    expect(screen.getByLabelText("选股来源")).toHaveValue("old-source");
+    expect(screen.getByRole("button",{name:"生成交易提案"})).toBeEnabled();
+  });
+
+  it("makes source directory failure explicit and permits a read retry", async () => {
+    api.runHistory.mockRejectedValueOnce(new Error("offline"));
+    render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button",{name:"新建交易推演"}));
+    const error=await screen.findByText("报告目录读取失败，请重试。");
+    expect(error).toBeVisible();
+    fireEvent.click(screen.getByRole("button",{name:"重试"}));
+    await waitFor(()=>expect(screen.queryByText("报告目录读取失败，请重试。")).not.toBeInTheDocument());
+    expect(api.runHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not write a new strategy while restoring the saved task or duplicate a pending save", async () => {
+    let restore!: (tasks:ReturnType<typeof workspaceTaskFixture>[])=>void;
+    api.listTasks.mockImplementation(()=>new Promise<ReturnType<typeof workspaceTaskFixture>[]>(resolve=>{restore=resolve;}));
+    render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button",{name:"新建交易推演"}));
+    expect(screen.getByRole("button",{name:"保存交易策略"})).toBeDisabled();
+    await act(async()=>restore([]));
+    await screen.findByText("skills:2");
+    fillStrategy();
+    let finish!: (task:ReturnType<typeof workspaceTaskFixture>)=>void;
+    api.createTask.mockImplementation(()=>new Promise<ReturnType<typeof workspaceTaskFixture>>(resolve=>{finish=resolve;}));
+    fireEvent.click(screen.getByRole("button",{name:"保存交易策略"}));
+    fireEvent.click(screen.getByRole("button",{name:"保存交易策略"}));
+    fireEvent.click(screen.getByRole("button",{name:"创建定时计划"}));
+    expect(api.createTask).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText("交易逻辑"),{target:{value:"保存期间的新逻辑"}});
+    await act(async()=>finish(workspaceTaskFixture({id:"trading-task",kind:"trading"})));
+    expect(screen.queryByText("交易策略已保存到后端工作区。")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button",{name:"保存交易策略"}));
+    await screen.findByText("交易策略已保存到后端工作区。");
+    fireEvent.click(screen.getByRole("button",{name:"选择巴菲特专家"}));
+    expect(screen.queryByText("交易策略已保存到后端工作区。")).not.toBeInTheDocument();
+    expect(api.createTask).toHaveBeenCalledTimes(1);
+    expect(api.updateTask).toHaveBeenCalledWith("trading-task",expect.objectContaining({objective:"保存期间的新逻辑"}));
+  });
+
+
+  it("rejects a running screening report as a frozen proposal source", async () => {
+    task=workspaceTaskFixture({kind:"trading",subject:{universeMode:"screening",sourceRunId:"pending-source"}});
+    api.getRun.mockResolvedValue(workspaceRunFixture(workspaceTaskFixture({kind:"screening"}),{id:"pending-source",status:"running",completedAt:null}));
+    render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button",{name:"新建交易推演"}));
+    expect(await screen.findByText("来源报告读取失败，不能引用该报告。")).toBeVisible();
+    expect(screen.getByRole("button",{name:"生成交易提案"})).toBeDisabled();
+    expect(screen.getByRole("button",{name:"保存交易策略"})).toBeDisabled();
+    expect(api.runTask).not.toHaveBeenCalled();
+  });
+
+
+  it.each([
+    ["模拟初始资金",""],["模拟初始资金","9999"],["模拟初始资金","1e309"],
+    ["最大持仓数","0"],["最大持仓数","1.5"],["最大持仓数","101"],
+    ["单股仓位上限（%）","0.09"],["单日亏损上限（%）","101"],
+  ])("blocks save, scheduling and proposal submission for invalid %s=%s", async (label,value) => {
+    render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button",{name:"新建交易推演"}));
+    await screen.findByText("skills:2");
+    fillStrategy();
+    fireEvent.change(screen.getByLabelText(label),{target:{value}});
+    expect(screen.getByText("初始资金至少为 10000；持仓数须为 1–100 的整数；仓位和亏损上限须为 0.1–100 的有效数字。")).toBeVisible();
+    for(const name of ["保存交易策略","创建定时计划","生成交易提案"]) {
+      expect(screen.getByRole("button",{name})).toBeDisabled();
+      fireEvent.click(screen.getByRole("button",{name}));
+    }
+    expect(api.createTask).not.toHaveBeenCalled();
+    expect(api.updateTask).not.toHaveBeenCalled();
+    expect(api.runTask).not.toHaveBeenCalled();
+  });
+
+  it("accepts fractional initial cash and the existing backend lower percentage boundary", async () => {
+    render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button",{name:"新建交易推演"}));
+    await screen.findByText("skills:2");
+    fillStrategy();
+    fireEvent.change(screen.getByLabelText("模拟初始资金"),{target:{value:"10000.01"}});
+    fireEvent.change(screen.getByLabelText("单股仓位上限（%）"),{target:{value:"0.1"}});
+    fireEvent.change(screen.getByLabelText("单日亏损上限（%）"),{target:{value:"0.1"}});
+    fireEvent.click(screen.getByRole("button",{name:"保存交易策略"}));
+    await waitFor(()=>expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({config:expect.objectContaining({initialCapital:10000.01,riskPolicy:expect.objectContaining({maxPositions:10,maxPositionPercent:.1,maxDailyLossPercent:.1})})})));
+    expect(await screen.findByText("交易策略已保存到后端工作区。")).toBeVisible();
+  });
+
 });

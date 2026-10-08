@@ -72,6 +72,8 @@ export function SourceRuntimeWorkspace({ strategyId, versionId, onSelection, onA
   const [error, setError] = useState('');
   const [selectionError, setSelectionError] = useState('');
   const [previewError, setPreviewError] = useState('');
+  const [plansError, setPlansError] = useState('');
+  const [planControlError, setPlanControlError] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [savedRequest] = useState(readPendingRequest);
   const [requestSpec, setRequestSpec] = useState<RequestSpec | null>(savedRequest);
@@ -100,6 +102,8 @@ export function SourceRuntimeWorkspace({ strategyId, versionId, onSelection, onA
   const samples = backtests.filter(row => row.versionId === version?.id);
   const sample = samples.find(row => row.id === selectedBacktest);
   const periodic = capabilities?.periodicResearch;
+  const canResumePlans = readable && Boolean(periodic?.supported && periodic.scheduler === 'main_app' && periodic.modelCalls === false
+    && periodic.researchModes.includes('rules') && capabilities?.operations.research && capabilities.asyncRequests && capabilities.idempotentRequests);
   const pending = operation && unresolved(operation.status);
   const budgetValid = Number.isInteger(budget) && budget >= 1 && budget <= Math.min(16, periodic?.maxBudgetPerCycle ?? 16);
   const canResearch = writable && capabilities?.operations.research && version?.current && version.researchSupported
@@ -121,18 +125,29 @@ export function SourceRuntimeWorkspace({ strategyId, versionId, onSelection, onA
         if (!active) return;
         setRuntime(status);
         if (status.available && status.capabilities?.contractVersion === 'quantevo.ai-stock.v1' && status.capabilities.operations.read) {
-          const [catalog, jobs, savedPlans] = await Promise.all([
-            sourceRuntimeApi.strategies(), sourceRuntimeApi.tasks(),
-            status.capabilities.periodicResearch?.supported ? sourceRuntimeApi.plans() : Promise.resolve([]),
-          ]);
+          const [catalog, jobs] = await Promise.all([sourceRuntimeApi.strategies(), sourceRuntimeApi.tasks()]);
           if (active) {
             const ordered = [...catalog].sort((a, b) => (marketPriority[a.market] ?? 4) - (marketPriority[b.market] ?? 4));
-            setStrategies(ordered); setInitialStrategyId(previous => previous ?? ordered[0]?.id ?? null); setTasks(jobs); setPlans(savedPlans);
+            setStrategies(ordered); setInitialStrategyId(previous => previous ?? ordered[0]?.id ?? null); setTasks(jobs);
           }
         }
         if (active) setError('');
       } catch (e) { if (active) setError(toApiErrorMessage(e)); }
       finally { if (active) { setLoading(false); timer = setTimeout(load, 10000); } }
+    };
+    void load();
+    return () => { active = false; clearTimeout(timer); };
+  }, [refresh]);
+
+  useEffect(() => {
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const load = async () => {
+      try {
+        const rows = await sourceRuntimeApi.plans();
+        if (active) { setPlans(rows); setPlansError(''); }
+      } catch (e) { if (active) setPlansError(toApiErrorMessage(e)); }
+      finally { if (active) timer = setTimeout(load, 10000); }
     };
     void load();
     return () => { active = false; clearTimeout(timer); };
@@ -220,6 +235,12 @@ export function SourceRuntimeWorkspace({ strategyId, versionId, onSelection, onA
     catch (e) { setError(toApiErrorMessage(e)); }
     finally { setBusy(false); }
   };
+  const controlPlan = async (plan: SourceResearchPlan) => {
+    setBusy(true); setPlanControlError('');
+    try { await sourceRuntimeApi.controlPlan(plan.id, plan.status === 'active' ? 'pause' : 'resume'); setRefresh(value => value + 1); }
+    catch (e) { setPlanControlError(toApiErrorMessage(e)); }
+    finally { setBusy(false); }
+  };
   const metric = (value: unknown, percent = false) => typeof value === 'number' && Number.isFinite(value)
     ? `${(value * (percent ? 100 : 1)).toFixed(2)}${percent ? '%' : ''}` : '—';
 
@@ -287,13 +308,6 @@ export function SourceRuntimeWorkspace({ strategyId, versionId, onSelection, onA
             <label className="text-sm">{t('最多运行轮数')}<input className="mt-2 block w-28 rounded border border-border bg-background p-2" type="number" min={1} max={maximumCycles} value={maxRuns} onChange={event => setMaxRuns(Number(event.target.value))} /></label>
             <button className="btn-secondary" disabled={!canResearch || !planValid || !periodic.researchModes.includes('rules')} onClick={() => void runAction(() => sourceRuntimeApi.createPlan({ sourceStrategyId: selectedStrategy!.id, sourceVersionId: version.id, sourceBacktestId: sample!.id, intervalSeconds, budget, maxRuns }))}>{t('创建周期研究计划')}</button>
           </div>
-          {plans.filter(row => row.sourceStrategyId === selectedStrategy?.id).map(row => <article className="mt-4 border-t border-border pt-3 text-sm" key={row.id}>
-            <div className="flex flex-wrap items-center justify-between gap-3"><span>#{row.id} · {t(statuses[row.status])} · {row.runsReserved}/{row.maxRuns} · {row.sourceVersionId}</span>
-              {['active', 'paused'].includes(row.status) && <button className="btn-secondary" disabled={busy || !writable} onClick={() => void runAction(() => sourceRuntimeApi.controlPlan(row.id, row.status === 'active' ? 'pause' : 'resume'))}>{t(row.status === 'active' ? '暂停计划' : '恢复计划')}</button>}</div>
-            <p className="mt-2 text-xs text-secondary-text">{t('下次研究')} · {recordTime(row.nextRunAt)} · {row.intervalSeconds / 3600}h · {t('每轮实验预算')} {row.budget}</p>
-            {row.lastError && <p className="mt-2 text-danger">{row.lastError}</p>}
-            <details className="mt-2"><summary className="cursor-pointer text-primary">{t('查看计划请求')}</summary>{row.operations.map(receipt => <p className="mt-2 break-all text-xs" key={receipt.requestId}>{receipt.requestId} · {t(statuses[receipt.status])}{receipt.error ? ` · ${receipt.error}` : ''}</p>)}</details>
-          </article>)}
         </details>}
         <div className="border-t border-border py-5"><h3 className="font-semibold">{t('来源研究记录')}</h3>
           {!research.some(row => row.versionId === version.id) && <p className="mt-3 text-sm text-secondary-text">{t('此版本暂无研究记录。')}</p>}
@@ -307,15 +321,6 @@ export function SourceRuntimeWorkspace({ strategyId, versionId, onSelection, onA
           </details>)}
         </div>
       </>}
-      {operation && <section aria-label={t('来源请求回执')} className="mb-5 border-y border-border py-4 text-sm">
-        <h3 className="font-medium">{t(statuses[operation.status])} · {operation.versionId}</h3><p className="mt-2 break-all text-xs text-secondary-text">{operation.requestId}</p>
-        {operation.error && <p className="mt-2 text-danger">{operation.error}</p>}
-        {requestError && <p role="alert" className="mt-2 text-danger">{t(requestError)}</p>}
-        {pending && <p className="mt-2 text-secondary-text">{t('等待同一请求的服务端回执；状态确认前不会创建新请求。')}</p>}
-        {pending && <button className="btn-secondary mt-3" disabled={busy || !readable} onClick={() => void lookupReceipt()}>{t('查询请求回执')}</button>}
-        {requestSpec && operation.status === 'UNKNOWN' && missingReceipt && !requestSpec.authoritativeUnknownSeen && <button className="btn-secondary ml-2 mt-3" disabled={busy || !writable} onClick={() => void submitRequest(requestSpec)}>{t('重试同一请求')}</button>}
-        {operation.status === 'SUCCEEDED' && operation.kind === 'candidate-paper' && Number.isInteger(operation.portfolioId) && operation.portfolioId! < 0 && <button className="btn-primary mt-3" onClick={() => onAdopt(operation.portfolioId!)}>{t('查看独立模拟')}</button>}
-      </section>}
       <section className="border-t border-border py-5" aria-label={t('来源任务')}><h3 className="font-semibold">{t('来源任务')}</h3>
         {!tasks.length && <p className="mt-3 text-sm text-secondary-text">{t('暂无来源任务')}</p>}
         {tasks.map(task => <article className="mt-3 flex flex-wrap items-start justify-between gap-3 border-t border-border pt-3 text-sm" key={task.id}>
@@ -324,5 +329,27 @@ export function SourceRuntimeWorkspace({ strategyId, versionId, onSelection, onA
         </article>)}
       </section>
     </>}
+    {(plans.length > 0 || plansError || planControlError) && <section aria-label={t('已保存计划')} className="border-t border-border py-5">
+      <h3 className="font-semibold">{t('已保存计划')}</h3>
+      {plansError && <p role="alert" className="mt-3 text-danger">{plansError}</p>}
+      {planControlError && <p role="alert" className="mt-3 text-danger">{planControlError}</p>}
+      {plans.map(row => <article className="mt-4 border-t border-border pt-3 text-sm" key={row.id}>
+        <div className="flex flex-wrap items-center justify-between gap-3"><span>#{row.id} · {t(statuses[row.status])} · {row.runsReserved}/{row.maxRuns} · {row.sourceVersionId}</span>
+          {['active', 'paused'].includes(row.status) && <button className="btn-secondary" disabled={busy || (row.status === 'paused' && !canResumePlans)} onClick={() => void controlPlan(row)}>{t(row.status === 'active' ? '暂停计划' : '恢复计划')}</button>}</div>
+        <p className="mt-2 break-words text-xs text-secondary-text">{t('来源策略')} · {strategies.find(strategy => strategy.id === row.sourceStrategyId)?.name ?? `#${row.sourceStrategyId}`}</p>
+        <p className="mt-2 text-xs text-secondary-text">{t('下次研究')} · {recordTime(row.nextRunAt)} · {row.intervalSeconds / 3600}h · {t('每轮实验预算')} {row.budget}</p>
+        {row.lastError && <p className="mt-2 text-danger">{row.lastError}</p>}
+        <details className="mt-2"><summary className="cursor-pointer text-primary">{t('查看计划请求')}</summary>{row.operations.map(receipt => <p className="mt-2 break-all text-xs" key={receipt.requestId}>{receipt.requestId} · {t(statuses[receipt.status])}{receipt.error ? ` · ${receipt.error}` : ''}</p>)}</details>
+      </article>)}
+    </section>}
+    {operation && <section aria-label={t('来源请求回执')} className="mb-5 border-y border-border py-4 text-sm">
+      <h3 className="font-medium">{t(statuses[operation.status])} · {operation.versionId}</h3><p className="mt-2 break-all text-xs text-secondary-text">{operation.requestId}</p>
+      {operation.error && <p className="mt-2 text-danger">{operation.error}</p>}
+      {requestError && <p role="alert" className="mt-2 text-danger">{t(requestError)}</p>}
+      {pending && <p className="mt-2 text-secondary-text">{t('等待同一请求的服务端回执；状态确认前不会创建新请求。')}</p>}
+      {pending && <button className="btn-secondary mt-3" disabled={busy || !readable} onClick={() => void lookupReceipt()}>{t('查询请求回执')}</button>}
+      {requestSpec && operation.status === 'UNKNOWN' && missingReceipt && !requestSpec.authoritativeUnknownSeen && <button className="btn-secondary ml-2 mt-3" disabled={busy || !writable} onClick={() => void submitRequest(requestSpec)}>{t('重试同一请求')}</button>}
+      {operation.status === 'SUCCEEDED' && operation.kind === 'candidate-paper' && Number.isInteger(operation.portfolioId) && operation.portfolioId! < 0 && <button className="btn-primary mt-3" onClick={() => onAdopt(operation.portfolioId!)}>{t('查看独立模拟')}</button>}
+    </section>}
   </section>;
 }

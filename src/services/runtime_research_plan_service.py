@@ -158,7 +158,7 @@ class RuntimeResearchPlanService:
             raise HTTPException(502, 'Source research receipt does not match the reserved request')
 
     def _submit(self, plan, operation, token, now):
-        if not self.repo.owns(plan['id'], token, active=True):
+        if operation['authoritative_unknown_seen'] or not self.repo.owns(plan['id'], token, active=True):
             return
         try:
             receipt = self.runtime.source_request('POST', f"/versions/{plan['source_version_id']}/research", dict(
@@ -182,13 +182,13 @@ class RuntimeResearchPlanService:
                 # Only an explicit missing-receipt response permits a replay.
                 # UNKNOWN or a generic rejected/unavailable response never does.
                 if (exc.status_code == 404 and plan['status'] == 'active'
-                        and pending['status'] != 'UNKNOWN'):
+                        and not pending['authoritative_unknown_seen']):
                     self._validate_frozen(plan)
                     self._submit(plan, pending, token, now)
                 else:
                     self.repo.note_error(plan_id, token,
                                          'Source receipt unavailable; the original request is retained', now,
-                                         pause=pending['status'] == 'UNKNOWN')
+                                         pause=pending['authoritative_unknown_seen'])
                 return
             self.repo.receive(plan_id, token, pending['id'], receipt, now)
             return

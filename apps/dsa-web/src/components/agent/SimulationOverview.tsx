@@ -1,4 +1,5 @@
 import { simulationTimeTicks } from "../../utils/simulationTimeAxis";
+import { simulationPercentTickFormatter } from "../../utils/simulationPercentAxis";
 import { InlinePortfolioDetails } from "./InlinePortfolioDetails";
 import { signalLabel } from "../../utils/portfolioTiming";
 import { useEffect, useMemo, useState } from "react";
@@ -105,27 +106,43 @@ export function SimulationOverview({
       return Number(bKnown) - Number(aKnown) || a.id - b.id;
     });
   const visible = filtered.filter((row) => !hidden.includes(row.id));
-  const data = useMemo(() => {
+  const chart = useMemo(() => {
     const times = new Map<number, Record<string, number>>();
-    const latest = Math.max(
-      0,
-      ...visible.flatMap((row) => row.curve.map((p) => Date.parse(p.time))),
-    );
+    const series = new Map<number, Record<string, number | null>[]>();
+    let latest = 0;
+    for (const row of visible) for (const point of row.curve) {
+      const time = Date.parse(point.time);
+      if (Number.isFinite(time)) latest = Math.max(latest, time);
+    }
     const cutoff = windowDays ? latest - windowDays * 86400000 : -Infinity;
-    for (const row of visible)
+    for (const row of visible) {
+      const points: Record<string, number | null>[] = [];
       for (const point of row.curve) {
         const time = Date.parse(point.time);
-        if (!Number.isFinite(time) || time < cutoff) continue;
+        if (!Number.isFinite(time) || !Number.isFinite(point.value) || time < cutoff) continue;
+        // A null marker at the previous real timestamp breaks this account's path
+        // without adding an interpolated value or another account's timestamps.
+        if (point.breakBefore && points.length) points.push({time:points.at(-1)!.time, [`r${row.id}`]: null, [`b${row.id}`]: null});
+        const own = {time, [`r${row.id}`]: point.value * 100, [`b${row.id}`]: point.benchmark != null && Number.isFinite(point.benchmark) ? point.benchmark * 100 : null};
+        points.push(own);
         const record = times.get(time) ?? { time };
         record[`r${row.id}`] = point.value * 100;
-        if (point.benchmark != null)
+        if (point.benchmark != null && Number.isFinite(point.benchmark))
           record[`b${row.id}`] = point.benchmark * 100;
         times.set(time, record);
       }
-    return [...times.values()].sort((a, b) => a.time - b.time);
+      series.set(row.id, points);
+    }
+    return {data: [...times.values()].sort((a, b) => a.time - b.time), series};
   }, [visible, windowDays]);
+  const data = chart.data;
+  const formatPercentTick = useMemo(() => simulationPercentTickFormatter((function* () {
+    for (const point of data) for (const [key,value] of Object.entries(point)) {
+      if (key.startsWith('r') || (benchmark && key.startsWith('b'))) yield value;
+    }
+  })(), language), [data, benchmark, language]);
   const pct = (n: number | null) =>
-    n == null
+    n == null || !Number.isFinite(n)
       ? "—"
       : `${(n * 100).toLocaleString(language, { maximumFractionDigits: 2 })}%`;
   const markets: Record<string, string> = {
@@ -275,7 +292,7 @@ export function SimulationOverview({
                         fontSize: 11,
                         fill: "hsl(var(--muted-foreground))",
                       }}
-                      tickFormatter={(n) => `${n.toFixed(1)}%`}
+                      tickFormatter={formatPercentTick}
                       width={62}
                     />
                     <Tooltip
@@ -300,6 +317,7 @@ export function SimulationOverview({
                       <Line
                         key={row.id}
                         dataKey={`r${row.id}`}
+                        data={chart.series.get(row.id)}
                         name={row.name}
                         stroke={
                           colors[
@@ -308,8 +326,8 @@ export function SimulationOverview({
                           ]
                         }
                         strokeWidth={2}
-                        dot={data.length === 1}
-                        connectNulls
+                        dot={chart.series.get(row.id)?.filter(point => point[`r${row.id}`] != null).length === 1 || chart.series.get(row.id)?.some(point => point[`r${row.id}`] == null)}
+                        connectNulls={false}
                         isAnimationActive={false}
                       />
                     ))}
@@ -322,6 +340,7 @@ export function SimulationOverview({
                           <Line
                             key={`b${row.id}`}
                             dataKey={`b${row.id}`}
+                            data={chart.series.get(row.id)}
                             name={`${row.name} · ${t("基准")}`}
                             stroke={
                               colors[
@@ -331,7 +350,7 @@ export function SimulationOverview({
                             }
                             strokeDasharray="5 5"
                             dot={false}
-                            connectNulls
+                            connectNulls={false}
                             isAnimationActive={false}
                           />
                         ))}

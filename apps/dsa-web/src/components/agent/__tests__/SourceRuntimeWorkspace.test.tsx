@@ -204,6 +204,19 @@ it('keeps an unknown request across remounts and only queries its receipt after 
   expect(api.request).toHaveBeenCalledWith(requestId); expect(api.candidatePaper).toHaveBeenCalledTimes(1);
 });
 
+it('keeps a restored pending receipt visible during a source outage without querying or resubmitting it', async () => {
+  const requestId='11111111-1111-4111-8111-111111111111';
+  sessionStorage.setItem(`dsa.source-runtime-request.${localStorage.getItem('investcrew.activeIdentity') || 'owner'}`,JSON.stringify({requestId,versionId:version.id,kind:'candidate-paper',authoritativeUnknownSeen:true}));
+  api.capabilities.mockResolvedValue({configured:true,available:false,capabilities:null,legacy:false});
+  render(<Workspace />);
+  expect(await screen.findByText(/来源引擎尚未提供兼容接口/)).toBeVisible();
+  expect(screen.getByText(requestId)).toBeVisible();
+  expect(screen.getByRole('button',{name:'查询请求回执'})).toBeDisabled();
+  expect(screen.queryByRole('button',{name:'重试同一请求'})).not.toBeInTheDocument();
+  expect(api.request).not.toHaveBeenCalled();
+  expect(api.candidatePaper).not.toHaveBeenCalled();
+});
+
 it('allows resubmitting the same UUID only after receipt lookup explicitly returns 404', async () => {
   api.candidatePaper.mockRejectedValueOnce(new Error('timeout'));
   api.request.mockRejectedValueOnce({ isAxiosError: true, response: { status: 404, data: { detail: 'Receipt absent' } }, message: 'Receipt absent' });
@@ -289,6 +302,39 @@ it('preserves failed and cancelled tasks, cancels an active source task, and con
   await waitFor(() => expect(resume).toBeEnabled()); fireEvent.click(resume);
   await waitFor(() => expect(api.controlPlan).toHaveBeenCalledWith(7, 'resume'));
   expect(api.candidatePaper).not.toHaveBeenCalled();
+});
+
+it.each(['unavailable-source','preview-failure','selection-failure'])('can pause saved local research plans during %s and gates resume on source capabilities', async (failure) => {
+  const plan = { id: 7, sourceStrategyId: -11, sourceVersionId: version.id, sourceBacktestId: 'frozen_bt', status: 'active', intervalSeconds: 86400, budget: 4, maxRuns: 3, runsReserved: 1, nextRunAt: null, lastError: null, operations: [] };
+  api.plans.mockResolvedValue([plan]);
+  api.controlPlan.mockImplementation(async () => {api.plans.mockResolvedValue([{...plan,status:'paused'}]);});
+  if (failure==='unavailable-source') api.capabilities.mockResolvedValue({configured:true,available:false,capabilities:null,legacy:false});
+  else if (failure==='preview-failure') api.candidatePreview.mockRejectedValue(new Error('Candidate preview unavailable'));
+  else api.versions.mockRejectedValue(new Error('Source versions unavailable'));
+  render(<Workspace />);
+  const pause = await screen.findByRole('button',{name:'暂停计划'});
+  await waitFor(() => expect(pause).toBeEnabled());
+  fireEvent.click(pause);
+  await waitFor(() => expect(api.controlPlan).toHaveBeenCalledWith(7,'pause'));
+  const resume=await screen.findByRole('button',{name:'恢复计划'});
+  if (failure==='unavailable-source') expect(resume).toBeDisabled();
+  else {expect(resume).toBeEnabled();fireEvent.click(resume);await waitFor(()=>expect(api.controlPlan).toHaveBeenCalledWith(7,'resume'));}
+  expect(api.candidatePaper).not.toHaveBeenCalled();
+  expect(api.startResearch).not.toHaveBeenCalled();
+});
+
+it('retains local plan control failures when unrelated source records refresh successfully', async () => {
+  const plan = { id: 7, sourceStrategyId: -11, sourceVersionId: version.id, sourceBacktestId: 'frozen_bt', status: 'active', intervalSeconds: 86400, budget: 4, maxRuns: 3, runsReserved: 1, nextRunAt: null, lastError: null, operations: [] };
+  api.plans.mockResolvedValue([plan]);
+  api.controlPlan.mockRejectedValue(new Error('Local plan write failed'));
+  render(<Workspace />);
+  const pause = await screen.findByRole('button',{name:'暂停计划',hidden:true});
+  await waitFor(() => expect(pause).toBeEnabled()); fireEvent.click(pause);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Local plan write failed');
+  fireEvent.click(screen.getByRole('button',{name:'刷新数据'}));
+  await waitFor(() => expect(api.strategies).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole('alert')).toHaveTextContent('Local plan write failed');
+  expect(screen.getByRole('button',{name:'暂停计划',hidden:true})).toBeEnabled();
 });
 
 it('only offers cancellation for supported evolution and bridge research task types', async () => {

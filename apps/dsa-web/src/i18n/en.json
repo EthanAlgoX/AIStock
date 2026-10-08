@@ -6378,5 +6378,14 @@
   "此回测仅供查看": "This backtest is read-only",
   "来源候选与当前策略或版本不匹配，请检查来源引擎。": "The source candidate does not match the selected strategy or version. Check the source engine.",
   "隐藏验证记录": "Hide validation record",
-  "仅隐藏此验证记录，来源任务继续执行。原始结果和历史账本保留供审计，界面无法恢复。": "Only this validation record will be hidden; the source task will continue. Original results and historical ledgers are retained for auditing. It cannot be restored from the interface."
+  "仅隐藏此验证记录，来源任务继续执行。原始结果和历史账本保留供审计，界面无法恢复。": "Only this validation record will be hidden; the source task will continue. Original results and historical ledgers are retained for auditing. It cannot be restored from the interface.",
+  "按来源实际记录时间展示，筛选区间不重设收益起点；缺失指标不补零。": "Shown at the source observation times. Filtering does not reset the return baseline; missing metrics remain unknown.",
+  "来源收益使用单位净值，不按账户金额或外部资金流重新计算。": "Source returns use unit net asset value and are not recalculated from account balances or external cash flows.",
+  "指标覆盖账户累计历史；曲线仅覆盖当前运行批次。": "Metrics cover the account's lifetime; the curve covers only the current run.",
+  "指标与曲线覆盖来源完整回测，下采样仅影响展示。": "Metrics and curves cover the complete source backtest. Downsampling affects display only.",
+  "隐藏来源版本": "Hide source version",
+  "仅从管理策略隐藏此来源版本，并停止其运行或暂停中的模拟账户。来源原始版本和账本保留，历史回测与研究任务继续执行；来源工作区仍可查阅此版本。": "Only this version is hidden from strategy management, and its running or paused paper accounts are stopped. Original source versions and ledgers remain available; historical backtests and research tasks continue. The version can still be viewed in the source workspace.",
+  "来源模拟账户已停止，历史账本保留供审计。": "The source paper account has stopped. Historical ledgers are retained for auditing.",
+  "初始资金至少为 10000；持仓数须为 1–100 的整数；仓位和亏损上限须为 0.1–100 的有效数字。": "Initial capital must be at least 10000; maximum positions must be an integer from 1 to 100; position and daily loss limits must be finite numbers from 0.1 to 100.",
+  "由来源运行引擎维护账本，主站读取版本、资金、持仓和运行记录，不复制或替换来源账户。": "The source runtime maintains the ledger. This site reads versions, balances, positions and run records without copying or replacing the source account."
 }

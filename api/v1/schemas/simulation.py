@@ -339,7 +339,7 @@ class SimulationAccountListResponse(BaseModel):
     items: List[SimulationAccountItem] = Field(default_factory=list)
 
 class SimulationPaperOrderItem(BaseModel):
-    id: int; simulation_run_id: int; strategy_version_id: int; stock_code: str; side: str; quantity: int; status: str; reject_reason: Optional[str] = None; created_at: datetime
+    id: int; simulation_run_id: int; strategy_version_id: int; stock_code: str; side: str; quantity: float; status: str; reject_reason: Optional[str] = None; created_at: datetime
 
 class SimulationPaperOrderListResponse(BaseModel):
     items: List[SimulationPaperOrderItem] = Field(default_factory=list)

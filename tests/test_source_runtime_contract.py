@@ -1,6 +1,7 @@
 """Exercise the public API through an actual bounded HTTP source connection."""
 import json
 import threading
+from types import SimpleNamespace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
@@ -243,3 +244,37 @@ def test_nonfinite_nested_eligibility_evidence_is_rejected(source):
         versionId='candidate1', strategyId=-1, iterationEligibility=eligibility, paperEligibility=eligibility,
         existingPortfolioId=None, symbols=[], initialCash=None, policyId='test', reason='Synthetic result'))
     assert client.get('/portfolios/runtime/versions/candidate1/candidate-preview').status_code == 502
+
+
+@pytest.mark.parametrize('body', [
+    b'{"items":[{"id":-1,"curve":[{"time":"2026-10-09","value":1e309}]}]}',
+    b'{"items":[{"id":-1,"curve":[],"totalReturn":-1e309}]}',
+    b'{"items":[{"id":-1,"curve":[]},{"id":-1,"curve":[]}]}',
+])
+def test_invalid_legacy_overview_is_isolated_without_breaking_native_serialization(source, monkeypatch, body):
+    from api.v1.endpoints import simulation_portfolios as endpoint
+
+    routes, _, client = source
+    routes['GET', '/bridge/overview'] = (200, body)
+    native = {'id': 1, 'curve': []}
+    monkeypatch.setattr(endpoint, 'SimulationPortfolioService', lambda: SimpleNamespace(overview=lambda: [native]))
+    response = client.get('/portfolios/overview')
+    assert response.status_code == 200
+    assert response.json() == {'items': [native], 'runtime': {'configured': True, 'available': False}}
+
+
+def test_invalid_legacy_detail_returns_explicit_gateway_error(source):
+    routes, _, client = source
+    routes['GET', '/bridge/portfolios/-1'] = (200, b'{"id":-1,"equity":1e309}')
+    assert client.get('/portfolios/-1').status_code == 502
+
+
+def test_large_valid_legacy_history_keeps_its_contract_and_duplicate_ids_are_rejected(source):
+    routes, _, _ = source
+    history = [{'date': '2026-10-09', 'value': 0.0}] * 1200
+    routes['GET', '/bridge/portfolios/-1'] = (200, {'id': -1, 'days': history, 'document': 'a' * 9000})
+    result = SimulationRuntimeService().request('GET', '/portfolios/-1')
+    assert result['days'] == history
+    assert len(result['document']) == 9000
+    routes['GET', '/bridge/definitions'] = (200, {'items': [{'id': -1}, {'id': -1}]})
+    assert SimulationRuntimeService().items('/definitions') == []

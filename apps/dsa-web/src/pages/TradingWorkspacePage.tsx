@@ -89,7 +89,7 @@ export default function TradingWorkspacePage() {
   const [validationEnd, setValidationEnd] = useState("");
   const [items, setItems] = useState<Portfolio[]>([]);
   const [detail, setDetail] = useState<Portfolio | null>(null);
-  const definition = definitions.find((d) => d.id === (definitionId ?? (detail?.id === id ? detail.definitionId : null)));
+  const definition = definitions.find((d) => d.id === (id ? (detail?.id === id ? detail.definitionId : null) : definitionId));
   const [universePreview, setUniversePreview] =
     useState<UniversePreview | null>(null);
   const [universeHistory, setUniverseHistory] = useState<"frozen" | "recorded">(
@@ -107,7 +107,7 @@ export default function TradingWorkspacePage() {
   const [runtimeUnavailable, setRuntimeUnavailable] = useState(false);
   const [sourceConfigured, setSourceConfigured] = useState(false);
   const [sending, setSending] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{kind: 'definition' | 'portfolio'; id: number; name: string; sourceBacktest?: boolean} | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{kind: 'definition' | 'portfolio'; id: number; name: string; sourceBacktest?: boolean; sourceVersion?: boolean} | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [refresh, setRefresh] = useState(0);
   const stockIndex = useStockIndex(creating, draft.market);
@@ -131,19 +131,22 @@ export default function TradingWorkspacePage() {
     let timer: ReturnType<typeof setTimeout>;
     const load = async () => {
       try {
-        const [list, selected, saved, runtime] = await Promise.all([
+        const [list, selected, saved, runtime] = await Promise.allSettled([
           portfoliosApi.list(),
           id ? portfoliosApi.detail(id) : Promise.resolve(null),
           portfoliosApi.definitions(),
           portfoliosApi.runtimeStatus?.(),
         ]);
         if (alive) {
-          setRuntimeUnavailable(Boolean(runtime?.configured && !runtime.available));
-          setSourceConfigured(Boolean(runtime?.configured));
-          setItems(list);
-          setDefinitions(saved);
-          setDetail(selected);
-          setLoadError("");
+          if (runtime.status === 'fulfilled') {
+            setRuntimeUnavailable(Boolean(runtime.value?.configured && !runtime.value.available));
+            setSourceConfigured(Boolean(runtime.value?.configured));
+          }
+          if (list.status === 'fulfilled') setItems(list.value);
+          if (saved.status === 'fulfilled') setDefinitions(saved.value);
+          if (selected.status === 'fulfilled') setDetail(selected.value);
+          else if (isAxiosError(selected.reason) && [403, 404].includes(selected.reason.response?.status ?? 0)) setDetail(null);
+          setLoadError([list, selected, saved, runtime].flatMap(result => result.status === 'rejected' ? [failure(result.reason)] : []).join(' '));
         }
       } catch (e) {
         if (alive) setLoadError(failure(e));
@@ -604,14 +607,14 @@ export default function TradingWorkspacePage() {
                     <button className="btn-secondary" disabled={sending || !items.some(p => p.definitionId === definition.id && (p.busy || ['running', 'paused'].includes(p.status)))} onClick={() => void stopDefinition(definition.id)}>
                       <UiLiteral text="停止运行" />
                     </button>
-                    <button className="btn-secondary text-danger" disabled={sending} onClick={() => { setDeleteError(''); setDeleteTarget({kind:'definition', id:definition.id, name:definition.name}); }}>
-                      <UiLiteral text="删除策略" />
+                    <button className="btn-secondary text-danger" disabled={sending} onClick={() => { setDeleteError(''); setDeleteTarget({kind:'definition', id:definition.id, name:definition.name, sourceVersion:Boolean(definition.config.externalRuntime && definition.config.evaluationKind === 'source_frozen_contract')}); }}>
+                      <UiLiteral text={definition.config.externalRuntime && definition.config.evaluationKind === "source_frozen_contract" ? "隐藏来源版本" : "删除策略"} />
                     </button>
                   </div>
                 </div>
                 {editBlocked && !definition.config.externalRuntime && <p className="mt-3 text-sm text-secondary-text"><UiLiteral text="请先暂停或停止运行，再修改配置。" /></p>}
-                {items.some(p => p.definitionId === definition.id && p.status === 'stopped') && !items.some(p => p.definitionId === definition.id && (p.busy || ['running', 'paused'].includes(p.status))) &&
-                  <p role="status" className="mt-3 text-sm text-secondary-text"><UiLiteral text="已停止运行，不再自动调用模型或更新估值，待执行计划已取消；历史记录和模拟持仓保留。" /></p>}
+                {items.some(p => p.definitionId === definition.id && p.status === 'stopped' && (!definition.config.externalRuntime || p.mode === 'paper')) && !items.some(p => p.definitionId === definition.id && (p.busy || ['running', 'paused'].includes(p.status))) &&
+                  <p role="status" className="mt-3 text-sm text-secondary-text"><UiLiteral text={definition.config.externalRuntime ? "来源模拟账户已停止，历史账本保留供审计。" : "已停止运行，不再自动调用模型或更新估值，待执行计划已取消；历史记录和模拟持仓保留。"} /></p>}
                 <p className="mt-2 text-sm text-secondary-text">
                   {definition.config.externalRuntime ? <>
                     {uiLiteral("来源策略")}
@@ -918,7 +921,7 @@ export default function TradingWorkspacePage() {
                   >
                     {detail.error} <UiLiteral text={" 已完成的日期仍保留，可修复后重试。"} /></p>
                 )}
-                {detail.status === "stopped" && <p role="status" className="mb-4 text-sm text-secondary-text"><UiLiteral text="已停止运行，不再自动调用模型或更新估值，待执行计划已取消；历史记录和模拟持仓保留。" /></p>}
+                {detail.status === "stopped" && <p role="status" className="mb-4 text-sm text-secondary-text"><UiLiteral text={detail.config.externalRuntime ? "来源模拟账户已停止，历史账本保留供审计。" : "已停止运行，不再自动调用模型或更新估值，待执行计划已取消；历史记录和模拟持仓保留。"} /></p>}
                 {detail.status === "paused" && (
                   <p className="mb-4 text-sm text-secondary-text">
                     <UiLiteral text={detail.config.externalRuntime ? "私有引擎已暂停，持仓保留；恢复后继续检查行情。" : "已暂停自动买卖；持仓保留，继续按收盘价估值。"} /></p>
@@ -954,13 +957,15 @@ export default function TradingWorkspacePage() {
       )}
       <ConfirmDialog
         isOpen={deleteTarget !== null}
-        title={`${uiLiteral(deleteTarget?.sourceBacktest ? '隐藏验证记录' : deleteTarget?.kind === 'definition' ? '删除策略' : '删除验证记录')} · ${deleteTarget?.name || ''}`}
+        title={`${uiLiteral(deleteTarget?.sourceBacktest ? '隐藏验证记录' : deleteTarget?.sourceVersion ? '隐藏来源版本' : deleteTarget?.kind === 'definition' ? '删除策略' : '删除验证记录')} · ${deleteTarget?.name || ''}`}
         message={deleteError || uiLiteral(deleteTarget?.sourceBacktest
           ? '仅隐藏此验证记录，来源任务继续执行。原始结果和历史账本保留供审计，界面无法恢复。'
-          : deleteTarget?.kind === 'definition'
+          : deleteTarget?.sourceVersion
+            ? '仅从管理策略隐藏此来源版本，并停止其运行或暂停中的模拟账户。来源原始版本和账本保留，历史回测与研究任务继续执行；来源工作区仍可查阅此版本。'
+            : deleteTarget?.kind === 'definition'
             ? '删除后将停止该策略的所有回测和模拟，并从交易推演中移除策略及验证记录。历史账本保留供审计，界面无法恢复；已发出的模型请求可能仍会计费，但不会继续记账。'
             : '删除后将停止并移除此验证记录，不影响同策略的其他验证。历史账本保留供审计，界面无法恢复；已发出的模型请求可能仍会计费，但不会继续记账。')}
-        confirmText={uiLiteral(sending ? '处理中…' : deleteTarget?.sourceBacktest ? '隐藏验证记录' : '停止并删除')}
+        confirmText={uiLiteral(sending ? '处理中…' : deleteTarget?.sourceBacktest ? '隐藏验证记录' : deleteTarget?.sourceVersion ? '隐藏来源版本' : '停止并删除')}
         confirmDisabled={sending} cancelDisabled={sending} isDanger
         onConfirm={() => void remove()} onCancel={() => { setDeleteTarget(null); setDeleteError(''); }}
       />

@@ -313,6 +313,84 @@ def test_authoritative_unknown_never_replays_even_if_a_later_lookup_is_missing(p
     assert len(source.writes()) == 1
 
 
+@pytest.mark.parametrize('recovered_status', ['PENDING', 'RUNNING'])
+def test_authoritative_unknown_is_durable_after_transient_recovery_and_restart(plans, recovered_status):
+    service, source, now = plans
+    plan = due(service, now)
+    service.tick()
+    request_id = source.writes()[0]['requestId']
+    source.receipts[request_id] = source.operation(request_id, 'UNKNOWN')
+    service.tick()
+    source.receipts[request_id] = source.operation(request_id, recovered_status)
+    service.tick()
+    assert service.get(plan['id'])['operations'][0]['status'] == recovered_status
+
+    restarted = RuntimeResearchPlanService(service.repo.db, source, clock=lambda: now[0])
+    restarted.control(plan['id'], 'resume')
+    source.receipts.pop(request_id)
+    restarted.tick()
+    assert restarted.get(plan['id'])['status'] == 'paused'
+    assert restarted.get(plan['id'])['runsReserved'] == 1
+    assert len(source.writes()) == 1
+    assert restarted.repo.get(plan['id'])['operations'][0]['authoritative_unknown_seen'] is True
+
+    # A later authoritative completion can still resolve the existing round.
+    source.receipts[request_id] = source.operation(request_id, 'SUCCEEDED')
+    restarted.tick()
+    assert restarted.get(plan['id'])['operations'][0]['status'] == 'SUCCEEDED'
+
+
+@pytest.mark.parametrize('legacy_status', ['UNKNOWN', 'PENDING', 'RUNNING'])
+def test_legacy_plan_schema_backfills_unknown_without_rewriting_receipts(plans, legacy_status):
+    service, source, now = plans
+    plan = due(service, now)
+    service.tick()
+    request_id = source.writes()[0]['requestId']
+    source.receipts[request_id] = source.operation(request_id, 'UNKNOWN')
+    service.tick()
+    if legacy_status != 'UNKNOWN':
+        source.receipts[request_id] = source.operation(request_id, legacy_status)
+        service.tick()
+    before = service.get(plan['id'])
+    database_url = service.repo.db._db_url
+    with service.repo.db._engine.begin() as connection:
+        connection.exec_driver_sql('ALTER TABLE simulation_runtime_research_operations DROP COLUMN authoritative_unknown_seen')
+    DatabaseManager.reset_instance()
+    database = DatabaseManager(database_url)
+    restarted = RuntimeResearchPlanService(database, source, clock=lambda: now[0])
+    assert restarted.get(plan['id']) == before
+    assert restarted.repo.get(plan['id'])['operations'][0]['authoritative_unknown_seen'] is True
+    # The same additive migration remains safe on the next startup.
+    DatabaseManager.reset_instance()
+    restarted = RuntimeResearchPlanService(DatabaseManager(database_url), source, clock=lambda: now[0])
+    assert restarted.get(plan['id']) == before
+    restarted.control(plan['id'], 'resume')
+    source.receipts.pop(request_id)
+    restarted.tick()
+    assert len(source.writes()) == 1
+
+
+def test_existing_flag_and_safe_reservation_do_not_become_unknown_on_startup(plans):
+    service, source, now = plans
+    plan = due(service, now)
+    plan_id, token = service.repo.claim_due(now[0])[0]
+    reserved = service.repo.reserve(plan_id, token, now[0])
+    service.repo.release(plan_id, token)
+    database_url = service.repo.db._db_url
+    with service.repo.db._engine.begin() as connection:
+        connection.exec_driver_sql('ALTER TABLE simulation_runtime_research_operations DROP COLUMN authoritative_unknown_seen')
+    DatabaseManager.reset_instance()
+    restarted = RuntimeResearchPlanService(DatabaseManager(database_url), source, clock=lambda: now[0])
+    assert restarted.repo.get(plan['id'])['operations'][0]['authoritative_unknown_seen'] is False
+    restarted.tick()
+    assert source.writes()[0]['requestId'] == reserved['request_id']
+    assert restarted.get(plan['id'])['operations'][0]['status'] == 'PENDING'
+    # Later ordinary restarts must not classify a known pending receipt as UNKNOWN.
+    DatabaseManager.reset_instance()
+    restarted = RuntimeResearchPlanService(DatabaseManager(database_url), source, clock=lambda: now[0])
+    assert restarted.repo.get(plan['id'])['operations'][0]['authoritative_unknown_seen'] is False
+
+
 @pytest.mark.parametrize('status', ['FAILED', 'CANCELLED'])
 def test_terminal_research_failure_stops_plan_without_new_reservation(plans, status):
     service, source, now = plans
@@ -453,6 +531,29 @@ def test_existing_workspace_loop_runs_plan_tick_after_member_scope_is_restored(m
     scheduler._loop()
     assert sequence == ['workspace', 'native', 'members', 'source-rules']
     assert scheduler._thread is None
+
+
+@pytest.mark.parametrize('broken_step', ['workspace', 'native', 'members', 'source-rules'])
+def test_scheduler_failure_does_not_starve_other_simulation_or_receipt_steps(monkeypatch, broken_step):
+    from src.services import member_service, simulation_portfolio_service, runtime_research_plan_service
+    from src.services.workspace_service import WorkspaceSchedulerService
+
+    sequence = []
+
+    def step(name):
+        sequence.append(name)
+        if name == broken_step:
+            raise RuntimeError('One isolated service failed')
+
+    scheduler = WorkspaceSchedulerService(lambda: SimpleNamespace(run_due_schedules=lambda: step('workspace')))
+    scheduler._stop = SimpleNamespace(wait=Mock(side_effect=[False, False, True]))
+    monkeypatch.setattr(simulation_portfolio_service, 'SimulationPortfolioService',
+                        lambda: SimpleNamespace(due=lambda: step('native')))
+    monkeypatch.setattr(member_service, 'run_member_maintenance', lambda: step('members'))
+    monkeypatch.setattr(runtime_research_plan_service, 'RuntimeResearchPlanService',
+                        lambda: SimpleNamespace(tick=lambda: step('source-rules')))
+    scheduler._loop()
+    assert sequence == ['workspace', 'native', 'members', 'source-rules'] * 2
 
 
 def test_real_authenticated_member_requests_cannot_read_or_create_owner_plans(members, monkeypatch):  # noqa: F811
