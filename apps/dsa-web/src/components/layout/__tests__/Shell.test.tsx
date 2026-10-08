@@ -45,7 +45,7 @@ describe("Shell", () => {
     expect(screen.getByRole("main")).toHaveAttribute("tabindex", "-1");
   });
 
-  it("places market intelligence immediately left of Agent and groups all workspaces and keeps mobile navigation concise", () => {
+  it("organizes seven top modules and shows only the active module's pages while keeping mobile shortcuts", () => {
     render(
       <MemoryRouter initialEntries={["/overview"]}>
         <ThemeProvider>
@@ -62,11 +62,16 @@ describe("Shell", () => {
     const mobile = screen.getByRole("navigation", { name: "移动端主导航" });
     expect(within(mobile).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/overview", "/expert-review", "/stock-research", "/screening", "/trading"]);
     const desktop = screen.getByRole("navigation", { name: "主导航" });
-    expect(within(desktop).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/market-intelligence", "/overview", "/expert-review", "/stock-research", "/screening", "/trading", "/portfolio", "/alerts", "/runs", "/schedules", "/capabilities", "/usage", "/settings"]);
+    expect(within(desktop).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/market-intelligence", "/overview", "/screening", "/trading", "/portfolio", "/runs", "/capabilities"]);
+    expect(within(desktop).getByRole("link", { name: "投研工作台" })).toHaveAttribute("aria-current", "page");
+    const sections = screen.getByRole("navigation", { name: "模块页面" });
+    expect(within(sections).getAllByRole("link").map(link => link.getAttribute("href"))).toEqual(["/overview", "/expert-review", "/stock-research"]);
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "个股研究" })).toHaveLength(2);
     expect(screen.getAllByRole("link", { name: "策略选股" })).toHaveLength(2);
     expect(screen.getAllByRole("link", { name: "交易推演" })).toHaveLength(2);
     expect(screen.getByTestId("chat-completion-badge")).toBeInTheDocument();
+    expect(screen.getByTestId("module-chat-completion-badge")).toBeInTheDocument();
     expect(screen.getByTestId("mobile-chat-completion-badge")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "切换界面语言" })).toBeInTheDocument();
   });
@@ -74,11 +79,33 @@ describe("Shell", () => {
   it("marks capability child routes active and names member settings as their account", () => {
     auth.role = 'member';
     render(<MemoryRouter initialEntries={["/capabilities/skills"]}><ThemeProvider><Shell><div>content</div></Shell></ThemeProvider></MemoryRouter>);
-    const navigation = screen.getByRole("navigation", { name: "主导航" });
+    expect(within(screen.getByRole("navigation", { name: "主导航" })).getByRole("link", { name: "工作区设置" })).toHaveAttribute("aria-current", "page");
+    const navigation = screen.getByRole("navigation", { name: "模块页面" });
     expect(within(navigation).getByRole("link", { name: "能力中心" })).toHaveAttribute("aria-current", "page");
     expect(within(navigation).getByRole("link", { name: "我的账户" })).toHaveAttribute("href", "/settings");
     expect(within(navigation).queryByRole("link", { name: "平台设置" })).not.toBeInTheDocument();
     auth.role = 'admin';
+  });
+
+  it.each([
+    ["/trading", "模拟总览"],
+    ["/trading?portfolio=-2&strategy=-1", "策略管理"],
+    ["/trading?view=source&sourceStrategy=12", "来源策略研究"],
+    ["/trading?sourceRun=old-run", "历史研究提案"],
+  ])("keeps trading destinations findable and resolves active state for %s", (path, activeLabel) => {
+    render(<MemoryRouter initialEntries={[path]}><ThemeProvider><Shell><div>content</div></Shell></ThemeProvider></MemoryRouter>);
+    const sections = screen.getByRole("navigation", { name: "模块页面" });
+    expect(within(sections).getAllByRole("link")).toHaveLength(4);
+    expect(within(sections).getByRole("link", { name: activeLabel })).toHaveAttribute("aria-current", "page");
+    expect(within(sections).getByRole("link", { name: "模拟总览" })).toHaveAttribute("href", "/trading");
+    expect(within(sections).getByRole("link", { name: "来源策略研究" })).toHaveAttribute("href", "/trading?view=source");
+  });
+
+  it("distinguishes the account ledger from the holdings page", () => {
+    render(<MemoryRouter initialEntries={["/portfolio/ledger"]}><ThemeProvider><Shell><div>content</div></Shell></ThemeProvider></MemoryRouter>);
+    const sections = screen.getByRole("navigation", { name: "模块页面" });
+    expect(within(sections).getByRole("link", { name: "账户与流水" })).toHaveAttribute("aria-current", "page");
+    expect(within(sections).getByRole("link", { name: "持仓管理" })).not.toHaveAttribute("aria-current");
   });
 
   it("opens the utility drawer from the header", () => {

@@ -7,7 +7,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import { chartMarkdownComponents } from '../utils/chartMarkdownComponents';
 import remarkGfm from 'remark-gfm';
-import { ChevronDown, History, Network, Plus, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, History, Network, Plus } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { agentApi } from '../api/agent';
 import { workspaceApi } from '../api/workspace';
@@ -1308,17 +1308,11 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
   return (
     <div
       data-testid="chat-workspace"
-      className="flex h-[calc(100dvh-7.5rem)] w-full min-w-0 overflow-hidden lg:h-[calc(100dvh-4rem)]"
+      className="conversation-workspace flex min-w-0 overflow-hidden"
     >
-      {/* Desktop keeps conversation management in sight; mobile uses the same rail as a drawer. */}
-      {!sidebarOpen ? (
-        <aside className="hidden h-full w-56 shrink-0 flex-col overflow-hidden border-r border-border/80 bg-background lg:flex">
-          {sidebarContent}
-        </aside>
-      ) : null}
       <Drawer isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)}
         title={localize('历史对话', 'Conversation history')} side="left" width="max-w-sm" zIndex={60}>
-        <div className="flex min-h-0 flex-col">{sidebarContent}</div>
+        <div className="flex h-full min-h-0 flex-col">{sidebarContent}</div>
       </Drawer>
 
       {/* Delete confirmation dialog */}
@@ -1335,6 +1329,21 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
 
       <Drawer isOpen={capabilityPanelOpen} onClose={closeCapabilityPanel}
         title={localize('本次会话能力', 'Session capabilities')} width="max-w-lg" zIndex={60}>
+            <AgentWorkspacePanel
+              taskTypeLabel={authoringActive ? localize('策略创建', 'Strategy authoring') : workspaceCopy.taskTypeLabel}
+              artifactTypes={authoringActive ? ['Skill'] : WORKSPACE_ARTIFACTS[workspace]}
+              artifactStatus={authoringActive ? strategyState?.skillId ? localize('已保存', 'Saved') : localize('草稿', 'Draft') : undefined}
+              skills={skills}
+              selectedSkillIds={selectedSkillIds}
+              selectedToolCount={capabilityPreview.toolIds.length}
+              selectedDataSourceCount={capabilityPreview.dataSourceIds.length}
+              selectedMcpCount={capabilityPreview.mcpIds.length}
+              selectedExpertCount={expertChat.selection.expertIds.length}
+              selectedExpertTeamCount={0}
+              activeStockCode={activeStockCode}
+              hasConversation={messages.length > 0}
+              isRunning={loading || expertChat.pending}
+            />
             <AgentCapabilityPanel
               skills={skills}
               selectedSkillIds={selectedSkillIds}
@@ -1359,17 +1368,19 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
       <div className="flex h-full min-w-0 flex-1 overflow-hidden bg-card">
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="relative z-20 flex-shrink-0 border-b border-border/75 px-4 py-3 md:px-5">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
+                type="button"
                 onClick={() => setSidebarOpen(true)}
-                className="-ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-border bg-background text-secondary-text transition-colors hover:border-primary/30 hover:text-foreground lg:hidden"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-secondary-text transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label={localize('历史对话', 'Conversation history')}
+                aria-expanded={sidebarOpen}
               >
                 <History className="h-4 w-4" aria-hidden="true" />
               </button>
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <h1 className="sr-only shrink-0 text-base font-semibold tracking-[-0.015em] text-foreground sm:not-sr-only">{workspaceCopy.title}</h1>
                   <StrategyAuthoringPanel compact key={sessionId} sessionId={sessionId} messageCount={messages.length} loading={loading || expertChat.pending}
                     hasDiscussion={messages.length > 0 || !!input.trim()} onMode={setStrategyState}
@@ -1408,8 +1419,8 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                 variant="secondary"
                 size="sm"
                 onClick={() => setCapabilityPanelOpen(true)}
-                className="min-[1680px]:hidden"
                 aria-label={localize('打开本次会话能力', 'Open session capabilities')}
+                aria-expanded={capabilityPanelOpen}
               >
                 <Network className="h-4 w-4" aria-hidden="true" />
                 <span>{localize('能力', 'Capabilities')}</span>
@@ -1543,9 +1554,10 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
             className="relative z-10 flex-1"
             viewportRef={messagesViewportRef}
             onScroll={handleMessagesScroll}
-            viewportClassName="space-y-6 p-4 md:p-6"
+            viewportClassName="p-4 md:p-6"
             testId="chat-message-scroll"
           >
+            <div className={cn('mx-auto w-full min-w-0 max-w-5xl space-y-6', messages.length === 0 && !loading && !expertChat.running && 'h-full')}>
             {messages.length === 0 && !loading && !expertChat.running ? (
               <div className="flex h-full items-center justify-center px-2 py-10">
                 <EmptyState
@@ -1714,6 +1726,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
               <p className="mt-2 text-xs text-secondary-text"><UiLiteral text={"在后台执行，切换页面不会中断。完成后报告会保存在本次对话。"} /></p>
             </div>}
             <div ref={messagesEndRef} />
+            </div>
           </ScrollArea>
 
           {showJumpToBottom && (
@@ -1745,8 +1758,8 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
           )}
 
           {/* Input area */}
-          <div className="relative z-20 border-t border-border/75 bg-card p-3 md:p-4">
-            <div className="space-y-3">
+          <div className="relative z-20 shrink-0 border-t border-border/75 bg-card p-3 md:p-4">
+            <div className="mx-auto w-full max-w-5xl space-y-3">
               {chatError ? <ApiErrorAlert error={chatError} /> : null}
               {terminalStatus === 'cancelled' ? (
                 <div role="status" className="rounded-xl border border-slate-500/20 bg-slate-500/5 px-4 py-3 text-sm">
@@ -1804,7 +1817,19 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                   className="rounded-xl px-3 py-2 text-xs shadow-none"
                 />
               ) : null}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-2">
+              <div data-testid="chat-composer-settings" className="grid max-h-[min(15rem,30dvh)] min-h-0 grid-cols-3 items-start gap-2 overflow-y-auto overscroll-contain">
+              <details className="group min-w-0 rounded-lg border border-border bg-background open:col-span-3">
+                <summary className="min-h-11 cursor-pointer list-none rounded-lg px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                  <span className="flex items-center justify-between gap-2"><span className="truncate font-medium">{localize('会话设置', 'Conversation settings')}</span><ChevronDown className="h-4 w-4 shrink-0 text-secondary-text transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" /></span>
+                  <span className="block text-xs text-secondary-text">
+                    {contextCompressionSaving
+                      ? localize('保存中...', 'Saving...')
+                      : contextCompressionEnabled
+                        ? localize('压缩已启用', 'Compression on')
+                        : localize('压缩未启用', 'Compression off')}
+                  </span>
+                </summary>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-3">
                 <label
                   className={cn(
                     'inline-flex items-center gap-2 text-sm',
@@ -1830,29 +1855,21 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                       ? localize('已启用', 'Enabled')
                       : localize('未启用', 'Disabled')}
                 </span>
-              </div>
-              {contextCompressionError ? (
-                <InlineAlert
-                  variant="danger"
-                  title={localize('上下文压缩设置未保存', 'Context compression settings were not saved')}
-                  message={contextCompressionError}
-                  className="rounded-xl px-3 py-2 text-xs shadow-none"
-                />
-              ) : null}
+                </div>
+              </details>
               {skills.length > 0 && (
-                <div className="space-y-2">
+                <div className={cn('min-w-0 space-y-2', mobileSkillPickerOpen && 'col-span-3')}>
                   <button
                     type="button"
-                    className="home-surface-button flex h-9 w-full items-center justify-between gap-3 rounded-[10px] px-3 text-left text-sm text-foreground md:hidden"
+                    className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2 text-left text-sm text-foreground hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     aria-label={mobileSkillPickerOpen ? localize('收起策略选择', 'Collapse strategy selection') : localize('展开策略选择', 'Expand strategy selection')}
                     aria-expanded={mobileSkillPickerOpen}
                     aria-controls="chat-skill-picker-panel"
                     onClick={() => setMobileSkillPickerOpen((open) => !open)}
                   >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <SlidersHorizontal className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                      <span className="flex-shrink-0 font-medium">Skills</span>
-                      <span className="truncate text-xs text-muted-text">{selectedSkillSummary}</span>
+                    <span className="min-w-0">
+                      <span className="block font-medium">Skills</span>
+                      <span className="block truncate text-xs text-secondary-text">{selectedSkillSummary}</span>
                     </span>
                     <ChevronDown
                       className={cn(
@@ -1925,6 +1942,34 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                 </div>
               )}
 
+              {!authoringActive && <details className="group min-w-0 rounded-lg border border-border bg-background open:col-span-3">
+                <summary className="min-h-11 cursor-pointer list-none rounded-lg px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                  <span className="flex items-center justify-between gap-2"><span className="truncate font-medium">{localize('专家协作', 'Expert collaboration')}</span><ChevronDown className="h-4 w-4 shrink-0 text-secondary-text transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" /></span>
+                  <span className="block break-words text-xs text-secondary-text">{expertChat.selection.expertIds.length} · {expertChat.enabled ? uiLiteral(collaborationChoices.find((choice) => choice.id === expertChat.selection.mode)?.name || expertChat.selection.mode) : localize('普通对话', 'Direct chat')}</span>
+                </summary>
+                <section aria-label={localize('对话专家设置', 'Conversation expert settings')} className="grid grid-cols-1 items-start gap-3 border-t border-border px-3 py-3 sm:grid-cols-2">
+                  <ChoiceList label={localize('选择专家', 'Choose experts')} multiple limit={6}
+                    loading={!expertChat.catalog && !expertChat.error} disabled={loading || expertChat.pending}
+                    placeholder={localize('不选专家 · 直接对话', 'No experts · direct chat')}
+                    items={(expertChat.catalog?.experts || []).filter((expert) => expert.enabled).map((expert) => ({ id: String(expert.id), name: expert.name, description: expert.style }))}
+                    selectedIds={expertChat.selection.expertIds.map(String)}
+                    onSelect={(id) => expertChat.update({ expertIds: toggleArrayValue(expertChat.selection.expertIds, Number(id)) })} />
+                  <ChoiceList label={localize('协作方式', 'Collaboration mode')} items={collaborationChoices}
+                    disabled={!expertChat.enabled || loading || expertChat.pending}
+                    selectedIds={expertChat.enabled ? [expertChat.selection.mode] : []} placeholder={localize('普通对话', 'Direct chat')}
+                    onSelect={(mode) => expertChat.update({ mode })} />
+                </section>
+              </details>}
+              </div>
+              {contextCompressionError ? (
+                <InlineAlert
+                  variant="danger"
+                  title={localize('上下文压缩设置未保存', 'Context compression settings were not saved')}
+                  message={contextCompressionError}
+                  className="rounded-xl px-3 py-2 text-xs shadow-none"
+                />
+              ) : null}
+
             {activeStockCode && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-text font-mono">{activeStockCode}</span>
@@ -1944,18 +1989,6 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
             )}
 
 
-              {!authoringActive && <section aria-label={localize('对话专家设置', 'Conversation expert settings')} className="grid grid-cols-2 items-start gap-3">
-                <ChoiceList label={localize('选择专家', 'Choose experts')} placement="above" multiple limit={6}
-                  loading={!expertChat.catalog && !expertChat.error} disabled={loading || expertChat.pending}
-                  placeholder={localize('不选专家 · 直接对话', 'No experts · direct chat')}
-                  items={(expertChat.catalog?.experts || []).filter((expert) => expert.enabled).map((expert) => ({ id: String(expert.id), name: expert.name, description: expert.style }))}
-                  selectedIds={expertChat.selection.expertIds.map(String)}
-                  onSelect={(id) => expertChat.update({ expertIds: toggleArrayValue(expertChat.selection.expertIds, Number(id)) })} />
-                <ChoiceList label={localize('协作方式', 'Collaboration mode')} placement="above" items={collaborationChoices}
-                  disabled={!expertChat.enabled || loading || expertChat.pending}
-                  selectedIds={expertChat.enabled ? [expertChat.selection.mode] : []} placeholder={localize('普通对话', 'Direct chat')}
-                  onSelect={(mode) => expertChat.update({ mode })} />
-              </section>}
               {!authoringActive && expertChat.enabled && <button type="button" disabled={loading || expertChat.pending} className="text-xs text-primary hover:underline" onClick={() => expertChat.update({ expertIds: [] })}>{localize('取消专家选择，使用普通对话', 'Clear experts and use direct chat')}</button>}
               {(expertChat.error || (expertChat.enabled && expertChat.runError)) && <div role="alert" className="text-xs text-warning">
                 {expertChat.error || expertChat.runError}
@@ -1970,7 +2003,7 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
                   placeholder={authoringActive ? localize('描述策略目标，或继续修改当前草稿…', 'Describe your strategy or revise the current draft…') : workspaceCopy.placeholder}
                   disabled={loading || expertChat.pending || !agentAvailable}
                   rows={1}
-                  className="input-surface input-focus-glow min-h-[46px] max-h-[200px] flex-1 resize-none rounded-[10px] border bg-background px-4 py-3 text-sm transition-all focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                  className="input-surface input-focus-glow min-h-[46px] max-h-[min(200px,25dvh)] flex-1 resize-none rounded-[10px] border bg-background px-4 py-3 text-sm transition-all focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                   style={{ height: 'auto' }}
                   onInput={(e) => {
                     const t = e.target as HTMLTextAreaElement;
@@ -2004,22 +2037,6 @@ const ChatPage: React.FC<{ workspace?: AgentWorkspaceMode; defaultDiscussion?: b
         </div>
         </div>
 
-        <AgentWorkspacePanel
-          taskTypeLabel={authoringActive ? localize('策略创建', 'Strategy authoring') : workspaceCopy.taskTypeLabel}
-          artifactTypes={authoringActive ? ['Skill'] : WORKSPACE_ARTIFACTS[workspace]}
-          artifactStatus={authoringActive ? strategyState?.skillId ? localize('已保存', 'Saved') : localize('草稿', 'Draft') : undefined}
-          skills={skills}
-          selectedSkillIds={selectedSkillIds}
-          selectedToolCount={capabilityPreview.toolIds.length}
-          selectedDataSourceCount={capabilityPreview.dataSourceIds.length}
-          selectedMcpCount={capabilityPreview.mcpIds.length}
-          selectedExpertCount={expertChat.selection.expertIds.length}
-          selectedExpertTeamCount={0}
-          activeStockCode={activeStockCode}
-          hasConversation={messages.length > 0}
-          isRunning={loading}
-          onOpenCapabilities={() => setCapabilityPanelOpen(true)}
-        />
       </div>
     </div>
   );

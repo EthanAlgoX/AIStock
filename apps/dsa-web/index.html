@@ -9,7 +9,9 @@
         const storageKey = 'theme';
         const root = document.documentElement;
         const storedTheme = localStorage.getItem(storageKey);
-        const theme = storedTheme === 'light' || storedTheme === 'dark' ? storedTheme : 'dark';
+        const theme = storedTheme === 'light' || storedTheme === 'dark'
+          ? storedTheme
+          : storedTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         root.classList.remove('light', 'dark');
         root.classList.add(theme);
         root.style.colorScheme = theme;
@@ -21,11 +23,11 @@
   </head>
   <body>
     <!--
-      THESIS: An instrument-grade strategy control plane; it refuses the floating neon-card dashboard.
-      OWN-WORLD: Cool porcelain and carbon surfaces, cobalt actions, mineral rules, compact type, ten-pixel controls, no decorative glow.
-      STORY: Users orient in the strategy lifecycle, inspect evidence and state, then take one explicit research action.
-      FIRST VIEWPORT: A fixed operational rail frames a continuous workspace with a command header and lifecycle trace before page content.
-      FORM: Semiconductor observability console, grounded direction 7; control-plane staging; seed f31c0950.
+      THESIS: A research desk with one clear task canvas; repeated permanent sidebars yield to on-demand context.
+      OWN-WORLD: NOFX-inspired warm paper and charcoal, vermilion actions, hairline dividers, readable sans-serif, tabular data, restrained corners.
+      STORY: Orient in seven modules, choose a page, inspect evidence and state, then research, validate or track.
+      FIRST VIEWPORT: A compact horizontal module header and local page strip frame a full-width workspace; history and capabilities open from its toolbar.
+      FORM: User-pinned NOFX operational grammar; composition A from three visualized alternatives, chosen under delegated design authority.
     -->
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

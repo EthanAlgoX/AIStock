@@ -3,9 +3,9 @@ import { translateSource } from '../i18n/localize';
 import { useUiLanguage } from "../contexts/UiLanguageContext";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ChevronDown, FileText, Octagon, Plus, RefreshCw, ShieldCheck } from "lucide-react";
+import { ChevronDown, FileText, History, Octagon, Plus, RefreshCw, ShieldCheck } from "lucide-react";
 import { workspaceApi, type WorkspaceRun } from "../api/workspace";
-import { AppPage, PageHeader } from "../components/common";
+import { AppPage, Drawer, PageHeader } from "../components/common";
 import { StockResearchArtifacts } from "../components/report/ExpertResearchReview";
 import RunStages from "../components/agent/RunStages";
 import DecisionReviewPanel from "../components/agent/DecisionReviewPanel";
@@ -93,7 +93,10 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
     return () => { mounted = false; clearTimeout(timer); };
   }, [selectedId, activeRun?.id, retry]);
 
-  const select = (id: string) => setParams((current) => { const next = new URLSearchParams(current); next.set("run", id); return next; });
+  const select = (id: string) => {
+    setHistoryOpen(false);
+    setParams((current) => { const next = new URLSearchParams(current); next.set("run", id); return next; });
+  };
   const runContext = selected ? (<RunContext open={isRunActive(selected) || selected.status === "failed" || !!selected.errorMessage} className="mb-4">
           {mode === "research" && <summary className="cursor-pointer py-2 text-xs text-secondary-text">{time(selected.createdAt, language)} · {statusLabel(selected)} · {(language !== 'zh' && language !== 'en') ? translateSource("研究任务与溯源", language) : (language === "en" ? "Research task and provenance" : "研究任务与溯源")}</summary>}
           <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4"><div><h2 className="text-xl font-semibold text-foreground">{selected.taskSnapshot.name}</h2><p className="mt-2 text-xs text-secondary-text">{time(selected.createdAt, language)} · {statusLabel(selected)} · {selected.taskSnapshot.market}</p>{trading && <p className="mt-2 text-xs text-secondary-text">{tx("运行耗时")}{" "}<RunElapsed run={selected} /> {" "}{tx("· 结果仅用于模拟研究")}</p>}</div><div className="flex flex-wrap gap-2"><Link className="btn-secondary text-xs" to={`/overview?runId=${encodeURIComponent(selected.id)}`}>{tx("继续问 Agent")}</Link><Link className="btn-secondary text-xs" to={`/runs/${selected.id}`}>{tx("运行详情与数据来源")}</Link></div></header>
@@ -106,38 +109,40 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
   return <AppPage className="space-y-5 pb-20">
     <PageHeader title={trading ? tx("交易推演") : mode === "research" ? tx("个股研究") : tx("策略选股")}
       description={mode === "research" && entries.length > 0 ? undefined : trading ? tx("回看模拟交易提案、风险检查与执行记录；策略配置按需展开。") : mode === "research" ? tx("阅读研究结论、关键价位与风险，回看每一次个股研究。") : tx("回看筛选结果、候选依据与风险，比较每一次策略选股报告。")}
-      actions={<button className={`${configOpen ? "btn-secondary" : "btn-primary"} inline-flex items-center gap-2`} type="button" aria-expanded={configOpen} aria-controls="new-analysis-config" onClick={() => { setConfigVisited(true); setConfigOpen(!configOpen); }}>{configOpen ? <ChevronDown className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{configOpen ? trading ? tx("收起策略配置") : tx("收起分析配置") : newAction}</button>} />
+      actions={<>
+        <button className="btn-secondary inline-flex items-center gap-2" type="button" aria-haspopup="dialog" aria-expanded={historyOpen} aria-controls="report-history-list" onClick={() => setHistoryOpen(true)}><History className="h-4 w-4" />{tx("历史报告")}<span className="text-xs tabular-nums text-secondary-text">{entries.length}</span></button>
+        <button className={`${configOpen ? "btn-secondary" : "btn-primary"} inline-flex items-center gap-2`} type="button" aria-expanded={configOpen} aria-controls="new-analysis-config" onClick={() => { setConfigVisited(true); setConfigOpen(!configOpen); }}>{configOpen ? <ChevronDown className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{configOpen ? trading ? tx("收起策略配置") : tx("收起分析配置") : newAction}</button>
+      </>} />
     {!configOpen && !(mode === "research" && (entries.length > 0 || params.get("stock"))) && <DefaultTaskLauncher kind={mode} presentation={trading ? "card" : "disclosure"} onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}
     {mode !== "research" && selected && !isRunActive(selected) && selected.artifacts.length > 0 && <Link className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline" to={`/expert-review?sourceRun=${selected.id}`}>{tx("邀请专家讨论这份报告")}</Link>}
     {trading && <p className="flex items-start gap-2 text-sm leading-6 text-secondary-text"><ShieldCheck className="mt-1 h-4 w-4 shrink-0" />{tx("模拟盘 · 真实订单始终禁用。生成提案不等于已通过风险评估，也不等于已经成交。")}</p>}
     {(configOpen || (trading && configVisited)) && <section hidden={!configOpen} id="new-analysis-config" aria-label={trading ? tx("交易策略配置") : tx("新建分析配置")} className="border-b border-border pb-4">
       {mode === "trading" ? <TradingTaskSetupPage onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} /> : <AgentTaskSetupPage mode={mode} embedded onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}
     </section>}
+    {mode === "research" && entries.length > 0 && !configOpen && !params.get("stock") && <DefaultTaskLauncher kind={mode} presentation="disclosure" onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}
     {mode === "research" && <StockArchive onRunStarted={(run) => {select(run.id);setConfigOpen(false);}} />}
     {(submitting || isRunActive(activeRun) || runError) && <div role={runError ? "alert" : "status"} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm">
       <p>{(runError ? tx(runError) : "") || (submitting ? tx("正在提交任务，切换页面不会中断。") : trading ? tx("主 Agent 正在生成模拟交易提案 · {0}", String(activeRun?.taskSnapshot.name)) : tx("{0} · 后台分析中，可以继续阅读历史报告。", String(activeRun?.taskSnapshot.name)))}</p>
       {activeRun && <div className="flex items-center gap-4"><button type="button" className="text-primary hover:underline" onClick={() => select(activeRun.id)}>{trading ? tx("查看本次模拟") : tx("查看本次分析")}</button>{trading && isRunActive(activeRun) && <button type="button" className="btn-secondary inline-flex items-center gap-2 text-danger" onClick={() => void cancelRun()}><Octagon className="h-4 w-4" />{tx("停止")}</button>}</div>}
     </div>}
-    <div className="grid items-start gap-6 lg:grid-cols-[248px_minmax(0,1fr)] lg:gap-8">
-      <aside aria-label={trading ? tx("历史模拟运行") : tx("历史分析报告")} className="min-w-0 lg:sticky lg:top-24">
-        <div className="mb-3 flex items-center justify-between"><h2 className="font-semibold text-foreground">{tx("历史报告")}{" "}<span className="ml-1 text-xs font-normal text-muted-text">{entries.length}</span></h2><button type="button" aria-label={tx("刷新报告列表")} className="rounded-md p-2 text-secondary-text hover:bg-hover focus-visible:ring-2 focus-visible:ring-primary" onClick={() => setRetry((value) => value + 1)}><RefreshCw className="h-4 w-4" /></button></div>
-        <button type="button" className="mb-3 text-sm text-primary lg:hidden" aria-expanded={historyOpen} aria-controls="report-history-list" onClick={() => setHistoryOpen(!historyOpen)}>{historyOpen ? tx("收起历史报告") : tx("切换历史报告")}</button>
-        <div id="report-history-list" className={`${historyOpen ? "block" : "hidden"} lg:block`}>
+    {historyError && !historyOpen && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 text-sm text-danger"><p>{tx(historyError)}</p><button type="button" className="btn-secondary inline-flex items-center gap-2" onClick={() => setRetry((value) => value + 1)}><RefreshCw className="h-4 w-4" />{tx("刷新报告列表")}</button></div>}
+    <Drawer isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title={trading ? tx("历史模拟运行") : tx("历史分析报告")} width="max-w-md" side="left">
+      <section id="report-history-list" className="min-w-0">
+        <div className="mb-3 flex items-center justify-between"><p className="text-sm text-secondary-text">{tx("历史报告")}<span className="ml-2 tabular-nums">{entries.length}</span></p><button type="button" aria-label={tx("刷新报告列表")} className="inline-flex h-11 w-11 items-center justify-center rounded-md text-secondary-text hover:bg-hover focus-visible:ring-2 focus-visible:ring-primary" onClick={() => setRetry((value) => value + 1)}><RefreshCw className="h-4 w-4" /></button></div>
         <input aria-label={tx("搜索历史报告")} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={trading ? tx("搜索交易策略名称") : tx("搜索股票名称或代码")} className="mb-3 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none focus:border-primary" />
         {historyError && <p role="alert" className="mb-3 text-sm text-danger">{tx(historyError)}</p>}
-        {!loaded && !entries.length ? <p role="status" className="py-6 text-sm text-secondary-text">{tx("正在读取报告目录…")}</p> : <div className="max-h-64 overflow-y-auto lg:max-h-[calc(100vh-18rem)]">
+        {!loaded && !entries.length ? <p role="status" className="py-6 text-sm text-secondary-text">{tx("正在读取报告目录…")}</p> : <div>
           {filtered.map((run) => <button key={run.id} type="button" aria-pressed={selectedId === run.id} onClick={() => select(run.id)} className={`mb-1 w-full rounded-lg border px-3 py-3 text-left focus-visible:ring-2 focus-visible:ring-primary ${selectedId === run.id ? "border-primary/40 bg-primary/10" : "border-transparent hover:bg-hover"}`}>
             <span className="block break-words text-sm font-medium text-foreground">{run.reportTitle || run.taskSnapshot.name}</span>
             {typeof run.taskSnapshot.subject.stock === "string" && <span className="mt-1 block text-xs text-secondary-text">{run.taskSnapshot.subject.stock}</span>}
             <span className="mt-2 flex justify-between gap-2 text-xs text-secondary-text"><span>{time(run.createdAt, language)}</span><span className={workspaceRunTone(run)}>{statusLabel(run)}</span></span>
           </button>)}
-          {loaded && !filtered.length && <p className="py-4 text-sm text-secondary-text">{query ? tx("没有匹配的报告，试试其他名称或代码。") : trading ? tx("尚无模拟运行记录。") : tx("尚无历史分析。")}</p>}
+          {loaded && !historyError && !filtered.length && <p className="py-4 text-sm text-secondary-text">{query ? tx("没有匹配的报告，试试其他名称或代码。") : trading ? tx("尚无模拟运行记录。") : tx("尚无历史分析。")}</p>}
         </div>}
-        {mode === "research" && entries.length > 0 && !configOpen && !params.get("stock") && <DefaultTaskLauncher kind={mode} presentation="disclosure" onRunStarted={(run) => { select(run.id); setConfigOpen(false); }} />}
         {loaded && entries.length >= 100 && <Link to={`/runs?kind=${mode}`} className="mt-3 block text-xs text-primary">{tx("查看更早的运行记录")}</Link>}
-        </div>
-      </aside>
-      <section aria-label={trading ? tx("模拟交易结果") : tx("分析报告详情")} className="min-w-0 rounded-xl border border-border bg-card p-4 md:p-6 lg:p-8">
+      </section>
+    </Drawer>
+    <section aria-label={trading ? tx("模拟交易结果") : tx("分析报告详情")} className="min-w-0 rounded-xl border border-border bg-card p-4 md:p-6 lg:p-8">
         {selected ? <>
           {contextFirst && runContext}
 
@@ -146,8 +151,7 @@ export default function ResearchReportsWorkspace({ mode }: { mode: "research" | 
           {!contextFirst && runContext}
         </> : selectedId ? <p role="status" className="py-16 text-center text-sm text-secondary-text">{detail.id === selectedId && detail.error ? tx(detail.error) : tx("正在读取完整报告…")}</p> : loaded ? <div className="py-20 text-center"><FileText className="mx-auto mb-4 h-8 w-8 text-muted-text" /><h2 className="text-lg font-semibold text-foreground">{trading ? tx("从一次模拟运行开始") : tx("从一份研究报告开始")}</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-secondary-text">{tx("点击“")}{newAction}{tx("”配置任务。生成的报告会保存在这里，随时回来继续阅读。")}</p></div> : null}
         {detail.id === selectedId && detail.error && <button type="button" className="btn-secondary mt-3" onClick={() => setRetry((value) => value + 1)}>{tx("重试读取报告")}</button>}
-      </section>
-    </div>
+    </section>
     {trading && <section><button type="button" className="btn-secondary" aria-expanded={reviewOpen} onClick={() => setReviewOpen(!reviewOpen)}>{reviewOpen ? tx("收起信号跟踪与复盘") : tx("打开信号跟踪与复盘")}</button>{reviewOpen && <DecisionReviewPanel />}</section>}
   </AppPage>;
 }

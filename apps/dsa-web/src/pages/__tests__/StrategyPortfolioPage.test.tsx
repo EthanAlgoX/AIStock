@@ -6,9 +6,10 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
 import TradingWorkspacePage from "../TradingWorkspacePage";
+import { WorkspaceSectionNav } from "../../components/layout/ShellHeader";
 const stockState = vi.hoisted(() => ({ loading: false }));
 const api = vi.hoisted(() => ({
   list: vi.fn(),
@@ -26,7 +27,14 @@ const api = vi.hoisted(() => ({
   holdings: vi.fn(),
   runtimeStatus: vi.fn(),
 }));
-vi.mock("../../api/portfolios", () => ({ portfoliosApi: api, simulationOverviewApi: {get: vi.fn().mockResolvedValue({items:[],runtime:{configured:false,available:false}}), evolution: vi.fn().mockResolvedValue({supported:false,items:[]})} }));
+vi.mock("../../api/portfolios", () => ({
+  portfoliosApi: api,
+  simulationOverviewApi: {get: vi.fn().mockResolvedValue({items:[],runtime:{configured:false,available:false}}), evolution: vi.fn().mockResolvedValue({supported:false,items:[]})},
+  sourceRuntimeApi: {
+    capabilities: vi.fn().mockResolvedValue({configured:false,available:false}),
+    plans: vi.fn().mockResolvedValue([]),
+  },
+}));
 vi.mock("../../hooks/useStockIndex", () => ({
   useStockIndex: () => ({
     loading: stockState.loading,
@@ -115,11 +123,38 @@ beforeEach(() => {
   api.runtimeStatus.mockResolvedValue({configured:false,available:false});
 });
 
+function TradingRouteContext() {
+  const location = useLocation();
+  return <output data-testid="trading-route-context">{location.pathname}{location.search}</output>;
+}
+
+it.each([
+  ["来源策略研究", "/trading?view=source", "QuantEvo 策略研究与模拟"],
+  ["策略管理", "/trading?view=manage", "我的策略"],
+  ["模拟总览", "/trading", "正在模拟的策略收益"],
+])("leaves the creation form when navigating to %s, including the current overview URL", async (section, url, heading) => {
+  render(<MemoryRouter initialEntries={["/trading"]}><WorkspaceSectionNav /><TradingWorkspacePage /><TradingRouteContext /></MemoryRouter>);
+  fireEvent.click(screen.getByRole("button", {name:"配置策略"}));
+  await screen.findByRole("option", {name:"价格策略"});
+  fireEvent.change(screen.getByLabelText("策略名称"), {target:{value:"尚未提交的草稿"}});
+  expect(screen.getByRole("heading", {name:"配置策略方法与范围"})).toBeVisible();
+  expect(screen.getByTestId("trading-route-context")).toHaveTextContent(/^\/trading$/);
+
+  fireEvent.click(screen.getByRole("link", {name:section}));
+  await waitFor(() => expect(screen.queryByRole("heading", {name:"配置策略方法与范围"})).not.toBeInTheDocument());
+  expect(await screen.findByRole("heading", {name:heading})).toBeVisible();
+  expect(screen.getByTestId("trading-route-context")).toHaveTextContent(url);
+  expect(screen.getByRole("link", {name:section})).toHaveAttribute("aria-current", "page");
+  expect(api.saveDefinition).not.toHaveBeenCalled();
+  expect(api.createValidation).not.toHaveBeenCalled();
+  expect(api.control).not.toHaveBeenCalled();
+});
+
 it('uses the selected account owner instead of an unrelated strategy in the URL', async () => {
   api.definitions.mockResolvedValue([{id:7,name:'Actual account strategy',config},{id:9,name:'Unrelated URL strategy',config}]);
   api.detail.mockResolvedValue({...detail,definitionId:7});
   api.list.mockResolvedValue([{...detail,definitionId:7}]);
-  render(<MemoryRouter initialEntries={['/trading?portfolio=1&strategy=9']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?portfolio=1&strategy=9']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   expect(await screen.findByText(/策略配置与验证账户/)).toHaveTextContent('Actual account strategy');
   expect(screen.queryByRole('heading',{name:'Unrelated URL strategy',hidden:true})).not.toBeInTheDocument();
 });
@@ -128,7 +163,7 @@ it('keeps the strategy catalog and runtime status available when a selected acco
   api.definitions.mockResolvedValue([{id:7,name:'Available strategy',config}]);
   api.runtimeStatus.mockResolvedValue({configured:true,available:true});
   api.detail.mockRejectedValue({isAxiosError:true,response:{status:404,data:{detail:'Account not found'}}});
-  render(<MemoryRouter initialEntries={['/trading?portfolio=404']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?portfolio=404']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   await screen.findByRole('alert');
   expect(screen.getByRole('button',{name:/Available strategy/,hidden:true})).toBeInTheDocument();
   expect(screen.getByRole('link',{name:'来源策略研究'})).toBeVisible();
@@ -137,7 +172,7 @@ it('keeps the strategy catalog and runtime status available when a selected acco
 it("shows real zero metrics, daily opinions and current positions without invented trades", async () => {
   render(
     <MemoryRouter initialEntries={["/trading?portfolio=1"]}>
-      <TradingWorkspacePage />
+      <WorkspaceSectionNav /><TradingWorkspacePage />
     </MemoryRouter>,
   );
   await screen.findByText("累计收益");
@@ -168,7 +203,7 @@ it.each([
     api.control.mockResolvedValue({ ...detail, id: 8, definitionId: 7, mode });
     render(
       <MemoryRouter initialEntries={["/trading?strategy=7"]}>
-        <TradingWorkspacePage />
+        <WorkspaceSectionNav /><TradingWorkspacePage />
       </MemoryRouter>,
     );
     await screen.findByRole("heading", { name: "已保存规则" });
@@ -207,7 +242,7 @@ it("continues the existing simulation when switching to continuous mode", async 
   api.control.mockResolvedValue({ ...detail, definitionId: 7 });
   render(
     <MemoryRouter initialEntries={["/trading?strategy=7"]}>
-      <TradingWorkspacePage />
+      <WorkspaceSectionNav /><TradingWorkspacePage />
     </MemoryRouter>,
   );
   await screen.findByRole("heading", { name: "已保存规则" });
@@ -219,7 +254,7 @@ it("continues the existing simulation when switching to continuous mode", async 
 it("saves the selected Agent Skill and approved universe without launching", async () => {
   api.previewUniverse.mockResolvedValue({id:9,market:"US",candidates:[{code:"NVDA",reason:"用户指定"}],scope:{mode:"fixed",symbols:["NVDA"]},source:"specified",observedAt:"2026-09-10"});
   api.saveDefinition.mockResolvedValue({id:2,name:"Agent试验",config:{...config,engine:"agent"}});
-  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(screen.getByRole("button", {name:"配置策略"}));
   await screen.findByRole("option", {name:"价格策略"});
   fireEvent.change(screen.getByLabelText("策略 Skill"), {target:{value:"price"}});
@@ -245,7 +280,7 @@ it("saves a scope-only strategy with an empty optional pool while the name catal
   stockState.loading = true;
   api.previewUniverse.mockResolvedValue({id:10,market:"CN",candidates:[{code:"688981",reason:"半导体行业"}],scope:{mode:"custom",symbols:[],query:"",industries:["半导体"]},source:"fixture",observedAt:"2026-09-11"});
   api.saveDefinition.mockResolvedValue({id:3,name:"行业策略",config:{...config,engine:"agent"}});
-  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(screen.getByRole("button", {name:"配置策略"}));
   await screen.findByRole("option", {name:"价格策略"});
   const poolInput = screen.getByLabelText("股票池（可选，名称或代码，最多 12 只）");
@@ -268,7 +303,7 @@ it("saves a scope-only strategy with an empty optional pool while the name catal
 it("does not widen a holdings scope when its optional stock restriction has no intersection", async () => {
   api.agentOptions.mockResolvedValue({skills:[{id:"price",name:"价格策略"}],accounts:[{id:1,name:"美股持仓",market:"US"}],defaultPrompt:"交易"});
   api.holdings.mockResolvedValue([{symbol:"NVDA",quantity:1}]);
-  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(screen.getByRole("button", {name:"配置策略"}));
   await screen.findByRole("option", {name:"价格策略"});
   fireEvent.change(screen.getByLabelText("范围来源"), {target:{value:"holdings"}});
@@ -286,7 +321,7 @@ it('imports an assistant skill into the existing configuration without starting 
     sessionId: 'draft', kind: 'trading', revision: 1, validated: true, skillId: 'price', error: null,
     draft: { name: '对话网格', scope: '中市值以上、成交活跃且波动较大' },
   });
-  render(<MemoryRouter initialEntries={['/trading?sourceSession=draft']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?sourceSession=draft']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   expect(await screen.findByDisplayValue('对话网格')).toBeInTheDocument();
   expect(await screen.findByDisplayValue('中市值以上、成交活跃且波动较大')).toBeInTheDocument();
   expect(screen.getByDisplayValue('按行业与条件筛选')).toBeInTheDocument();
@@ -297,7 +332,7 @@ it('imports an assistant skill into the existing configuration without starting 
 });
 
 it("configures JEV separately from report generation and shows allocation sizing", async () => {
-  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("button", { name: "配置策略" }));
   const select = await screen.findByLabelText("交易决策模型");
   expect(select).toHaveValue("rules");
@@ -315,7 +350,7 @@ it("renders JEV categories and probabilities without a fabricated explanation", 
     probabilities:{buy:0.1,sell:0.05,hold:0.85}}];
   api.list.mockResolvedValue([jev]);
   api.detail.mockResolvedValue(jev);
-  render(<MemoryRouter initialEntries={["/trading?portfolio=1"]}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={["/trading?portfolio=1"]}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("tab", {name:"决策记录"}));
   expect(await screen.findByText(/85.0%/)).toBeVisible();
   expect(screen.getByText(/仅决策结果，无模型解释/)).toBeVisible();
@@ -324,7 +359,7 @@ it("renders JEV categories and probabilities without a fabricated explanation", 
 
 it('resets the confirmed universe when starting another strategy from an open form', async () => {
   api.previewUniverse.mockResolvedValue({id:10,market:'CN',candidates:[{code:'688981',reason:'半导体行业'}],scope:{mode:'custom',symbols:[],query:''},source:'fixture',observedAt:'2026-09-11'});
-  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(screen.getByRole('button', {name:'配置策略'}));
   await screen.findByRole('option', {name:'价格策略'});
   fireEvent.change(screen.getByLabelText('范围来源'), {target:{value:'custom'}});
@@ -344,7 +379,7 @@ it('resets the confirmed universe when starting another strategy from an open fo
 it('ignores a preview response from a discarded strategy form', async () => {
   let resolve!: (value: unknown) => void;
   api.previewUniverse.mockReturnValue(new Promise((done) => { resolve = done; }));
-  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(screen.getByRole('button', {name:'配置策略'}));
   await screen.findByRole('option', {name:'价格策略'});
   fireEvent.change(screen.getByLabelText('范围来源'), {target:{value:'custom'}});
@@ -363,7 +398,7 @@ it('ignores a preview response from a discarded strategy form', async () => {
 
 it('invalidates the previous approval when previewing again fails', async () => {
   api.previewUniverse.mockResolvedValueOnce({id:10,market:'CN',candidates:[{code:'688981',reason:'半导体行业'}],scope:{mode:'custom'},source:'fixture'});
-  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(screen.getByRole('button', {name:'配置策略'}));
   await screen.findByRole('option', {name:'价格策略'});
   fireEvent.change(screen.getByLabelText('范围来源'), {target:{value:'custom'}});
@@ -386,7 +421,7 @@ it("defaults new strategies to the grid skill and restores it when starting a fr
     {id:"price",name:"价格策略",description:"依据日线"},
     {id:"high_volume_volatility_grid",name:"高量高波动网格",description:"每日收盘网格"},
   ],accounts:[],defaultPrompt:"交易"});
-  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(screen.getByRole("button", {name:"配置策略"}));
   await screen.findByRole("option", {name:"高量高波动网格"});
   await waitFor(() => expect(screen.getByLabelText("策略 Skill")).toHaveValue("high_volume_volatility_grid"));
@@ -403,7 +438,7 @@ it("defaults new strategies to the grid skill and restores it when starting a fr
 });
 
 it('explains empty JEV fields and restores only JEV task defaults', async () => {
-  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(screen.getByRole('button', { name: '配置策略' }));
   await screen.findByRole('option', { name: '价格策略' });
   fireEvent.change(screen.getByLabelText('策略 Skill'), { target: { value: 'price' } });
@@ -455,7 +490,7 @@ it('stops all validations from the saved strategy and confirms deletion', async 
   api.list.mockResolvedValue([{...detail,definitionId:7,status:'running'}]);
   api.stopDefinition.mockResolvedValue({id:7});
   api.deleteDefinition.mockResolvedValue({deleted:true});
-  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   await screen.findByRole('heading', {name:'待删除策略'});
   fireEvent.click(screen.getByRole('button', {name:'停止运行'}));
   await waitFor(() => expect(api.stopDefinition).toHaveBeenCalledWith(7));
@@ -476,7 +511,7 @@ it('stops all validations from the saved strategy and confirms deletion', async 
 it('keeps a failed delete visible for retry without removing the strategy', async () => {
   api.definitions.mockResolvedValue([{id:7,name:'失败重试策略',config}]);
   api.deleteDefinition.mockRejectedValue(new Error('服务暂不可用'));
-  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button', {name:'删除策略'}));
   fireEvent.click(screen.getByRole('button', {name:'停止并删除'}));
   await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('服务暂不可用'));
@@ -487,7 +522,7 @@ it('keeps a failed delete visible for retry without removing the strategy', asyn
 it('can delete a strategy before its first validation', async () => {
   api.definitions.mockResolvedValue([{id:7,name:'未运行策略',config}]);
   api.list.mockResolvedValue([]);
-  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   expect(await screen.findByRole('button', {name:'删除策略'})).toBeEnabled();
   expect(screen.getByRole('button', {name:'停止运行'})).toBeDisabled();
 });
@@ -496,7 +531,7 @@ it('stops and removes an independent validation', async () => {
   api.detail.mockResolvedValue({...detail,status:'running'});
   api.control.mockResolvedValue({...detail,status:'stopped'});
   api.deletePortfolio.mockResolvedValue({deleted:true});
-  render(<MemoryRouter initialEntries={['/trading?portfolio=1']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?portfolio=1']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button', {name:'停止运行'}));
   await waitFor(() => expect(api.control).toHaveBeenCalledWith(1, 'stop'));
   await waitFor(() => expect(screen.getByRole('button', {name:'删除验证记录'})).toBeEnabled());
@@ -512,7 +547,7 @@ it('hides a source backtest with explicit continuing-task audit terms instead of
   const sourceBacktest = {...detail,id:-44,name:'Frozen source result',mode:'backtest',status:'running',config:{...config,engine:undefined,externalRuntime:true}};
   api.detail.mockResolvedValue(sourceBacktest);
   api.deletePortfolio.mockResolvedValue({deleted:true});
-  render(<MemoryRouter initialEntries={['/trading?portfolio=-44']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-44']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button', {name:'隐藏验证记录'}));
   const dialog = screen.getByRole('dialog');
   expect(within(dialog).getByRole('heading', {name:'隐藏验证记录 · Frozen source result'})).toBeVisible();
@@ -537,7 +572,7 @@ it('edits all paused strategy settings in place and requires a fresh preview', a
   api.list.mockResolvedValue([{...detail,definitionId:7,config:savedConfig}]);
   api.previewUniverse.mockResolvedValue({...savedConfig.universe,id:9});
   api.saveDefinition.mockResolvedValue({id:7,name:config.name,config:{...savedConfig,definitionRevision:4}});
-  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button',{name:'修改配置'}));
   await screen.findByRole('option',{name:'价格策略'});
   expect(screen.getByLabelText('判断问题')).toHaveValue('原问题');
@@ -558,11 +593,11 @@ it('edits all paused strategy settings in place and requires a fresh preview', a
 it('blocks editing active strategies and never resumes an obsolete account', async () => {
   api.definitions.mockResolvedValue([{id:7,name:config.name,config:{...config,definitionRevision:2}}]);
   api.list.mockResolvedValue([{...detail,definitionId:7,status:'running'}]);
-  const view=render(<MemoryRouter initialEntries={['/trading?strategy=7']}><TradingWorkspacePage /></MemoryRouter>);
+  const view=render(<MemoryRouter initialEntries={['/trading?strategy=7']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   expect(await screen.findByRole('button',{name:'修改配置'})).toBeDisabled();
   view.unmount();
   api.list.mockResolvedValue([{...detail,definitionId:7,status:'stopped'}]);
-  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?strategy=7']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button',{name:'运行一次'}));
   expect(await screen.findByLabelText('验证初始资金')).toBeVisible();
   expect(api.control).not.toHaveBeenCalled();
@@ -572,7 +607,7 @@ it('labels an interrupted historical validation separately from a ready run', as
   const interrupted = { ...structuredClone(detail), mode: 'backtest', status: 'ready', error: 'timeout' };
   api.list.mockResolvedValue([interrupted]);
   api.detail.mockResolvedValue(interrupted);
-  render(<MemoryRouter initialEntries={['/trading?portfolio=1']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?portfolio=1']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   expect(await screen.findByText(/不代表完整回测/)).toBeVisible();
   expect(screen.getAllByText(/历史验证中断/).length).toBeGreaterThan(0);
   expect(screen.getByRole('button', { name: '运行回测' })).toBeEnabled();
@@ -582,7 +617,7 @@ it('saves crypto through the same strategy form, preview and definition API', as
   api.agentOptions.mockResolvedValue({skills:[{id:'crypto_rotation',name:'高量高波动轮换'},{id:'crypto_equal_weight',name:'等权再平衡'},{id:'crypto_btc_hold',name:'半仓比特币'}],accounts:[]});
   api.previewUniverse.mockResolvedValue({id:81,market:'CRYPTO',candidates:[{code:'BTCUSDT',reason:'Binance Spot'}],scope:{mode:'fixed',symbols:['BTCUSDT']},source:'Binance Spot',observedAt:'2026-09-25'});
   api.saveDefinition.mockResolvedValue({id:82,name:'Crypto rotation',config:{...config,market:'CRYPTO',symbols:['BTCUSDT']}});
-  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(screen.getByRole('button', {name:'配置策略'}));
   fireEvent.change(screen.getByLabelText('市场'), {target:{value:'CRYPTO'}});
   await screen.findByRole('option', {name:'高量高波动轮换'});
@@ -599,7 +634,7 @@ it('saves crypto through the same strategy form, preview and definition API', as
 });
 
 it('requires an explicit crypto market change before previewing typed pairs', async () => {
-  render(<MemoryRouter><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(screen.getByRole('button', {name:'配置策略'}));
   fireEvent.change(screen.getByLabelText('股票池（可选，名称或代码，最多 12 只）'), {target:{value:'BTCUSDT'}});
   fireEvent.click(screen.getByRole('button', {name:'预览股票范围'}));
@@ -611,7 +646,7 @@ it('keeps private versions out of the native editor and uses frozen replay terms
   const external = {...config, engine:undefined, externalRuntime:true, sourceStartDate:'2026-08-01', sourceEndDate:'2026-08-31', initialCash:10000};
   api.definitions.mockResolvedValue([{id:-1,name:'Private fixture',config:external}]);
   api.list.mockResolvedValue([]);
-  render(<MemoryRouter initialEntries={['/trading?strategy=-1']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?strategy=-1']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   await screen.findByRole('heading',{name:'Private fixture'});
   expect(screen.queryByRole('button',{name:'修改配置'})).not.toBeInTheDocument();
   expect(screen.queryByRole('button',{name:'复制策略'})).not.toBeInTheDocument();
@@ -633,7 +668,7 @@ it.each([
   const external = { ...config, engine: undefined, externalRuntime: true, decisionBackend: undefined, market: 'CRYPTO', symbols };
   api.definitions.mockResolvedValue([{ id: -22, name: 'Source fixture', config: external }]);
   api.list.mockResolvedValue([]);
-  render(<MemoryRouter initialEntries={['/trading?strategy=-22']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?strategy=-22']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   const description = await screen.findByText(summary);
   expect(description).toBeVisible();
   expect(description).not.toHaveTextContent('LLM');
@@ -652,7 +687,7 @@ it.each([
   api.list.mockResolvedValue([sourceAccount]);
   api.detail.mockResolvedValue(sourceAccount);
   api.control.mockResolvedValue({ ...sourceAccount, status: action === 'pause' ? 'paused' : 'running' });
-  render(<MemoryRouter initialEntries={['/trading?portfolio=-33']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-33']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   const button = await screen.findByRole('button', { name: label });
   expect(button).toBeEnabled();
   expect(screen.queryByRole('button', { name: '继续运行一次', hidden: true })).not.toBeInTheDocument();
@@ -670,7 +705,7 @@ it('resumes an existing source account from configuration without claiming a sin
   api.list.mockResolvedValue([sourceAccount]);
   api.detail.mockResolvedValue(sourceAccount);
   api.control.mockResolvedValue({ ...sourceAccount, status: 'running' });
-  render(<MemoryRouter initialEntries={['/trading?strategy=-22']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?strategy=-22']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   expect(await screen.findByRole('button', { name: '历史回测' })).toBeEnabled();
   expect(screen.queryByRole('button', { name: '运行一次' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: '持续模拟' }));
@@ -685,7 +720,7 @@ it('resumes the selected source account before its summary appears in the accoun
   api.list.mockResolvedValue([]);
   api.detail.mockResolvedValue(sourceAccount);
   api.control.mockResolvedValue({ ...sourceAccount, status: 'running' });
-  render(<MemoryRouter initialEntries={['/trading?portfolio=-33']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-33']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   await screen.findByText(/策略配置与验证账户/);
   fireEvent.click(screen.getByRole('button', { name: '持续模拟', hidden: true }));
   await waitFor(() => expect(api.control).toHaveBeenCalledWith(-33, 'start'));
@@ -699,7 +734,7 @@ it.each([undefined, 'agent'])('recomputes source backtests with engine=%s throug
   api.list.mockResolvedValue([sourceBacktest]);
   api.detail.mockResolvedValue(sourceBacktest);
   api.createValidation.mockResolvedValue({ ...sourceBacktest, id: -45 });
-  render(<MemoryRouter initialEntries={['/trading?portfolio=-44']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-44']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   await screen.findByText(/策略配置与验证账户/);
   expect(screen.queryByRole('button', { name: '运行回测', hidden: true })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: '持续运行', hidden: true })).not.toBeInTheDocument();
@@ -719,7 +754,7 @@ it('resolves the owning private definition from a newly adopted account before t
   api.definitions.mockResolvedValue([{ id: -22, name: 'Candidate source definition', config: external }]);
   api.list.mockResolvedValue([]);
   api.detail.mockResolvedValue({ ...detail, id: -33, definitionId: -22, config: external });
-  render(<MemoryRouter initialEntries={['/trading?portfolio=-33']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-33']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   expect(await screen.findByText(/策略配置与验证账户/)).toHaveTextContent('Candidate source definition');
   expect(screen.getByRole('button', { name: '历史回测', hidden: true })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: '修改配置', hidden: true })).toBeNull();
@@ -727,18 +762,18 @@ it('resolves the owning private definition from a newly adopted account before t
 
 it('never labels a live JEV account as retrospective model replay', async () => {
   api.detail.mockResolvedValue({...detail,id:-1006,config:{...config,externalRuntime:true,decisionBackend:'jev',evaluationKind:'model_replay'},executionLedger:[]});
-  render(<MemoryRouter initialEntries={['/trading?portfolio=-1006']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-1006']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   expect(await screen.findByText(/实时行情模拟/)).toBeVisible();
   expect(screen.getByText('来源尚未提供完整周期合同，保留原始时间，不按日线解释。')).toBeVisible();
   expect(screen.queryByText('模型历史回放，不代表历史时点预测')).toBeNull();
 });
 
 it('keeps the overview free of a second strategy detail section',async()=>{
- render(<MemoryRouter><TradingWorkspacePage/></MemoryRouter>);
+ render(<MemoryRouter initialEntries={["/trading"]}><WorkspaceSectionNav /><TradingWorkspacePage/></MemoryRouter>);
  await screen.findByText('当前筛选下没有正在模拟的策略。');
  expect(screen.queryByText('策略详情、回测与自进化')).toBeNull();
  expect(screen.queryByText('我的策略')).toBeNull();
- fireEvent.click(screen.getByRole('link',{name:'管理策略'}));
+ fireEvent.click(screen.getByRole('link',{name:'策略管理'}));
  expect(await screen.findByText('我的策略')).toBeVisible();
 });
 
@@ -747,7 +782,7 @@ it('hides only the managed source version and stops its paper accounts while kee
   api.definitions.mockResolvedValue([{id:-7,name:'来源冻结版本',config:{...config,externalRuntime:true,evaluationKind:'source_frozen_contract'}}]);
   api.list.mockResolvedValue([]);
   api.deleteDefinition.mockResolvedValue({deleted:true});
-  render(<MemoryRouter initialEntries={['/trading?strategy=-7']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?strategy=-7']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button',{name:'隐藏来源版本'}));
   const dialog=screen.getByRole('dialog');
   expect(dialog).toHaveTextContent('隐藏来源版本 · 来源冻结版本');
@@ -762,7 +797,7 @@ it('hides only the managed source version and stops its paper accounts while kee
 
 it('does not imply source paper stop cancels research plans or model calls', async () => {
   api.detail.mockResolvedValue({...detail,id:-44,status:'stopped',config:{...config,externalRuntime:true}});
-  render(<MemoryRouter initialEntries={['/trading?portfolio=-44']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?portfolio=-44']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   expect(await screen.findByText('来源模拟账户已停止，历史账本保留供审计。')).toBeVisible();
   expect(screen.queryByText(/待执行计划已取消/)).not.toBeInTheDocument();
 });
@@ -771,7 +806,7 @@ it('does not imply source paper stop cancels research plans or model calls', asy
 it('keeps legacy external-runtime deletion terms when no frozen-source contract is declared', async () => {
   api.definitions.mockResolvedValue([{id:-7,name:'旧来源适配器',config:{...config,externalRuntime:true}}]);
   api.list.mockResolvedValue([]);
-  render(<MemoryRouter initialEntries={['/trading?strategy=-7']}><TradingWorkspacePage /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/trading?strategy=-7']}><WorkspaceSectionNav /><TradingWorkspacePage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button',{name:'删除策略'}));
   const dialog=screen.getByRole('dialog');
   expect(dialog).toHaveTextContent('删除策略 · 旧来源适配器');

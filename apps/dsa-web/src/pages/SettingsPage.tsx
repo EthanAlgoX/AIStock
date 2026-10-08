@@ -1539,15 +1539,13 @@ const SettingsPage: React.FC = () => {
       {isLoading ? (
         <SettingsLoading />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
-          <aside className="lg:sticky lg:top-4 lg:self-start">
-            <SettingsCategoryNav
-              categories={categories}
-              itemsByCategory={itemsByCategory}
-              activeCategory={activeCategory}
-              onSelect={setActiveCategory}
-            />
-          </aside>
+        <div className="min-w-0 space-y-5">
+          <SettingsCategoryNav
+            categories={categories}
+            itemsByCategory={itemsByCategory}
+            activeCategory={activeCategory}
+            onSelect={setActiveCategory}
+          />
 
           <section className="space-y-4">
             {shouldShowFirstRunSetup ? (

@@ -32,7 +32,7 @@ describe('RouteOutletBoundary', () => {
 
     try {
       render(
-        <MemoryRouter initialEntries={['/chat']}>
+        <MemoryRouter initialEntries={['/overview']}>
           <Routes>
             <Route
               element={(
@@ -41,7 +41,7 @@ describe('RouteOutletBoundary', () => {
                 </Shell>
               )}
             >
-              <Route path="/chat" element={<BrokenLazyRoute />} />
+              <Route path="/overview" element={<BrokenLazyRoute />} />
               <Route path="/stock-research" element={<div data-testid="research-page">Research</div>} />
             </Route>
           </Routes>
@@ -53,7 +53,7 @@ describe('RouteOutletBoundary', () => {
       expect(screen.getByRole('button', { name: '重新加载页面' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: '返回首页' })).toBeInTheDocument();
 
-      const mainNavigation = screen.getByRole('navigation', { name: '主导航' });
+      const mainNavigation = screen.getByRole('navigation', { name: '模块页面' });
       fireEvent.click(within(mainNavigation).getByRole('link', { name: '个股研究' }));
 
       expect(await screen.findByTestId('research-page')).toBeInTheDocument();

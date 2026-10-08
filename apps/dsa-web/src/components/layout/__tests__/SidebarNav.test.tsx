@@ -14,7 +14,7 @@ vi.mock("../../../contexts/AuthContext", () => ({
 }));
 
 describe("SidebarNav", () => {
-  it("exposes all business workspaces through three consistent navigation groups", () => {
+  it("exposes all business workspaces through the same seven modules as the desktop header", () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
         <SidebarNav />
@@ -40,9 +40,9 @@ describe("SidebarNav", () => {
       "/usage",
       "/settings",
     ]);
-    expect(screen.getByRole("region", { name: "研究与发现" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "策略与持仓" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "任务与设置" })).toBeInTheDocument();
+    expect(screen.getAllByRole("region").map(region => region.getAttribute("aria-label"))).toEqual([
+      "市场雷达", "投研工作台", "策略选股", "交易推演", "资产跟踪", "任务中心", "工作区设置",
+    ]);
     expect(screen.queryByRole("link", { name: "主 Agent" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Skill" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "MCP 服务" })).not.toBeInTheDocument();
@@ -70,7 +70,7 @@ describe("SidebarNav", () => {
     expect(screen.getAllByRole("link")).toHaveLength(13);
     expect(screen.getByRole("link", { name: "持仓管理" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "持仓管理" })).toHaveTextContent("");
-    expect(screen.queryByText("研究与发现")).not.toBeInTheDocument();
+    expect(screen.queryByText("投研工作台")).not.toBeInTheDocument();
   });
 
   it("opens the logout confirmation and confirms logout", async () => {

@@ -904,18 +904,18 @@
     scroll-behavior: auto !important;
   }
 }
-/* Public marketing surface keeps the approved porcelain palette; workspace theme is untouched. */
+/* The public surface stays light and shares the workspace's paper and vermilion identity. */
 .home-page {
   color-scheme: light;
-  --background: 220 27% 97%;
-  --foreground: 225 32% 10%;
-  --card: 0 0% 100%;
-  --primary: 231 86% 52%;
+  --background: 40.0 34.9% 91.6%;
+  --foreground: 42.9 15.6% 8.8%;
+  --card: 43.6 40.7% 94.7%;
+  --primary: 5.4 64.6% 47.6%;
   --primary-foreground: 0 0% 100%;
-  --border: 220 18% 85%;
-  --hover: 224 24% 93%;
-  --secondary-text: 222 16% 31%;
-  --muted-text: 222 10% 40%;
+  --border: 42.0 20.4% 80.8%;
+  --hover: 41.1 29.2% 87.3%;
+  --secondary-text: 40.0 11.4% 31.0%;
+  --muted-text: 42.0 10.3% 38.0%;
   --home-blue: hsl(var(--primary));
   --home-rule: hsl(var(--border));
 }

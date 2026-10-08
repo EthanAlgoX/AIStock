@@ -16,9 +16,31 @@ This map describes the routed Web application. A saved configuration, a complete
 
 ## Navigation and complete user journeys / 导航与完整用户旅程
 
-Desktop navigation groups the existing pages by purpose: research (radar, assistant, roundtable, stock research), validation and tracking (screening, trade simulation, holdings, alerts), and workspace controls (runs, schedules, capabilities, usage, settings). On mobile, the bottom navigation keeps the assistant, roundtable, stock research, screening and simulation; the menu exposes every other destination. These groups change how pages are found, not API authorization or data ownership. The public homepage `/` and guided trial `/try` remain separate from the authenticated workspace; `/login` preserves a safe internal return path.
+Desktop uses seven top-level modules. Related pages use a horizontal page strip; Tasks keeps its existing shared page navigation. The public homepage `/`, trial `/try`, login and legacy route redirects keep their existing contracts. On mobile, the five bottom shortcuts remain; the top menu exposes every destination. Navigation does not grant permissions or change account ownership.
 
-桌面导航按任务分为研究（雷达、助理、圆桌、个股研究）、验证与跟踪（选股、交易推演、持仓、告警）、工作区管理（运行、定时、能力、用量、设置）。移动端底部保留助理、圆桌、个股研究、选股、交易推演，其余入口通过菜单完整访问。分组只改变页面查找方式，不改变 API 权限与数据归属。公共首页 `/` 和引导试用 `/try` 独立于登录后的工作区；`/login` 保留安全的站内返回路径。
+桌面采用七个顶部模块，关联页面在模块内横向排列；任务中心沿用已有共享页面导航。公共首页 `/`、试用 `/try`、登录及旧路由跳转保留原有契约。手机底部保留五个快捷工作台，顶部完整菜单可以访问所有功能。导航不改变权限或账户归属。
+
+| Module / 模块 | Pages / 页面 |
+| --- | --- |
+| Market radar / 市场雷达 | `/market-intelligence`；首次默认美股，保留用户选择 / US first on initial entry, then retain the user's selection |
+| Research / 投研工作台 | `/overview`、`/expert-review`、`/stock-research` |
+| Screening / 策略选股 | `/screening` |
+| Trade simulation / 交易推演 | `/trading` 总览、`?view=manage` 策略管理、`?view=source` 来源研究、`?view=reports` 历史提案 / overview, management, source research, historical proposals |
+| Assets / 资产跟踪 | `/portfolio`、`/portfolio/ledger`、`/alerts` |
+| Tasks / 任务中心 | `/runs`、`/runs/:runId`、`/schedules` |
+| Workspace / 工作区设置 | `/capabilities` 及子页、`/usage`、`/settings`；成员显示“我的账户” / capability pages, usage, settings; members see My account |
+
+Trading page links close an unsubmitted configuration form and show the requested view without saving or running it. Explicitly starting a new configuration retains the existing form reset behavior.
+
+交易页签切换关闭未提交配置表单，展示所选页面，不自动保存或运行；主动新建配置仍沿用原有表单重置行为。
+
+Conversation and report history open from the page toolbar at every screen size. Selecting a history entry closes the drawer and retains its route context. Skills, compression and expert collaboration use compact composer disclosures; opening or closing them does not submit a task or reset a draft. A roundtable's saved members remain frozen even when the capability directory changes; next-round changes are explicit and leave prior rounds intact. Report configuration still opens for source-linked tasks and stock archives keep their direct-link behavior. Errors, cancellation and runtime state remain visible outside collapsed configuration.
+
+对话与报告历史均通过页面顶部按钮按需打开，选择后关闭抽屉并保留 URL 上下文。输入区的 Skill、压缩和专家协作配置采用紧凑折叠摘要；开关配置不提交任务，也不重置草稿。圆桌历史成员仍使用当轮冻结名单；显式调整仅影响下一轮，不改写历史。报告来源链接仍自动展开新任务配置，股票档案保留直链行为。错误、取消入口与运行状态保持可见，不藏进配置折叠区。
+
+Settings categories move above the editor. `/settings?tab=model|system|notifications` supports direct links and browser back/forward while preserving other query parameters and unsaved configuration. The member account page retains its separate permissions. New workspaces default to the warm light theme; existing theme preferences remain effective, including dark and system modes.
+
+设置分类移到编辑内容上方。`/settings?tab=model|system|notifications` 支持直链与浏览器前进/后退，保留其它参数和未保存配置；成员账户沿用独立权限。首次使用默认暖白主题，已有主题选择继续生效，可切换深色或跟随系统。
 
 | User task / 用户任务 | Entry and action / 入口与操作 | Saved result and next action / 成果与后续动作 |
 | --- | --- | --- |

@@ -1,46 +1,57 @@
 ---
 name: AI Stock
-description: An instrument-grade control plane for versioned strategy validation and research operations.
+description: A calm research workspace for market evidence, expert collaboration and paper simulation.
 colors:
-  primary: "hsl(231 86% 61%)"
-  primary-dark: "hsl(231 94% 70%)"
-  canvas-light: "hsl(220 27% 97%)"
-  canvas-dark: "hsl(225 31% 7%)"
-  surface-light: "hsl(0 0% 100%)"
-  surface-dark: "hsl(225 25% 10%)"
-  ink-light: "hsl(225 32% 10%)"
-  ink-dark: "hsl(218 25% 96%)"
-  border-light: "hsl(220 18% 85%)"
-  border-dark: "hsl(223 18% 20%)"
-  success: "hsl(157 61% 36%)"
-  warning: "hsl(35 91% 46%)"
-  danger: "hsl(350 72% 51%)"
+  primary: "hsl(5.4 64.6% 47.6%)"
+  primary-dark: "hsl(7.1 81.9% 67.5%)"
+  primary-ink-light: "hsl(0 0% 100%)"
+  primary-ink-dark: "hsl(42.9 15.6% 8.8%)"
+  canvas-light: "hsl(40.0 34.9% 91.6%)"
+  canvas-dark: "hsl(60.0 7.7% 7.6%)"
+  surface-light: "hsl(43.6 40.7% 94.7%)"
+  surface-dark: "hsl(60.0 9.4% 10.4%)"
+  elevated-light: "hsl(42.9 53.8% 97.5%)"
+  elevated-dark: "hsl(51.4 10.8% 12.7%)"
+  ink-light: "hsl(42.9 15.6% 8.8%)"
+  ink-dark: "hsl(40.0 38.5% 92.4%)"
+  secondary-ink-light: "hsl(40.0 11.4% 31.0%)"
+  secondary-ink-dark: "hsl(38.2 14.3% 69.8%)"
+  muted-ink-light: "hsl(42.0 10.3% 38.0%)"
+  muted-ink-dark: "hsl(38.2 11.6% 62.7%)"
+  border-light: "hsl(42.0 20.4% 80.8%)"
+  border-dark: "hsl(48.0 10.0% 19.6%)"
+  success: "hsl(144.8 51.3% 30.6%)"
+  success-dark: "hsl(142.9 38.5% 57.3%)"
+  warning: "hsl(37.6 100.0% 30.0%)"
+  warning-dark: "hsl(38.8 71.4% 64.3%)"
+  danger: "hsl(4.3 61.4% 44.7%)"
+  danger-dark: "hsl(7.1 81.9% 67.5%)"
 typography:
   headline:
-    fontFamily: "Inter, SF Pro Display, Segoe UI, system-ui, sans-serif"
-    fontSize: "2rem"
+    fontFamily: "Inter, SF Pro Display, Segoe UI, system-ui, -apple-system, sans-serif"
+    fontSize: "1.5rem"
     fontWeight: 600
-    lineHeight: 1.2
+    lineHeight: 1.25
     letterSpacing: "-0.025em"
   body:
-    fontFamily: "Inter, SF Pro Display, Segoe UI, system-ui, sans-serif"
+    fontFamily: "Inter, SF Pro Display, Segoe UI, system-ui, -apple-system, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "-0.006em"
   label:
-    fontFamily: "Inter, SF Pro Display, Segoe UI, system-ui, sans-serif"
-    fontSize: "0.65rem"
-    fontWeight: 700
-    lineHeight: 1
-    letterSpacing: "0.14em"
-  data:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
-    fontSize: "1.8rem"
+    fontFamily: "Inter, SF Pro Display, Segoe UI, system-ui, -apple-system, sans-serif"
+    fontSize: "0.75rem"
     fontWeight: 600
     lineHeight: 1
-    letterSpacing: "-0.04em"
+    letterSpacing: "0.04em"
+  report:
+    fontFamily: "Inter, SF Pro Display, Segoe UI, system-ui, -apple-system, sans-serif"
+    fontSize: "1rem"
+    fontWeight: 400
+    lineHeight: 1.65
 rounded:
+  compact: "8px"
   control: "10px"
   surface: "12px"
   overlay: "16px"
@@ -49,25 +60,29 @@ spacing:
   sm: "8px"
   md: "16px"
   lg: "24px"
-  xl: "40px"
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
-    textColor: "{colors.surface-light}"
-    rounded: "{rounded.control}"
-    padding: "10px 16px"
+    textColor: "{colors.primary-ink-light}"
+    rounded: "{rounded.surface}"
+    padding: "0 16px"
     height: "40px"
   button-secondary:
     backgroundColor: "{colors.surface-light}"
     textColor: "{colors.ink-light}"
-    rounded: "{rounded.control}"
-    padding: "10px 16px"
+    rounded: "{rounded.surface}"
+    padding: "0 16px"
     height: "40px"
   workspace-surface:
     backgroundColor: "{colors.surface-light}"
     textColor: "{colors.ink-light}"
     rounded: "{rounded.surface}"
     padding: "20px"
+  module-link:
+    textColor: "{colors.secondary-ink-light}"
+    rounded: "{rounded.compact}"
+    padding: "8px 12px"
+    height: "44px"
 ---
 
 # Design System: AI Stock
@@ -76,135 +91,138 @@ components:
 
 **Creative North Star: "The Agent Decision Desk"**
 
-AI Stock should feel like a precise institutional research instrument: calm enough for long sessions, dense enough for real decision work, and explicit about every state transition. The main Agent conversation owns the general-purpose canvas; individual-stock analysis, screening, trading, and expert review use focused task flows. Expert review separates one-on-one consultation from group deliberation, keeps shared evidence and independent Persona sessions visible, and never fills unavailable viewpoints with sample conclusions. Trading adds a restrained paper-runtime ledger beneath its strategy definition, keeping configuration, hard risk boundaries, runtime state, and unavailable backend evidence visibly distinct. Mounted capabilities, artifacts, snapshots, approvals, and runs form a clear operational layer around it without turning the product into a decorative financial dashboard.
+AI Stock is an operational research desk: calm enough for long reading sessions, compact enough for market evidence and account records, and explicit about every state transition. The visual reference is NOFX's current warm-paper interface. Vermilion marks the current location and primary action; charcoal text, tonal surfaces and thin rules organize the work. The research assistant owns a clear conversation canvas, while stock research, screening and simulation retain their task-specific forms and results.
 
-The system rejects floating neon cards, decorative glass, diffuse colored glow, and oversized rounded containers. Brand expression comes from exact alignment, restrained cobalt signals, compact labels, tabular data, and a stable application header.
+The seven-module header establishes location before the user enters a page. Conversation history, report history and session capabilities appear when requested, leaving the main task room to breathe. This replaces the former persistent global and page sidebars without changing routes, capability bindings or account semantics. Public product education shares the palette while keeping its approved homepage composition and explicit example labels.
 
 **Key Characteristics:**
 
-- Continuous workspace rather than isolated floating canvases.
-- Cool porcelain in light mode and carbon graphite in dark mode.
-- Cobalt reserved for primary action, current location, focus, and selected state.
-- Thin mineral rules and shallow structural elevation.
-- Compact, familiar controls that disappear into the task.
+- Warm paper in light mode and warm charcoal in dark mode.
+- A horizontal module header, local page navigation and one main task canvas.
+- Vermilion for actions, location, focus and selection; semantic colors for real state.
+- Readable sans-serif prose, tabular data and restrained corners.
+- Opaque structural surfaces and context revealed on demand.
 
 ## Colors
 
-The palette is restrained and state-rich. Neutral surfaces carry almost the whole interface; cobalt identifies the current operation, while success, warning, and danger remain semantic.
+Warm neutrals carry the interface. The primary accent is deeper in light mode for readable text and lighter in dark mode, where primary buttons use dark ink. The frontmatter records the actual `index.css` HSL tokens; Tailwind and compatibility aliases resolve to the same theme roles.
 
 ### Primary
 
-- **Control Cobalt:** Used for primary actions, selected navigation, focus, and active lifecycle nodes. It must not become decorative ambient color.
+- **Control Vermilion:** Primary actions, selected module links, local-page underlines and focus. Use the theme-specific primary foreground on solid buttons.
 
 ### Neutral
 
-- **Cool Porcelain:** Light workspace canvas kept visually quiet so borders and data carry the structure.
-- **Carbon Canvas:** Dark workspace canvas for low-light research sessions.
-- **Instrument Surface:** Opaque panel surface; never decorative glass.
-- **Mineral Rule:** Borders, dividers, and structure with low contrast but clear geometry.
+- **Warm Paper:** Light canvas, with a slightly lighter panel surface and an elevated surface for menus and dialogs.
+- **Warm Charcoal:** Dark canvas and panel layers, paired with warm light text.
+- **Research Ink:** Main labels and prose. Secondary and muted ink retain readable hierarchy for explanations, timestamps and placeholders.
+- **Paper Rule:** Borders and dividers identify regions without surrounding every fragment with another card.
 
-### Named Rules
+### Semantic
 
-**The One Signal Rule.** Cobalt should identify what is active or actionable; inactive content remains neutral.
+- **Evidence Green:** Success, healthy connections and completed positive states.
+- **Review Amber:** Warnings, incomplete results and actions requiring attention.
+- **Risk Red:** Errors, destructive actions and adverse states; its role remains distinct from the brand accent even where their hues are close.
 
-**The Semantic State Rule.** Green, amber, and red communicate real state only. They never decorate ordinary content.
+**The One Signal Rule.** Vermilion identifies active or actionable content; ordinary content stays neutral.
+
+**The Semantic State Rule.** Success, warning and danger colors communicate recorded state, never invented performance or decorative market sentiment.
 
 ## Typography
 
-**Display Font:** Inter / SF Pro Display / Segoe UI with system fallback  
-**Body Font:** The same workhorse UI stack  
-**Label/Mono Font:** Native UI monospace only for identifiers, code, timestamps, and numeric measurements
+**Display and Body Font:** The existing Inter / SF Pro Display / Segoe UI stack with native system and Chinese fallbacks.
+**Data Font:** Native UI monospace for identifiers, code and selected numeric evidence; use tabular numerals for aligned measurements.
 
-**Character:** Compact and operational. Hierarchy comes from weight, size, and spacing rather than an ornamental display face.
+The type is compact and readable. Chinese prose remains sans-serif; hierarchy comes from size, weight and spacing rather than a terminal font applied to every element.
 
-### Hierarchy
+- **Headline:** PageHeader titles use the frontmatter headline style and increase to 1.75rem at the medium breakpoint. Conversation workspaces use compact 1rem titles in their own toolbar.
+- **Title:** Section and object names typically use 1rem–1.125rem semibold type.
+- **Body:** Operational copy and controls use the body role. Page descriptions have a six-unit line height and a maximum width of 65ch.
+- **Report:** The shared report reader uses the report role, with prose blocks limited to 72ch. Structured charts keep their own scale.
+- **Label:** A contextual kicker uses the label role. Module links use 0.8125rem type; labels remain readable rather than imitating NOFX's smallest terminal captions.
 
-- **Headline** (600, 2rem, 1.2): Page titles and major workspace headings.
-- **Title** (600, 1rem–1.125rem): Section and object names.
-- **Body** (400, 0.875rem, 1.5): Explanations and operational copy, normally limited to 65–75 characters per line.
-- **Label** (700, 0.65rem, 0.14em tracking): A single contextual kicker or navigation group label.
-- **Data** (600, tabular mono): Counts, versions, timestamps, identifiers, and measurements.
-
-**The Mono Evidence Rule.** Monospace is evidence formatting, not a technology costume.
+**The Mono Evidence Rule.** Monospace formats evidence; it does not replace the reading font.
 
 ## Layout
 
-### Workspace refinement
+### Workspace shell
 
-Expert discussion uses a full-height group-chat layout: a 256px desktop conversation history rail, compact member/mode controls at the top, independently scrolling speaker bubbles, and a persistent bottom composer. Mobile history moves to a drawer. Each round remains visible in the same parent-linked conversation; long messages expose a clearly labelled excerpt and full-text reader, while final reports appear as document cards. Explicit next-round configuration never rewrites previous rounds.
+Desktop has a sticky 64px command bar: brand, seven module links, theme, language and the full workspace menu. The modules are market radar, research, strategy screening, trade simulation, assets, tasks and workspace settings. Research groups the assistant, expert roundtable and stock research; assets groups holdings, ledger and alerts; workspace settings groups capabilities, model usage and account/platform settings. Task pages retain their existing task-center navigation.
 
-Expert roundtable follows the research assistant within the research navigation group. Market radar is the first research destination, followed by the assistant, roundtable, and stock research; mobile exposes the research assistant, roundtable, stock research, strategy screening, and trade simulation, with market radar in the utility menu. The dedicated discussion page uses a history rail and a central conversation: compact expert/mode selectors, a topic composer, and directly visible chronological speaker outputs. Mode-specific host labels distinguish task synthesis, debate synthesis, and vote-based synthesis. The research assistant keeps intermediate collaboration outputs out of the conversation and shows the final report.
+Modules with multiple destinations use a sticky 44px horizontal page strip below the command bar. Trade simulation always exposes overview, strategy management, source research and historical research proposals. Switching page links closes an unsubmitted configuration form without saving or running it; explicitly starting a new configuration retains the existing reset behavior. Capability pages retain their more specific capability navigation. Local labels describe the current scope; nested routes and trading query views remain selected correctly. Member settings remain “My account”.
 
-Desktop uses a 212px persistent left navigation grouped by the user's work: Research & discovery (market radar, assistant, expert roundtable, stock research), Strategies & portfolio (screening, trade simulation, holdings, alerts), and Tasks & settings (runs, schedules, capabilities, usage, account/platform settings). The compact 64px opaque header identifies the current workspace and retains theme, language, and the complete navigation drawer. Nested routes keep their parent destination selected; members see “My account” rather than platform administration.
+Ordinary page containers are capped at 1440px, with 16px mobile gutters and 24px gutters from 768px. Page headings sit on the canvas with a divider and wrapping task actions. Ledgers and related records use divided lists or locally scrolling tables. Wide tables scroll inside their region instead of forcing the whole page sideways.
 
-The research assistant uses a continuous canvas with a neutral 224px conversation-history rail. Its optional 272px session-context rail appears only at widths of at least 1680px so ordinary laptops retain reading space. Capabilities and mobile history use the shared keyboard-accessible drawer. Context describes real selections and history, without placeholder technical artifact statuses. Report workspaces retain their sticky directory and opaque reading surface. The default launcher is a secondary, expandable shortcut; the explicit new-research action opens the full task configuration without repeating that shortcut.
+Below 1024px, the command bar is 56px and the module list moves into the complete menu. Five primary workspaces remain in a fixed bottom navigation: assistant, roundtable, stock research, screening and simulation. The bottom region includes safe-area padding; all other destinations remain accessible from the menu. The horizontal local-page strip scrolls when its labels exceed the available width.
 
-Shared page containers are capped at 1440px with 16px mobile and 24px wider gutters. Headings use 24–28px type with concise, task-oriented descriptions and a clear main action. Page headers sit directly on the canvas with a structural divider. Dense operational information uses divided ledgers or locally scrolling tables rather than repeated metric cards. Loading, an empty result, a failed read, and a successful read with zero entries remain distinct states. Saving cannot submit an unread configuration or repeat while a request is in flight. Destructive actions identify the affected object in a confirmation dialog.
+### Conversations and reports
 
-Below 1024px, the five decision workspaces remain in a fixed bottom navigation with safe-area padding. A 56px command bar keeps theme and language reachable and opens the complete grouped navigation. Every secondary destination remains accessible from that drawer. Primary actions wrap onto a full-width row on small screens; optional task and schedule configuration expands on demand. Multi-column ledgers stack without removing labels or changing data semantics. A keyboard skip link targets the application's single main landmark; drawers contain focus, support Escape, and restore focus to their trigger.
+Assistant and roundtable occupy the viewport remaining after the shell header and mobile navigation. Each keeps its own scrolling message region and persistent composer. History opens in the shared left drawer at every screen size. Session capabilities open in a right drawer; their selection grid responds to the panel's own width and becomes two columns from 40rem.
+
+The assistant centers conversation content and its composer within a 64rem maximum width. Session settings, Skills and expert collaboration start as compact disclosures above the input. Expanded controls scroll within a bounded region, and the textarea height is limited on short screens so the input remains reachable. Closing context does not submit a task or clear the draft, session, selections or frozen run configuration. The roundtable exposes member and collaboration choices for a new discussion or explicit next-round editing; a saved round presents a compact member summary. Next-round changes never rewrite previous rounds. Long messages can open a full-text reader and final reports remain document cards.
+
+Stock research and screening use full-width report workspaces. Report history opens from the toolbar; selecting an entry closes the drawer and keeps the report/run URL. New task configuration expands explicitly and closes after a task is accepted. Running, failed, empty and completed results retain distinct status and retry controls; report provenance remains inspectable.
+
+### Public homepage
+
+The approved composition C remains: a left-aligned proposition and actions, introduction and market coverage on the right, then a full-width five-module demonstration, research journey, access options and FAQ. `.home-page` scopes the shared paper, ink and vermilion palette to a fixed light surface, regardless of the workspace theme. Its maximum content width is 1280px; the hero scales from 36px to 56px. Columns stack below 720px and demonstration tabs scroll horizontally. Example curves, tables and outcomes remain explicitly fictional product education.
 
 ## Elevation & Depth
 
-Depth is structural and shallow. Opaque surfaces separate tasks through tonal contrast and a 1px rule. Resting surfaces use a one-pixel key shadow plus a broad, low-opacity ambient shadow; stronger lift appears only for interactive hover or overlays.
+Depth comes first from tonal surfaces and one-pixel rules. Existing workspace surfaces retain soft structural shadows; light-mode shadows are shallow and dark-mode shadows are broader. They separate a genuine panel or overlay from its canvas. Drawers use an opaque panel and a dimmed backdrop; the backdrop does not make the panel a translucent material.
 
-**The Flat-By-Default Rule.** No glow and no zero-offset colored shadow. Elevation must imply a real layer or interaction state.
+**The Structural Layer Rule.** Use depth to distinguish a real layer or interaction state. New surfaces should not add decorative glass, neon glow or a colored ambient halo.
+
+Short color, border and shadow transitions provide control feedback. Shared card and CSS action-button transitions respect reduced-motion overrides; the existing drawer entrance animation remains. New motion must honor reduced-motion preferences. Focus remains visible independently of hover.
 
 ## Shapes
 
-Controls use a compact 10px radius. Main surfaces use 12px, and overlays may use 16px. Pills are limited to compact statuses and tags. Large page sections must not become soft floating capsules.
+The shape language uses modest rectangles: compact navigation and toolbar controls have 8px corners; shared input fields and CSS action buttons have 10px corners; default shared Button and workspace surfaces use the 12px radius. Overlays can use 16px corners. Status tags use pills only where the compact silhouette supports a real state label. Main page regions retain straight dividers rather than becoming floating capsules.
 
 ## Components
 
 ### Buttons
 
-- **Shape:** Compact rectangle with gently curved corners (10px).
-- **Primary:** Solid control cobalt, 40px high, with a shallow downward shadow.
-- **Hover / Focus:** Small tonal shift; focus uses a visible two-pixel cobalt outline with offset.
-- **Secondary:** Opaque neutral surface with a mineral border; hover strengthens the border rather than moving the button.
+Primary controls are solid vermilion with theme-specific foreground. The shared Button defaults to 40px height and 16px horizontal padding; size variants support compact and 44px/48px actions. CSS action buttons and header controls have a 44px minimum height. Secondary actions use neutral surfaces and an explicit border; ghost actions remain quiet. Loading disables repeated submission and retains an accessible busy state.
 
-### Chips
+Hover changes tone or border. The shared focus treatment is a two-pixel theme-ring outline with offset; disabled controls preserve geometry and visibly reduce emphasis.
 
-- **Style:** Small status-only pills using semantic tint, text, and border.
-- **State:** Selection uses cobalt; health and lifecycle states use their semantic colors.
+### Chips and records
 
-### Cards / Containers
+Small badges pair semantic text, tint and border. Selection uses the primary role; lifecycle and health use their semantic roles. Tables and record lists prioritize aligned labels, actual values and tabular numbers. Unavailable evidence must remain unavailable rather than becoming a sample KPI.
 
-- **Corner Style:** Restrained 12px surface radius.
-- **Background:** Opaque instrument surface.
-- **Shadow Strategy:** Structural low elevation at rest, slightly stronger only when interactive.
-- **Border:** One-pixel mineral rule.
-- **Internal Padding:** 16px for compact objects, 20–24px for workspace sections.
+### Cards and containers
 
-### Inputs / Fields
+The shared workspace surface uses a thin rule, panel background, surface radius and the existing structural shadow. Shared Card padding is 16px, 20px or 24px by density. Reading surfaces can use larger padding at wider breakpoints. Prefer one coherent container for a task, dataset or report; use dividers within it.
 
-- **Style:** 40px standard height, 10px radius, neutral inset surface and explicit border.
-- **Focus:** Cobalt border and low-opacity three-pixel focus ring.
-- **Error / Disabled:** Semantic border and copy for errors; reduced opacity and unchanged geometry for disabled state.
+### Inputs and fields
 
-### Navigation
+Standard Input is 40px high with an inset neutral background and visible border. Textareas grow within their workspace constraints. Focus changes the border and adds a quiet ring. Placeholder ink is readable in both themes, including disabled fields; labels remain separate from placeholders. Errors retain semantic text and accessible associations. ChoiceList keeps its existing keyboard and selection behavior.
 
-The desktop application header is sticky, opaque, and task-first. Global navigation uses the grouped left rail described above; selected destinations use cobalt text/icon and a quiet cobalt tint. Capability configuration retains its local navigation for overview, Skill, tools, MCP, data sources, and experts, while schedules and runs retain task-center navigation. Tool and MCP remain distinct: tools expose callable schemas and permissions, while MCP pages manage external servers. Configuration separates platform presets from workspace entries and displays actual loading, read errors, and save feedback. Trade simulation configures and runs persisted simulated accounts, with previewed symbol universes and frozen settings; proposal research remains a separate historical workspace and does not create fills. Neither surface implies broker execution or available real-order approval.
+### Navigation and disclosures
+
+Selected module links have a quiet primary tint; selected local-page links use an underline. Both show current location semantically. The complete menu groups existing routes by the seven modules and retains logout confirmation and chat completion indicators. Platform settings categories use horizontal scrolling controls rather than a permanent inner sidebar.
+
+Disclosures identify what will open, display the current selection where useful, and keep `aria-expanded` aligned with state. They reveal optional configuration without changing business state. Tools and MCP remain separate destinations; task/run records and model usage remain separate concepts.
+
+### Drawers and dialogs
+
+Use the shared portal and focus management. Drawers contain focus, support Escape, restore focus to the trigger and coordinate nested confirmation dialogs. Headers do not shrink; the body alone scrolls with a zero minimum height and responsive 16px/24px padding. Close controls stay visible. Destructive confirmations name the affected object and retain explicit confirm/cancel actions.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** use divided ledgers and lists for related task, capability, and artifact state.
-- **Do** reserve cobalt for the one active or primary operation.
-- **Do** keep published, validated, running, and trading states visually and semantically distinct.
-- **Do** preserve both light and dark themes with equivalent hierarchy and contrast.
+- **Do** orient the user with module, local page and task context before presenting optional configuration.
+- **Do** keep conversation and report history accessible through explicit controls without permanently narrowing the main canvas.
+- **Do** use divided ledgers and lists for related task, capability and artifact state.
+- **Do** preserve light and dark hierarchy, keyboard focus, safe-area spacing and localized labels.
+- **Do** keep published, running, incomplete, simulated and unavailable states visibly distinct.
 
 ### Don't:
 
-- **Don't** restore cyan-purple gradients, decorative glow, or glass surfaces.
-- **Don't** wrap every section in a large rounded card.
-- **Don't** use fake market metrics, performance data, or decorative charts.
-- **Don't** use semantic colors where no semantic state exists.
-
-### Public homepage
-
-The public homepage extends the existing AI Stock identity with the approved composition C: a left-aligned proposition and actions, an introduction and market coverage on the right, then a full-width five-module demonstration. Research, validation, and tracking lead into invitation-code / own-API access options and an expandable FAQ. Its contract is “Make research-to-validation inspectable”; this is a public product tour, not a replacement for the workspace design system.
-
-`HomePage.css` scopes a fixed light palette to `.home-page`: porcelain `hsl(220 27% 97%)`, charcoal `hsl(225 32% 10%)`, white surfaces, mineral rules `hsl(220 18% 85%)`, and cobalt `hsl(231 86% 52%)` for actions, selection, focus, and demonstration marks. Workspace light/dark tokens remain unchanged. The inherited UI font, 36–56px desktop hero, 1280px maximum content width, thin dividers, 8px action corners, and 12px demonstration surface keep the presentation precise and restrained. Below 720px, columns stack and the module tabs scroll horizontally.
-
-Module tabs support arrow keys, Home, and End, keep the selected tab visible, and label their panel; links and controls retain visible focus and reduced-motion support. Every example table, curve, signal, and outcome is explicitly fictional product education, never evidence of live market data, returns, or executed orders. Preserve the example labels and limitations wherever these demonstrations appear.
+- **Don't** reintroduce stacked permanent global, history and capability sidebars in conversation workspaces.
+- **Don't** use fake market metrics, account performance, consensus or decorative charts as product evidence.
+- **Don't** wrap each field or paragraph in another large rounded card.
+- **Don't** add decorative glass, neon glow or cyan-purple gradients to new workspace surfaces.
+- **Don't** imply broker execution or approval from a research proposal or paper simulation result.

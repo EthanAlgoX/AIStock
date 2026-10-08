@@ -26,3 +26,26 @@ export const WORKSPACE_NAV_ITEMS: NavItem[] = [
   { key: "usage", labelKey: "layout.nav.usage", to: "/usage", icon: Gauge, group: "governance" },
   { key: "settings", labelKey: "layout.nav.settings", to: "/settings", icon: Settings2, group: "governance" },
 ];
+
+export type WorkspaceModule = {
+  key: string;
+  labelKey: UiTextKey;
+  to: string;
+  items: string[];
+};
+
+/** Modules organize existing routes; they do not create new runtime capabilities. */
+export const WORKSPACE_MODULES: WorkspaceModule[] = [
+  { key: "market", labelKey: "layout.nav.marketIntelligence", to: "/market-intelligence", items: ["market"] },
+  { key: "research", labelKey: "layout.module.research", to: "/overview", items: ["agent", "expert-review", "research"] },
+  { key: "screening", labelKey: "layout.nav.screeningTool", to: "/screening", items: ["screening"] },
+  { key: "trading", labelKey: "layout.nav.trading", to: "/trading", items: ["trading"] },
+  { key: "assets", labelKey: "layout.module.assets", to: "/portfolio", items: ["portfolio", "alerts"] },
+  { key: "tasks", labelKey: "layout.module.tasks", to: "/runs", items: ["runs", "schedules"] },
+  { key: "workspace", labelKey: "layout.module.workspace", to: "/capabilities", items: ["capabilities", "usage", "settings"] },
+];
+
+export function workspaceModuleForPath(pathname: string) {
+  const item = WORKSPACE_NAV_ITEMS.find(item => pathname === item.to || pathname.startsWith(item.to + "/"));
+  return WORKSPACE_MODULES.find(module => module.items.includes(item?.key ?? ""));
+}

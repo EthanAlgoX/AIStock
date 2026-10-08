@@ -1,6 +1,6 @@
 import { ExpertAvatar } from "../common/ExpertAvatar";
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   workspaceApi,
@@ -54,7 +54,8 @@ export default function ExpertDiscussionWorkspace({
   onDirect?: () => void;
   initialTopic?: string;
 }) {
-  const { translate: tx } = useUiLanguage();
+  const { translate: tx, localize } = useUiLanguage();
+  const historyId = useId();
   const [params, setParams] = useSearchParams();
   const {
     activeRun,
@@ -329,7 +330,7 @@ export default function ExpertDiscussionWorkspace({
   const editable = creating || editing;
   const canFollow = !!selected && !isRunActive(selected ?? null) && selected.artifacts.length > 0;
   const composerDisabled = busy || !protocolReady || !catalog || (!creating && !canFollow) || (editable && (members.length < 2 || members.length > 6));
-  const historyList = <div className="flex h-full flex-col gap-3 p-4">
+  const historyList = <div id={historyId} className="flex min-h-0 flex-col gap-3">
     <h2 className="text-sm font-semibold">{tx("讨论历史")}</h2>
     <button type="button" className="btn-secondary" onClick={newDiscussion}>{tx("新建讨论")}</button>
     <input aria-label={tx("搜索讨论")} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tx("搜索议题")} className="h-11 w-full border border-border px-3 text-sm" />
@@ -340,28 +341,35 @@ export default function ExpertDiscussionWorkspace({
       {!history.length && <p className="text-sm leading-6 text-secondary-text">{tx("发送消息后，群聊与每轮报告会保存在这里。")}</p>}
     </div>
   </div>;
-  return <div data-testid="expert-discussion-workspace" className="flex h-[calc(100dvh-7.5rem)] min-w-0 lg:h-[calc(100dvh-4rem)]">
-    <aside aria-label={tx("讨论历史")} className="hidden w-64 shrink-0 border-r border-border bg-background lg:block">{historyList}</aside>
-    <Drawer isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title={tx("历史群聊")} side="left" width="max-w-sm">{historyList}</Drawer>
+  return <div data-testid="expert-discussion-workspace" className="conversation-workspace flex min-w-0 overflow-hidden">
+    <Drawer isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title={tx("历史群聊")} side="left" width="max-w-lg">{historyList}</Drawer>
     <section aria-label={tx("专家群聊")} className="flex min-w-0 flex-1 flex-col bg-background">
-      <header className="shrink-0 border-b border-border bg-card px-4 py-3 md:px-6">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0"><h1 className="text-base font-semibold text-foreground">{tx("专家圆桌")}</h1><p className="mt-1 truncate text-xs text-secondary-text">{creating ? tx("新圆桌 · 选择专家后发送话题") : selected?.taskSnapshot.name || tx("正在恢复群聊…")}</p></div>
-          <div className="flex shrink-0 gap-2">
-            <span className="lg:hidden"><button type="button" className="btn-secondary" onClick={() => setHistoryOpen(true)}>{tx("历史")}</button></span>
+      <header className="max-h-[45%] shrink-0 overflow-y-auto border-b border-border bg-card px-4 py-3 md:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 flex-1"><h1 className="text-base font-semibold text-foreground">{tx("专家圆桌")}</h1><p className="mt-1 truncate text-xs text-secondary-text">{creating ? tx("新圆桌 · 选择专家后发送话题") : selected?.taskSnapshot.name || tx("正在恢复群聊…")}</p></div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className="btn-secondary" aria-haspopup="dialog" aria-expanded={historyOpen} aria-controls={historyId} onClick={() => setHistoryOpen(true)}>{tx("讨论历史")}</button>
+            <button type="button" className="btn-secondary" onClick={newDiscussion}>{tx("新建讨论")}</button>
             {selected && !isRunActive(selected ?? null) && <button type="button" className="btn-secondary" onClick={() => configureFrom(selected)}>{tx("调整下轮配置")}</button>}
             {onDirect && <button type="button" className="btn-secondary" onClick={onDirect}>{tx("直接对话")}</button>}
           </div>
         </div>
         <section aria-label={tx("当前专家团")} className="mt-3">
-          {editable ? <div className="grid grid-cols-2 items-start gap-3">
+          {editable ? <>
+          {editing && <p className="mb-3 text-xs leading-5 text-secondary-text">{tx("配置仅对下一轮生效，历史发言与配置不变。")}</p>}
+          <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
             <ChoiceList label={tx("选择专家")} multiple limit={6} items={experts.map((e) => ({ id: String(e.id), name: e.name, description: e.style, leading: <ExpertAvatar id={e.id} name={e.name} avatar={e.avatar} /> }))} selectedIds={memberIds.map(String)} onSelect={(id) => setCapabilities((c) => ({ ...c, expertTeamIds: [], expertIds: toggle(memberIds, Number(id)) }))} />
             <ChoiceList label={tx("协作模式")} items={[
               { id: "pipeline", name: tx("流水线"), description: tx("主持人分工，专家执行，汇总成果") },
               { id: "debate", name: tx("辩论式"), description: tx("独立观点，质询反驳，总结共识与分歧") },
               { id: "voting", name: tx("投票式"), description: tx("独立报告，三位评审投票，按计票总结") },
             ]} selectedIds={[collaborationMode]} onSelect={setCollaborationMode} loading={!catalog} />
-          </div> : <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-secondary-text"><span>{tx("主持人 +")}{" "}{displayedMembers.length} {" "}{tx("位专家 ·")}{" "}{tx(modeNames[currentMode] || currentMode)}</span><ul aria-label={tx("专家团成员")} className="flex flex-wrap gap-3">{displayedMembers.map((expert) => <li key={expert.id} className="inline-flex items-center gap-2"><ExpertAvatar id={expert.id} name={tx(expert.name)} avatar={catalog?.experts.find((item) => item.id === expert.id)?.avatar} size={24} />{tx(expert.name)}</li>)}</ul></div>}
+          </div>
+          <ul aria-label={localize("下轮专家团成员", "Next-round experts")} className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-secondary-text">{members.map((expert) => <li key={expert.id} className="inline-flex items-center gap-2"><ExpertAvatar id={expert.id} name={tx(expert.name)} avatar={expert.avatar} size={24} />{tx(expert.name)}</li>)}</ul>
+          </> : <details>
+            <summary className="cursor-pointer py-2 text-xs text-secondary-text">{tx("主持人 +")}{" "}{displayedMembers.length} {" "}{tx("位专家 ·")}{" "}{tx(modeNames[currentMode] || currentMode)} <span className="ml-2 text-primary">{localize("查看本轮成员", "View this round's experts")}</span></summary>
+            <ul aria-label={tx("专家团成员")} className="mt-2 flex flex-wrap gap-x-4 gap-y-2 pb-2 text-xs text-secondary-text">{displayedMembers.map((expert) => <li key={expert.id} className="inline-flex items-center gap-2"><ExpertAvatar id={expert.id} name={tx(expert.name)} avatar={catalog?.experts.find((item) => item.id === expert.id)?.avatar} size={24} />{tx(expert.name)}</li>)}</ul>
+          </details>}
         </section>
       </header>
       {(error || runError) && <div role="alert" className="bg-card px-4 py-2 text-sm text-danger">{error || runError}<button className="ml-3 text-primary" onClick={() => setRetry((n) => n + 1)}>{tx("重试")}</button></div>}

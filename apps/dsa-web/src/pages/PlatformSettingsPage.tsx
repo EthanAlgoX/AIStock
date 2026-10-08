@@ -79,8 +79,16 @@ const PlatformSettingsPage: React.FC = () => {
   const uiLiteral = useUiLiteral();
   const { localize } = useUiLanguage();
   const { passwordChangeable } = useAuth();
-  const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<PlatformSettingsTab>(searchParams.get('tab') === 'notifications' ? 'notifications' : 'model');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const activeTab: PlatformSettingsTab = TAB_ITEMS.some(item => item.id === requestedTab)
+    ? requestedTab as PlatformSettingsTab : 'model';
+  const selectedTab = TAB_ITEMS.find(item => item.id === activeTab)!;
+  const selectTab = (tab: PlatformSettingsTab) => setSearchParams(current => {
+    const next = new URLSearchParams(current);
+    next.set('tab', tab);
+    return next;
+  });
   const [notificationChannel, setNotificationChannel] = useState<NotificationChannelChoice>('feishu');
   const {
     configVersion,
@@ -126,6 +134,11 @@ const PlatformSettingsPage: React.FC = () => {
     () => (itemsByCategory.system ?? []).filter((item) => PLATFORM_SYSTEM_KEYS.has(item.key)),
     [itemsByCategory.system],
   );
+  const tabCounts = {
+    model: modelItems.length,
+    system: systemItems.length,
+    notifications: new Set([...notificationItems, ...alertItems].map(item => item.key)).size,
+  };
 
   useEffect(() => {
     void load();
@@ -137,7 +150,7 @@ const PlatformSettingsPage: React.FC = () => {
         <PageHeader
           eyebrow={localize(uiLiteral('平台治理'), 'Platform governance')}
           title={localize(uiLiteral('平台设置'), 'Platform settings')}
-          description={localize(uiLiteral('管理平台运行与通知设置。模型、Skill、工具和 MCP 在能力中心配置，定时计划在任务与运行中管理。'), 'Manage platform runtime and notifications. Configure models, skills, tools and MCP in Capabilities, and schedules in Tasks & Runs.')}
+          description={localize(uiLiteral('管理模型服务、平台运行与通知设置。Skill、工具和 MCP 在能力中心配置，定时计划在任务中心管理。'), 'Manage model services, platform runtime and notifications. Configure skills, tools and MCP in Capabilities, and schedules in the Task center.')}
           actions={activeTab !== 'model' ? (
             <div className="flex items-center gap-2">
               <Button type="button" variant="secondary" onClick={resetDraft} disabled={isLoading || isSaving || !hasDirty}>
@@ -179,8 +192,8 @@ const PlatformSettingsPage: React.FC = () => {
           />
         ) : null}
 
-        <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
-          <nav aria-label={localize(uiLiteral('平台设置分类'), 'Platform settings categories')} className="space-y-2 lg:sticky lg:top-5 lg:self-start">
+        <div className="min-w-0 space-y-5">
+          <nav aria-label={localize(uiLiteral('平台设置分类'), 'Platform settings categories')} className="flex gap-1 overflow-x-auto border-b border-border">
             {TAB_ITEMS.map((item) => {
               const Icon = item.icon;
               const selected = activeTab === item.id;
@@ -188,28 +201,26 @@ const PlatformSettingsPage: React.FC = () => {
                 <button
                   key={item.id}
                   type="button"
+                  aria-label={`${localize(item.titleZh, item.titleEn)} ${tabCounts[item.id]}`}
                   aria-current={selected ? 'page' : undefined}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => selectTab(item.id)}
                   className={cn(
-                    'w-full rounded-lg border px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan focus-visible:ring-offset-2',
+                    'inline-flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
                     selected
-                      ? 'border-cyan/35 bg-cyan/10 text-foreground'
-                      : 'border-transparent text-secondary-text hover:border-border hover:bg-hover hover:text-foreground',
+                      ? 'border-primary text-foreground'
+                      : 'border-transparent text-secondary-text hover:bg-hover hover:text-foreground',
                   )}
                 >
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <Icon className={cn('h-4 w-4', selected ? 'text-cyan' : 'text-muted-text')} aria-hidden="true" />
+                    <Icon className={cn('h-4 w-4 shrink-0', selected ? 'text-primary' : 'text-muted-text')} aria-hidden="true" />
                     {localize(item.titleZh, item.titleEn)}
-                  </span>
-                  <span className="mt-1 block pl-6 text-xs leading-5 text-muted-text">
-                    {localize(item.descriptionZh, item.descriptionEn)}
-                  </span>
+                    <span className="text-xs tabular-nums text-muted-text">{tabCounts[item.id]}</span>
                 </button>
               );
             })}
           </nav>
 
           <section aria-live="polite" className="min-w-0 space-y-4">
+            <p className="max-w-[72ch] text-sm leading-6 text-secondary-text">{localize(selectedTab.descriptionZh, selectedTab.descriptionEn)}</p>
             {isLoading ? (
               <div>
                 <p className="mb-3 text-sm text-secondary-text">

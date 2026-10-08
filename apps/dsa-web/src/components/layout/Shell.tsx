@@ -1,10 +1,10 @@
 import type React from "react";
 import { useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
 import { Drawer } from "../common/Drawer";
-import { MobilePrimaryNav, ShellHeader } from "./ShellHeader";
+import { MobilePrimaryNav, ShellHeader, WorkspaceSectionNav, workspaceSections } from "./ShellHeader";
 import { SidebarNav } from "./SidebarNav";
 
 type ShellProps = {
@@ -14,16 +14,16 @@ type ShellProps = {
 export const Shell: React.FC<ShellProps> = ({ children }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const { localize } = useUiLanguage();
+  const location = useLocation();
+  const hasSections = workspaceSections(location.pathname).length > 0;
 
   return (
-    <div className="app-shell">
+    <div className={hasSections ? "app-shell has-section-nav" : "app-shell"}>
       <a href="#workspace-content" className="skip-to-content">{localize("跳至主要内容", "Skip to content")}</a>
       <ShellHeader onOpenMenu={() => setMenuOpen(true)} />
+      <WorkspaceSectionNav />
 
       <div className="app-shell-body">
-        <aside className="app-navigation hidden lg:flex">
-          <SidebarNav />
-        </aside>
         <main id="workspace-content" tabIndex={-1} className="app-main">
           {children ?? <Outlet />}
         </main>

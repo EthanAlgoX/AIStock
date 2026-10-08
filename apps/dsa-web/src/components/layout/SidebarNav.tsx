@@ -5,16 +5,15 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { useUiLanguage } from "../../contexts/UiLanguageContext";
 import { useAgentChatStore } from "../../stores/agentChatStore";
-import type { UiTextKey } from "../../i18n/uiText";
 import { cn } from "../../utils/cn";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { StatusDot } from "../common/StatusDot";
 
-import { WORKSPACE_NAV_ITEMS, type NavItem } from "./workspaceNavigation";
+import { WORKSPACE_MODULES, WORKSPACE_NAV_ITEMS, type NavItem } from "./workspaceNavigation";
 
 export function WorkspaceNavLink({
-  item, mobile = false, collapsed = false, onNavigate,
-}: { item: NavItem; mobile?: boolean; collapsed?: boolean; onNavigate?: () => void }) {
+  item, mobile = false, collapsed = false, section = false, onNavigate,
+}: { item: NavItem; mobile?: boolean; collapsed?: boolean; section?: boolean; onNavigate?: () => void }) {
   const { t, localize } = useUiLanguage();
   const { role } = useAuth();
   const completionBadge = useAgentChatStore(state => state.completionBadge);
@@ -24,7 +23,7 @@ export function WorkspaceNavLink({
   return (
     <NavLink to={item.to} end={item.exact} onClick={onNavigate} aria-label={label}
       className={({ isActive }) => cn(
-        mobile ? "mobile-workspace-link" : "workspace-nav-link",
+        mobile ? "mobile-workspace-link" : section ? "workspace-section-link" : "workspace-nav-link",
         isActive && "is-active", collapsed && "justify-center",
       )}>
       <span className="relative inline-flex shrink-0">
@@ -56,10 +55,10 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   return (
     <div className="workspace-navigation">
       <nav className="workspace-navigation-links" aria-label={navigationLabel || t("layout.mainNav")}>
-        {(["research", "validation", "governance"] as const).map(group => (
-          <section key={group} className="workspace-nav-group" aria-label={t(("layout.navGroup." + group) as UiTextKey)}>
-            {!collapsed ? <p className="workspace-nav-group-label">{t(("layout.navGroup." + group) as UiTextKey)}</p> : null}
-            {WORKSPACE_NAV_ITEMS.filter(item => item.group === group).map(item => (
+        {WORKSPACE_MODULES.map(module => (
+          <section key={module.key} className="workspace-nav-group" aria-label={t(module.labelKey)}>
+            {!collapsed && module.items.length > 1 ? <p className="workspace-nav-group-label">{t(module.labelKey)}</p> : null}
+            {WORKSPACE_NAV_ITEMS.filter(item => module.items.includes(item.key)).map(item => (
               <WorkspaceNavLink key={item.key} item={item} collapsed={collapsed} onNavigate={onNavigate} />
             ))}
           </section>

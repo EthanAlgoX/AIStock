@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UiLanguageProvider } from '../../contexts/UiLanguageContext';
 import PlatformSettingsPage from '../PlatformSettingsPage';
@@ -62,11 +62,18 @@ vi.mock('../../components/settings', () => ({
   ),
 }));
 
-function renderPage() {
+function RouteControls() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  return <><output data-testid="settings-route">{location.pathname}{location.search}</output><button type="button" onClick={() => navigate(-1)}>返回前一个分类</button></>;
+}
+
+function renderPage(route = '/settings') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[route]}>
       <UiLanguageProvider>
         <PlatformSettingsPage />
+        <RouteControls />
       </UiLanguageProvider>
     </MemoryRouter>,
   );
@@ -101,6 +108,42 @@ describe('PlatformSettingsPage', () => {
     expect(screen.queryByText('SCHEDULE_ENABLED')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '保存 1 项' }));
     expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('restores every valid deep-linked category and keeps its explanation outside the compact navigation', () => {
+    renderPage('/settings?tab=system&from=portfolio');
+    const nav = screen.getByRole('navigation', { name: '平台设置分类' });
+    expect(within(nav).getByRole('button', { name: '安全与部署 1' })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).queryByText('认证、网络、日志与 Web 服务参数')).not.toBeInTheDocument();
+    expect(screen.getByText('认证、网络、日志与 Web 服务参数')).toBeVisible();
+    expect(screen.getByText('认证设置')).toBeVisible();
+    expect(screen.queryByText('模型通道编辑器')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-route')).toHaveTextContent('tab=system&from=portfolio');
+  });
+
+  it('keeps dirty configuration and unrelated query context through category changes and browser history', () => {
+    renderPage('/settings?tab=system&from=portfolio');
+    fireEvent.click(screen.getByRole('button', { name: /模型与运行时/ }));
+    expect(screen.getByTestId('settings-route')).toHaveTextContent('tab=model&from=portfolio');
+    fireEvent.click(screen.getByRole('button', { name: '保存 JEV 配置' }));
+    expect(save).toHaveBeenCalledWith([{ key: 'TYPESAFE_API_KEY', value: 'test-key' }]);
+    expect(resetDraft).not.toHaveBeenCalled();
+    expect(load).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: '返回前一个分类' }));
+    expect(screen.getByRole('button', { name: /安全与部署/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByTestId('settings-route')).toHaveTextContent('tab=system&from=portfolio');
+    fireEvent.click(screen.getByRole('button', { name: '撤销修改' }));
+    expect(resetDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the model category for an unknown tab without discarding the URL context', () => {
+    renderPage('/settings?tab=unknown&category=agent&from=portfolio');
+    expect(screen.getByRole('button', { name: /模型与运行时/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByText('模型通道编辑器')).toBeVisible();
+    expect(screen.getByTestId('settings-route')).toHaveTextContent('tab=unknown&category=agent&from=portfolio');
+    expect(save).not.toHaveBeenCalled();
+    expect(resetDraft).not.toHaveBeenCalled();
   });
 });
 

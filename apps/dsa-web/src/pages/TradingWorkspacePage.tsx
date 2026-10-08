@@ -6,8 +6,8 @@ import { SourceRuntimeWorkspace } from "../components/agent/SourceRuntimeWorkspa
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import { useUiLiteral } from '../hooks/useUiLiteral';
 import { UiLiteral } from '../components/i18n/UiLiteral';
-import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { strategyDraftsApi } from "../api/strategyDrafts";
 import { isAxiosError } from "axios";
 import { extractErrorPayloadText, toApiErrorMessage } from "../api/error";
@@ -72,6 +72,9 @@ export default function TradingWorkspacePage() {
   const uiLiteral = useUiLiteral();
   const { language } = useUiLanguage();
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const lastLocationKey = useRef(location.key);
+  const keepCreationForNextNavigation = useRef(false);
   const legacy =
     params.get("view") === "reports" ||
     params.has("sourceRun") ||
@@ -105,11 +108,25 @@ export default function TradingWorkspacePage() {
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [runtimeUnavailable, setRuntimeUnavailable] = useState(false);
-  const [sourceConfigured, setSourceConfigured] = useState(false);
   const [sending, setSending] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{kind: 'definition' | 'portfolio'; id: number; name: string; sourceBacktest?: boolean; sourceVersion?: boolean} | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    if (lastLocationKey.current === location.key) return;
+    lastLocationKey.current = location.key;
+    // Starting a fresh form clears the URL itself. Other navigation, including
+    // selecting the current overview URL again, restores the requested page.
+    if (keepCreationForNextNavigation.current) {
+      keepCreationForNextNavigation.current = false;
+      return;
+    }
+    setCreating(false);
+    setEditing(null);
+    setLaunch(null);
+  }, [location.key]);
+
   const stockIndex = useStockIndex(creating, draft.market);
   const pool = useMemo(
     () => resolveStrategyPool(symbols, stockIndex.index),
@@ -140,7 +157,6 @@ export default function TradingWorkspacePage() {
         if (alive) {
           if (runtime.status === 'fulfilled') {
             setRuntimeUnavailable(Boolean(runtime.value?.configured && !runtime.value.available));
-            setSourceConfigured(Boolean(runtime.value?.configured));
           }
           if (list.status === 'fulfilled') setItems(list.value);
           if (saved.status === 'fulfilled') setDefinitions(saved.value);
@@ -302,13 +318,10 @@ export default function TradingWorkspacePage() {
       <PageHeader title={uiLiteral("交易推演")}
         description={uiLiteral("配置策略与股票范围，预览后保存，再选择单次模拟、持续模拟或历史回放。")}
         actions={<>
-          {(sourceConfigured || sourceView) && <Link className="btn-secondary" to="/trading?view=source"><UiLiteral text="来源策略研究" /></Link>}
-          {!id && !definitionId && !creating && params.get('view')!=='manage' && <Link className="btn-secondary" to="/trading?view=manage"><UiLiteral text="管理策略" /></Link>}
-          {(id || definitionId || creating || params.get("view")==="manage") && <Link className="btn-secondary" to="/trading?view=reports">
-            <UiLiteral text={"历史研究提案"} /></Link>}
           <button
             className="btn-primary"
             onClick={() => {
+              keepCreationForNextNavigation.current = true;
               setParams({});
               setFormRevision((value) => value + 1);
               setUniversePreview(null);
@@ -538,7 +551,6 @@ export default function TradingWorkspacePage() {
           else select(next, true);
         }} /> : <button className="btn-secondary mb-5" onClick={() => { setParams({}); setDetail(null); setLaunch(null); }}><UiLiteral text="← 返回模拟收益总览" /></button>}
         {Boolean(id || definitionId || params.get('view')==='manage') && <div className="border-t border-border pt-4">
-        {!id && !definitionId && <Link className="btn-secondary mb-5 inline-flex" to="/trading?view=reports"><UiLiteral text="历史研究提案" /></Link>}
         <div className={id ? "min-w-0" : "grid gap-7 lg:grid-cols-[250px_minmax(0,1fr)]"}>
           <aside className={id ? "hidden" : undefined}>
             <h2 className="mb-3 font-semibold"><UiLiteral text={"我的策略"} /></h2>

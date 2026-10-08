@@ -17,6 +17,12 @@ const newCopy = [
   '删除「{0}」后，将无法用于新任务。已有运行记录保留。',
   '删除计划“{name}”后将停止后续调度；已领取或已启动的运行仍可能继续。',
   '{0} · 按所选策略筛选 · {1} 项能力',
+  '会话概况', '会话设置', '压缩已启用', '压缩未启用', '专家协作', '已选能力',
+  '下轮专家团成员', '查看本轮成员', '研究方法', '尚未选择',
+  '配置仅对下一轮生效，历史发言与配置不变。',
+  '管理模型服务、平台运行与通知设置。Skill、工具和 MCP 在能力中心配置，定时计划在任务中心管理。',
+  '渠道凭据、告警路由与检查频率', '策略调用的模型通道、路由与可用性',
+  '认证、网络、日志与 Web 服务参数',
 ] as const;
 
 describe('Capability and workflow copy language contract', () => {
@@ -24,6 +30,7 @@ describe('Capability and workflow copy language contract', () => {
     for (const source of newCopy) {
       const target = catalogs[language][source];
       expect(target, source).toBeTruthy();
+      expect(translateSource(source, language), source).toBe(target);
       expect((target.match(/\{(?:\w+)\}/g) ?? []).sort()).toEqual((source.match(/\{(?:\w+)\}/g) ?? []).sort());
     }
   });
