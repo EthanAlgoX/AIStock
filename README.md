@@ -22,7 +22,7 @@ Research assistant · Expert roundtable · Stock research · Strategy screening 
 
 AI Stock brings market data, news, calculations, and AI analysis into one website. Ask about a stock, read the evidence and risks, compare different investing perspectives, and test a strategy through paper trading. Research supports **mainland China, Hong Kong, the US, Taiwan, Japan, Korea, the UK, Canada, Australia, India, Germany and France**. Paper simulation supports the first six markets. Data availability and bounded screening coverage depend on the provider and configuration; see the [market guide](docs/international-markets_EN.md).
 
-<a href="docs/assets/readme/trading-overview.jpg"><img src="docs/assets/readme/trading-overview.jpg" alt="AI Stock trade simulation demo with seven-module top navigation, simulated return curves and three paper accounts" width="1000"></a>
+<a href="docs/assets/readme/trading-overview-en.jpg"><img src="docs/assets/readme/trading-overview-en.jpg" alt="AI Stock trade simulation demo with seven-module top navigation, simulated return curves and three paper accounts" width="1000"></a>
 
 **Trade simulation demo.** The workspace shows seven-module top navigation, strategy controls, return comparisons and expandable paper accounts. This screenshot was captured locally with synthetic DEMO data; the rising curves do not represent actual returns. [Explore the public demo](https://myaistock.top/try).
 

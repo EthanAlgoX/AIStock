@@ -22,7 +22,7 @@
 
 AI Stock 把行情、新闻、指标计算和 AI 分析放进同一个网站。你可以问一只股票、查看依据和风险、比较不同投资风格的观点，再用模拟交易观察策略表现。研究支持 **A 股、港股、美股、台股、日股、韩股，以及英、加、澳、印、德、法股票**；交易推演支持前六个市场。行情可用性和选股候选范围取决于数据源与配置，详见[海外市场指南](international-markets.md)。
 
-<a href="assets/readme/trading-overview.jpg"><img src="assets/readme/trading-overview.jpg" alt="AI Stock 交易推演演示，展示顶部七模块导航、策略入口、模拟收益曲线与三个模拟账户" width="1000"></a>
+<a href="assets/readme/trading-overview-zh.jpg"><img src="assets/readme/trading-overview-zh.jpg" alt="AI Stock 交易推演演示，展示顶部七模块导航、策略入口、模拟收益曲线与三个模拟账户" width="1000"></a>
 
 **交易推演演示。** 顶部导航连接七个功能模块，主区展示策略入口、收益对比和可展开的模拟账户。截图来自本地隔离演示，使用合成 DEMO 数据；上升曲线不代表真实收益。[体验免注册演示](https://myaistock.top/try)。
 
