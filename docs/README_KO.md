@@ -18,9 +18,9 @@ AI Stock은 시세, 뉴스, 지표 계산과 AI 분석을 한 웹사이트에 �
 
 화면·출력 언어와 조사할 시장은 별도로 선택합니다. 한국 주식 데이터의 가용성은 제공자와 설정에 따라 달라집니다.
 
-<a href="assets/readme/website-overview.jpg"><img src="assets/readme/website-overview.jpg" alt="AI Stock 로그인 후 포트폴리오 화면: 리서치, 종목 선별, 거래 시뮬레이션, 알림과 작업 메뉴" width="1000"></a>
+<a href="assets/readme/trading-overview.jpg"><img src="assets/readme/trading-overview.jpg" alt="AI Stock 거래 시뮬레이션 데모: 상단 7개 모듈 메뉴, 전략 제어, 모의 수익 곡선과 3개 모의 계좌" width="1000"></a>
 
-**로그인 후 작업 공간(영어 화면).** 포트폴리오 화면에는 보유 종목 요약, 가격 알림과 정기 리서치가 표시됩니다. 사이드바에서 시장 레이더, 리서치 도우미, 전문가 라운드테이블, 개별 종목 리서치, 전략 종목 선별, 거래 시뮬레이션과 작업 관리로 이동할 수 있습니다. [가입 없이 공개 데모 체험하기](https://myaistock.top/try).
+**거래 시뮬레이션 데모.** 상단 메뉴로 7개 모듈에 접근하고, 전략 제어, 수익 비교와 펼쳐 볼 수 있는 모의 계좌를 확인할 수 있습니다. 이 화면은 로컬 격리 환경에서 합성 DEMO 데이터를 사용해 촬영했습니다. 상승 곡선은 실제 투자 수익을 나타내지 않습니다. [가입 없이 데모 체험](https://myaistock.top/try).
 
 ## 온라인으로 체험하기 (추천)
 

@@ -16,9 +16,9 @@
 
 AI Stock 把行情、新聞、指標計算和 AI 分析放進同一個網站。你可以研究一隻股票、查看依據和風險、比較不同投資風格的觀點，再用模擬交易觀察策略表現。研究支援 **A 股、港股、美股、台股、日股、韓股，以及英、加、澳、印、德、法股票**；交易推演支援前六個市場。行情可用性及選股候選範圍取決於資料來源與設定，詳見[海外市場指南（英文）](international-markets_EN.md)。
 
-<a href="assets/readme/website-overview.jpg"><img src="assets/readme/website-overview.jpg" alt="AI Stock 登入後的持倉管理工作區，展示投研、選股、交易推演、預警與任務入口" width="1000"></a>
+<a href="assets/readme/trading-overview.jpg"><img src="assets/readme/trading-overview.jpg" alt="AI Stock 交易推演示範，展示頂部七模組導覽、策略入口、模擬收益曲線與三個模擬帳戶" width="1000"></a>
 
-**登入後的工作區（英文介面）。** 畫面展示持倉管理中的持倉簡報、價格預警和定時研究；側欄集中提供市場雷達、投研助理、專家圓桌、個股研究、策略選股、交易推演及任務管理入口。[免註冊功能示範](https://myaistock.top/try)。
+**交易推演示範。** 頂部導覽連接七個功能模組，主區展示策略入口、收益比較和可展開的模擬帳戶。截圖來自本機隔離示範，使用合成 DEMO 資料；上升曲線不代表真實收益。[體驗免註冊示範](https://myaistock.top/try)。
 
 ## 線上體驗（推薦）
 
