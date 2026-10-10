@@ -297,6 +297,13 @@ server {
     listen 80;
     server_name your-domain.com;
 
+    # 同时压缩静态资源与交易推演目录、收益曲线的 JSON 响应。
+    gzip on;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_vary on;
+    gzip_types text/css text/javascript application/javascript application/json image/svg+xml;
+
     location / {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
@@ -311,6 +318,8 @@ server {
     }
 }
 ```
+
+交易推演账户较多时，JSON 响应可能明显大于普通页面。只压缩 JS/CSS 不能减少这些响应的传输时间；应同时包含 `application/json`，并在真实浏览器中核对页面加载与“刷新数据”。压缩不改变 API 字段或账本。来源引擎的冷读取仍需单独验收，不能通过延长浏览器超时来代替检查。
 
 ### 启用配置并重启 Nginx
 

@@ -30,6 +30,8 @@
 
 主站另提供 `GET /api/v1/simulation/portfolios/runtime-status`。现有正整数 API 合同保持不变。HTTP 请求限时，不透传私有服务可能包含路径或密钥的错误正文。
 
+大规模策略目录和收益曲线的 JSON 响应需检查实际传输时间。使用 Nginx 时，在已有压缩配置的 `gzip_types` 中包含 `application/json`（见[云部署示例](deploy-webui-cloud.md#配置文件示例)），并验收登录后的页面加载与手动刷新。只压缩 JS/CSS 不足以改善这些 API 响应。来源进程缓存重启或因原生回测审计更新失效后，首次目录读取仍可能超过主站 20 秒上游时限；发布时需受控 GET 预热和实际适配器验收，不能把健康检查或温热读取通过等同所有冷请求均可用。
+
 部署前分别备份主应用数据库与私有运行目录。主站回滚先暂停新增来源研究计划，再清空环境 URL 并恢复兼容的主站镜像；独立来源模拟服务保持原状态，不能因主站切换隐式停止或恢复账户。若需要回滚来源自身，另行确认写入进程切换及账户状态，保留新账本、对象映射与回执，不能用旧备份覆盖新写入。
 
 ## English
@@ -43,6 +45,8 @@ Imported versions retain the source timeframe and execution semantics. Their con
 Forward JEV strategies may call the configured API. Historical model replay must use archived answers and fail if they are missing; it is retrospective evidence, not a prediction recorded at the original historical time. Fixed-pool selection bias remains visible. Source trade counts may mean round trips rather than filled orders; missing cash, benchmark and fill details remain missing, with original evidence available separately.
 
 The table above specifies the adapter contract. `config.externalRuntime=true` marks private portfolio responses. The main application exposes `GET /api/v1/simulation/portfolios/runtime-status`; native endpoints remain compatible. Requests are bounded and provider error bodies are not forwarded. On private-runtime failure, native strategies remain visible and the UI displays an availability warning.
+
+Check transfer time for large catalog and performance-chart JSON responses. With Nginx, include `application/json` in the existing `gzip_types` configuration and verify authenticated page loading and manual refresh. Compressing only JS/CSS leaves these API responses uncompressed; API fields and ledgers are unchanged. After a source process restart or cache invalidation by a native backtest audit update, a first catalog read can still exceed the main adapter's 20-second upstream timeout. Deployment requires controlled GET prewarming and real adapter acceptance; health checks and warm reads do not prove every cold request usable.
 
 Back up both runtimes before deployment. For a main-site rollback, pause new source research plans, clear the URL and restore a compatible main image without implicitly stopping or resuming independently managed source accounts. A source-service rollback requires a separate writer and account-state transition; preserve new ledgers, ID mappings and receipts. QuantEvo v1 rejects single-step `run` and directs new research writes to the versioned source endpoints; the legacy evolution endpoint remains read-only.
 
